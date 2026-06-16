@@ -1,0 +1,10 @@
+node_modules
+.next
+.env*.local
+.DS_Store
+
+# build artifacts
+*.tsbuildinfo
+
+# local-only Claude settings
+.claude/settings.local.json
