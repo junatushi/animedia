@@ -1,7 +1,7 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 
-const title = "アニメ配信ガイド";
+const title = "アニメ視聴ガイド";
 const description = "シーズンごとのアニメを、観られる国内配信サービス別に一覧。配信情報は Annict からリアルタイム取得。";
 
 export const metadata: Metadata = {
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f7f8fa",
+  themeColor: "#fff2f8",
   colorScheme: "light",
   width: "device-width",
   initialScale: 1,

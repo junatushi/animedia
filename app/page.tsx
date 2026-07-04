@@ -31,9 +31,9 @@ function currentSeasonKey(): string {
 // グラデーション＋頭文字（モノグラム）の「デザインタイル」を生成して空欄を避ける。
 function posterStyle(id: number): React.CSSProperties {
   const h = (id * 47) % 360;
-  // ミニマル＝明るく淡いトーンのグラデーション（色はごく控えめ）
+  // ポップ＝彩度と明度を上げたビビッドなグラデーション
   return {
-    background: `linear-gradient(150deg, hsl(${h} 36% 94%), hsl(${(h + 40) % 360} 32% 87%))`,
+    background: `linear-gradient(150deg, hsl(${h} 88% 72%), hsl(${(h + 45) % 360} 82% 62%))`,
   };
 }
 // 作品種別プレフィックスと、タイルに添える種別マーク（上から順に判定）。
@@ -160,7 +160,7 @@ export default function Page() {
       <header className="masthead">
         <div className="brandrow">
           <h1 className="brand">
-            アニメ配信ガイド<span className="dot">.</span>
+            アニメ視聴ガイド<span className="dot">.</span>
           </h1>
           <span className="brand-season">
             {year} {SEASON_LABEL[season]}クール
