@@ -30,11 +30,37 @@ npm run dev
 
 ---
 
-## 公開したくなったら（Vercel・無料）
+## 公開する（Vercel・無料）
 
-1. このフォルダを GitHub にプッシュ
-2. [vercel.com](https://vercel.com) でリポジトリを Import
-3. **Environment Variables** に `ANNICT_TOKEN` を追加してデプロイ
+Next.js 製なので [Vercel](https://vercel.com) に無料で公開できます。ローカルの `.env.local` は
+**公開時にアップロードされない**ため、`ANNICT_TOKEN` は Vercel 側に別途登録します
+（サーバー側でのみ使われ、ブラウザには出ません）。
+
+### 方法A: GitHub 連携（おすすめ・更新のたび自動デプロイ）
+
+1. GitHub に新しいリポジトリを作り、このフォルダを push する
+   ```bash
+   git remote add origin https://github.com/<ユーザー名>/<リポジトリ名>.git
+   git push -u origin main
+   ```
+2. [vercel.com](https://vercel.com) にログイン →**Add New… → Project**→ 上記リポジトリを **Import**
+3. **Environment Variables** に以下を追加（Production / Preview / Development すべてにチェック）
+   - Name: `ANNICT_TOKEN` ／ Value: 取得済みのトークン
+4. **Deploy** を押す → 数十秒で `https://<プロジェクト名>.vercel.app` が発行される
+
+### 方法B: Vercel CLI（GitHub なしで手早く）
+
+```bash
+npm i -g vercel                 # 初回のみ
+vercel                          # 対話に従ってプロジェクト作成（初回はプレビュー環境）
+vercel env add ANNICT_TOKEN     # トークンを登録（Production を選択）
+vercel --prod                   # 本番公開
+```
+
+### 補足
+- 公開後もデータは Annict からリアルタイム取得（`revalidate: 600` で最大10分キャッシュ）。
+- 応答を速くしたい場合、Vercel の Project → Settings → Functions で
+  **Region を Tokyo (hnd1)** にすると Annict（日本）への通信が速くなります（任意）。
 
 ---
 
