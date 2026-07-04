@@ -146,9 +146,29 @@ export async function fetchSeasonWorks(
     after = conn.pageInfo.endCursor;
   }
 
+  // Annict のデフォルト並び順は watchersCount 等の変動しうる値に基づくため、
+  // ページ送りの最中に順位が変わるとページ境界で同じ作品が2ページにまたがって
+  // 重複取得されることがある（実例: 端末によって同一作品が2件表示された）。
+  // annictId で1件に統合し、programs（配信チャンネル）は両方分を合算しておく。
+  const byId = new Map<number, RawWork>();
+  for (const w of raws) {
+    const existing = byId.get(w.annictId);
+    if (!existing) {
+      byId.set(w.annictId, w);
+    } else if (w.programs) {
+      if (existing.programs) {
+        existing.programs.nodes.push(...w.programs.nodes);
+        if (w.programs.pageInfo.hasNextPage) existing.programs.pageInfo = w.programs.pageInfo;
+      } else {
+        existing.programs = w.programs;
+      }
+    }
+  }
+  const deduped = [...byId.values()];
+
   // programs が PROGRAMS_PER_WORK でも足りない作品だけ、残りを追い取りして完全化する。
   // （大半の作品は追加リクエスト0。放送局が多い一部の作品のみ数リクエスト増える）
-  for (const w of raws) {
+  for (const w of deduped) {
     const pi = w.programs?.pageInfo;
     if (w.programs && pi?.hasNextPage && pi.endCursor) {
       const extra = await fetchRemainingPrograms(w.annictId, pi.endCursor, token);
@@ -157,7 +177,7 @@ export async function fetchSeasonWorks(
   }
 
   // API 窓口（route.ts）が使う AnnictWork 形へ整形（programs は nodes だけ渡す）。
-  return raws.map((w) => ({
+  return deduped.map((w) => ({
     annictId: w.annictId,
     title: w.title,
     watchersCount: w.watchersCount,

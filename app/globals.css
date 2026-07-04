@@ -54,7 +54,9 @@ body {
   position: relative;
   overflow: hidden;
 }
-/* 刀で斬り抜けたような一筋の光（斬撃の残光）。右上から左下へ振り抜く向き。 */
+/* 刀で斬り抜けたような一筋の光（斬撃の残光）。右上から左下へ振り抜く向き。
+   文字より手前に来て可読性を損なわないよう z-index を下げ、テキスト側を
+   常に前面に固定する。 */
 .masthead::before {
   content: "";
   position: absolute;
@@ -64,14 +66,15 @@ body {
   height: 240%;
   background: linear-gradient(180deg,
     transparent 0%,
-    rgba(180, 222, 255, 0.75) 38%,
-    rgba(240, 250, 255, 0.95) 50%,
-    rgba(180, 222, 255, 0.75) 62%,
+    rgba(180, 222, 255, 0.5) 38%,
+    rgba(240, 250, 255, 0.65) 50%,
+    rgba(180, 222, 255, 0.5) 62%,
     transparent 100%);
-  box-shadow: 0 0 18px 2px rgba(143, 203, 255, 0.55);
+  box-shadow: 0 0 10px 1px rgba(143, 203, 255, 0.35);
   transform-origin: top center;
   transform: rotate(32deg);
   pointer-events: none;
+  z-index: 0;
 }
 .eyebrow {
   display: block;
@@ -82,8 +85,9 @@ body {
   margin-bottom: 12px;
   text-shadow: 0 0 8px rgba(143, 203, 255, 0.5);
   position: relative;
+  z-index: 1;
 }
-.brandrow { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; position: relative; }
+.brandrow { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; position: relative; z-index: 1; }
 .brand {
   font-weight: 900;
   font-size: clamp(28px, 5.2vw, 40px);
@@ -128,7 +132,7 @@ body {
   white-space: nowrap;
 }
 .brand-season::before { content: "◆ "; opacity: 0.7; }
-.meta { display: flex; align-items: center; gap: 14px; margin-top: 16px; flex-wrap: wrap; }
+.meta { display: flex; align-items: center; gap: 14px; margin-top: 16px; flex-wrap: wrap; position: relative; z-index: 1; }
 .live {
   display: inline-flex; align-items: center; gap: 7px;
   font-family: var(--mono);
@@ -532,6 +536,12 @@ body {
   margin-top: 44px; padding-top: 18px;
   border-top: 1px solid var(--border-soft);
   color: var(--muted-2); font-size: 12px; line-height: 1.7;
+}
+
+/* 幅が狭いと見出し・シーズンバッジが折り返して余白が減り、閃光が文字と
+   重なって読みにくくなるため、スマホ幅では閃光そのものを非表示にする。 */
+@media (max-width: 700px) {
+  .masthead::before { display: none; }
 }
 
 @media (max-width: 480px) {
