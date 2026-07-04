@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { textOn } from "@/lib/services";
 import type { SeasonResponse, ServiceTag } from "@/lib/types";
 
@@ -101,6 +101,29 @@ export default function Page() {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState<Set<string>>(new Set());
 
+  // 年セレクトはネイティブ <select> だとハイライト色をブラウザ側が決めてしまい
+  // サイトのダーク基調デザインに合わせられないため、自前のリストボックスにしている。
+  const [yearMenuOpen, setYearMenuOpen] = useState(false);
+  const yearDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!yearMenuOpen) return;
+    function onPointerDown(e: MouseEvent) {
+      if (!yearDropdownRef.current?.contains(e.target as Node)) {
+        setYearMenuOpen(false);
+      }
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setYearMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [yearMenuOpen]);
+
   useEffect(() => {
     let abort = false;
     setLoading(true);
@@ -197,18 +220,38 @@ export default function Page() {
               </button>
             ))}
           </div>
-          <select
-            className="year-select"
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            aria-label="年"
-          >
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
+          <div className="year-dropdown" ref={yearDropdownRef}>
+            <button
+              type="button"
+              className="year-select"
+              aria-haspopup="listbox"
+              aria-expanded={yearMenuOpen}
+              aria-label="年"
+              onClick={() => setYearMenuOpen((v) => !v)}
+            >
+              {year}
+              <span className="year-caret" aria-hidden="true" />
+            </button>
+            {yearMenuOpen && (
+              <ul className="year-menu" role="listbox" aria-label="年">
+                {years.map((y) => (
+                  <li
+                    key={y}
+                    role="option"
+                    aria-selected={y === year}
+                    className="year-option"
+                    data-selected={y === year}
+                    onClick={() => {
+                      setYear(y);
+                      setYearMenuOpen(false);
+                    }}
+                  >
+                    {y}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <span className="control-label">年</span>
         </div>
 
