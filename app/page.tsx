@@ -31,12 +31,12 @@ function currentSeasonKey(): string {
 // グラデーション＋頭文字（モノグラム）の「デザインタイル」を生成して空欄を避ける。
 function posterStyle(id: number): React.CSSProperties {
   // 色相は固定し、彩度と明度だけを作品ごとに振って統一感のある
-  // シアン〜ブルーの単色HUD（ヘッドアップディスプレイ）風グラデーションにする。
-  const s = 55 + (id % 5) * 6;
-  const l1 = 12 + (id % 4) * 2;
-  const l2 = 7 + ((id * 3) % 4);
+  // 空色〜蒼のシステムウィンドウ風グラデーションにする。
+  const s = 50 + (id % 5) * 6;
+  const l1 = 14 + (id % 4) * 2;
+  const l2 = 8 + ((id * 3) % 4);
   return {
-    background: `linear-gradient(150deg, hsl(198 ${s}% ${l1}%), hsl(210 ${s + 8}% ${l2}%))`,
+    background: `linear-gradient(150deg, hsl(205 ${s}% ${l1}%), hsl(216 ${s + 6}% ${l2}%))`,
   };
 }
 // 作品種別プレフィックスと、タイルに添える種別マーク（上から順に判定）。
@@ -162,7 +162,7 @@ export default function Page() {
     <div className="wrap">
       <header className="masthead">
         <span className="eyebrow" aria-hidden="true">
-          SYSTEM LINK ESTABLISHED :: 加速世界へようこそ
+          CONNECTION ESTABLISHED :: 浮遊する仮想都市へようこそ
         </span>
         <div className="brandrow">
           <h1 className="brand">
@@ -284,6 +284,7 @@ export default function Page() {
         <div className="grid">
           {filtered.map((it) => (
             <article key={it.id} className="card">
+              <span className="slash" aria-hidden="true" />
               {/* 著作権配慮のため外部の作品画像は読み込まず、作品IDから生成した
                   グラデーション＋頭文字のモノグラムタイルに統一する。 */}
               <div className="thumb thumb-empty" style={posterStyle(it.id)} aria-hidden>
