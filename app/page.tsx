@@ -162,7 +162,7 @@ export default function Page() {
     <div className="wrap">
       <header className="masthead">
         <span className="eyebrow" aria-hidden="true">
-          LINK START :: シーズン配信データベースに接続完了
+          LINK START :: 今期アニメの配信データベースに接続完了
         </span>
         <div className="brandrow">
           <h1 className="brand">
@@ -197,7 +197,6 @@ export default function Page() {
               </button>
             ))}
           </div>
-          <span className="control-label">年</span>
           <select
             className="year-select"
             value={year}
@@ -210,6 +209,7 @@ export default function Page() {
               </option>
             ))}
           </select>
+          <span className="control-label">年</span>
         </div>
 
         <input
