@@ -26,9 +26,9 @@ function currentSeasonKey(): string {
   return "autumn";
 }
 
-// Annict は画像ホスティングを廃止しており画像はほぼ常に null。
-// その場合に味気ない空欄を出さないよう、作品ごとに色違いの
-// グラデーション＋頭文字（モノグラム）の「デザインタイル」を生成する。
+// 作品サムネイルは表示しない方針。配信各社・権利者の画像（キービジュアル等）を
+// 無断で読み込み表示しないための著作権配慮。代わりに作品ごとに色違いの
+// グラデーション＋頭文字（モノグラム）の「デザインタイル」を生成して空欄を避ける。
 function posterStyle(id: number): React.CSSProperties {
   const h = (id * 47) % 360;
   // ミニマル＝明るく淡いトーンのグラデーション（色はごく控えめ）
@@ -36,9 +36,48 @@ function posterStyle(id: number): React.CSSProperties {
     background: `linear-gradient(150deg, hsl(${h} 36% 94%), hsl(${(h + 40) % 360} 32% 87%))`,
   };
 }
-function monogram(title: string): string {
-  const ch = [...title.trim()];
-  return ch.length ? ch.slice(0, 1).join("") : "?";
+// 作品種別プレフィックスと、タイルに添える種別マーク（上から順に判定）。
+//  劇場公開系＝（劇） ／ OVA・OAD＝（O） ／ 総集編＝（総）
+// ※「劇場総集編」は劇場公開なので（劇）、単独の「総集編」は（総）に振り分ける。
+const TITLE_KINDS: Array<[RegExp, string]> = [
+  [/^(劇場版|劇場総集編|劇場編集版|劇場|映画)\s*/, "（劇）"],
+  [/^(OVA|OAD)\s*/, "（O）"],
+  [/^(総集編|TV総集編|テレビ総集編)\s*/, "（総）"],
+];
+// 先頭にあっても識別に役立たない記号・約物・空白（「」〈〉！ 等）。
+const LEADING_SKIP = /[\p{P}\p{S}\s]/u;
+
+// モノグラム＝画像の代わりにタイルへ出す頭文字。作品を見分けやすくするため、
+//  ・劇場版/映画/OVA/総集編 … 種別を外して本体頭字＋種別マーク（劇/O/総）
+//  ・記号始まり             … 記号を飛ばして中身の頭字（記号だけの無意味表示を避ける）
+function monogram(title: string): { mark: string; core: string } {
+  let t = title.trim();
+  let mark = "";
+  for (const [re, label] of TITLE_KINDS) {
+    const m = t.match(re);
+    if (m) {
+      mark = label;
+      t = t.slice(m[0].length).trim();
+      break;
+    }
+  }
+  const chars = [...t];
+  let i = 0;
+  while (i < chars.length && LEADING_SKIP.test(chars[i])) i++;
+  // 中身が全部記号という稀なケースは、記号込みで頭2字を出す。
+  const core = i >= chars.length ? chars.slice(0, 2).join("") || "?" : chars[i];
+  return { mark, core };
+}
+
+// モノグラムのタイル表示（「（劇）」は小さく上に、本体は大きく）。
+function MonoLabel({ title }: { title: string }) {
+  const { mark, core } = monogram(title);
+  return (
+    <span className="mono" data-len={[...core].length}>
+      {mark && <span className="mono-kind">{mark}</span>}
+      {core}
+    </span>
+  );
 }
 // バッジを公式ロゴ風ロックアップにするための先頭マーク
 function brandMark(short: string): string {
@@ -239,14 +278,11 @@ export default function Page() {
         <div className="grid">
           {filtered.map((it) => (
             <article key={it.id} className="card">
-              {it.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img className="thumb" src={it.image} alt="" loading="lazy" />
-              ) : (
-                <div className="thumb thumb-empty" style={posterStyle(it.id)} aria-hidden>
-                  <span className="mono">{monogram(it.title)}</span>
-                </div>
-              )}
+              {/* 著作権配慮のため外部の作品画像は読み込まず、作品IDから生成した
+                  グラデーション＋頭文字のモノグラムタイルに統一する。 */}
+              <div className="thumb thumb-empty" style={posterStyle(it.id)} aria-hidden>
+                <MonoLabel title={it.title} />
+              </div>
               <div className="card-body">
                 <h3 className="card-title">{it.title}</h3>
 
