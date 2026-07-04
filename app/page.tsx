@@ -31,9 +31,9 @@ function currentSeasonKey(): string {
 // グラデーション＋頭文字（モノグラム）の「デザインタイル」を生成して空欄を避ける。
 function posterStyle(id: number): React.CSSProperties {
   const h = (id * 47) % 360;
-  // ポップ＝彩度と明度を上げたビビッドなグラデーション
+  // 美術館の壁面のような、低彩度で落ち着いたクリーム寄りのグラデーション
   return {
-    background: `linear-gradient(150deg, hsl(${h} 88% 72%), hsl(${(h + 45) % 360} 82% 62%))`,
+    background: `linear-gradient(150deg, hsl(${h} 24% 88%), hsl(${(h + 35) % 360} 20% 80%))`,
   };
 }
 // 作品種別プレフィックスと、タイルに添える種別マーク（上から順に判定）。
