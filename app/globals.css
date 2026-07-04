@@ -1,14 +1,14 @@
 :root {
-  --bg: #f1ebdc;
-  --paper: #faf7ef;
-  --ink: #2b241d;
-  --muted: #7a6f5d;
-  --muted-2: #a89a80;
+  --bg: #f8f3e7;
+  --paper: #fffdf7;
+  --ink: #3a3226;
+  --muted: #8f836f;
+  --muted-2: #bcb096;
   --card: var(--paper);
-  --border-soft: #e6dcc3;
-  --border: #d8c9a8;
-  --accent: #7a2e2e;
-  --accent-gold: #9c7a33;
+  --border-soft: #eee3ca;
+  --border: #e2d4b3;
+  --accent: #8f3a3a;
+  --accent-gold: #ab8a42;
   --serif: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
   --radius: 6px;
 }
@@ -96,7 +96,7 @@ body {
   border-radius: var(--radius);
   background: var(--paper);
   border: 1px solid var(--border-soft);
-  box-shadow: 0 1px 3px rgba(43, 36, 29, 0.05);
+  box-shadow: 0 1px 3px rgba(58, 50, 38, 0.04);
   position: sticky;
   top: 12px;
   z-index: 20;
@@ -211,13 +211,13 @@ body {
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(43, 36, 29, 0.05);
+  box-shadow: 0 1px 2px rgba(58, 50, 38, 0.04);
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .card:hover {
   transform: translateY(-2px);
   border-color: var(--accent-gold);
-  box-shadow: 0 10px 22px -14px rgba(43, 36, 29, 0.28);
+  box-shadow: 0 10px 22px -14px rgba(58, 50, 38, 0.22);
 }
 
 .thumb {
@@ -244,7 +244,7 @@ body {
   font-size: clamp(38px, 6.6vw, 54px);
   font-weight: 600;
   line-height: 1;
-  color: rgba(43, 36, 29, 0.55);
+  color: rgba(58, 50, 38, 0.48);
   letter-spacing: 0.03em;
   user-select: none;
 }
@@ -259,10 +259,10 @@ body {
   line-height: 1;
   letter-spacing: 0.06em;
   padding: 0.32em 0.6em;
-  border: 1px solid rgba(43, 36, 29, 0.4);
+  border: 1px solid rgba(58, 50, 38, 0.32);
   border-radius: 2px;
   background: transparent;
-  color: rgba(43, 36, 29, 0.6);
+  color: rgba(58, 50, 38, 0.5);
   margin-bottom: 0.3em;
 }
 /* 中身が2文字になる稀なケースははみ出さないよう少し縮める */
@@ -346,7 +346,7 @@ body {
   height: 0;
   padding-bottom: 78%;
   border-radius: var(--radius);
-  background: linear-gradient(100deg, #ece3cd 30%, #f4ecd9 50%, #ece3cd 70%);
+  background: linear-gradient(100deg, #f2e9d4 30%, #faf3e2 50%, #f2e9d4 70%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite linear;
   border: 1px solid var(--border-soft);
