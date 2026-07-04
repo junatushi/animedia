@@ -11,7 +11,7 @@
 export type ServiceKey =
   | "d_anime" | "abema" | "netflix" | "prime" | "unext"
   | "disney" | "hulu" | "lemino" | "dmm" | "bandai"
-  | "fod" | "niconico" | "anime_houdai" | "wowow_od" | "telasa";
+  | "fod" | "niconico" | "anime_houdai" | "wowow_od" | "telasa" | "youtube";
 
 export interface ServiceDef {
   key: ServiceKey;
@@ -52,6 +52,7 @@ export const SERVICES: ServiceDef[] = [
   { key: "anime_houdai", name: "アニメ放題",             short: "アニメ放題", color: "#d61a1a", match: /アニメ放題|animehoudai/ },
   { key: "wowow_od",     name: "WOWOWオンデマンド",      short: "WOWOW OD",  color: "#1f7ae0", match: /wowowオンデマンド|wowow-od/ },
   { key: "telasa",       name: "TELASA",                short: "TELASA",    color: "#ff8c1a", match: /telasa/ },
+  { key: "youtube",      name: "YouTube",               short: "YouTube",   color: "#ff0000", match: /youtube|ユーチューブ/ },
 ];
 
 // 配信に当たらなかった名前のうち、地上波/BS/CS など放送局を判定して除外する
