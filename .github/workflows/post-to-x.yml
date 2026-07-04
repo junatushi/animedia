@@ -1,0 +1,29 @@
+name: Xへ手動投稿
+
+# サイト更新の告知などを、GitHubの「Actions」画面からボタン一つで
+# X（旧Twitter）へ投稿するためのワークフロー。
+# push等をトリガーにはしていない（毎コミット投稿されるとスパムになるため）。
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: "投稿する本文（サイトのURLなど必要な情報は含めて書く）"
+        required: true
+        type: string
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: node scripts/post-to-x.js
+        env:
+          POST_MESSAGE: ${{ inputs.message }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
