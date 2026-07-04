@@ -42,6 +42,8 @@ const samples: Array<[string, string]> = [
   ["TVQ九州放送", "tv"],
   ["アニマックス", "tv"],                         // CS。国内“配信”ではないので除外
   ["YouTube", "other"],                         // 実データで唯一の other（配信）
+  ["メ～テレ", "tv"],                            // 名古屋テレビ（波ダッシュ表記）。旧: otherに漏れていた
+  ["メーテレ", "tv"],                            // 同上・長音表記ゆれ
 ];
 
 let ok = 0;
