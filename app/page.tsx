@@ -30,10 +30,13 @@ function currentSeasonKey(): string {
 // 無断で読み込み表示しないための著作権配慮。代わりに作品ごとに色違いの
 // グラデーション＋頭文字（モノグラム）の「デザインタイル」を生成して空欄を避ける。
 function posterStyle(id: number): React.CSSProperties {
-  const h = (id * 47) % 360;
-  // 深淵に灯る魔力の残滓のような、暗く彩度高めのネオン系グラデーション
+  // 色相は固定し、彩度と明度だけを作品ごとに振って統一感のある
+  // シアン〜ブルーの単色HUD（ヘッドアップディスプレイ）風グラデーションにする。
+  const s = 55 + (id % 5) * 6;
+  const l1 = 12 + (id % 4) * 2;
+  const l2 = 7 + ((id * 3) % 4);
   return {
-    background: `linear-gradient(150deg, hsl(${h} 55% 16%), hsl(${(h + 40) % 360} 60% 10%))`,
+    background: `linear-gradient(150deg, hsl(198 ${s}% ${l1}%), hsl(210 ${s + 8}% ${l2}%))`,
   };
 }
 // 作品種別プレフィックスと、タイルに添える種別マーク（上から順に判定）。
@@ -159,7 +162,7 @@ export default function Page() {
     <div className="wrap">
       <header className="masthead">
         <span className="eyebrow" aria-hidden="true">
-          ――刻まれし封印、いま解き放たれる――
+          SYSTEM LINK ESTABLISHED :: 加速世界へようこそ
         </span>
         <div className="brandrow">
           <h1 className="brand">
