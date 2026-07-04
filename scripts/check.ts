@@ -25,6 +25,23 @@ const samples: Array<[string, string]> = [
   ["サンテレビ", "tv"],
   // --- 未知の配信は other で拾う ---
   ["みんなの推し配信", "other"],
+
+  // ── ここから下は 2026夏の実データ（Annict が実際に返す表記）由来 ──
+  //    手作業サンプルと表記が違っても正しく仕分くことを固定する回帰テスト。
+  ["ABEMAビデオ", "service:abema"],              // 実表記（"ABEMA"単体ではない）
+  ["ABEMA アニメ", "service:abema"],             // 同上・別チャンネル
+  ["Amazon プライム・ビデオ", "service:prime"],   // 実表記（全角中黒）。"amazon"で拾う
+  ["dアニメストア ニコニコ支店", "service:d_anime"], // 支店表記。dアニメ判定が先
+  ["ニコニコ生放送", "service:niconico"],         // 「放送」を含むが配信が先
+  ["ニコニコチャンネル", "service:niconico"],
+  ["FOD", "service:fod"],
+  ["BS11イレブン", "tv"],                        // 実表記（"BS11"ではない）
+  ["MBS毎日放送", "tv"],
+  ["テレビ神奈川 (tvk)", "tv"],                   // 括弧・空白入りでもTV
+  ["WOWOW", "tv"],                              // オンデマンド無しの素WOWOWは放送
+  ["TVQ九州放送", "tv"],
+  ["アニマックス", "tv"],                         // CS。国内“配信”ではないので除外
+  ["YouTube", "other"],                         // 実データで唯一の other（配信）
 ];
 
 let ok = 0;
