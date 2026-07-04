@@ -54,16 +54,23 @@ body {
   position: relative;
   overflow: hidden;
 }
-/* 刀で斬り抜けたような一筋の光（斬撃の残光） */
+/* 刀で斬り抜けたような一筋の光（斬撃の残光）。右上から左下へ振り抜く向き。 */
 .masthead::before {
   content: "";
   position: absolute;
-  top: -40%;
-  left: -10%;
-  width: 60%;
-  height: 220%;
-  background: linear-gradient(100deg, transparent 42%, rgba(180, 222, 255, 0.14) 48%, rgba(180, 222, 255, 0.5) 50%, rgba(180, 222, 255, 0.14) 52%, transparent 58%);
-  transform: rotate(-8deg);
+  top: -30%;
+  right: 4%;
+  width: 3px;
+  height: 240%;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(180, 222, 255, 0.75) 38%,
+    rgba(240, 250, 255, 0.95) 50%,
+    rgba(180, 222, 255, 0.75) 62%,
+    transparent 100%);
+  box-shadow: 0 0 18px 2px rgba(143, 203, 255, 0.55);
+  transform-origin: top center;
+  transform: rotate(32deg);
   pointer-events: none;
 }
 .eyebrow {
@@ -89,9 +96,23 @@ body {
     0 0 26px rgba(63, 169, 245, 0.4),
     0 0 50px rgba(143, 203, 255, 0.25);
 }
+/* 「.」の代わりに、ゲームのカーソル/ロックオン照準を思わせる菱形マークを描く */
 .brand .dot {
-  color: var(--accent-2);
-  text-shadow: 0 0 10px rgba(143, 203, 255, 0.9), 0 0 22px rgba(143, 203, 255, 0.5);
+  display: inline-block;
+  width: 0.34em;
+  height: 0.34em;
+  margin-left: 0.16em;
+  margin-bottom: 0.08em;
+  border: 2px solid var(--accent-2);
+  border-radius: 2px;
+  transform: rotate(45deg);
+  box-shadow: 0 0 8px rgba(143, 203, 255, 0.85), 0 0 18px rgba(143, 203, 255, 0.45);
+  animation: dot-blink 2.4s ease-in-out infinite;
+  vertical-align: middle;
+}
+@keyframes dot-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 .brand-season {
   font-family: var(--mono);

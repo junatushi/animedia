@@ -162,11 +162,11 @@ export default function Page() {
     <div className="wrap">
       <header className="masthead">
         <span className="eyebrow" aria-hidden="true">
-          CONNECTION ESTABLISHED :: 浮遊する仮想都市へようこそ
+          LINK START :: シーズン配信データベースに接続完了
         </span>
         <div className="brandrow">
           <h1 className="brand">
-            アニメ視聴ガイド<span className="dot">.</span>
+            アニメ視聴ガイド<span className="dot" aria-hidden="true" />
           </h1>
           <span className="brand-season">
             {year} {SEASON_LABEL[season]}クール
@@ -178,7 +178,7 @@ export default function Page() {
             リアルタイム取得
           </span>
           <span className="tagline">
-            シーズンのアニメを、観られる国内配信サービスで一覧。
+            今期アニメの配信状況を、サービス別にスキャン。
           </span>
         </div>
       </header>
