@@ -33,24 +33,24 @@ function norm(s: string): string {
 }
 
 // 並び順 = 判定の優先順。配信サービスを TV 判定より先に当てる。
-// 色は各サービスのブランドカラーそのものではなく、クリーム基調のデザインに
-// 馴染むよう彩度・明度を落とした「顔料（ピグメント）」調のトーンにしている。
+// 色は各サービスのブランドカラーそのものではなく、サイトのダーク×ブルー系
+// HUDデザインに馴染むよう、シアン〜インディゴの単一系統に寄せたトーンにしている。
 export const SERVICES: ServiceDef[] = [
-  { key: "d_anime",      name: "dアニメストア",         short: "dアニメ",    color: "#a85a34", match: /dアニメ|danime|d-anime/ },
-  { key: "abema",        name: "ABEMA",                 short: "ABEMA",     color: "#5b7a52", match: /abema/ },
-  { key: "netflix",      name: "Netflix",               short: "Netflix",   color: "#a13d3a", match: /netflix/ },
-  { key: "prime",        name: "Amazon Prime Video",    short: "Prime",     color: "#3d6b86", match: /primevideo|prime-video|amazonprime|amazon|prime/ },
-  { key: "unext",        name: "U-NEXT",                short: "U-NEXT",    color: "#7c5a8a", match: /u-next|unext/ },
-  { key: "dmm",          name: "DMM TV",                short: "DMM TV",    color: "#b1596a", match: /dmmtv|dmm/ },
-  { key: "lemino",       name: "Lemino",                short: "Lemino",    color: "#935a7c", match: /lemino|dtv/ },
-  { key: "disney",       name: "Disney+",               short: "Disney+",   color: "#45577e", match: /disney/ },
-  { key: "hulu",         name: "Hulu",                  short: "Hulu",      color: "#4f7a5c", match: /hulu/ },
-  { key: "bandai",       name: "バンダイチャンネル",     short: "バンチャ",   color: "#a14a3d", match: /バンダイ|bandai/ },
-  { key: "fod",          name: "FOD",                   short: "FOD",       color: "#ab5142", match: /\bfod\b|フジテレビオンデマンド/ },
-  { key: "niconico",     name: "ニコニコ",               short: "ニコニコ",   color: "#a6822f", match: /niconico|ニコニコ|nicovideo/ },
-  { key: "anime_houdai", name: "アニメ放題",             short: "アニメ放題", color: "#8f4038", match: /アニメ放題|animehoudai/ },
-  { key: "wowow_od",     name: "WOWOWオンデマンド",      short: "WOWOW OD",  color: "#4a6785", match: /wowowオンデマンド|wowow-od/ },
-  { key: "telasa",       name: "TELASA",                short: "TELASA",    color: "#b3722f", match: /telasa/ },
+  { key: "d_anime",      name: "dアニメストア",         short: "dアニメ",    color: "#22d3ee", match: /dアニメ|danime|d-anime/ },
+  { key: "abema",        name: "ABEMA",                 short: "ABEMA",     color: "#38bdf8", match: /abema/ },
+  { key: "netflix",      name: "Netflix",               short: "Netflix",   color: "#60a5fa", match: /netflix/ },
+  { key: "prime",        name: "Amazon Prime Video",    short: "Prime",     color: "#3b82f6", match: /primevideo|prime-video|amazonprime|amazon|prime/ },
+  { key: "unext",        name: "U-NEXT",                short: "U-NEXT",    color: "#818cf8", match: /u-next|unext/ },
+  { key: "dmm",          name: "DMM TV",                short: "DMM TV",    color: "#06b6d4", match: /dmmtv|dmm/ },
+  { key: "lemino",       name: "Lemino",                short: "Lemino",    color: "#0ea5e9", match: /lemino|dtv/ },
+  { key: "disney",       name: "Disney+",               short: "Disney+",   color: "#6366f1", match: /disney/ },
+  { key: "hulu",         name: "Hulu",                  short: "Hulu",      color: "#2dd4bf", match: /hulu/ },
+  { key: "bandai",       name: "バンダイチャンネル",     short: "バンチャ",   color: "#14b8a6", match: /バンダイ|bandai/ },
+  { key: "fod",          name: "FOD",                   short: "FOD",       color: "#67e8f9", match: /\bfod\b|フジテレビオンデマンド/ },
+  { key: "niconico",     name: "ニコニコ",               short: "ニコニコ",   color: "#a5b4fc", match: /niconico|ニコニコ|nicovideo/ },
+  { key: "anime_houdai", name: "アニメ放題",             short: "アニメ放題", color: "#0891b2", match: /アニメ放題|animehoudai/ },
+  { key: "wowow_od",     name: "WOWOWオンデマンド",      short: "WOWOW OD",  color: "#1d4ed8", match: /wowowオンデマンド|wowow-od/ },
+  { key: "telasa",       name: "TELASA",                short: "TELASA",    color: "#5eead4", match: /telasa/ },
 ];
 
 // 配信に当たらなかった名前のうち、地上波/BS/CS など放送局を判定して除外する

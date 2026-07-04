@@ -178,7 +178,7 @@ export default function Page() {
             リアルタイム取得
           </span>
           <span className="tagline">
-            今期アニメの配信状況を、サービス別にスキャン。
+            今期アニメの配信状況をサービス別にスキャン。
           </span>
         </div>
       </header>
@@ -215,7 +215,7 @@ export default function Page() {
         <input
           className="search"
           type="text"
-          placeholder="作品名で検索…"
+          placeholder="作品名でスキャン…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
