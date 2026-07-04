@@ -4,7 +4,12 @@ import type { Metadata, Viewport } from "next";
 const title = "アニメ視聴ガイド";
 const description = "シーズンごとのアニメを、観られる国内配信サービス別に一覧。配信情報は Annict からリアルタイム取得。";
 
+// SNSカードの og:image / twitter:image を絶対URLで解決するために必要。
+// 実際の公開ドメインに合わせて変更する（複数ドメイン運用時は環境変数化を検討）。
+const siteUrl = "https://animedia-khaki.vercel.app";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: { default: title, template: `%s | ${title}` },
   description,
   applicationName: title,
@@ -15,9 +20,10 @@ export const metadata: Metadata = {
     type: "website",
     locale: "ja_JP",
     siteName: title,
+    url: siteUrl,
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title,
     description,
   },

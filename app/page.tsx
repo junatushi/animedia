@@ -88,6 +88,14 @@ function brandMark(short: string): string {
   return ch.length ? ch[0] : "?";
 }
 
+// 現在のページ（選択中の年・シーズンの一覧）を X（旧Twitter）で共有する。
+function shareOnX() {
+  const url = window.location.href;
+  const text = "アニメ視聴ガイド ― 今期アニメの配信状況をサービス別にスキャン";
+  const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+  window.open(intent, "_blank", "noopener,noreferrer,width=600,height=480");
+}
+
 export default function Page() {
   const thisYear = new Date().getFullYear();
   const years = Array.from({ length: thisYear - 2009 }, (_, i) => thisYear - i);
@@ -245,6 +253,9 @@ export default function Page() {
           <span className="tagline">
             今期アニメの配信状況をサービス別にスキャン
           </span>
+          <button type="button" className="share-x" onClick={shareOnX}>
+            Xで共有
+          </button>
         </div>
       </header>
 
