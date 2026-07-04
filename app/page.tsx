@@ -31,18 +31,18 @@ function currentSeasonKey(): string {
 // グラデーション＋頭文字（モノグラム）の「デザインタイル」を生成して空欄を避ける。
 function posterStyle(id: number): React.CSSProperties {
   const h = (id * 47) % 360;
-  // 美術館の壁面のような、低彩度で落ち着いたクリーム寄りのグラデーション（やや明るめ）
+  // 深淵に灯る魔力の残滓のような、暗く彩度高めのネオン系グラデーション
   return {
-    background: `linear-gradient(150deg, hsl(${h} 26% 92%), hsl(${(h + 35) % 360} 22% 85%))`,
+    background: `linear-gradient(150deg, hsl(${h} 55% 16%), hsl(${(h + 40) % 360} 60% 10%))`,
   };
 }
 // 作品種別プレフィックスと、タイルに添える種別マーク（上から順に判定）。
-//  劇場公開系＝（劇） ／ OVA・OAD＝（O） ／ 総集編＝（総）
-// ※「劇場総集編」は劇場公開なので（劇）、単独の「総集編」は（総）に振り分ける。
+//  劇場公開系＝《劇》 ／ OVA・OAD＝《O》 ／ 総集編＝《総》
+// ※「劇場総集編」は劇場公開なので《劇》、単独の「総集編」は《総》に振り分ける。
 const TITLE_KINDS: Array<[RegExp, string]> = [
-  [/^(劇場版|劇場総集編|劇場編集版|劇場|映画)\s*/, "（劇）"],
-  [/^(OVA|OAD)\s*/, "（O）"],
-  [/^(総集編|TV総集編|テレビ総集編)\s*/, "（総）"],
+  [/^(劇場版|劇場総集編|劇場編集版|劇場|映画)\s*/, "《劇》"],
+  [/^(OVA|OAD)\s*/, "《O》"],
+  [/^(総集編|TV総集編|テレビ総集編)\s*/, "《総》"],
 ];
 // 先頭にあっても識別に役立たない記号・約物・空白（「」〈〉！ 等）。
 const LEADING_SKIP = /[\p{P}\p{S}\s]/u;
@@ -158,6 +158,9 @@ export default function Page() {
   return (
     <div className="wrap">
       <header className="masthead">
+        <span className="eyebrow" aria-hidden="true">
+          ――刻まれし封印、いま解き放たれる――
+        </span>
         <div className="brandrow">
           <h1 className="brand">
             アニメ視聴ガイド<span className="dot">.</span>
