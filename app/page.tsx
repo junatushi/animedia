@@ -100,6 +100,8 @@ export default function Page() {
 
   const [query, setQuery] = useState("");
   const [active, setActive] = useState<Set<string>>(new Set());
+  // 人気順（API側で watchers 降順に整形済み）と、五十音順（タイトルの辞書順）を切り替える。
+  const [sortKey, setSortKey] = useState<"popular" | "title">("popular");
 
   // 年セレクトはネイティブ <select> だとハイライト色をブラウザ側が決めてしまい
   // サイトのダーク基調デザインに合わせられないため、自前のリストボックスにしている。
@@ -165,13 +167,18 @@ export default function Page() {
   const filtered = useMemo(() => {
     if (!data) return [];
     const q = query.trim().toLowerCase();
-    return data.items.filter((it) => {
+    const list = data.items.filter((it) => {
       const okText = q === "" || it.title.toLowerCase().includes(q);
       const okSvc =
         active.size === 0 || it.services.some((s) => active.has(s.key));
       return okText && okSvc;
     });
-  }, [data, query, active]);
+    // "popular" は API が watchers 降順で返す並びをそのまま使う（再ソート不要）。
+    if (sortKey === "title") {
+      return [...list].sort((a, b) => a.title.localeCompare(b.title, "ja"));
+    }
+    return list;
+  }, [data, query, active, sortKey]);
 
   function toggle(key: string) {
     setActive((prev) => {
@@ -290,9 +297,29 @@ export default function Page() {
         )}
 
         {data && !loading && !error && (
-          <div className="count">
-            <b>{filtered.length}</b> 作品
-            {filtered.length !== data.count ? `（全 ${data.count} 中）` : ""}
+          <div className="count-row">
+            <div className="count">
+              <b>{filtered.length}</b> 作品
+              {filtered.length !== data.count ? `（全 ${data.count} 中）` : ""}
+            </div>
+            <div className="sort" role="group" aria-label="並び替え">
+              <button
+                type="button"
+                className="sort-btn"
+                aria-pressed={sortKey === "popular"}
+                onClick={() => setSortKey("popular")}
+              >
+                人気順
+              </button>
+              <button
+                type="button"
+                className="sort-btn"
+                aria-pressed={sortKey === "title"}
+                onClick={() => setSortKey("title")}
+              >
+                五十音順
+              </button>
+            </div>
           </div>
         )}
       </div>
