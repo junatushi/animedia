@@ -102,6 +102,36 @@ export default function Page() {
   const [active, setActive] = useState<Set<string>>(new Set());
   // 人気順（API側で watchers 降順に整形済み）と、五十音順（タイトルの辞書順）を切り替える。
   const [sortKey, setSortKey] = useState<"popular" | "title">("popular");
+  // 複数の配信サービスを選んだ時、いずれか一致（OR）か全て一致（AND）かを切り替える。
+  const [andMode, setAndMode] = useState(false);
+
+  // お気に入り＝ログイン不要でブラウザの localStorage に作品IDを保存する。
+  // シーズンをまたいで保持したいので、キーはシーズンに依存しないグローバルな1つ。
+  const FAVORITES_KEY = "anime-haishin:favorites";
+  const [favorites, setFavorites] = useState<Set<number>>(new Set());
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FAVORITES_KEY);
+      if (raw) setFavorites(new Set(JSON.parse(raw)));
+    } catch {
+      // localStorage が使えない環境（プライベートモード等）では無視する
+    }
+  }, []);
+
+  function toggleFavorite(id: number) {
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      try {
+        localStorage.setItem(FAVORITES_KEY, JSON.stringify([...next]));
+      } catch {
+        // 保存できなくても表示上のトグルは機能させる
+      }
+      return next;
+    });
+  }
 
   // 年セレクトはネイティブ <select> だとハイライト色をブラウザ側が決めてしまい
   // サイトのダーク基調デザインに合わせられないため、自前のリストボックスにしている。
@@ -170,15 +200,20 @@ export default function Page() {
     const list = data.items.filter((it) => {
       const okText = q === "" || it.title.toLowerCase().includes(q);
       const okSvc =
-        active.size === 0 || it.services.some((s) => active.has(s.key));
-      return okText && okSvc;
+        active.size === 0
+          ? true
+          : andMode
+            ? [...active].every((k) => it.services.some((s) => s.key === k))
+            : it.services.some((s) => active.has(s.key));
+      const okFav = !favoritesOnly || favorites.has(it.id);
+      return okText && okSvc && okFav;
     });
     // "popular" は API が watchers 降順で返す並びをそのまま使う（再ソート不要）。
     if (sortKey === "title") {
       return [...list].sort((a, b) => a.title.localeCompare(b.title, "ja"));
     }
     return list;
-  }, [data, query, active, sortKey]);
+  }, [data, query, active, sortKey, andMode, favoritesOnly, favorites]);
 
   function toggle(key: string) {
     setActive((prev) => {
@@ -279,6 +314,27 @@ export default function Page() {
             >
               すべて
             </button>
+            <button
+              type="button"
+              className="chip"
+              data-on={favoritesOnly}
+              aria-pressed={favoritesOnly}
+              onClick={() => setFavoritesOnly((v) => !v)}
+            >
+              ★ お気に入り
+            </button>
+            {active.size > 1 && (
+              <button
+                type="button"
+                className="chip"
+                data-on={andMode}
+                aria-pressed={andMode}
+                title="複数選択時、いずれか一致（OR）か全て一致（AND）かを切り替え"
+                onClick={() => setAndMode((v) => !v)}
+              >
+                {andMode ? "AND" : "OR"}
+              </button>
+            )}
             {availableServices.map((s) => {
               const on = active.has(s.key);
               return (
@@ -360,6 +416,15 @@ export default function Page() {
               <div className="thumb thumb-empty" style={posterStyle(it.id)} aria-hidden>
                 <MonoLabel title={it.title} />
               </div>
+              <button
+                type="button"
+                className="fav-btn"
+                aria-pressed={favorites.has(it.id)}
+                aria-label={favorites.has(it.id) ? "お気に入りから削除" : "お気に入りに追加"}
+                onClick={() => toggleFavorite(it.id)}
+              >
+                {favorites.has(it.id) ? "★" : "☆"}
+              </button>
               <div className="card-body">
                 <h3 className="card-title">{it.title}</h3>
 

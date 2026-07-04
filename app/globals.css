@@ -450,6 +450,36 @@ body {
   position: relative;
   overflow: hidden;
 }
+
+/* お気に入りボタン（.card の position:relative を基準にタイル右上へ重ねる） */
+.fav-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 4;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(6, 10, 22, 0.55);
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  transition: color 0.2s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+.fav-btn:hover { color: var(--accent-2); border-color: var(--accent-2); }
+.fav-btn[aria-pressed="true"] {
+  color: #ffd24a;
+  border-color: rgba(255, 210, 74, 0.6);
+  box-shadow: 0 0 10px rgba(255, 210, 74, 0.45);
+  background: rgba(6, 10, 22, 0.7);
+}
 .mono {
   display: flex;
   flex-direction: column;
