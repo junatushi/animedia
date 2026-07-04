@@ -395,14 +395,19 @@ body {
 
 /* ── Badges ───────────────────────────────── */
 .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+/* バッジ枠は各サービスのブランドカラー（--c）で縁取り、サイト共通の発光感を added */
 .badge {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 12px; font-weight: 700;
   color: var(--ink);
   background: var(--paper-2);
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--c, var(--border)) 55%, var(--border));
   border-radius: 4px;
   padding: 3px 9px 3px 3px;
+  transition: box-shadow 0.2s ease;
+}
+.badge:hover {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c, var(--accent)) 45%, transparent);
 }
 .badge-mark {
   display: inline-flex; align-items: center; justify-content: center;
@@ -410,6 +415,7 @@ body {
   border-radius: 3px;
   font-size: 11.5px; font-weight: 800;
   line-height: 1;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--c, var(--accent)) 60%, transparent);
 }
 .badge-name { font-family: var(--mono); letter-spacing: 0.01em; padding-right: 2px; color: var(--muted); }
 .badge-other {
