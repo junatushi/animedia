@@ -178,7 +178,7 @@ export default function Page() {
             リアルタイム取得
           </span>
           <span className="tagline">
-            今期アニメの配信状況をサービス別にスキャン。
+            今期アニメの配信状況をサービス別にスキャン
           </span>
         </div>
       </header>
