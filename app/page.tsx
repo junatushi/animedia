@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { textOn } from "@/lib/services";
 import type { SeasonResponse, ServiceTag } from "@/lib/types";
 
@@ -10,6 +11,7 @@ const SEASONS = [
   { key: "summer", label: "夏" },
   { key: "autumn", label: "秋" },
 ] as const;
+const SEASON_KEYS = new Set(SEASONS.map((s) => s.key));
 
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
@@ -96,12 +98,28 @@ function shareOnX() {
   window.open(intent, "_blank", "noopener,noreferrer,width=600,height=480");
 }
 
-export default function Page() {
+// URLクエリ（?year=2026&season=summer）と年・シーズンの選択状態を同期する。
+// これにより「Xで共有」ボタンが常に「今見ている内容」への正しいディープリンクを
+// 共有でき、共有された側もリンクを開くだけで同じ年・シーズンを見られる。
+function PageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const thisYear = new Date().getFullYear();
   const years = Array.from({ length: thisYear - 2009 }, (_, i) => thisYear - i);
 
-  const [year, setYear] = useState(thisYear);
-  const [season, setSeason] = useState<string>(currentSeasonKey());
+  const initialYear = (() => {
+    const y = Number(searchParams.get("year"));
+    return years.includes(y) ? y : thisYear;
+  })();
+  const initialSeason = (() => {
+    const s = searchParams.get("season");
+    return s && SEASON_KEYS.has(s as (typeof SEASONS)[number]["key"]) ? s : currentSeasonKey();
+  })();
+
+  const [year, setYear] = useState(initialYear);
+  const [season, setSeason] = useState<string>(initialSeason);
   const [data, setData] = useState<SeasonResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -163,6 +181,14 @@ export default function Page() {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [yearMenuOpen]);
+
+  // 選択中の年・シーズンをURLに反映する（共有リンクが「今見ている内容」を再現できるように）。
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set("year", String(year));
+    params.set("season", season);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [year, season, pathname, router]);
 
   useEffect(() => {
     let abort = false;
@@ -488,5 +514,15 @@ export default function Page() {
         「その他配信」は未登録サービスの可能性があり、点線で表示しています。
       </p>
     </div>
+  );
+}
+
+// useSearchParams を使うコンポーネントは Suspense 境界の内側に置く必要がある
+// （Next.js App Router の要件）。
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="wrap" />}>
+      <PageInner />
+    </Suspense>
   );
 }
