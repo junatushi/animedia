@@ -1,0 +1,46 @@
+name: 週次ダイジェスト（Bluesky/Mastodon自動投稿＋Xの下書きIssue）
+
+# 毎週月曜 21:00 JST（12:00 UTC）に自動実行。手動実行（workflow_dispatch）も可能。
+# Bluesky/Mastodonは投稿APIが無料のため自動投稿する。Xは有料化されたため
+# 自動投稿はせず、コピペ用の下書きをGitHub Issueとして起票するだけにする。
+on:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+
+      - name: ダイジェスト本文を生成
+        run: node scripts/print-digest.js > digest.txt
+
+      - name: Blueskyへ自動投稿（無料・Secrets未設定ならスキップ）
+        run: node scripts/post-bluesky.js
+        env:
+          BLUESKY_IDENTIFIER: ${{ secrets.BLUESKY_IDENTIFIER }}
+          BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+
+      - name: Mastodonへ自動投稿（無料・Secrets未設定ならスキップ）
+        run: node scripts/post-mastodon.js
+        env:
+          MASTODON_INSTANCE_URL: ${{ secrets.MASTODON_INSTANCE_URL }}
+          MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+
+      - name: Xの下書きをGitHub Issueとして起票（手動投稿用）
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --title "Xへの投稿下書き ($(date +%Y-%m-%d))" \
+            --body-file digest.txt

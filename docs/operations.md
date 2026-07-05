@@ -16,8 +16,31 @@
 | 新クール開始の2〜3週間後 | ③配信情報の充足を再点検 → ④「埋まってきた」報告の投稿 | season-updater / sns-templates.md |
 | 随時（配信欄が空の作品が多いと感じたら） | ⑤マッピング点検 | service-mapper |
 | 機能追加・バグ修正をした時 | ⑥該当テンプレで告知 | sns-templates.md |
+| 毎週月曜 21:00 JST（自動） | ⑦週次ダイジェスト（下記） | weekly-digest.yml |
 
 ---
+
+## ⑦ 週次ダイジェスト（フォロワー獲得施策・2026-07-05導入）
+
+`.github/workflows/weekly-digest.yml` が毎週月曜21:00 JSTに自動実行し、
+「今期の注目作TOP5」ダイジェストを生成する（`scripts/lib/build-digest.js`。
+デプロイ済みサイトの `/api/season` を叩くだけで、ANNICT_TOKENの複製は不要）。
+
+- **Bluesky・Mastodon**: 投稿APIが無料のため**自動投稿**する。Secrets未設定の間は
+  「未設定のためスキップ」とログを出すだけで、ワークフロー自体は失敗にならない。
+- **X**: 2026年2月の料金改定でAPI投稿が有料（1件$0.015〜$0.20）になったため
+  自動投稿はしない。代わりに同じ下書き文を**GitHub Issueとして自動起票**するので、
+  中身を確認してブラウザ/アプリから手動でコピペ投稿する。
+
+### 有効化する場合に必要なSecrets（任意・未設定でも動く）
+| サービス | Secret名 | 取得方法 |
+|---|---|---|
+| Bluesky | `BLUESKY_IDENTIFIER` | ハンドル名（例: `animedia.bsky.social`） |
+| Bluesky | `BLUESKY_APP_PASSWORD` | Bluesky設定 → プライバシーとセキュリティ → アプリパスワード（**通常のログインパスワードではない**） |
+| Mastodon | `MASTODON_INSTANCE_URL` | 登録したインスタンスURL（例: `https://mstdn.jp`） |
+| Mastodon | `MASTODON_ACCESS_TOKEN` | インスタンスの 設定 → 開発 → 新規アプリ作成 → 「投稿」権限付きトークン |
+
+いずれも**無料アカウント・無料の範囲**で取得できる（Xのような従量課金は発生しない）。
 
 ## ①③ データ点検（season-updater）
 
