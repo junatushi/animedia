@@ -11,8 +11,18 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 const TITLE = "アニメ視聴ガイド";
-const EYEBROW = "LINK START";
-const TAGLINE = "今期アニメの配信状況をサービス別にスキャン";
+const TAGLINE = "配信状況をサービス別にスキャン";
+
+// og:image URL にはクエリが渡らない（クローラーはクエリ無しで取得する）ため、
+// 共有された「今」のシーズンを画像生成時のサーバー日付から算出して見出しに使う。
+// 共有の大半は今期なのでこれで十分実用的で、毎シーズン自動で更新される。
+function currentSeasonHeadline(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
+  const label = m <= 3 ? "冬" : m <= 6 ? "春" : m <= 9 ? "夏" : "秋";
+  return `${y}年 ${label}アニメ`;
+}
 
 // Satori（ImageResponse の描画エンジン）は日本語グリフを内蔵していないため、
 // 使用する文字だけを指定して Google Fonts から都度取得する
@@ -29,7 +39,8 @@ async function loadGoogleFont(text: string): Promise<ArrayBuffer> {
 }
 
 export default async function OpengraphImage() {
-  const fontData = await loadGoogleFont(TITLE + EYEBROW + TAGLINE);
+  const headline = currentSeasonHeadline();
+  const fontData = await loadGoogleFont(TITLE + TAGLINE + headline + "年アニメ配信ガイド");
 
   return new ImageResponse(
     (
@@ -53,23 +64,25 @@ export default async function OpengraphImage() {
             padding: "0 84px",
           }}
         >
+          {/* シーズン見出しを主役に。件数は入れず（要サーバー化のため）、
+              季節だけ動的にして「今の情報だ」と伝わるようにする。 */}
           <div
             style={{
               display: "flex",
-              fontSize: 28,
-              letterSpacing: 6,
-              color: "#8ecbff",
-              marginBottom: 28,
+              fontSize: 100,
+              fontWeight: 900,
+              color: "#f2f9ff",
+              lineHeight: 1.05,
             }}
           >
-            {EYEBROW}
+            {headline}
           </div>
           <div
             style={{
               display: "flex",
-              fontSize: 104,
-              color: "#f2f9ff",
-              lineHeight: 1.1,
+              fontSize: 40,
+              color: "#8ecbff",
+              marginTop: 28,
             }}
           >
             {TITLE}
@@ -77,9 +90,9 @@ export default async function OpengraphImage() {
           <div
             style={{
               display: "flex",
-              fontSize: 34,
+              fontSize: 30,
               color: "#85a4c4",
-              marginTop: 32,
+              marginTop: 16,
             }}
           >
             {TAGLINE}
