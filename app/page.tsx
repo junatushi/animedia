@@ -1,9 +1,10 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { track } from "@vercel/analytics";
 import { textOn } from "@/lib/services";
-import type { SeasonResponse, ServiceTag } from "@/lib/types";
+import type { AnimeItem, SeasonResponse, ServiceTag } from "@/lib/types";
 
 const SEASONS = [
   { key: "winter", label: "冬" },
@@ -27,6 +28,15 @@ function currentSeasonKey(): string {
   if (m <= 9) return "summer";
   return "autumn";
 }
+
+// 更新履歴（新しい順）。「このサイトは動いている」ことを伝え、再訪の動機にする。
+// 大きめの機能・修正だけ手で数件残す（全コミットは載せない）。
+const CHANGELOG: Array<{ date: string; text: string }> = [
+  { date: "2026-07-05", text: "作品ごとの共有ボタン・今期の注目作ランキング・更新履歴を追加" },
+  { date: "2026-07-05", text: "お気に入り登録・配信サービスのAND絞り込み・並び替え（人気/五十音）を追加" },
+  { date: "2026-07-05", text: "YouTubeを配信サービスとして追加、メ〜テレの誤分類を修正" },
+  { date: "2026-07-04", text: "一部作品が重複表示される不具合を修正" },
+];
 
 // 作品サムネイルは表示しない方針。配信各社・権利者の画像（キービジュアル等）を
 // 無断で読み込み表示しないための著作権配慮。代わりに作品ごとに色違いの
@@ -90,19 +100,28 @@ function brandMark(short: string): string {
   return ch.length ? ch[0] : "?";
 }
 
-// 現在のページ（選択中の年・シーズンの一覧）を X（旧Twitter）で共有する。
-function shareOnX() {
-  const url = window.location.href;
-  const text = "アニメ視聴ガイド ― 今期アニメの配信状況をサービス別にスキャン";
+// X（旧Twitter）の投稿画面を、本文とURLをプリセットして開く共通処理。
+function openXIntent(text: string, url: string) {
   const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
   window.open(intent, "_blank", "noopener,noreferrer,width=600,height=480");
+}
+
+// 現在のページ（選択中の年・シーズンの一覧）を共有する。
+function shareOnX() {
+  track("share_site");
+  openXIntent("アニメ視聴ガイド ― 今期アニメの配信状況をサービス別にスキャン", window.location.href);
+}
+
+// 個別の作品を共有する。URLは今見ているシーズンのディープリンクを使う。
+function shareWork(title: string) {
+  track("share_work", { title });
+  openXIntent(`「${title}」の配信状況をチェック｜アニメ視聴ガイド`, window.location.href);
 }
 
 // URLクエリ（?year=2026&season=summer）と年・シーズンの選択状態を同期する。
 // これにより「Xで共有」ボタンが常に「今見ている内容」への正しいディープリンクを
 // 共有でき、共有された側もリンクを開くだけで同じ年・シーズンを見られる。
 function PageInner() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -149,7 +168,12 @@ function PageInner() {
   function toggleFavorite(id: number) {
     setFavorites((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+        track("favorite_add"); // 追加時だけ計測（人気把握のため。削除は取らない）
+      }
       try {
         localStorage.setItem(FAVORITES_KEY, JSON.stringify([...next]));
       } catch {
@@ -183,12 +207,14 @@ function PageInner() {
   }, [yearMenuOpen]);
 
   // 選択中の年・シーズンをURLに反映する（共有リンクが「今見ている内容」を再現できるように）。
+  // Next のルーター遷移を挟まず history API で書き換えるだけにして、再レンダリングや
+  // SSR 側の余計な処理を避ける。
   useEffect(() => {
     const params = new URLSearchParams();
     params.set("year", String(year));
     params.set("season", season);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [year, season, pathname, router]);
+    window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
+  }, [year, season, pathname]);
 
   useEffect(() => {
     let abort = false;
@@ -252,10 +278,22 @@ function PageInner() {
   function toggle(key: string) {
     setActive((prev) => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+        track("filter_service", { service: key }); // どのサービスで絞り込まれるか
+      }
       return next;
     });
   }
+
+  // 今期の人気上位（watchers 降順の先頭5件）。検索・絞り込みとは独立に、
+  // 常に「そのシーズンの注目作」を示すことで再訪・共有のフックにする。
+  const topRanking = useMemo<AnimeItem[]>(() => {
+    if (!data) return [];
+    return [...data.items].sort((a, b) => b.watchers - a.watchers).slice(0, 5);
+  }, [data]);
 
   return (
     <div className="wrap">
@@ -293,7 +331,10 @@ function PageInner() {
                 key={s.key}
                 className="seg-btn"
                 aria-pressed={season === s.key}
-                onClick={() => setSeason(s.key)}
+                onClick={() => {
+                  setSeason(s.key);
+                  track("change_season", { season: s.key, year });
+                }}
               >
                 {s.label}
               </button>
@@ -417,6 +458,23 @@ function PageInner() {
         )}
       </div>
 
+      {/* 今期の注目作ランキング。検索・絞り込みをしていない素の状態のときだけ出し、
+          そのシーズンの「顔ぶれ」を一目で見せて共有・再訪のきっかけにする。 */}
+      {!loading && !error && data && topRanking.length > 0 &&
+        query.trim() === "" && active.size === 0 && !favoritesOnly && (
+          <section className="ranking" aria-label="今期の注目作ランキング">
+            <h2 className="ranking-title">今期の注目作 TOP5</h2>
+            <ol className="ranking-list">
+              {topRanking.map((it, i) => (
+                <li key={it.id} className="ranking-item">
+                  <span className="ranking-rank" data-rank={i + 1}>{i + 1}</span>
+                  <span className="ranking-name">{it.title}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
       {loading && (
         <div className="grid">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -453,15 +511,25 @@ function PageInner() {
               <div className="thumb thumb-empty" style={posterStyle(it.id)} aria-hidden>
                 <MonoLabel title={it.title} />
               </div>
-              <button
-                type="button"
-                className="fav-btn"
-                aria-pressed={favorites.has(it.id)}
-                aria-label={favorites.has(it.id) ? "お気に入りから削除" : "お気に入りに追加"}
-                onClick={() => toggleFavorite(it.id)}
-              >
-                {favorites.has(it.id) ? "★" : "☆"}
-              </button>
+              <div className="card-actions">
+                <button
+                  type="button"
+                  className="card-action share"
+                  aria-label={`「${it.title}」をXで共有`}
+                  onClick={() => shareWork(it.title)}
+                >
+                  <span aria-hidden="true">↗</span>
+                </button>
+                <button
+                  type="button"
+                  className="card-action fav-btn"
+                  aria-pressed={favorites.has(it.id)}
+                  aria-label={favorites.has(it.id) ? "お気に入りから削除" : "お気に入りに追加"}
+                  onClick={() => toggleFavorite(it.id)}
+                >
+                  {favorites.has(it.id) ? "★" : "☆"}
+                </button>
+              </div>
               <div className="card-body">
                 <h3 className="card-title">{it.title}</h3>
 
@@ -507,6 +575,18 @@ function PageInner() {
           ))}
         </div>
       )}
+
+      <details className="changelog">
+        <summary>更新履歴</summary>
+        <ul>
+          {CHANGELOG.map((c, i) => (
+            <li key={i}>
+              <time>{c.date}</time>
+              <span>{c.text}</span>
+            </li>
+          ))}
+        </ul>
+      </details>
 
       <p className="footnote">
         データ元: Annict（コミュニティ更新ベース）。配信情報は網羅率100%ではなく、
