@@ -31,6 +31,20 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
   // Google Search Console の所有権確認（HTMLタグ方式）。
   verification: { google: "IX-bhS1gsK4LM3Dxy_j6MpdaVGtuCtVvY_RA2NIrybs" },
+  alternates: {
+    types: { "application/rss+xml": `${siteUrl}/feed.xml` },
+  },
+};
+
+// 検索結果のリッチ表示・サイト構造の理解のための構造化データ（JSON-LD）。
+// 個々の作品はクライアント側取得のため一覧化できないので、まずはサイト自体を表す。
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: title,
+  url: siteUrl,
+  description,
+  inLanguage: "ja",
 };
 
 export const viewport: Viewport = {
@@ -47,6 +61,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja">
+      <head>
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body>
         {children}
         {/* Vercel Web Analytics（Cookieレス・個人特定なし）。ページビューと
