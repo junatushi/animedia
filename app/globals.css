@@ -844,6 +844,30 @@ body {
   .card-title { font-size: 14px; }
   .wrap { padding: 0 16px 72px; }
   .controls { position: static; }
+
+  /* 指先で押す前提のタップ領域を44px目安まで広げ、隣り合うボタン同士の
+     誤タップを防ぐため間隔も少し広げる（Apple/Googleの推奨最小サイズに合わせる）。 */
+  .filters { gap: 10px; }
+  .chip {
+    padding: 10px 14px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .sort { gap: 8px; }
+  .sort-btn {
+    padding: 10px 14px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .seg-btn { padding: 11px 17px; min-height: 44px; }
+  .year-select { padding: 11px 15px; min-height: 44px; }
+  .year-option { padding: 12px 14px; }
+  .theme-toggle,
+  .share-x { padding: 10px 16px; min-height: 40px; display: inline-flex; align-items: center; }
+  .card-actions { gap: 8px; }
+  .card-action { width: 38px; height: 38px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
