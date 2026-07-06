@@ -8,7 +8,7 @@
 ## 集客最大化（SEO・SNS・導線）
 
 ### ★★★ 効果大・着手しやすい
-- [x] **Google Search Console登録**（2026-07-06完了）: `app/layout.tsx`にHTMLタグ方式の所有権確認メタタグを設定済み
+- [x] **Google Search Console登録**（2026-07-06完了）: 所有権確認済み、`sitemap.xml`の送信も成功。`app/layout.tsx`にHTMLタグ方式の確認メタタグを設定済み
 - [x] **JSON-LD構造化データ**（2026-07-06完了）: `app/layout.tsx`に`WebSite`スキーマを追加。
   ※現状はサイト全体の情報のみ。作品一覧は`ItemList`化できていない（クライアント側取得のため。下記「シーズン別の静的ページ化」が前提になる）
 - [x] **RSS/Atomフィード配信**（2026-07-06完了）: `/feed.xml`でサイトの更新履歴（`lib/changelog.ts`）をRSS 2.0配信。
