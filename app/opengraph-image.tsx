@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { loadGoogleFont } from "@/lib/ogFont";
 
 // SNS（X/LINE等）でURLを共有した時のリンクカード画像。
 // Next.js の File-based Metadata 規約により、この場所に置くだけで
@@ -22,20 +23,6 @@ function currentSeasonHeadline(): string {
   const m = now.getMonth() + 1;
   const label = m <= 3 ? "冬" : m <= 6 ? "春" : m <= 9 ? "夏" : "秋";
   return `${y}年 ${label}アニメ`;
-}
-
-// Satori（ImageResponse の描画エンジン）は日本語グリフを内蔵していないため、
-// 使用する文字だけを指定して Google Fonts から都度取得する
-// （Vercel og-image の定番パターン）。
-async function loadGoogleFont(text: string): Promise<ArrayBuffer> {
-  const url = `https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@900&text=${encodeURIComponent(text)}`;
-  const css = await (await fetch(url)).text();
-  const match = css.match(/src: url\(([^)]+)\) format\('(opentype|truetype)'\)/);
-  if (match) {
-    const res = await fetch(match[1]);
-    if (res.ok) return res.arrayBuffer();
-  }
-  throw new Error("Google Font の取得に失敗しました");
 }
 
 export default async function OpengraphImage() {
