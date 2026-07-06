@@ -14,6 +14,21 @@
   --danger: #ff4d6a;
   --mono: "SFMono-Regular", "Consolas", "Menlo", "Yu Gothic", monospace;
   --radius: 4px;
+
+  /* 上のHEX値をrgba()の中で使うためのRGB三つ組（ライトモードで一括差し替えできるように）。 */
+  --accent-rgb: 63, 169, 245;
+  --accent-2-rgb: 142, 203, 255;
+  --border-bright-rgb: 180, 222, 255;
+  --danger-rgb: 255, 77, 106;
+  /* 明るい文字色（--ink）と反対色のハロー。閃光が文字を横切っても可読性を保つための
+     縁取りで、ダークでは黒、ライトでは白にする（app/globals.css 内で理由を都度書かない）。 */
+  --halo-rgb: 2, 5, 12;
+
+  /* 斬撃の閃光の色。既定（ダーク=黒の剣士キリト基調）では「閃光のアスナ」の
+     緋色×金の一閃、ライトモード（アスナ基調）では「黒の剣士キリト」の漆黒の
+     一閃にする＝土台のキャラクターと閃光のキャラクターを反転させている。 */
+  --flash-edge-rgb: 255, 90, 110;
+  --flash-core-rgb: 255, 230, 190;
 }
 
 * { box-sizing: border-box; }
@@ -34,9 +49,9 @@ html, body {
 body {
   min-height: 100vh;
   background:
-    radial-gradient(900px 520px at 50% -12%, rgba(143, 203, 255, 0.16), transparent 62%),
-    radial-gradient(680px 420px at 8% 20%, rgba(63, 169, 245, 0.12), transparent 60%),
-    radial-gradient(620px 380px at 96% 10%, rgba(63, 169, 245, 0.1), transparent 60%),
+    radial-gradient(900px 520px at 50% -12%, rgba(var(--accent-2-rgb), 0.16), transparent 62%),
+    radial-gradient(680px 420px at 8% 20%, rgba(var(--accent-rgb), 0.12), transparent 60%),
+    radial-gradient(620px 380px at 96% 10%, rgba(var(--accent-rgb), 0.1), transparent 60%),
     var(--bg);
 }
 
@@ -54,7 +69,8 @@ body {
   position: relative;
   overflow: hidden;
 }
-/* 刀で斬り抜けたような一筋の光（斬撃の残光）。右上から左下へ振り抜く向き。
+/* 剣戟の残光。右上から左下へ振り抜く向き。ダークでは緋色×金（閃光のアスナ）、
+   ライトでは漆黒（黒の剣士キリト）になる（--flash-*-rgb がテーマで切り替わる）。
    文字より手前に来て可読性を損なわないよう z-index を下げ、テキスト側を
    常に前面に固定する。 */
 .masthead::before {
@@ -66,11 +82,11 @@ body {
   height: 240%;
   background: linear-gradient(180deg,
     transparent 0%,
-    rgba(180, 222, 255, 0.5) 38%,
-    rgba(240, 250, 255, 0.65) 50%,
-    rgba(180, 222, 255, 0.5) 62%,
+    rgba(var(--flash-edge-rgb), 0.5) 38%,
+    rgba(var(--flash-core-rgb), 0.65) 50%,
+    rgba(var(--flash-edge-rgb), 0.5) 62%,
     transparent 100%);
-  box-shadow: 0 0 10px 1px rgba(143, 203, 255, 0.35);
+  box-shadow: 0 0 10px 1px rgba(var(--flash-edge-rgb), 0.35);
   transform-origin: top center;
   transform: rotate(32deg);
   pointer-events: none;
@@ -83,12 +99,12 @@ body {
   letter-spacing: 0.2em;
   color: var(--accent-2);
   margin-bottom: 12px;
-  /* 発光色に加えて濃色のハローを足し、閃光が背後を横切っても文字がくっきり
+  /* 発光色に加えて反対色のハローを足し、閃光が背後を横切っても文字がくっきり
      残るようにする（発光だけだと閃光の明るさに埋もれて見づらくなるため）。 */
   text-shadow:
-    0 0 8px rgba(143, 203, 255, 0.5),
-    0 1px 3px rgba(2, 5, 12, 0.9),
-    0 0 10px rgba(2, 5, 12, 0.85);
+    0 0 8px rgba(var(--accent-2-rgb), 0.5),
+    0 1px 3px rgba(var(--halo-rgb), 0.9),
+    0 0 10px rgba(var(--halo-rgb), 0.85);
   position: relative;
   z-index: 1;
 }
@@ -99,14 +115,14 @@ body {
   letter-spacing: 0.02em;
   margin: 0;
   line-height: 1.15;
-  color: #f2f9ff;
-  -webkit-text-stroke: 0.5px rgba(2, 5, 12, 0.5);
+  color: var(--ink);
+  -webkit-text-stroke: 0.5px rgba(var(--halo-rgb), 0.5);
   text-shadow:
-    0 0 10px rgba(63, 169, 245, 0.85),
-    0 0 26px rgba(63, 169, 245, 0.4),
-    0 0 50px rgba(143, 203, 255, 0.25),
-    0 2px 6px rgba(2, 5, 12, 0.95),
-    0 0 16px rgba(2, 5, 12, 0.9);
+    0 0 10px rgba(var(--accent-rgb), 0.85),
+    0 0 26px rgba(var(--accent-rgb), 0.4),
+    0 0 50px rgba(var(--accent-2-rgb), 0.25),
+    0 2px 6px rgba(var(--halo-rgb), 0.95),
+    0 0 16px rgba(var(--halo-rgb), 0.9);
 }
 /* 「.」の代わりに、ゲームのカーソル/ロックオン照準を思わせる菱形マークを描く */
 .brand .dot {
@@ -118,7 +134,7 @@ body {
   border: 2px solid var(--accent-2);
   border-radius: 2px;
   transform: rotate(45deg);
-  box-shadow: 0 0 8px rgba(143, 203, 255, 0.85), 0 0 18px rgba(143, 203, 255, 0.45);
+  box-shadow: 0 0 8px rgba(var(--accent-2-rgb), 0.85), 0 0 18px rgba(var(--accent-2-rgb), 0.45);
   animation: dot-blink 2.4s ease-in-out infinite;
   vertical-align: middle;
 }
@@ -134,7 +150,7 @@ body {
   letter-spacing: 0.04em;
   background: rgba(10, 18, 30, 0.75);
   border: 1px solid var(--border);
-  box-shadow: 0 0 0 1px rgba(180, 222, 255, 0.18) inset, 0 0 12px rgba(63, 169, 245, 0.25);
+  box-shadow: 0 0 0 1px rgba(var(--border-bright-rgb), 0.18) inset, 0 0 12px rgba(var(--accent-rgb), 0.25);
   border-radius: 2px;
   padding: 4px 10px;
   white-space: nowrap;
@@ -149,24 +165,24 @@ body {
   font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
   color: var(--accent-2);
   text-transform: uppercase;
-  text-shadow: 0 1px 3px rgba(2, 5, 12, 0.9), 0 0 8px rgba(2, 5, 12, 0.85);
+  text-shadow: 0 1px 3px rgba(var(--halo-rgb), 0.9), 0 0 8px rgba(var(--halo-rgb), 0.85);
 }
 .live i {
   width: 6px; height: 6px; border-radius: 999px;
   background: var(--accent);
-  box-shadow: 0 0 8px rgba(63, 169, 245, 0.9);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.9);
   animation: pulse 1.6s infinite;
 }
 @keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(63, 169, 245, 0.55); }
-  70% { box-shadow: 0 0 0 8px rgba(63, 169, 245, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(63, 169, 245, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.55); }
+  70% { box-shadow: 0 0 0 8px rgba(var(--accent-rgb), 0); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0); }
 }
 .tagline {
   color: var(--muted);
   font-size: 13.5px;
   letter-spacing: 0.02em;
-  text-shadow: 0 1px 3px rgba(2, 5, 12, 0.9), 0 0 8px rgba(2, 5, 12, 0.85);
+  text-shadow: 0 1px 3px rgba(var(--halo-rgb), 0.9), 0 0 8px rgba(var(--halo-rgb), 0.85);
 }
 
 .share-x {
@@ -186,7 +202,7 @@ body {
 .share-x:hover {
   color: var(--accent-2);
   border-color: var(--accent-2);
-  box-shadow: 0 0 10px rgba(63, 169, 245, 0.3);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.3);
 }
 
 .theme-toggle {
@@ -205,7 +221,7 @@ body {
 .theme-toggle:hover {
   color: var(--accent-2);
   border-color: var(--accent-2);
-  box-shadow: 0 0 10px rgba(63, 169, 245, 0.3);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.3);
 }
 
 /* ── Controls（半透明のシステムウィンドウ）── */
@@ -218,7 +234,7 @@ body {
   border-radius: var(--radius);
   background: var(--paper);
   border: 1px solid var(--border);
-  box-shadow: 0 0 0 1px rgba(180, 222, 255, 0.12) inset, 0 0 26px rgba(63, 169, 245, 0.12), 0 8px 26px -18px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 1px rgba(var(--border-bright-rgb), 0.12) inset, 0 0 26px rgba(var(--accent-rgb), 0.12), 0 8px 26px -18px rgba(0, 0, 0, 0.6);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
   position: sticky;
@@ -253,7 +269,7 @@ body {
 .seg-btn[aria-pressed="true"] {
   background: linear-gradient(120deg, var(--accent), var(--accent-2));
   color: #041018;
-  box-shadow: 0 0 16px rgba(63, 169, 245, 0.55);
+  box-shadow: 0 0 16px rgba(var(--accent-rgb), 0.55);
 }
 .seg-btn:hover:not([aria-pressed="true"]) { color: var(--accent-2); }
 
@@ -269,7 +285,7 @@ body {
   font: inherit;
   font-family: var(--mono);
   border: 1px solid var(--border-bright);
-  box-shadow: 0 0 8px rgba(63, 169, 245, 0.25);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.25);
   border-radius: 3px;
   padding: 8px 15px;
   font-weight: 700;
@@ -277,7 +293,7 @@ body {
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .year-select:hover,
-.year-select[aria-expanded="true"] { border-color: var(--accent-2); box-shadow: 0 0 12px rgba(63, 169, 245, 0.45); }
+.year-select[aria-expanded="true"] { border-color: var(--accent-2); box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.45); }
 .year-select:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
 .year-caret {
   width: 0; height: 0;
@@ -302,7 +318,7 @@ body {
   background: var(--paper-2);
   border: 1px solid var(--border-bright);
   border-radius: 4px;
-  box-shadow: 0 0 0 1px rgba(180, 222, 255, 0.12) inset, 0 16px 32px -12px rgba(0, 0, 0, 0.6), 0 0 20px rgba(63, 169, 245, 0.2);
+  box-shadow: 0 0 0 1px rgba(var(--border-bright-rgb), 0.12) inset, 0 16px 32px -12px rgba(0, 0, 0, 0.6), 0 0 20px rgba(var(--accent-rgb), 0.2);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
 }
@@ -321,7 +337,7 @@ body {
   color: #04101a;
 }
 .year-option[data-selected="true"] {
-  background: rgba(63, 169, 245, 0.18);
+  background: rgba(var(--accent-rgb), 0.18);
   color: var(--accent-2);
   box-shadow: inset 2px 0 0 var(--accent-2);
 }
@@ -348,7 +364,7 @@ body {
 .search:focus {
   outline: none;
   border-color: var(--accent-2);
-  box-shadow: 0 0 0 3px rgba(63, 169, 245, 0.15), 0 0 18px rgba(63, 169, 245, 0.25);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.15), 0 0 18px rgba(var(--accent-rgb), 0.25);
 }
 
 .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -365,20 +381,20 @@ body {
   cursor: pointer;
   transition: transform 0.12s ease, color 0.2s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
-.chip:hover { color: var(--accent-2); border-color: var(--accent-2); box-shadow: 0 0 10px rgba(63, 169, 245, 0.25); }
+.chip:hover { color: var(--accent-2); border-color: var(--accent-2); box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.25); }
 .chip:active { transform: scale(0.95); }
 .chip[data-on="true"] {
   color: #041018;
   background: linear-gradient(120deg, var(--accent), var(--accent-2));
   border-color: transparent;
-  box-shadow: 0 0 14px rgba(63, 169, 245, 0.5);
+  box-shadow: 0 0 14px rgba(var(--accent-rgb), 0.5);
 }
 .chip-reset { color: var(--muted-2); }
 .chip-reset[data-on="true"] {
   color: #041018;
   background: linear-gradient(120deg, var(--accent), var(--accent-2));
   border-color: transparent;
-  box-shadow: 0 0 14px rgba(63, 169, 245, 0.5);
+  box-shadow: 0 0 14px rgba(var(--accent-rgb), 0.5);
 }
 
 .count-row {
@@ -389,7 +405,7 @@ body {
   gap: 10px;
 }
 .count { font-family: var(--mono); font-size: 13px; color: var(--muted); letter-spacing: 0.01em; }
-.count b { color: var(--accent-2); font-size: 17px; font-weight: 900; text-shadow: 0 0 10px rgba(143, 203, 255, 0.5); }
+.count b { color: var(--accent-2); font-size: 17px; font-weight: 900; text-shadow: 0 0 10px rgba(var(--accent-2-rgb), 0.5); }
 
 .sort { display: inline-flex; gap: 6px; }
 .sort-btn {
@@ -410,7 +426,7 @@ body {
   color: #04101a;
   background: linear-gradient(120deg, var(--accent), var(--accent-2));
   border-color: transparent;
-  box-shadow: 0 0 10px rgba(63, 169, 245, 0.4);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.4);
 }
 
 /* ── Grid & cards（メニューウィンドウ）───── */
@@ -427,7 +443,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-  box-shadow: 0 0 0 1px rgba(180, 222, 255, 0.1) inset, 0 2px 10px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 1px rgba(var(--border-bright-rgb), 0.1) inset, 0 2px 10px rgba(0, 0, 0, 0.4);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   position: relative;
@@ -443,18 +459,23 @@ body {
   opacity: 0.7;
   pointer-events: none;
   transition: opacity 0.2s ease;
-  filter: drop-shadow(0 0 4px rgba(143, 203, 255, 0.7));
+  filter: drop-shadow(0 0 4px rgba(var(--accent-2-rgb), 0.7));
 }
 .card::before { top: 7px; left: 7px; border-top: 2px solid var(--accent-2); border-left: 2px solid var(--accent-2); }
 .card::after { bottom: 7px; right: 7px; border-bottom: 2px solid var(--accent-2); border-right: 2px solid var(--accent-2); }
-/* ホバーで刀を振り抜いたような光が一閃する */
+/* ホバーで剣戟が一閃する（ダーク=閃光のアスナの緋色×金、ライト=黒の剣士キリトの漆黒）。 */
 .card .slash {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 3;
   pointer-events: none;
-  background: linear-gradient(100deg, transparent 46%, rgba(180, 222, 255, 0.55) 49%, transparent 54%);
+  background: linear-gradient(100deg,
+    transparent 44%,
+    rgba(var(--flash-edge-rgb), 0.5) 47%,
+    rgba(var(--flash-core-rgb), 0.85) 50%,
+    rgba(var(--flash-edge-rgb), 0.5) 53%,
+    transparent 56%);
   transform: translateX(-140%) rotate(-6deg);
   opacity: 0;
 }
@@ -469,7 +490,7 @@ body {
 .card:hover {
   transform: translateY(-3px);
   border-color: var(--accent-2);
-  box-shadow: 0 0 0 1px rgba(180, 222, 255, 0.22) inset, 0 16px 32px -16px rgba(63, 169, 245, 0.4), 0 0 20px rgba(63, 169, 245, 0.18);
+  box-shadow: 0 0 0 1px rgba(var(--border-bright-rgb), 0.22) inset, 0 16px 32px -16px rgba(var(--accent-rgb), 0.4), 0 0 20px rgba(var(--accent-rgb), 0.18);
 }
 .card:hover::before,
 .card:hover::after { opacity: 1; }
@@ -532,7 +553,7 @@ body {
   border-radius: var(--radius);
   background: var(--paper);
   border: 1px solid var(--border-soft);
-  box-shadow: 0 0 0 1px rgba(180, 222, 255, 0.08) inset;
+  box-shadow: 0 0 0 1px rgba(var(--border-bright-rgb), 0.08) inset;
 }
 .ranking-title {
   font-family: var(--mono);
@@ -632,7 +653,7 @@ body {
   font-weight: 700;
   line-height: 1;
   color: rgba(234, 244, 255, 0.85);
-  text-shadow: 0 0 16px rgba(63, 169, 245, 0.5), 0 0 34px rgba(143, 203, 255, 0.25);
+  text-shadow: 0 0 16px rgba(var(--accent-rgb), 0.5), 0 0 34px rgba(var(--accent-2-rgb), 0.25);
   letter-spacing: 0.03em;
   user-select: none;
 }
@@ -647,12 +668,12 @@ body {
   line-height: 1;
   letter-spacing: 0.04em;
   padding: 0.32em 0.6em;
-  border: 1px solid rgba(143, 203, 255, 0.55);
+  border: 1px solid rgba(var(--accent-2-rgb), 0.55);
   border-radius: 2px;
   background: rgba(6, 10, 22, 0.5);
   color: var(--accent-2);
-  text-shadow: 0 0 8px rgba(143, 203, 255, 0.6);
-  box-shadow: 0 0 10px rgba(63, 169, 245, 0.25);
+  text-shadow: 0 0 8px rgba(var(--accent-2-rgb), 0.6);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.25);
   margin-bottom: 0.3em;
 }
 /* 中身が2文字になる稀なケースははみ出さないよう少し縮める */
@@ -726,19 +747,19 @@ body {
   width: fit-content;
   transition: color 0.2s, text-shadow 0.2s;
 }
-.official:hover { color: var(--accent-2); text-shadow: 0 0 8px rgba(143, 203, 255, 0.5); }
+.official:hover { color: var(--accent-2); text-shadow: 0 0 8px rgba(var(--accent-2-rgb), 0.5); }
 
 /* ── States ───────────────────────────────── */
 .state { text-align: center; padding: 80px 16px; color: var(--muted); }
 .state h2 { font-family: var(--mono); color: var(--ink); font-size: 17px; margin: 0 0 8px; font-weight: 700; }
 .state.error {
-  border: 1px solid rgba(255, 77, 106, 0.4);
-  background: rgba(255, 77, 106, 0.06);
-  box-shadow: 0 0 20px rgba(255, 77, 106, 0.15);
+  border: 1px solid rgba(var(--danger-rgb), 0.4);
+  background: rgba(var(--danger-rgb), 0.06);
+  box-shadow: 0 0 20px rgba(var(--danger-rgb), 0.15);
   border-radius: var(--radius);
 }
-.state.error h2 { color: var(--danger); text-shadow: 0 0 10px rgba(255, 77, 106, 0.5); }
-.state code { color: var(--danger); background: rgba(255, 77, 106, 0.12); padding: 2px 6px; border-radius: 4px; }
+.state.error h2 { color: var(--danger); text-shadow: 0 0 10px rgba(var(--danger-rgb), 0.5); }
+.state code { color: var(--danger); background: rgba(var(--danger-rgb), 0.12); padding: 2px 6px; border-radius: 4px; }
 
 .skeleton-card {
   height: 0;
@@ -770,48 +791,47 @@ body {
   }
 }
 
-/* ── ライトモード ─────────────────────────────
-   ダーク基調（SAOテイスト）を前提に作った発光演出は白背景だと
-   馴染まないため、切り替え時は「ガラス窓＋斬撃」の世界観は保ちつつ、
-   ネオン量を抑えた明るいトーンに寄せる。data-theme="light" は
-   components/ThemeToggle.tsx が <html> に付け外しする。 */
+/* ── ライトモード：「閃光のアスナ」基調 ───────────
+   ナイツ・オブ・ブラッドの白い詰襟＋緋色×金の意匠をベースに。
+   剣戟の閃光（--flash-*-rgb）は逆に「黒の剣士キリト」の漆黒の一閃にして、
+   ダークモード（キリト基調＋アスナの緋色の一閃）と対になるようにしている。
+   data-theme="light" は components/ThemeToggle.tsx が <html> に付け外しする。 */
 :root[data-theme="light"] {
-  --bg: #f3f7fc;
-  --paper: rgba(255, 255, 255, 0.72);
-  --paper-2: rgba(222, 235, 250, 0.85);
-  --ink: #10233a;
-  --muted: #46617a;
-  --muted-2: #7d93a8;
-  --border-soft: rgba(31, 127, 209, 0.18);
-  --border: rgba(31, 127, 209, 0.35);
-  --border-bright: rgba(31, 127, 209, 0.55);
-  --accent: #1f7fd1;
-  --accent-2: #0f6fc0;
-  --danger: #d81b46;
+  --bg: #f8f2ee;
+  --paper: rgba(255, 255, 255, 0.74);
+  --paper-2: rgba(250, 227, 224, 0.82);
+  --ink: #2a1216;
+  --muted: #7a4348;
+  --muted-2: #b3898d;
+  --border-soft: rgba(200, 30, 58, 0.16);
+  --border: rgba(200, 30, 58, 0.32);
+  --border-bright: rgba(200, 30, 58, 0.5);
+  --accent: #c81e3a;
+  --accent-2: #b8860f;
+  --danger: #c23b2e;
+
+  --accent-rgb: 200, 30, 58;
+  --accent-2-rgb: 184, 134, 15;
+  --border-bright-rgb: 214, 40, 68;
+  --danger-rgb: 194, 59, 46;
+  --halo-rgb: 255, 255, 255;
+
+  /* 黒の剣士キリトの一閃：漆黒の斬撃＋鋼の閃き。 */
+  --flash-edge-rgb: 20, 20, 26;
+  --flash-core-rgb: 172, 178, 190;
 }
 :root[data-theme="light"] body {
   background:
-    radial-gradient(900px 520px at 50% -12%, rgba(31, 127, 209, 0.1), transparent 62%),
-    radial-gradient(680px 420px at 8% 20%, rgba(31, 127, 209, 0.07), transparent 60%),
-    radial-gradient(620px 380px at 96% 10%, rgba(31, 127, 209, 0.06), transparent 60%),
+    radial-gradient(900px 520px at 50% -12%, rgba(var(--accent-rgb), 0.08), transparent 62%),
+    radial-gradient(680px 420px at 8% 20%, rgba(var(--accent-rgb), 0.05), transparent 60%),
+    radial-gradient(620px 380px at 96% 10%, rgba(var(--accent-2-rgb), 0.06), transparent 60%),
     var(--bg);
 }
-/* 斬撃の閃光は暗背景ありきの発光効果のため、白背景では非表示にする。 */
-:root[data-theme="light"] .masthead::before { display: none; }
-/* 題字は固定色の白文字だったため、ライトモード用に濃色＋控えめな光彩へ差し替え。 */
-:root[data-theme="light"] .brand {
-  color: var(--ink);
-  -webkit-text-stroke: 0;
-  text-shadow:
-    0 0 10px rgba(31, 127, 209, 0.3),
-    0 0 22px rgba(31, 127, 209, 0.15);
-}
-/* 閃光と競う前提の濃色ハローは不要になるため外す。 */
-:root[data-theme="light"] .eyebrow,
-:root[data-theme="light"] .live,
-:root[data-theme="light"] .tagline {
-  text-shadow: none;
-}
 :root[data-theme="light"] .skeleton-card {
-  background: linear-gradient(100deg, #e3edf7 30%, #f5faff 50%, #e3edf7 70%);
+  background: linear-gradient(100deg, #f6dee0 30%, #fff7f6 50%, #f6dee0 70%);
+}
+/* 検索アイコンはSVGデータURIに色を直書きしているため、CSS変数だけでは
+   追従しない。ライトモード用に緋色のアイコンへ個別に差し替える。 */
+:root[data-theme="light"] .search {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23c81e3a' stroke-width='2' stroke-linecap='round'><circle cx='11' cy='11' r='7'/><path d='M21 21l-4.3-4.3'/></svg>");
 }
