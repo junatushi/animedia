@@ -24,14 +24,20 @@
      縁取りで、ダークでは黒、ライトでは白にする（app/globals.css 内で理由を都度書かない）。 */
   --halo-rgb: 2, 5, 12;
 
-  /* 斬撃の閃光の色。既定（ダーク=黒の剣士キリト基調）では「閃光のアスナ」の
-     緋色×金の一閃、ライトモード（アスナ基調）では「黒の剣士キリト」の漆黒の
-     一閃にする＝土台のキャラクターと閃光のキャラクターを反転させている。 */
-  --flash-edge-rgb: 255, 90, 110;
-  --flash-core-rgb: 255, 230, 190;
+  /* 剣戟の閃光の色。キャラクター色に寄せすぎず、刀身の煌めきに近い
+     控えめなシルバー基調にする（元のSAOテイストの発光に近いトーン）。 */
+  --flash-edge-rgb: 195, 210, 225;
+  --flash-core-rgb: 236, 242, 248;
 }
 
 * { box-sizing: border-box; }
+
+/* 作品名などをドラッグ選択した時、ブラウザ既定の黒っぽいハイライトのままだと
+   浮いて見えるため、テーマのアクセントカラーに馴染むようにする。 */
+::selection {
+  background: rgba(var(--accent-rgb), 0.35);
+  color: var(--ink);
+}
 
 html, body {
   margin: 0;
@@ -799,26 +805,44 @@ body {
 :root[data-theme="light"] {
   --bg: #f8f2ee;
   --paper: rgba(255, 255, 255, 0.74);
-  --paper-2: rgba(250, 227, 224, 0.82);
+  --paper-2: rgba(250, 233, 231, 0.82);
   --ink: #2a1216;
   --muted: #7a4348;
   --muted-2: #b3898d;
-  --border-soft: rgba(200, 30, 58, 0.16);
-  --border: rgba(200, 30, 58, 0.32);
-  --border-bright: rgba(200, 30, 58, 0.5);
-  --accent: #c81e3a;
+  --border-soft: rgba(180, 60, 80, 0.14);
+  --border: rgba(180, 60, 80, 0.28);
+  --border-bright: rgba(180, 60, 80, 0.45);
+  /* 季節タブ/並び替え等の強調色はやや抑えたローズ寄りの緋色にして、赤みが強く
+     出過ぎないようにする（金の--accent-2との組み合わせで彩度を分散させる）。 */
+  --accent: #b5525f;
   --accent-2: #b8860f;
   --danger: #c23b2e;
 
-  --accent-rgb: 200, 30, 58;
+  --accent-rgb: 181, 82, 95;
   --accent-2-rgb: 184, 134, 15;
-  --border-bright-rgb: 214, 40, 68;
+  --border-bright-rgb: 180, 60, 80;
   --danger-rgb: 194, 59, 46;
   --halo-rgb: 255, 255, 255;
 
-  /* 黒の剣士キリトの一閃：漆黒の斬撃＋鋼の閃き。 */
-  --flash-edge-rgb: 20, 20, 26;
-  --flash-core-rgb: 172, 178, 190;
+  /* 剣戟の閃光は白背景でも視認できる範囲で、ダーク同様シルバー基調に留める。 */
+  --flash-edge-rgb: 140, 148, 160;
+  --flash-core-rgb: 206, 211, 219;
+}
+/* 題字の発光はダークモードほど強くすると赤みが目立つため、ライトでは控えめに。 */
+:root[data-theme="light"] .brand {
+  text-shadow:
+    0 0 8px rgba(var(--accent-rgb), 0.35),
+    0 0 18px rgba(var(--accent-rgb), 0.16),
+    0 0 30px rgba(var(--accent-2-rgb), 0.14),
+    0 2px 6px rgba(var(--halo-rgb), 0.95),
+    0 0 16px rgba(var(--halo-rgb), 0.9);
+}
+/* シーズンバッジは固定の濃紺チップだとダークでは背景に馴染むが、ライトでは
+   浮いて見えるため、周囲と同じガラスパネル色にして馴染ませる。 */
+:root[data-theme="light"] .brand-season {
+  background: var(--paper-2);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(var(--border-bright-rgb), 0.14) inset, 0 0 10px rgba(var(--accent-rgb), 0.12);
 }
 :root[data-theme="light"] body {
   background:
