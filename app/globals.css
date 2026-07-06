@@ -25,10 +25,10 @@
   --halo-rgb: 2, 5, 12;
 
   /* 剣戟の閃光の色。刀身の煌めきに近いシルバー基調を基本にしつつ、
-     陰（縁）にだけ閃光のアスナを思わせる緋色をうっすら添える
+     陰（縁）に閃光のアスナを思わせる緋色をはっきり添える
      （キリト基調のダークモードに、アスナの一閃が重なるイメージ）。 */
-  --flash-edge-rgb: 210, 170, 178;
-  --flash-core-rgb: 241, 233, 231;
+  --flash-edge-rgb: 226, 116, 124;
+  --flash-core-rgb: 244, 230, 228;
 }
 
 * { box-sizing: border-box; }
@@ -516,6 +516,11 @@ body {
   display: flex; align-items: center; justify-content: center;
   position: relative;
   overflow: hidden;
+  /* 作品ごとの揺らぎ（--tvs/--tvl/--tvl2）から蒼のシステムウィンドウ風タイルを組む。
+     ライトモードでは下部で淡い緋色タイルへ差し替える。 */
+  background: linear-gradient(150deg,
+    hsl(205 calc((50 + var(--tvs, 2) * 6) * 1%) calc((14 + var(--tvl, 1) * 2) * 1%)),
+    hsl(216 calc((56 + var(--tvs, 2) * 6) * 1%) calc((8 + var(--tvl2, 1)) * 1%)));
 }
 
 /* カード右上のアクション（共有・お気に入り）。.card の position:relative が基準。 */
@@ -789,6 +794,51 @@ body {
   color: var(--muted-2); font-size: 12px; line-height: 1.7;
 }
 
+/* ── 上部へ戻るボタン（フローティング）──────── */
+.scroll-top {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 50;
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--border-bright);
+  background: var(--paper-2);
+  color: var(--accent-2);
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 0 1px rgba(var(--border-bright-rgb), 0.14) inset, 0 6px 20px -8px rgba(0, 0, 0, 0.5), 0 0 16px rgba(var(--accent-rgb), 0.3);
+  opacity: 0;
+  transform: translateY(12px) scale(0.9);
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease, border-color 0.2s, box-shadow 0.2s;
+}
+.scroll-top[data-show="true"] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+.scroll-top:hover {
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 1px rgba(var(--border-bright-rgb), 0.22) inset, 0 8px 24px -8px rgba(0, 0, 0, 0.55), 0 0 20px rgba(var(--accent-rgb), 0.5);
+}
+.scroll-top:active { transform: translateY(0) scale(0.94); }
+/* 上向きの山（∧）を borderで描く */
+.scroll-top-arrow {
+  width: 12px;
+  height: 12px;
+  border-top: 2px solid currentColor;
+  border-left: 2px solid currentColor;
+  transform: rotate(45deg);
+  margin-top: 4px;
+  filter: drop-shadow(0 0 5px rgba(var(--accent-rgb), 0.6));
+}
+
 @media (max-width: 480px) {
   .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
   .card-title { font-size: 14px; }
@@ -819,14 +869,14 @@ body {
   --border-soft: rgba(180, 60, 80, 0.14);
   --border: rgba(180, 60, 80, 0.28);
   --border-bright: rgba(180, 60, 80, 0.45);
-  /* 季節タブ/並び替え等の強調色はさらに淡いローズにして、赤みが強く
-     出過ぎないようにする（金の--accent-2との組み合わせで彩度を分散させる）。 */
-  --accent: #cb8891;
-  --accent-2: #b8860f;
+  /* 季節タブ/並び替え等の強調色は、淡さは保ちつつ緋色をしっかり効かせる
+     （ナイツ・オブ・ブラッドの緋色×金。金の--accent-2と組ませて品よく）。 */
+  --accent: #d16472;
+  --accent-2: #c1901a;
   --danger: #c23b2e;
 
-  --accent-rgb: 203, 136, 145;
-  --accent-2-rgb: 184, 134, 15;
+  --accent-rgb: 209, 100, 114;
+  --accent-2-rgb: 193, 144, 26;
   --border-bright-rgb: 180, 60, 80;
   --danger-rgb: 194, 59, 46;
   --halo-rgb: 255, 255, 255;
@@ -863,7 +913,40 @@ body {
   background: linear-gradient(100deg, #f6dee0 30%, #fff7f6 50%, #f6dee0 70%);
 }
 /* 検索アイコンはSVGデータURIに色を直書きしているため、CSS変数だけでは
-   追従しない。ライトモード用に緋色のアイコンへ個別に差し替える。 */
+   追従しない。ライトモード用に緋色のアイコンへ個別に差し替える（--accentと同色）。 */
 :root[data-theme="light"] .search {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23c81e3a' stroke-width='2' stroke-linecap='round'><circle cx='11' cy='11' r='7'/><path d='M21 21l-4.3-4.3'/></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23d16472' stroke-width='2' stroke-linecap='round'><circle cx='11' cy='11' r='7'/><path d='M21 21l-4.3-4.3'/></svg>");
+}
+
+/* 空きタイル（モノグラム）は、ダークの蒼タイルのままだとライトの中で黒く浮くため、
+   アスナ基調の淡い緋色タイルに差し替えて周囲になじませる。 */
+:root[data-theme="light"] .thumb-empty {
+  background: linear-gradient(150deg,
+    hsl(350 calc((30 + var(--tvs, 2) * 4) * 1%) calc((90 - var(--tvl, 1) * 2) * 1%)),
+    hsl(344 calc((34 + var(--tvs, 2) * 4) * 1%) calc((84 - var(--tvl2, 1) * 2) * 1%)));
+}
+/* 淡いタイルの上では白系のモノグラム文字は読めないので、緋色寄りの濃色にする。 */
+:root[data-theme="light"] .mono {
+  color: rgba(120, 30, 44, 0.9);
+  text-shadow: 0 0 14px rgba(var(--accent-rgb), 0.35), 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+/* 種別マーク（《劇》等）も淡いタイルに馴染むガラス質にする。 */
+:root[data-theme="light"] .mono-kind {
+  background: rgba(255, 255, 255, 0.32);
+  border-color: rgba(var(--accent-rgb), 0.5);
+  color: #8a2338;
+  text-shadow: none;
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.2);
+}
+/* カード右上の共有・お気に入りボタンも、淡いタイルの上で黒く沈まないよう明るくする。 */
+:root[data-theme="light"] .card-action {
+  background: rgba(255, 255, 255, 0.55);
+}
+:root[data-theme="light"] .fav-btn[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.7);
+}
+/* 年のプルダウンは、ライトでは背景が明るく透け感が伝わりにくいので、
+   --paper-2 より一段透かして「背後がぼやけて見える」ことをはっきりさせる。 */
+:root[data-theme="light"] .year-menu {
+  background: rgba(255, 249, 247, 0.35);
 }

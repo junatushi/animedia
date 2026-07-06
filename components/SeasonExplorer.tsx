@@ -7,6 +7,7 @@ import { track } from "@vercel/analytics";
 import { textOn } from "@/lib/services";
 import { CHANGELOG } from "@/lib/changelog";
 import ThemeToggle from "./ThemeToggle";
+import ScrollTopButton from "./ScrollTopButton";
 import type { AnimeItem, SeasonResponse, ServiceTag } from "@/lib/types";
 
 const SEASONS = [
@@ -36,14 +37,14 @@ function currentSeasonKey(): string {
 // 無断で読み込み表示しないための著作権配慮。代わりに作品ごとに色違いの
 // グラデーション＋頭文字（モノグラム）の「デザインタイル」を生成して空欄を避ける。
 function posterStyle(id: number): React.CSSProperties {
-  // 色相は固定し、彩度と明度だけを作品ごとに振って統一感のある
-  // 空色〜蒼のシステムウィンドウ風グラデーションにする。
-  const s = 50 + (id % 5) * 6;
-  const l1 = 14 + (id % 4) * 2;
-  const l2 = 8 + ((id * 3) % 4);
+  // 作品ごとの揺らぎ（無単位）だけを CSS 変数で渡し、実際のグラデーションは
+  // globals.css の .thumb-empty 側で組み立てる。こうするとダーク（蒼のタイル）と
+  // ライト（アスナ基調の淡い緋色タイル）をテーマごとに切り替えられる。
   return {
-    background: `linear-gradient(150deg, hsl(205 ${s}% ${l1}%), hsl(216 ${s + 6}% ${l2}%))`,
-  };
+    "--tvs": id % 5,
+    "--tvl": id % 4,
+    "--tvl2": (id * 3) % 4,
+  } as React.CSSProperties;
 }
 // 作品種別プレフィックスと、タイルに添える種別マーク（上から順に判定）。
 //  劇場公開系＝《劇》 ／ OVA・OAD＝《O》 ／ 総集編＝《総》
@@ -618,6 +619,8 @@ export default function SeasonExplorer({
         新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
         「その他配信」は未登録サービスの可能性があり、点線で表示しています。
       </p>
+
+      <ScrollTopButton />
     </div>
   );
 }
