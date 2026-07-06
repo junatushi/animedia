@@ -82,3 +82,44 @@ export function textOn(hex: string): string {
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.6 ? "#10141f" : "#ffffff";
 }
+
+// AnnictWork（生データ）→ AnimeItem（画面/APIが使う整形済みデータ）への変換。
+// シーズン一覧（getSeasonData）と作品個別ページ（getWorkData）の両方から共有する。
+export function toAnimeItem(w: {
+  annictId: number;
+  title: string;
+  watchersCount: number | null;
+  officialSiteUrl: string | null;
+  image: { recommendedImageUrl: string | null } | null;
+  programs: { nodes: { channel: { name: string | null } | null }[] } | null;
+}): import("./types").AnimeItem {
+  const serviceMap = new Map<string, ServiceDef>();
+  const others = new Set<string>();
+
+  for (const p of w.programs?.nodes ?? []) {
+    const name = p.channel?.name;
+    if (!name) continue;
+    const c = classifyChannel(name);
+    if (c.kind === "service") {
+      serviceMap.set(c.def.key, c.def);
+    } else if (c.kind === "other") {
+      others.add(c.name);
+    }
+    // kind === "tv" は国内配信のみ表示のため捨てる
+  }
+
+  return {
+    id: w.annictId,
+    title: w.title,
+    image: w.image?.recommendedImageUrl || null,
+    officialSiteUrl: w.officialSiteUrl || null,
+    watchers: w.watchersCount ?? 0,
+    services: [...serviceMap.values()].map((def) => ({
+      key: def.key,
+      name: def.name,
+      short: def.short,
+      color: def.color,
+    })),
+    otherServices: [...others],
+  };
+}

@@ -1,12 +1,20 @@
 import type { MetadataRoute } from "next";
+import { getSeasonData } from "@/lib/getSeasonData";
 
 const siteUrl = "https://animedia-khaki.vercel.app";
 
-// コンテンツは Annict からクライアント側で取得しており、年・シーズンごとに
-// 別々にサーバーレンダリングされたページがあるわけではないため、
-// クロール対象としてはルートURL1件で十分。
-export default function sitemap(): MetadataRoute.Sitemap {
-  return [
+function currentSeason(): { year: number; season: string } {
+  const now = new Date();
+  const year = now.getFullYear();
+  const m = now.getMonth() + 1;
+  const season = m <= 3 ? "winter" : m <= 6 ? "spring" : m <= 9 ? "summer" : "autumn";
+  return { year, season };
+}
+
+// ルートURLに加え、現在のシーズンページ・作品個別ページをクロール対象に含める。
+// 過去シーズン全件は取得コストが増えるため、まずは「今期」だけを対象にする。
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const entries: MetadataRoute.Sitemap = [
     {
       url: siteUrl,
       lastModified: new Date(),
@@ -14,4 +22,27 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     },
   ];
+
+  const { year, season } = currentSeason();
+  try {
+    const data = await getSeasonData(String(year), season);
+    entries.push({
+      url: `${siteUrl}/season/${year}/${season}`,
+      lastModified: new Date(),
+      changeFrequency: "daily",
+      priority: 0.9,
+    });
+    for (const it of data.items) {
+      entries.push({
+        url: `${siteUrl}/anime/${it.id}`,
+        lastModified: new Date(),
+        changeFrequency: "weekly",
+        priority: 0.6,
+      });
+    }
+  } catch {
+    // Annictから取得できない場合はルートURLのみのサイトマップにフォールバックする
+  }
+
+  return entries;
 }

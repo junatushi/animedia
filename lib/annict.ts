@@ -73,6 +73,24 @@ query ($id: Int!, $after: String) {
   }
 }`;
 
+// 作品個別ページ（/anime/[id]）用に、1作品だけをIDで取得するクエリ。
+const WORK_QUERY = `
+query ($id: Int!) {
+  searchWorks(annictIds: [$id], first: 1) {
+    nodes {
+      annictId
+      title
+      watchersCount
+      officialSiteUrl
+      image { recommendedImageUrl }
+      programs(first: ${PROGRAMS_PER_WORK}) {
+        pageInfo { hasNextPage endCursor }
+        nodes { channel { name } }
+      }
+    }
+  }
+}`;
+
 async function gql<T>(
   body: { query: string; variables: Record<string, unknown> },
   token: string
@@ -185,4 +203,30 @@ export async function fetchSeasonWorks(
     image: w.image,
     programs: w.programs ? { nodes: w.programs.nodes } : null,
   }));
+}
+
+// 作品個別ページ（/anime/[id]）用。annictId 1件だけを取得する。
+// 存在しないIDの場合は null を返す（呼び出し側で 404 にする）。
+export async function fetchWorkById(id: number, token: string): Promise<AnnictWork | null> {
+  const data = await gql<{ searchWorks: { nodes: RawWork[] } }>(
+    { query: WORK_QUERY, variables: { id } },
+    token
+  );
+  const w = data.searchWorks?.nodes?.[0];
+  if (!w) return null;
+
+  const pi = w.programs?.pageInfo;
+  if (w.programs && pi?.hasNextPage && pi.endCursor) {
+    const extra = await fetchRemainingPrograms(w.annictId, pi.endCursor, token);
+    w.programs.nodes.push(...extra);
+  }
+
+  return {
+    annictId: w.annictId,
+    title: w.title,
+    watchersCount: w.watchersCount,
+    officialSiteUrl: w.officialSiteUrl,
+    image: w.image,
+    programs: w.programs ? { nodes: w.programs.nodes } : null,
+  };
 }
