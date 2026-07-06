@@ -29,6 +29,8 @@ export const metadata: Metadata = {
     description,
   },
   robots: { index: true, follow: true },
+  // Google Search Console の所有権確認（HTMLタグ方式）。
+  verification: { google: "IX-bhS1gsK4LM3Dxy_j6MpdaVGtuCtVvY_RA2NIrybs" },
 };
 
 export const viewport: Viewport = {
