@@ -24,10 +24,11 @@
      縁取りで、ダークでは黒、ライトでは白にする（app/globals.css 内で理由を都度書かない）。 */
   --halo-rgb: 2, 5, 12;
 
-  /* 剣戟の閃光の色。キャラクター色に寄せすぎず、刀身の煌めきに近い
-     控えめなシルバー基調にする（元のSAOテイストの発光に近いトーン）。 */
-  --flash-edge-rgb: 195, 210, 225;
-  --flash-core-rgb: 236, 242, 248;
+  /* 剣戟の閃光の色。刀身の煌めきに近いシルバー基調を基本にしつつ、
+     陰（縁）にだけ閃光のアスナを思わせる緋色をうっすら添える
+     （キリト基調のダークモードに、アスナの一閃が重なるイメージ）。 */
+  --flash-edge-rgb: 210, 170, 178;
+  --flash-core-rgb: 241, 233, 231;
 }
 
 * { box-sizing: border-box; }
@@ -676,7 +677,11 @@ body {
   padding: 0.32em 0.6em;
   border: 1px solid rgba(var(--accent-2-rgb), 0.55);
   border-radius: 2px;
-  background: rgba(6, 10, 22, 0.5);
+  /* 不透明な黒だとタイルから浮くため、うっすら透けるガラス質にして
+     背後のタイルの色味がにじむようにする。 */
+  background: rgba(8, 14, 26, 0.32);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
   color: var(--accent-2);
   text-shadow: 0 0 8px rgba(var(--accent-2-rgb), 0.6);
   box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.25);
@@ -805,28 +810,31 @@ body {
 :root[data-theme="light"] {
   --bg: #f8f2ee;
   --paper: rgba(255, 255, 255, 0.74);
-  --paper-2: rgba(250, 233, 231, 0.82);
+  /* ダークモードのプルダウン等と同じくらい透けるガラス質にする（前回0.82は
+     不透明すぎて背景が透けて見えなかった）。 */
+  --paper-2: rgba(250, 233, 231, 0.56);
   --ink: #2a1216;
   --muted: #7a4348;
   --muted-2: #b3898d;
   --border-soft: rgba(180, 60, 80, 0.14);
   --border: rgba(180, 60, 80, 0.28);
   --border-bright: rgba(180, 60, 80, 0.45);
-  /* 季節タブ/並び替え等の強調色はやや抑えたローズ寄りの緋色にして、赤みが強く
+  /* 季節タブ/並び替え等の強調色はさらに淡いローズにして、赤みが強く
      出過ぎないようにする（金の--accent-2との組み合わせで彩度を分散させる）。 */
-  --accent: #b5525f;
+  --accent: #cb8891;
   --accent-2: #b8860f;
   --danger: #c23b2e;
 
-  --accent-rgb: 181, 82, 95;
+  --accent-rgb: 203, 136, 145;
   --accent-2-rgb: 184, 134, 15;
   --border-bright-rgb: 180, 60, 80;
   --danger-rgb: 194, 59, 46;
   --halo-rgb: 255, 255, 255;
 
-  /* 剣戟の閃光は白背景でも視認できる範囲で、ダーク同様シルバー基調に留める。 */
-  --flash-edge-rgb: 140, 148, 160;
-  --flash-core-rgb: 206, 211, 219;
+  /* 剣戟の閃光はシルバー基調のまま、黒の剣士キリトを思わせるうっすらとした
+     黒みを陰に添える（--flash-edge-rgb がグラデーションの縁＝陰にあたる）。 */
+  --flash-edge-rgb: 78, 82, 90;
+  --flash-core-rgb: 196, 202, 212;
 }
 /* 題字の発光はダークモードほど強くすると赤みが目立つため、ライトでは控えめに。 */
 :root[data-theme="light"] .brand {
