@@ -189,6 +189,25 @@ body {
   box-shadow: 0 0 10px rgba(63, 169, 245, 0.3);
 }
 
+.theme-toggle {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  background: var(--paper-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.theme-toggle:hover {
+  color: var(--accent-2);
+  border-color: var(--accent-2);
+  box-shadow: 0 0 10px rgba(63, 169, 245, 0.3);
+}
+
 /* ── Controls（半透明のシステムウィンドウ）── */
 .controls {
   display: flex;
@@ -749,4 +768,50 @@ body {
   *, .card, .thumb, .skeleton-card, .live i, .card .slash {
     animation: none !important; transition: none !important;
   }
+}
+
+/* ── ライトモード ─────────────────────────────
+   ダーク基調（SAOテイスト）を前提に作った発光演出は白背景だと
+   馴染まないため、切り替え時は「ガラス窓＋斬撃」の世界観は保ちつつ、
+   ネオン量を抑えた明るいトーンに寄せる。data-theme="light" は
+   components/ThemeToggle.tsx が <html> に付け外しする。 */
+:root[data-theme="light"] {
+  --bg: #f3f7fc;
+  --paper: rgba(255, 255, 255, 0.72);
+  --paper-2: rgba(222, 235, 250, 0.85);
+  --ink: #10233a;
+  --muted: #46617a;
+  --muted-2: #7d93a8;
+  --border-soft: rgba(31, 127, 209, 0.18);
+  --border: rgba(31, 127, 209, 0.35);
+  --border-bright: rgba(31, 127, 209, 0.55);
+  --accent: #1f7fd1;
+  --accent-2: #0f6fc0;
+  --danger: #d81b46;
+}
+:root[data-theme="light"] body {
+  background:
+    radial-gradient(900px 520px at 50% -12%, rgba(31, 127, 209, 0.1), transparent 62%),
+    radial-gradient(680px 420px at 8% 20%, rgba(31, 127, 209, 0.07), transparent 60%),
+    radial-gradient(620px 380px at 96% 10%, rgba(31, 127, 209, 0.06), transparent 60%),
+    var(--bg);
+}
+/* 斬撃の閃光は暗背景ありきの発光効果のため、白背景では非表示にする。 */
+:root[data-theme="light"] .masthead::before { display: none; }
+/* 題字は固定色の白文字だったため、ライトモード用に濃色＋控えめな光彩へ差し替え。 */
+:root[data-theme="light"] .brand {
+  color: var(--ink);
+  -webkit-text-stroke: 0;
+  text-shadow:
+    0 0 10px rgba(31, 127, 209, 0.3),
+    0 0 22px rgba(31, 127, 209, 0.15);
+}
+/* 閃光と競う前提の濃色ハローは不要になるため外す。 */
+:root[data-theme="light"] .eyebrow,
+:root[data-theme="light"] .live,
+:root[data-theme="light"] .tagline {
+  text-shadow: none;
+}
+:root[data-theme="light"] .skeleton-card {
+  background: linear-gradient(100deg, #e3edf7 30%, #f5faff 50%, #e3edf7 70%);
 }

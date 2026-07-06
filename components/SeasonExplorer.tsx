@@ -6,6 +6,7 @@ import Link from "next/link";
 import { track } from "@vercel/analytics";
 import { textOn } from "@/lib/services";
 import { CHANGELOG } from "@/lib/changelog";
+import ThemeToggle from "./ThemeToggle";
 import type { AnimeItem, SeasonResponse, ServiceTag } from "@/lib/types";
 
 const SEASONS = [
@@ -341,6 +342,7 @@ export default function SeasonExplorer({
           <button type="button" className="share-x" onClick={shareOnX}>
             Xで共有
           </button>
+          <ThemeToggle />
         </div>
       </header>
 

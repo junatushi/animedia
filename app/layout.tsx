@@ -49,7 +49,7 @@ const jsonLd = {
 
 export const viewport: Viewport = {
   themeColor: "#060a16",
-  colorScheme: "dark",
+  colorScheme: "light dark",
   width: "device-width",
   initialScale: 1,
 };
@@ -62,6 +62,15 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <head>
+        {/* ライトモードの選択を、描画前に <html data-theme="light"> として反映する
+            （ちらつき防止のため、他のスクリプトより先に同期実行する）。 */}
+        <script
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{if(localStorage.getItem('anime-haishin:theme')==='light'){document.documentElement.setAttribute('data-theme','light');}}catch(e){}})();",
+          }}
+        />
         <script
           type="application/ld+json"
           // eslint-disable-next-line react/no-danger
