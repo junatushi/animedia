@@ -2,19 +2,13 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getWorkData } from "@/lib/getWorkData";
-import { textOn } from "@/lib/services";
 import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
+import ServiceMarks from "@/components/ServiceMarks";
 
 const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
 
 const siteUrl = "https://animedia-khaki.vercel.app";
-
-// バッジを公式ロゴ風ロックアップにするための先頭マーク（SeasonExplorerと同ロジック）。
-function brandMark(short: string): string {
-  const ch = [...short.trim()];
-  return ch.length ? ch[0] : "?";
-}
 
 type Params = { id: string };
 
@@ -194,7 +188,8 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
               {credits.casts.length > 0 && (
                 <section className="detail-section">
                   <h2 className="detail-heading">声優</h2>
-                  <ul className="detail-list">
+                  {/* 人数が多いので2〜3列のグリッドで縦の長さを抑える。 */}
+                  <ul className="detail-cast-grid">
                     {credits.casts.map((c, i) => (
                       <li key={i}>
                         {c.personName}
@@ -243,33 +238,12 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
 
         <article className="card">
           <div className="card-body">
-            <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 8px", color: "var(--ink)" }}>
+            <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
               「{item.title}」はどこで配信されている？
             </h2>
-            {/* アンサーファースト: 結論（視聴可能サービス）を冒頭に文章で置く（AI引用対策）。 */}
-            <p className="detail-text" style={{ margin: "0 0 12px" }}>{watchAnswer}</p>
-            {item.services.length === 0 && item.otherServices.length === 0 ? (
-              <span className="no-haishin">配信情報なし</span>
-            ) : (
-              <div className="badges">
-                {item.services.map((s) => (
-                  <span key={s.key} className="badge" style={{ ["--c" as string]: s.color }}>
-                    <span
-                      className="badge-mark"
-                      style={{ background: s.color, color: textOn(s.color) }}
-                    >
-                      {brandMark(s.short)}
-                    </span>
-                    <span className="badge-name">{s.short}</span>
-                  </span>
-                ))}
-                {item.otherServices.map((name) => (
-                  <span key={name} className="badge badge-other">
-                    {name}
-                  </span>
-                ))}
-              </div>
-            )}
+            {/* サービス名はアイコン内にテキストとして保持（.sr-only）。冗長な文章列挙はしない。
+                FAQPageの回答文（JSON-LD）側には名称を含めているのでAI・検索には伝わる。 */}
+            <ServiceMarks services={item.services} otherServices={item.otherServices} />
 
             {item.officialSiteUrl && (
               <a
@@ -277,6 +251,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                 href={item.officialSiteUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                style={{ marginTop: 14 }}
               >
                 公式サイト ↗
               </a>

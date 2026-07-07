@@ -244,9 +244,9 @@ body {
   box-shadow: 0 0 0 1px rgba(var(--border-bright-rgb), 0.12) inset, 0 0 26px rgba(var(--accent-rgb), 0.12), 0 8px 26px -18px rgba(0, 0, 0, 0.6);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
-  position: sticky;
-  top: 12px;
-  z-index: 20;
+  /* 追従（sticky）はしない。画面に作品を多く見せることを優先し、
+     操作パネルは通常フローで上部に置く（スクロールで流れて消える）。 */
+  position: static;
 }
 
 .control-line { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
@@ -731,65 +731,103 @@ body {
   background: rgba(6, 10, 22, 0.7);
 }
 
-/* ── 横長カードのレイアウト（上部バー→タイトル→[サムネ｜配信]）───── */
+/* スクリーンリーダー・検索エンジン用に、見た目は隠しつつDOMには残すテキスト。 */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── 横長カードのレイアウト（上部バー→タイトル→[サムネ｜配信]）─────
+   カード高さを揃えるため、配信サービスはサムネの高さに収める（超過分はクリップ）。 */
 .card-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 7px 12px;
+  padding: 4px 12px;
   background: var(--paper-2);
   border-bottom: 1px solid var(--border-soft);
 }
-.card-air-time {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--accent-2);
-  white-space: nowrap;
-}
+.card-air-time,
 .card-cool {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: var(--muted);
   white-space: nowrap;
 }
-/* タイトルは全幅・小さめ（長い作品名が多いので2行まで）。 */
-.card > .card-title {
+.card-air-time { color: var(--accent-2); }
+.card-cool { color: var(--muted); }
+/* タイトル＋メタ（注目人数・公式サイト）のヘッダー。 */
+.card-head { padding: 8px 12px 6px; }
+.card > .card-head > .card-title {
   font-size: 13.5px;
-  line-height: 1.4;
-  margin: 0;
-  padding: 9px 12px 6px;
+  line-height: 1.38;
+  margin: 0 0 5px;
+  min-height: calc(1.38em * 2); /* 2行分を確保してカード高さを揃える */
 }
-.card-main {
+.card-head-meta {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  padding: 0 12px 12px;
+}
+.card-head-meta .card-pop { margin: 0; }
+.card-head-meta .official { margin: 0; white-space: nowrap; }
+/* 下段：サムネ（左・高さの基準）＋配信サービス（右・絶対配置でサムネ高さに収める）。 */
+.card-main {
+  position: relative;
+  margin: 0 12px 12px;
 }
 .card-thumb-col {
   position: relative;
-  flex: 0 0 44%;
+  width: 44%;
   border-radius: 4px;
   overflow: hidden;
 }
+.card-thumb-col .thumb-ai,
+.card-thumb-col .thumb-empty { aspect-ratio: 16 / 9; }
 .card-svc-col {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(44% + 10px);
+  right: 0;
+  overflow: hidden;
 }
-/* svc-col 内は gap で間隔を取るので、各要素の既定マージンは消す。 */
-.card-svc-col .card-pop { margin: 0; }
-.card-svc-col .badges { margin: 0; }
-.card-svc-col .no-haishin { margin: 0; }
-.card-svc-col .official { margin: 2px 0 0; }
 /* サムネ枠内でのアクション（共有・お気に入り）。thumb-col が position:relative の基準。 */
 .card-thumb-col .card-actions { top: 6px; right: 6px; }
+
+/* 配信サービスのアイコンのみ表示（省スペース）。名称は .sr-only と title 属性で保持。 */
+.svc-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-content: flex-start;
+}
+.svc-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.35);
+}
+.svc-mark-other {
+  background: var(--paper-2);
+  color: var(--muted-2);
+  border: 1px dashed var(--border);
+  box-shadow: none;
+}
 
 /* 今期の注目作ランキング */
 .ranking {
@@ -1099,6 +1137,19 @@ body {
   line-height: 1.6;
   color: var(--ink);
 }
+/* 声優一覧は人数が多いので2〜3列グリッドで縦を抑える。 */
+.detail-cast-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 4px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.detail-cast-grid li { min-width: 0; }
 .detail-sub { color: var(--muted); font-size: 0.92em; margin-left: 0.3em; }
 .detail-source {
   margin: 4px 0 0;
@@ -1203,10 +1254,9 @@ body {
 @media (max-width: 480px) {
   .wrap { padding: 0 16px 72px; }
 
-  /* 操作パネルは縦画面ではスクロールに追従（sticky）。ただし高さの低い横画面では
-     パネルが画面を覆って一覧が見えなくなるので、その場合は下の別メディアクエリで
-     追従を解除する。追従時にパネルが縦に伸びすぎないよう、フィルタ列は横スクロールにする。 */
-  .controls { top: 8px; gap: 12px; padding: 14px 14px; }
+  /* 操作パネルはコンパクトに。フィルタ列は横スクロールにして縦の占有を減らす
+     （その分、下の作品一覧を多く見せる）。 */
+  .controls { gap: 12px; padding: 14px 14px; margin-bottom: 20px; }
   .filters {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -1225,29 +1275,22 @@ body {
   .theme-toggle,
   .share-x { padding: 9px 15px; min-height: 38px; display: inline-flex; align-items: center; }
 
-  /* 一覧カード（上部バー→タイトル→[サムネ｜配信]）はスマホでは1列。
-     カード内のサムネ｜配信の横並びは既定レイアウトのまま活きる。 */
-  .grid { grid-template-columns: 1fr; gap: 12px; }
-  .card > .card-title { font-size: 13px; padding: 8px 11px 5px; }
-  .card-topbar { padding: 6px 11px; }
-  .card-main { gap: 8px; padding: 0 11px 11px; }
-  .card-thumb-col { flex-basis: 42%; }
+  /* 一覧カードはスマホでは1列。画面に2〜3作品入るコンパクトさを優先。 */
+  .grid { grid-template-columns: 1fr; gap: 10px; }
+  .card-head { padding: 7px 11px 5px; }
+  .card > .card-head > .card-title { font-size: 13px; }
+  .card-topbar { padding: 4px 11px; }
+  .card-main { margin: 0 11px 11px; }
   .card-thumb-col .mono { font-size: 30px; }
   .card-thumb-col .mono-kind { font-size: 8.5px; padding: 0.28em 0.5em; margin-bottom: 0.24em; }
   .thumb-ai-tag { font-size: 8px; padding: 1px 5px; }
-  .card-action { width: 34px; height: 34px; }
-  .badges { gap: 6px; }
+  .card-action { width: 32px; height: 32px; }
+  .svc-mark { width: 24px; height: 24px; font-size: 12px; }
 
   /* カレンダーはスマホでは全曜日を横並びにせず、曜日ボタンで1日ずつ見る前提。
      「すべて」表示時は1カラムで縦に積む（横7分割はスマホでは細すぎるため）。 */
   .calendar { grid-template-columns: 1fr; }
   .calendar[data-single="true"] .calendar-list { grid-template-columns: 1fr; }
-}
-
-/* 横画面（＝画面の高さが低い）ではsticky追従を解除する。
-   追従したままだと操作パネルが縦を占有して一覧カードが見えなくなるため。 */
-@media (max-height: 500px) {
-  .controls { position: static; }
 }
 
 @media (prefers-reduced-motion: reduce) {

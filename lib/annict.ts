@@ -45,15 +45,17 @@ interface SearchWorksPage {
 }
 
 // キャスト/スタッフは声優・スタッフ名での検索（一覧）と作品個別ページの
-// クレジット表示の両方で使う。casts はデフォルトで sortNumber 昇順
-// （主要キャストが先頭）で返るため上位5件で足りる。
-const CASTS_PER_WORK = 5;
+// クレジット表示の両方で使う。casts は sortNumber 昇順（主要キャストが先頭）で返る。
+// 一覧（検索用）は主要5件で足りるが、作品ページは声優を「全員」出したいので多めに取る。
+const CASTS_LIST = 5;
+const CASTS_DETAIL = 40;
 // staffs は「監督」「原作」「アニメーション制作」を探すための件数。多くの作品は
 // 数件〜20件程度に収まるが、余裕を持って40件まで見る（それでも無ければ省略）。
 const STAFFS_PER_WORK = 40;
 
-const CREDITS_FIELDS = `
-      casts(first: ${CASTS_PER_WORK}) {
+function creditsFields(castsCount: number): string {
+  return `
+      casts(first: ${castsCount}) {
         nodes { name character { name } }
       }
       staffs(first: ${STAFFS_PER_WORK}) {
@@ -67,6 +69,9 @@ const CREDITS_FIELDS = `
           }
         }
       }`;
+}
+const CREDITS_FIELDS = creditsFields(CASTS_LIST);
+const CREDITS_FIELDS_DETAIL = creditsFields(CASTS_DETAIL);
 
 // シーズンの作品一覧＋各作品の programs（最大 PROGRAMS_PER_WORK 件）＋
 // casts/staffs（声優・スタッフ名の検索用）を取る。
@@ -118,7 +123,7 @@ query ($id: Int!) {
         pageInfo { hasNextPage endCursor }
         nodes { channel { name } startedAt }
       }
-${CREDITS_FIELDS}
+${CREDITS_FIELDS_DETAIL}
     }
   }
 }`;

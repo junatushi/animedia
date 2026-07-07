@@ -8,6 +8,7 @@ import { textOn } from "@/lib/services";
 import { CHANGELOG } from "@/lib/changelog";
 import ThemeToggle from "./ThemeToggle";
 import ScrollTopButton from "./ScrollTopButton";
+import ServiceMarks from "./ServiceMarks";
 import type { AnimeItem, SeasonResponse, ServiceTag, SearchIndexEntry } from "@/lib/types";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 
@@ -747,11 +748,31 @@ export default function SeasonExplorer({
                 <span className="card-air-time">{airLabel(it) ?? "放送時期未定"}</span>
                 <span className="card-cool">{currentSeasonLabel}</span>
               </div>
-              {/* タイトル（全幅）。 */}
-              <h3 className="card-title">
-                <Link href={`/anime/${it.id}`}>{it.title}</Link>
-              </h3>
-              {/* 下段：サムネ（左）＋配信サービス（右）。 */}
+              {/* タイトル＋メタ（注目人数・公式サイト）をヘッダーにまとめ、
+                  下段の配信サービスはサムネの高さに収める（カード高さを揃える）。 */}
+              <div className="card-head">
+                <h3 className="card-title">
+                  <Link href={`/anime/${it.id}`}>{it.title}</Link>
+                </h3>
+                <div className="card-head-meta">
+                  {it.watchers > 0 && (
+                    <span className="card-pop" title="Annictで視聴登録している人数">
+                      {it.watchers.toLocaleString()}人が注目
+                    </span>
+                  )}
+                  {it.officialSiteUrl && (
+                    <a
+                      className="official"
+                      href={it.officialSiteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      公式サイト ↗
+                    </a>
+                  )}
+                </div>
+              </div>
+              {/* 下段：サムネ（左）＋配信サービスのアイコン（右）。 */}
               <div className="card-main">
                 <div className="card-thumb-col">
                   {/* 権利者の画像は使わない。AI独断解釈サムネ（本作品と無関係な創作）が
@@ -778,47 +799,7 @@ export default function SeasonExplorer({
                   </div>
                 </div>
                 <div className="card-svc-col">
-                  {it.watchers > 0 && (
-                    <span className="card-pop" title="Annictで視聴登録している人数">
-                      {it.watchers.toLocaleString()}人が注目
-                    </span>
-                  )}
-                  {it.services.length === 0 && it.otherServices.length === 0 ? (
-                    <span className="no-haishin">配信情報なし</span>
-                  ) : (
-                    <div className="badges">
-                      {it.services.map((s) => (
-                        <span
-                          key={s.key}
-                          className="badge"
-                          style={{ ["--c" as string]: s.color }}
-                        >
-                          <span
-                            className="badge-mark"
-                            style={{ background: s.color, color: textOn(s.color) }}
-                          >
-                            {brandMark(s.short)}
-                          </span>
-                          <span className="badge-name">{s.short}</span>
-                        </span>
-                      ))}
-                      {it.otherServices.map((name) => (
-                        <span key={name} className="badge badge-other">
-                          {name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {it.officialSiteUrl && (
-                    <a
-                      className="official"
-                      href={it.officialSiteUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      公式サイト ↗
-                    </a>
-                  )}
+                  <ServiceMarks services={it.services} otherServices={it.otherServices} />
                 </div>
               </div>
             </article>
