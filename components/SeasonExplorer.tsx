@@ -9,6 +9,10 @@ import { CHANGELOG } from "@/lib/changelog";
 import ThemeToggle from "./ThemeToggle";
 import ScrollTopButton from "./ScrollTopButton";
 import type { AnimeItem, SeasonResponse, ServiceTag, SearchIndexEntry } from "@/lib/types";
+import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
+
+// AI独断解釈サムネの注釈（全箇所で同じ文言を使う）。
+const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
 
 const SEASONS = [
   { key: "winter", label: "冬" },
@@ -95,6 +99,25 @@ function MonoLabel({ title }: { title: string }) {
       {mark && <span className="mono-kind">{mark}</span>}
       {core}
     </span>
+  );
+}
+
+// カードの左タイル。AI独断解釈サムネがあればそれを、無ければモノグラムタイルを出す。
+// AI画像には「AI創作」タグと、注釈をtitle属性で添える（本作品と無関係である旨）。
+function WorkTile({ id, title }: { id: number; title: string }) {
+  if (WORK_IMAGE_IDS.has(id)) {
+    return (
+      <div className="thumb thumb-ai" title={AI_IMAGE_NOTE}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={`/works/${id}.jpg`} alt="" loading="lazy" className="thumb-ai-img" />
+        <span className="thumb-ai-tag">AI創作</span>
+      </div>
+    );
+  }
+  return (
+    <div className="thumb thumb-empty" style={posterStyle(id)} aria-hidden>
+      <MonoLabel title={title} />
+    </div>
   );
 }
 // バッジを公式ロゴ風ロックアップにするための先頭マーク
@@ -719,11 +742,9 @@ export default function SeasonExplorer({
           {filtered.map((it) => (
             <article key={it.id} className="card">
               <span className="slash" aria-hidden="true" />
-              {/* 著作権配慮のため外部の作品画像は読み込まず、作品IDから生成した
-                  グラデーション＋頭文字のモノグラムタイルに統一する。 */}
-              <div className="thumb thumb-empty" style={posterStyle(it.id)} aria-hidden>
-                <MonoLabel title={it.title} />
-              </div>
+              {/* 権利者の画像は使わない。AI独断解釈サムネ（本作品と無関係な創作）が
+                  あればそれを、無ければモノグラムタイルを出す。 */}
+              <WorkTile id={it.id} title={it.title} />
               <div className="card-actions">
                 <button
                   type="button"
@@ -753,7 +774,7 @@ export default function SeasonExplorer({
                 </h3>
                 {it.watchers > 0 && (
                   <span className="card-pop" title="Annictで視聴登録している人数">
-                    {it.watchers.toLocaleString()}人が登録
+                    {it.watchers.toLocaleString()}人が注目
                   </span>
                 )}
 

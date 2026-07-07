@@ -4,6 +4,9 @@ import Link from "next/link";
 import { getWorkData } from "@/lib/getWorkData";
 import { textOn } from "@/lib/services";
 import { WORK_DETAILS } from "@/content/works";
+import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
+
+const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
 
 const siteUrl = "https://animedia-khaki.vercel.app";
 
@@ -130,6 +133,13 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
       </header>
 
       <div className="detail-page">
+        {WORK_IMAGE_IDS.has(item.id) && (
+          <figure className="detail-hero">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`/works/${item.id}.jpg`} alt="" className="detail-hero-img" />
+            <figcaption className="detail-hero-note">※ {AI_IMAGE_NOTE}</figcaption>
+          </figure>
+        )}
         {(content || credits.casts.length > 0 || credits.director || credits.productionCompany || credits.originalCreators.length > 0) && (
           <article className="card">
             <div className="card-body detail-body">
