@@ -33,6 +33,21 @@ const PROMPTS = [
   { id: 6187, seed: 330, prompt: "a nostalgic taisho-era street glowing with the first electric lightbulbs, warm impressionist oil painting, steampunk, centered, no characters, no text" },
   { id: 16658, seed: 500, prompt: "a joyful burst of a hundred heart-shaped balloons in a bright sky, vivid pop art poster, energetic and colorful, centered, no text" },
   { id: 13052, seed: 155, prompt: "a neon-drenched rainy cyberpunk city with holographic signs and wet reflections, moody sci-fi concept art, no characters, no text" },
+  { id: 15751, seed: 612, prompt: "a stack of manga drafting pens and inked panels under a harsh spotlight in a dark studio, dramatic sumi-e ink wash style with a single red brushstroke accent, intense tension, no characters, no text" },
+  { id: 15881, seed: 674, prompt: "an ornate mongolian ger tent glowing warmly under a starry steppe night sky with swirling mystic incense smoke, folk gouache painting style, rich earthy colors, no characters, no text" },
+  { id: 16714, seed: 719, prompt: "a translucent glass deer sprinting through a quiet neon-lit night street, ghostly glowing outline trailing light, ethereal dreamy digital art, no characters, no text" },
+  { id: 17057, seed: 733, prompt: "swirling ribbons of colorful light forming a dynamic dance silhouette on an empty stage with confetti bursts, vibrant vector pop concert poster, energetic, no characters, no text" },
+  { id: 16248, seed: 288, prompt: "a lone katana standing upright in a misty countryside rice field at dawn, serene watercolor painting, soft pastel light, no characters, no text" },
+  { id: 16339, seed: 841, prompt: "a whimsical striped circus tent surrounded by a field of giant sunflowers under a golden sky, flat cute cartoon sticker style, playful, no characters, no text" },
+  { id: 16571, seed: 366, prompt: "scuba diving fins and a snorkel mask resting on a sun-bleached wooden dock over turquoise ocean water, retro travel poster illustration, bright summer colors, no characters, no text" },
+  { id: 7915, seed: 528, prompt: "a glowing arcade fighting-game cabinet joystick lit by neon signs in a dim arcade, moody cyberpunk illustration, vivid magenta and cyan lights, no characters, no text" },
+  { id: 14969, seed: 902, prompt: "a sleek glass office tower sprouting magical sparkles and stars from its highest window at dusk, flat modern corporate-fantasy vector art, no characters, no text" },
+  { id: 13010, seed: 447, prompt: "a single empty swing gently moving in a quiet park at dusk, soft melancholic watercolor, muted blue and orange tones, no characters, no text" },
+  { id: 16677, seed: 355, prompt: "an ornate candlelit library filled with towering bookshelves and a single white rose on the desk, elegant oil painting, warm chiaroscuro lighting, no characters, no text" },
+  { id: 10352, seed: 190, prompt: "an antique game controller glowing beside a stack of storybooks under soft pastel light, whimsical storybook illustration, no characters, no text" },
+  { id: 11193, seed: 823, prompt: "cherry blossom petals drifting across an empty schoolyard path in soft afternoon light, gentle cel-shaded anime background art, pastel tones, no characters, no text" },
+  { id: 16910, seed: 561, prompt: "a candy-colored kaiju silhouette looming behind pastel city rooftops at sunset, pop-surrealist illustration, sweet caramel tones, no characters, no text" },
+  { id: 16023, seed: 274, prompt: "a vintage teacup, feather duster, and broom neatly arranged on a lace tablecloth in a cozy sunlit room, whimsical flat maid-cafe illustration, no characters, no text" },
 ];
 
 function genOne({ id, prompt, seed }) {
