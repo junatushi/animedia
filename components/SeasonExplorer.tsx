@@ -33,6 +33,14 @@ function currentSeasonKey(): string {
   return "autumn";
 }
 
+// broadcastWeekday（0=日〜6=土）→ 曜日ラベル。カード内の放送タイミング表示に使う。
+const WEEKDAY_SHORT = ["日", "月", "火", "水", "木", "金", "土"];
+function airLabel(it: AnimeItem): string | null {
+  if (it.broadcastWeekday === null) return null;
+  const wd = WEEKDAY_SHORT[it.broadcastWeekday] ?? "";
+  return it.broadcastTime ? `${wd} ${it.broadcastTime}` : wd;
+}
+
 // 作品サムネイルは表示しない方針。配信各社・権利者の画像（キービジュアル等）を
 // 無断で読み込み表示しないための著作権配慮。代わりに作品ごとに色違いの
 // グラデーション＋頭文字（モノグラム）の「デザインタイル」を生成して空欄を避ける。
@@ -168,6 +176,8 @@ export default function SeasonExplorer({
   const [sortKey, setSortKey] = useState<"popular" | "title">("popular");
   // 一覧（グリッド）と、曜日別の配信スケジュール（カレンダー）の表示切り替え。
   const [viewMode, setViewMode] = useState<"grid" | "calendar">("grid");
+  // カレンダー表示で、特定の曜日だけに絞り込むためのラベル（"all" = 全曜日）。
+  const [calendarDay, setCalendarDay] = useState<string>("all");
   // 複数の配信サービスを選んだ時、いずれか一致（OR）か全て一致（AND）かを切り替える。
   const [andMode, setAndMode] = useState(false);
 
@@ -384,6 +394,10 @@ export default function SeasonExplorer({
     if (tbd.length > 0) groups.push({ label: "配信日未定", items: tbd });
     return groups;
   }, [filtered]);
+
+  // 曜日フィルタで選ばれた曜日だけに絞る（"all" のときは全曜日を出す）。
+  const visibleCalendarGroups =
+    calendarDay === "all" ? calendarGroups : calendarGroups.filter((g) => g.label === calendarDay);
 
   return (
     <div className="wrap">
@@ -620,11 +634,35 @@ export default function SeasonExplorer({
           導出した曜日ごとに束ねる。「配信日未定」は programs がない/日時が取れない作品。 */}
       {viewMode === "calendar" && !loading && !error && data && filtered.length > 0 && (
         <>
+          {/* 曜日を絞り込むボタン。スマホでは全曜日を横に並べると狭いので、
+              曜日を選ぶと1日分だけを大きく表示できるようにする。 */}
+          <div className="calendar-days" role="group" aria-label="曜日で絞り込み">
+            <button
+              type="button"
+              className="calendar-day-btn"
+              aria-pressed={calendarDay === "all"}
+              onClick={() => setCalendarDay("all")}
+            >
+              すべて
+            </button>
+            {calendarGroups.map((g) => (
+              <button
+                key={g.label}
+                type="button"
+                className="calendar-day-btn"
+                aria-pressed={calendarDay === g.label}
+                onClick={() => setCalendarDay(g.label)}
+              >
+                {g.label}
+                <span className="calendar-day-btn-count">{g.items.length}</span>
+              </button>
+            ))}
+          </div>
           <p className="calendar-note">
             時刻は初回放送/配信から推定した目安です。話数によって前後する場合があります。
           </p>
-          <div className="calendar">
-          {calendarGroups.map((g) => (
+          <div className="calendar" data-single={calendarDay !== "all"}>
+          {visibleCalendarGroups.map((g) => (
             <section key={g.label} className="calendar-day">
               <h3 className="calendar-day-head">
                 {g.label}
@@ -706,10 +744,18 @@ export default function SeasonExplorer({
                 </button>
               </div>
               <div className="card-body">
-                <span className="card-season">{currentSeasonLabel}</span>
+                <span className="card-season">
+                  {currentSeasonLabel}
+                  {airLabel(it) && <span className="card-air">{airLabel(it)}</span>}
+                </span>
                 <h3 className="card-title">
                   <Link href={`/anime/${it.id}`}>{it.title}</Link>
                 </h3>
+                {it.watchers > 0 && (
+                  <span className="card-pop" title="Annictで視聴登録している人数">
+                    {it.watchers.toLocaleString()}人が登録
+                  </span>
+                )}
 
                 {it.services.length === 0 && it.otherServices.length === 0 ? (
                   <span className="no-haishin">配信情報なし</span>
