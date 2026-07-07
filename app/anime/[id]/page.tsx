@@ -107,7 +107,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
 
               {credits.casts.length > 0 && (
                 <section className="detail-section">
-                  <h2 className="detail-heading">メイン声優</h2>
+                  <h2 className="detail-heading">声優</h2>
                   <ul className="detail-list">
                     {credits.casts.map((c, i) => (
                       <li key={i}>
