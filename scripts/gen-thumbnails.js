@@ -48,6 +48,21 @@ const PROMPTS = [
   { id: 11193, seed: 823, prompt: "cherry blossom petals drifting across an empty schoolyard path in soft afternoon light, gentle cel-shaded anime background art, pastel tones, no characters, no text" },
   { id: 16910, seed: 561, prompt: "a candy-colored kaiju silhouette looming behind pastel city rooftops at sunset, pop-surrealist illustration, sweet caramel tones, no characters, no text" },
   { id: 16023, seed: 274, prompt: "a vintage teacup, feather duster, and broom neatly arranged on a lace tablecloth in a cozy sunlit room, whimsical flat maid-cafe illustration, no characters, no text" },
+  { id: 15035, seed: 205, prompt: "a single weathered katana blade planted upright in barren cracked earth under a blood-red eclipse sky, empty desolate battlefield, dramatic monochrome ink painting with crimson accents, absolutely no people, no figures, no silhouettes, no text" },
+  { id: 16519, seed: 143, prompt: "a glowing electric guitar and drifting music notes over a dreamy starry stage, sparkling pastel idol-band poster art, vibrant and cheerful, no characters, no text" },
+  { id: 14929, seed: 656, prompt: "an empty suit of polished armor draped with a travel cloak standing in a sunlit fantasy meadow, lighthearted storybook watercolor, no characters, no text" },
+  { id: 13889, seed: 471, prompt: "a massive ornate war greatsword planted in cracked ground glowing with pixel-game energy runes, vivid retro game-fantasy digital art, no characters, no text" },
+  { id: 15036, seed: 385, prompt: "a glowing magical staff crossed with a blazing gun-blade over a starburst of pink energy, dynamic magical-girl poster art, sparkles and lens flares, no characters, no text" },
+  { id: 17114, seed: 227, prompt: "a flickering paper lantern floating in a dark misty shrine corridor with faint ghostly wisps, eerie yet cute japanese horror-comedy illustration, no characters, no text" },
+  { id: 15724, seed: 604, prompt: "two ornate hair ornaments of a butterfly and a mouse resting on silk beside a lantern-lit palace garden, elegant chinese-court gouache painting, no characters, no text" },
+  { id: 17353, seed: 812, prompt: "a foreboding dungeon gate glowing with harsh red 'hell difficulty' runes over a dark stony chasm, gritty dark-fantasy game concept art, no characters, no text" },
+  { id: 17519, seed: 259, prompt: "a golden euphonium resting on a music stand in a sunlit rehearsal room with drifting sheet music, tender nostalgic watercolor, warm afternoon light, no characters, no text" },
+  { id: 17131, seed: 690, prompt: "an ancient spellbook floating open with glowing arcane sigils inside a grand magic academy hall, luminous fantasy illustration, deep blues and gold, no characters, no text" },
+  { id: 16606, seed: 640, prompt: "a single sword planted alone on a deserted windswept clifftop overlooking a vast sea at dawn, completely empty landscape, epic golden-hour matte painting, absolutely no people, no figures, no silhouettes, no text" },
+  { id: 16478, seed: 344, prompt: "a humble wooden signpost in a peaceful green fantasy village glowing faintly with the number 999 in magical light, cozy rpg storybook art, no characters, no text" },
+  { id: 15481, seed: 733, prompt: "a tiny sleeping dragon curled up among fluffy cats in a mossy sunlit forest hollow, warm gentle picture-book illustration, soft greens, no characters, no text" },
+  { id: 16856, seed: 405, prompt: "a blazing iron wok erupting with dramatic flames and swirling steam over a dark kitchen, intense dynamic manga-style illustration, fiery orange and black, no characters, no text" },
+  { id: 16405, seed: 337, prompt: "a close-up of steaming home-cooked japanese dishes arranged on an empty wooden dining table in a cozy sunlit room, warm still-life food illustration, absolutely no people, no figures, no hands, no text" },
 ];
 
 function genOne({ id, prompt, seed }) {
