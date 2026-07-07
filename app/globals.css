@@ -753,22 +753,25 @@ body {
   line-height: 1.38;
   margin: 0;
 }
-/* 中段：サムネ（左）＋配信サービス（右）。サービスは自然に折り返す。 */
+/* 中段：サムネ（上・全幅）＋配信サービス（下・全幅）の縦積み。
+   横並び（サムネ42%幅×配信可変高）だと配信数が多い作品でチップがサムネ下辺を
+   はみ出す問題があったため、縦積みに変更。サムネは横長比率(32:9)にして高さを
+   抑え、1画面に入る作品数を維持する。 */
 .card-main {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
   margin: 0 12px 8px;
 }
 .card-thumb-col {
   position: relative;
-  flex: 0 0 42%;
+  width: 100%;
   border-radius: 4px;
   overflow: hidden;
 }
 .card-thumb-col .thumb-ai,
-.card-thumb-col .thumb-empty { aspect-ratio: 16 / 9; }
-.card-svc-col { flex: 1; min-width: 0; }
+.card-thumb-col .thumb-empty { aspect-ratio: 32 / 9; }
+.card-svc-col { min-width: 0; }
 /* サムネ枠内でのアクション（共有・お気に入り）。thumb-col が position:relative の基準。 */
 .card-thumb-col .card-actions { top: 6px; right: 6px; }
 
