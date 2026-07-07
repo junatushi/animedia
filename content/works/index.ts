@@ -50,6 +50,7 @@ import w16555 from "./16555.json";
 import w16822 from "./16822.json";
 import w16538 from "./16538.json";
 import w16396 from "./16396.json";
+import w16478 from "./16478.json";
 
 export const WORK_DETAILS: Record<number, WorkDetailContent> = {
   8410: w8410,
@@ -97,4 +98,5 @@ export const WORK_DETAILS: Record<number, WorkDetailContent> = {
   16822: w16822,
   16538: w16538,
   16396: w16396,
+  16478: w16478,
 };
