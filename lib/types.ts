@@ -60,6 +60,16 @@ export interface SeasonResponse {
   items: AnimeItem[];
 }
 
+// クール横断検索用の軽量インデックスの1件。配信・クレジット等の重いデータは持たず、
+// タイトル一致だけを見るための最小限（クリックすると /anime/[id] で本体を取得する）。
+export interface SearchIndexEntry {
+  id: number;
+  title: string;
+  kana: string;
+  year: number | null;
+  season: string | null;
+}
+
 export interface WorkCastCredit {
   personName: string;
   characterName: string;

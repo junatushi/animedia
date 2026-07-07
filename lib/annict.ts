@@ -268,3 +268,65 @@ export async function fetchWorkById(id: number, token: string): Promise<AnnictWo
     staffs: w.staffs?.nodes ?? [],
   };
 }
+
+// クール横断キーワード検索用の軽量インデックス。programs/casts/staffs のような重い
+// フィールドは取らず、annictId・タイトル・読み仮名・年・季節だけを複数シーズン分まとめて
+// 取得する（1リクエストで複数 seasons を指定できる）。呼び出し側で日次キャッシュする前提。
+const SEASON_NAME_TO_KEY: Record<string, string> = {
+  WINTER: "winter",
+  SPRING: "spring",
+  SUMMER: "summer",
+  AUTUMN: "autumn",
+};
+
+const INDEX_QUERY = `
+query ($seasons: [String!], $after: String) {
+  searchWorks(seasons: $seasons, first: ${PAGE_SIZE}, after: $after) {
+    pageInfo { hasNextPage endCursor }
+    nodes { annictId title titleKana seasonYear seasonName }
+  }
+}`;
+
+interface RawIndexNode {
+  annictId: number;
+  title: string;
+  titleKana: string | null;
+  seasonYear: number | null;
+  seasonName: string | null;
+}
+
+export async function fetchWorksIndex(
+  seasons: string[],
+  token: string
+): Promise<import("./types").SearchIndexEntry[]> {
+  const byId = new Map<number, import("./types").SearchIndexEntry>();
+  let after: string | null = null;
+
+  // seasons が空だと全作品を舐めてしまうので、その場合は何もしない。
+  if (seasons.length === 0) return [];
+
+  // MAX_PAGES × 対象シーズン数までは辿る（暴走防止のため十分大きめに取る）。
+  const maxPages = MAX_PAGES * Math.max(seasons.length, 1);
+  for (let page = 0; page < maxPages; page++) {
+    const data: { searchWorks: { pageInfo: { hasNextPage: boolean; endCursor: string | null }; nodes: RawIndexNode[] } } =
+      await gql<{ searchWorks: { pageInfo: { hasNextPage: boolean; endCursor: string | null }; nodes: RawIndexNode[] } }>(
+        { query: INDEX_QUERY, variables: { seasons, after } },
+        token
+      );
+    const conn = data.searchWorks;
+    if (!conn) break;
+    for (const n of conn.nodes) {
+      if (byId.has(n.annictId)) continue;
+      byId.set(n.annictId, {
+        id: n.annictId,
+        title: n.title,
+        kana: n.titleKana || "",
+        year: n.seasonYear ?? null,
+        season: n.seasonName ? SEASON_NAME_TO_KEY[n.seasonName] ?? null : null,
+      });
+    }
+    if (!conn.pageInfo.hasNextPage || !conn.pageInfo.endCursor) break;
+    after = conn.pageInfo.endCursor;
+  }
+  return [...byId.values()];
+}

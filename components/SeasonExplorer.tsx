@@ -8,7 +8,7 @@ import { textOn } from "@/lib/services";
 import { CHANGELOG } from "@/lib/changelog";
 import ThemeToggle from "./ThemeToggle";
 import ScrollTopButton from "./ScrollTopButton";
-import type { AnimeItem, SeasonResponse, ServiceTag } from "@/lib/types";
+import type { AnimeItem, SeasonResponse, ServiceTag, SearchIndexEntry } from "@/lib/types";
 
 const SEASONS = [
   { key: "winter", label: "冬" },
@@ -186,6 +186,25 @@ export default function SeasonExplorer({
     }
   }, []);
 
+  // クール横断キーワード検索用の軽量インデックス（/api/search-index、直近数年分の
+  // タイトル・読み仮名・年・季節のみ）。検索語が入って初めて意味を持つので、
+  // 初回描画をブロックしないよう「検索欄に触れた時」に一度だけ遅延取得する。
+  const [searchIndex, setSearchIndex] = useState<SearchIndexEntry[]>([]);
+  const indexRequested = useRef(false);
+  function ensureSearchIndex() {
+    if (indexRequested.current) return;
+    indexRequested.current = true;
+    fetch("/api/search-index")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (Array.isArray(j?.entries)) setSearchIndex(j.entries);
+      })
+      .catch(() => {
+        // 失敗しても現在クール内の検索は動くので、再試行できるようフラグを戻す。
+        indexRequested.current = false;
+      });
+  }
+
   function toggleFavorite(id: number) {
     setFavorites((prev) => {
       const next = new Set(prev);
@@ -302,6 +321,25 @@ export default function SeasonExplorer({
     }
     return list;
   }, [data, query, active, sortKey, andMode, favoritesOnly, favorites]);
+
+  // クール横断検索の結果。検索語が入っている時だけ、表示中クール以外の作品を
+  // 軽量インデックスから拾う（タイトル・読み仮名で一致）。配信サービス絞り込み・
+  // お気に入りは重いデータが無いインデックスには適用できないため、無指定時のみ出す。
+  const CROSS_LIMIT = 60;
+  const crossMatches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (q === "" || searchIndex.length === 0) return [];
+    if (active.size > 0 || favoritesOnly) return [];
+    const currentIds = new Set((data?.items ?? []).map((it) => it.id));
+    return searchIndex
+      .filter((e) => !currentIds.has(e.id))
+      .filter((e) => e.title.toLowerCase().includes(q) || e.kana.toLowerCase().includes(q))
+      .sort((a, b) => (b.year ?? 0) - (a.year ?? 0) || a.title.localeCompare(b.title, "ja"));
+  }, [query, searchIndex, data, active, favoritesOnly]);
+  const crossShown = crossMatches.slice(0, CROSS_LIMIT);
+
+  // カード内に出す「いつ放送か」のラベル（現在表示中クール）。
+  const currentSeasonLabel = `${year}年 ${SEASON_LABEL[season] ?? ""}`;
 
   function toggle(key: string) {
     setActive((prev) => {
@@ -433,7 +471,11 @@ export default function SeasonExplorer({
           type="text"
           placeholder="作品名・声優・スタッフでスキャン…"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onFocus={ensureSearchIndex}
+          onChange={(e) => {
+            ensureSearchIndex();
+            setQuery(e.target.value);
+          }}
         />
 
         {availableServices.length > 0 && (
@@ -567,7 +609,7 @@ export default function SeasonExplorer({
         </div>
       )}
 
-      {!loading && !error && data && filtered.length === 0 && (
+      {!loading && !error && data && filtered.length === 0 && crossShown.length === 0 && (
         <div className="state">
           <h2>該当する作品がありません</h2>
           <p>検索語や絞り込みを変えてみてください。</p>
@@ -664,6 +706,7 @@ export default function SeasonExplorer({
                 </button>
               </div>
               <div className="card-body">
+                <span className="card-season">{currentSeasonLabel}</span>
                 <h3 className="card-title">
                   <Link href={`/anime/${it.id}`}>{it.title}</Link>
                 </h3>
@@ -709,6 +752,42 @@ export default function SeasonExplorer({
             </article>
           ))}
         </div>
+      )}
+
+      {/* クール横断検索の結果。検索語が入っている時だけ、表示中クール以外の作品を
+          別枠で出す（配信サービス等の重いデータは持たないので、作品ページへ誘導する）。 */}
+      {viewMode === "grid" && !loading && !error && data && crossShown.length > 0 && (
+        <section className="cross" aria-label="他のクールの検索結果">
+          <h2 className="cross-title">
+            他のクールの作品
+            <span className="cross-count">{crossMatches.length}件</span>
+          </h2>
+          <div className="grid">
+            {crossShown.map((e) => (
+              <article key={e.id} className="card card-compact">
+                <div className="thumb thumb-empty" style={posterStyle(e.id)} aria-hidden>
+                  <MonoLabel title={e.title} />
+                </div>
+                <div className="card-body">
+                  <span className="card-season">
+                    {e.year ? `${e.year}年 ${e.season ? SEASON_LABEL[e.season] ?? "" : ""}` : "放送時期不明"}
+                  </span>
+                  <h3 className="card-title">
+                    <Link href={`/anime/${e.id}`}>{e.title}</Link>
+                  </h3>
+                  <Link href={`/anime/${e.id}`} className="official">
+                    配信情報を見る →
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+          {crossMatches.length > crossShown.length && (
+            <p className="cross-more">
+              ほか {crossMatches.length - crossShown.length} 件。検索語をもう少し具体的にすると絞り込めます。
+            </p>
+          )}
+        </section>
       )}
 
       <details className="changelog">
