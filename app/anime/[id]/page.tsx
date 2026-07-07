@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getWorkData } from "@/lib/getWorkData";
 import { textOn } from "@/lib/services";
+import { WORK_DETAILS } from "@/content/works";
 
 const siteUrl = "https://animedia-khaki.vercel.app";
 
@@ -64,6 +65,9 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   }
   if (!item) notFound();
 
+  const content = WORK_DETAILS[item.id];
+  const { credits } = item;
+
   return (
     <div className="wrap">
       <header className="masthead">
@@ -80,7 +84,77 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         </div>
       </header>
 
-      <div className="grid">
+      <div className="detail-page">
+        {(content || credits.casts.length > 0 || credits.director || credits.productionCompany || credits.originalCreators.length > 0) && (
+          <article className="card">
+            <div className="card-body detail-body">
+              {content && (
+                <>
+                  <section className="detail-section">
+                    <h2 className="detail-heading">あらすじ</h2>
+                    <p className="detail-text">{content.synopsis}</p>
+                  </section>
+                  <section className="detail-section">
+                    <h2 className="detail-heading">見どころ</h2>
+                    <ul className="detail-list">
+                      {content.highlights.map((h, i) => (
+                        <li key={i}>{h}</li>
+                      ))}
+                    </ul>
+                  </section>
+                </>
+              )}
+
+              {credits.casts.length > 0 && (
+                <section className="detail-section">
+                  <h2 className="detail-heading">メイン声優</h2>
+                  <ul className="detail-list">
+                    {credits.casts.map((c, i) => (
+                      <li key={i}>
+                        {c.personName}
+                        {c.characterName && <span className="detail-sub">（{c.characterName}役）</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {credits.director && (
+                <section className="detail-section">
+                  <h2 className="detail-heading">監督</h2>
+                  <p className="detail-text">{credits.director}</p>
+                </section>
+              )}
+
+              {credits.productionCompany && (
+                <section className="detail-section">
+                  <h2 className="detail-heading">製作会社</h2>
+                  <p className="detail-text">{credits.productionCompany}</p>
+                </section>
+              )}
+
+              {(credits.originalCreators.length > 0 || content?.publisher) && (
+                <section className="detail-section">
+                  <h2 className="detail-heading">原作</h2>
+                  <p className="detail-text">
+                    {credits.originalCreators.length > 0 ? credits.originalCreators.join("、") : "―"}
+                    {content?.publisher && <span className="detail-sub">（{content.publisher}）</span>}
+                  </p>
+                </section>
+              )}
+
+              {content?.sourceUrl && (
+                <p className="detail-source">
+                  参照:{" "}
+                  <a href={content.sourceUrl} target="_blank" rel="noopener noreferrer">
+                    公式サイト等の一次情報 ↗
+                  </a>
+                </p>
+              )}
+            </div>
+          </article>
+        )}
+
         <article className="card">
           <div className="card-body">
             <h2 style={{ fontSize: 14.5, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>

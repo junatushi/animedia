@@ -3,7 +3,7 @@
 //   Annict の GraphQL API を叩いて、指定シーズンの作品＋放送/配信
 //   チャンネルを取得する。トークンを使うので必ずサーバー側で実行する。
 // ───────────────────────────────────────────────────────────────
-import type { AnnictWork } from "./types";
+import type { AnnictWork, RawCastNode, RawStaffNode } from "./types";
 
 const ENDPOINT = "https://api.annict.com/graphql";
 
@@ -34,6 +34,8 @@ interface RawWork {
   officialSiteUrl: string | null;
   image: { recommendedImageUrl: string | null } | null;
   programs: ProgramConn | null;
+  casts: { nodes: RawCastNode[] } | null;
+  staffs: { nodes: RawStaffNode[] } | null;
 }
 
 interface SearchWorksPage {
@@ -41,7 +43,32 @@ interface SearchWorksPage {
   nodes: RawWork[];
 }
 
-// シーズンの作品一覧＋各作品の programs（最大 PROGRAMS_PER_WORK 件）を取る。
+// キャスト/スタッフは声優・スタッフ名での検索（一覧）と作品個別ページの
+// クレジット表示の両方で使う。casts はデフォルトで sortNumber 昇順
+// （主要キャストが先頭）で返るため上位5件で足りる。
+const CASTS_PER_WORK = 5;
+// staffs は「監督」「原作」「アニメーション制作」を探すための件数。多くの作品は
+// 数件〜20件程度に収まるが、余裕を持って40件まで見る（それでも無ければ省略）。
+const STAFFS_PER_WORK = 40;
+
+const CREDITS_FIELDS = `
+      casts(first: ${CASTS_PER_WORK}) {
+        nodes { name character { name } }
+      }
+      staffs(first: ${STAFFS_PER_WORK}) {
+        nodes {
+          name
+          roleText
+          resource {
+            __typename
+            ... on Organization { name }
+            ... on Person { name }
+          }
+        }
+      }`;
+
+// シーズンの作品一覧＋各作品の programs（最大 PROGRAMS_PER_WORK 件）＋
+// casts/staffs（声優・スタッフ名の検索用）を取る。
 const SEASON_QUERY = `
 query ($season: String!, $after: String) {
   searchWorks(seasons: [$season], first: ${PAGE_SIZE}, after: $after) {
@@ -56,6 +83,7 @@ query ($season: String!, $after: String) {
         pageInfo { hasNextPage endCursor }
         nodes { channel { name } startedAt }
       }
+${CREDITS_FIELDS}
     }
   }
 }`;
@@ -87,6 +115,7 @@ query ($id: Int!) {
         pageInfo { hasNextPage endCursor }
         nodes { channel { name } startedAt }
       }
+${CREDITS_FIELDS}
     }
   }
 }`;
@@ -202,6 +231,8 @@ export async function fetchSeasonWorks(
     officialSiteUrl: w.officialSiteUrl,
     image: w.image,
     programs: w.programs ? { nodes: w.programs.nodes } : null,
+    casts: w.casts?.nodes ?? [],
+    staffs: w.staffs?.nodes ?? [],
   }));
 }
 
@@ -228,5 +259,7 @@ export async function fetchWorkById(id: number, token: string): Promise<AnnictWo
     officialSiteUrl: w.officialSiteUrl,
     image: w.image,
     programs: w.programs ? { nodes: w.programs.nodes } : null,
+    casts: w.casts?.nodes ?? [],
+    staffs: w.staffs?.nodes ?? [],
   };
 }

@@ -283,7 +283,10 @@ export default function SeasonExplorer({
     if (!data) return [];
     const q = query.trim().toLowerCase();
     const list = data.items.filter((it) => {
-      const okText = q === "" || it.title.toLowerCase().includes(q);
+      const okText =
+        q === "" ||
+        it.title.toLowerCase().includes(q) ||
+        it.creditNames.some((n) => n.toLowerCase().includes(q));
       const okSvc =
         active.size === 0
           ? true
@@ -428,7 +431,7 @@ export default function SeasonExplorer({
         <input
           className="search"
           type="text"
-          placeholder="作品名でスキャン…"
+          placeholder="作品名・声優・スタッフでスキャン…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />

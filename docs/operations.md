@@ -17,6 +17,27 @@
 | 随時（配信欄が空の作品が多いと感じたら） | ⑤マッピング点検 | service-mapper |
 | 機能追加・バグ修正をした時 | ⑥該当テンプレで告知 | sns-templates.md |
 | 毎週月曜 21:00 JST（自動） | ⑦週次ダイジェスト（下記） | weekly-digest.yml |
+| セッションを開くたび（随時・任意） | ⑧作品詳細コンテンツの追記（下記） | content/works/ |
+
+---
+
+## ⑧ 作品詳細コンテンツの追記（あらすじ・見どころ・出版社・2026-07-07導入）
+
+作品個別ページ（`/anime/[id]`）の「あらすじ」「見どころ」「出版社」はAnnictに構造化データが
+無いため、公式サイト等の一次情報を人が確認しながら`content/works/{annictId}.json`に
+1作品1ファイルで追記する運用にしている（声優・監督・製作会社・原作者名はAnnictから自動取得）。
+
+**進め方（セッション単位・完全自動化はしない）**:
+1. ユーザーが「続きをお願い」等と伝えたら、未整備の作品（`content/works/index.ts`の
+   `WORK_DETAILS`に無いID）から目安15件を選ぶ。今期の注目度（`watchers`）が高い作品を優先する。
+2. 各作品の公式サイト（`officialSiteUrl`）・Wikipedia等を確認し、事実に基づいてあらすじ・
+   見どころを要約する。**書いていない情報を創作しない**（CLAUDE.mdの「推測データで埋めない」
+   方針と同じ）。出版社は公式サイトに明記がある場合のみ記載し、アニメオリジナル作品や
+   記載が無い場合は`publisher`を省略する。
+3. `content/works/{annictId}.json` を作成し（`WorkDetailContent`型: synopsis / highlights /
+   publisher? / sourceUrl）、`content/works/index.ts`の`WORK_DETAILS`に1行追記する。
+   `sourceUrl`には参照した一次情報のURLを必ず入れる（検証可能性のため）。
+4. 追記後は `npx tsc --noEmit` で型エラーが無いことを確認する。
 
 ---
 

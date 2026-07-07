@@ -108,14 +108,7 @@ function deriveBroadcastSlot(
 
 // AnnictWork（生データ）→ AnimeItem（画面/APIが使う整形済みデータ）への変換。
 // シーズン一覧（getSeasonData）と作品個別ページ（getWorkData）の両方から共有する。
-export function toAnimeItem(w: {
-  annictId: number;
-  title: string;
-  watchersCount: number | null;
-  officialSiteUrl: string | null;
-  image: { recommendedImageUrl: string | null } | null;
-  programs: { nodes: { channel: { name: string | null } | null; startedAt: string | null }[] } | null;
-}): import("./types").AnimeItem {
+export function toAnimeItem(w: import("./types").AnnictWork): import("./types").AnimeItem {
   const serviceMap = new Map<string, ServiceDef>();
   const others = new Set<string>();
 
@@ -133,6 +126,14 @@ export function toAnimeItem(w: {
 
   const slot = deriveBroadcastSlot(w.programs?.nodes ?? []);
 
+  // 声優・スタッフ名での検索用（UIには出さず、SeasonExplorerの検索マッチにのみ使う）。
+  const creditNames = [
+    ...new Set([
+      ...w.casts.map((c) => c.name),
+      ...w.staffs.map((s) => s.resource?.name || s.name),
+    ]),
+  ].filter(Boolean);
+
   return {
     id: w.annictId,
     title: w.title,
@@ -148,5 +149,49 @@ export function toAnimeItem(w: {
     otherServices: [...others],
     broadcastWeekday: slot?.weekday ?? null,
     broadcastTime: slot?.time ?? null,
+    creditNames,
   };
+}
+
+// staffs の name は「守雨「作品名」（MFブックス／KADOKAWA刊）」のような自由記述が
+// 混ざることがあるため、resource側の綺麗な人物/組織名を優先する（無ければ name にフォールバック）。
+function staffDisplayName(s: import("./types").RawStaffNode): string {
+  return s.resource?.name || s.name;
+}
+
+// 作品個別ページ用。casts/staffs から声優・監督・製作会社・原作者を導出する。
+// 該当データが無い項目は null/空配列にし、推測では埋めない（"配信情報なし"と同じ方針）。
+function deriveCredits(
+  castNodes: import("./types").RawCastNode[],
+  staffNodes: import("./types").RawStaffNode[]
+): import("./types").WorkCredits {
+  const casts = castNodes.map((c) => ({
+    personName: c.name,
+    characterName: c.character?.name ?? "",
+  }));
+
+  const director = staffNodes.find((s) => s.roleText === "監督");
+  const productionCompany = staffNodes.find(
+    (s) => s.roleText === "アニメーション制作" && s.resource?.__typename === "Organization"
+  );
+  const originalCreators = [
+    ...new Set(
+      staffNodes
+        .filter((s) => s.roleText === "原作" && s.resource?.__typename === "Person")
+        .map((s) => staffDisplayName(s))
+    ),
+  ];
+
+  return {
+    casts,
+    director: director ? staffDisplayName(director) : null,
+    productionCompany: productionCompany ? staffDisplayName(productionCompany) : null,
+    originalCreators,
+  };
+}
+
+// AnnictWork → AnimeDetail への変換。作品個別ページ専用（casts/staffsの完全なクレジット付き）。
+export function toAnimeDetail(w: import("./types").AnnictWork): import("./types").AnimeDetail {
+  const item = toAnimeItem(w);
+  return { ...item, credits: deriveCredits(w.casts, w.staffs) };
 }
