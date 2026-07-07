@@ -51,9 +51,36 @@ export default async function SeasonPage({ params }: { params: Params }) {
     data = undefined;
   }
 
+  // 生成AI検索・検索エンジンが「その年その季節のアニメ一覧」を機械可読に把握できるよう、
+  // シーズンの全作品を ItemList 構造化データとして出す（各作品は個別ページへリンク）。
+  const label = SEASON_LABEL[season];
+  const itemListLd = data
+    ? {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        name: `${year}年${label}アニメ 配信情報一覧`,
+        numberOfItems: data.items.length,
+        itemListElement: data.items.map((it, i) => ({
+          "@type": "ListItem",
+          position: i + 1,
+          url: `${siteUrl}/anime/${it.id}`,
+          name: it.title,
+        })),
+      }
+    : null;
+
   return (
-    <Suspense fallback={<div className="wrap" />}>
-      <SeasonExplorer initialYear={Number(year)} initialSeason={season} initialData={data} />
-    </Suspense>
+    <>
+      {itemListLd && (
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd) }}
+        />
+      )}
+      <Suspense fallback={<div className="wrap" />}>
+        <SeasonExplorer initialYear={Number(year)} initialSeason={season} initialData={data} />
+      </Suspense>
+    </>
   );
 }

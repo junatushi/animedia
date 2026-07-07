@@ -68,8 +68,53 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   const content = WORK_DETAILS[item.id];
   const { credits } = item;
 
+  // 生成AI検索・検索エンジンに作品の事実（あらすじ・声優・監督・製作会社・原作・配信先）を
+  // 機械可読な形で渡すための構造化データ（JSON-LD）。人手で用意したあらすじがあればそれを、
+  // 無ければ配信サービス一覧から生成した説明文を description に入れる。
+  const serviceNames = [...item.services.map((s) => s.short), ...item.otherServices];
+  const jsonLdDescription =
+    content?.synopsis ||
+    (serviceNames.length > 0
+      ? `「${item.title}」は ${serviceNames.join("・")} で配信中。`
+      : `「${item.title}」の配信状況をアニメ視聴ガイドで確認できます。`);
+  const workLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": item.media === "MOVIE" ? "Movie" : "TVSeries",
+    name: item.title,
+    url: `${siteUrl}/anime/${id}`,
+    inLanguage: "ja",
+    description: jsonLdDescription,
+  };
+  if (credits.casts.length > 0) {
+    workLd.actor = credits.casts.map((c) => ({
+      "@type": "Person",
+      name: c.personName,
+      ...(c.characterName ? { characterName: c.characterName } : {}),
+    }));
+  }
+  if (credits.director) {
+    workLd.director = { "@type": "Person", name: credits.director };
+  }
+  if (credits.productionCompany) {
+    workLd.productionCompany = { "@type": "Organization", name: credits.productionCompany };
+  }
+  if (credits.originalCreators.length > 0) {
+    workLd.author = credits.originalCreators.map((name) => ({ "@type": "Person", name }));
+  }
+  if (content?.publisher) {
+    workLd.publisher = { "@type": "Organization", name: content.publisher };
+  }
+  if (content?.sourceUrl) {
+    workLd.sameAs = content.sourceUrl;
+  }
+
   return (
     <div className="wrap">
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(workLd) }}
+      />
       <header className="masthead">
         <span className="eyebrow" aria-hidden="true">
           LINK START :: 作品データ照会

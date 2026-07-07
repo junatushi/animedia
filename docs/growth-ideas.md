@@ -9,8 +9,14 @@
 
 ### ★★★ 効果大・着手しやすい
 - [x] **Google Search Console登録**（2026-07-06完了）: 所有権確認済み、`sitemap.xml`の送信も成功。`app/layout.tsx`にHTMLタグ方式の確認メタタグを設定済み
-- [x] **JSON-LD構造化データ**（2026-07-06完了）: `app/layout.tsx`に`WebSite`スキーマを追加。
-  ※現状はサイト全体の情報のみ。作品一覧は`ItemList`化できていない（クライアント側取得のため。下記「シーズン別の静的ページ化」が前提になる）
+- [x] **JSON-LD構造化データ**（2026-07-06導入・2026-07-07拡充）: `app/layout.tsx`に`WebSite`スキーマ。
+  さらに作品個別ページ（`/anime/[id]`）に`TVSeries`/`Movie`スキーマ（あらすじ・声優・監督・製作会社・原作・出版社入り）、
+  シーズンページ（`/season/[year]/[season]`）に全作品の`ItemList`スキーマを追加
+- [x] **生成AI検索（LLM）向け最適化**（2026-07-07完了）: ChatGPT・Perplexity・Google AI Overviews等に拾われることを狙った施策。
+  (1) 作品ページの`TVSeries`/`Movie`構造化データで、あらすじ・声優・監督・製作会社・原作を機械可読に提供
+  (2) `/llms.txt`（`app/llms.txt/route.ts`）でサイトの構造と主要URL・データ性質をMarkdownで明示
+  (3) `robots.txt`で主要AIクローラ（GPTBot・ClaudeBot・PerplexityBot・Google-Extended等）を明示的に許可
+  (4) シーズンページの`ItemList`で「その年その季節のアニメ一覧」を機械可読化
 - [x] **RSS/Atomフィード配信**（2026-07-06完了）: `/feed.xml`でサイトの更新履歴（`lib/changelog.ts`）をRSS 2.0配信。
   ※個々の作品情報はAnnict由来で確定した公開日時を持たないため、フィード対象は「サイト自体の更新」にしている
 

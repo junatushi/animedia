@@ -17,6 +17,9 @@ export interface AnnictWork {
   watchersCount: number | null;
   officialSiteUrl: string | null;
   image: { recommendedImageUrl: string | null } | null;
+  // Annict の Media enum（TV / MOVIE / OVA / WEB / OTHER 等）。構造化データ（JSON-LD）で
+  // 作品種別（TVSeries / Movie）を出し分けるために使う。
+  media: string | null;
   programs: { nodes: { channel: { name: string | null } | null; startedAt: string | null }[] } | null;
   // 声優・スタッフ名での検索用に、シーズン一覧でも取得する（casts先頭5件・staffs先頭40件）。
   casts: RawCastNode[];
@@ -46,6 +49,9 @@ export interface AnimeItem {
   // 声優・スタッフ名での検索用。casts(先頭5件)の人物名 + staffs(先頭40件)の
   // 人物/組織名をまとめたもの（重複除去済み）。UIには出さず検索マッチにのみ使う。
   creditNames: string[];
+  // Annict の Media enum（"TV" / "MOVIE" / "OVA" / "WEB" / "OTHER"）。
+  // 構造化データ（JSON-LD）で TVSeries / Movie を出し分けるのに使う。
+  media: string | null;
 }
 
 export interface SeasonResponse {

@@ -150,6 +150,7 @@ export function toAnimeItem(w: import("./types").AnnictWork): import("./types").
     broadcastWeekday: slot?.weekday ?? null,
     broadcastTime: slot?.time ?? null,
     creditNames,
+    media: w.media ?? null,
   };
 }
 

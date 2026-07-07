@@ -33,6 +33,7 @@ interface RawWork {
   watchersCount: number | null;
   officialSiteUrl: string | null;
   image: { recommendedImageUrl: string | null } | null;
+  media: string | null;
   programs: ProgramConn | null;
   casts: { nodes: RawCastNode[] } | null;
   staffs: { nodes: RawStaffNode[] } | null;
@@ -78,6 +79,7 @@ query ($season: String!, $after: String) {
       title
       watchersCount
       officialSiteUrl
+      media
       image { recommendedImageUrl }
       programs(first: ${PROGRAMS_PER_WORK}) {
         pageInfo { hasNextPage endCursor }
@@ -110,6 +112,7 @@ query ($id: Int!) {
       title
       watchersCount
       officialSiteUrl
+      media
       image { recommendedImageUrl }
       programs(first: ${PROGRAMS_PER_WORK}) {
         pageInfo { hasNextPage endCursor }
@@ -229,6 +232,7 @@ export async function fetchSeasonWorks(
     title: w.title,
     watchersCount: w.watchersCount,
     officialSiteUrl: w.officialSiteUrl,
+    media: w.media,
     image: w.image,
     programs: w.programs ? { nodes: w.programs.nodes } : null,
     casts: w.casts?.nodes ?? [],
@@ -257,6 +261,7 @@ export async function fetchWorkById(id: number, token: string): Promise<AnnictWo
     title: w.title,
     watchersCount: w.watchersCount,
     officialSiteUrl: w.officialSiteUrl,
+    media: w.media,
     image: w.image,
     programs: w.programs ? { nodes: w.programs.nodes } : null,
     casts: w.casts?.nodes ?? [],
