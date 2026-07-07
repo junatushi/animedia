@@ -576,7 +576,7 @@ export default function SeasonExplorer({
       {viewMode === "calendar" && !loading && !error && data && filtered.length > 0 && (
         <>
           <p className="calendar-note">
-            時刻は初回放送/配信から推定したJSTの目安です。話数によって前後する場合があります。
+            時刻は初回放送/配信から推定した目安です。話数によって前後する場合があります。
           </p>
           <div className="calendar">
           {calendarGroups.map((g) => (
