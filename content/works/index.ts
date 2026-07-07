@@ -64,6 +64,17 @@ import w17147 from "./17147.json";
 import w16328 from "./16328.json";
 import w17514 from "./17514.json";
 import w6528 from "./6528.json";
+import w17354 from "./17354.json";
+import w17121 from "./17121.json";
+import w17069 from "./17069.json";
+import w17323 from "./17323.json";
+import w16632 from "./16632.json";
+import w17192 from "./17192.json";
+import w16681 from "./16681.json";
+import w11119 from "./11119.json";
+import w17092 from "./17092.json";
+import w17371 from "./17371.json";
+import w17134 from "./17134.json";
 
 export const WORK_DETAILS: Record<number, WorkDetailContent> = {
   8410: w8410,
@@ -112,6 +123,17 @@ export const WORK_DETAILS: Record<number, WorkDetailContent> = {
   16538: w16538,
   16396: w16396,
   16478: w16478,
+  17354: w17354,
+  17121: w17121,
+  17069: w17069,
+  17323: w17323,
+  16632: w16632,
+  17192: w17192,
+  16681: w16681,
+  11119: w11119,
+  17092: w17092,
+  17371: w17371,
+  17134: w17134,
   16468: w16468,
   16524: w16524,
   16132: w16132,
