@@ -53,29 +53,42 @@ export default async function SeasonPage({ params }: { params: Params }) {
 
   // 生成AI検索・検索エンジンが「その年その季節のアニメ一覧」を機械可読に把握できるよう、
   // シーズンの全作品を ItemList 構造化データとして出す（各作品は個別ページへリンク）。
+  // 併せてパンくず（Home → シーズン）と確認日（dateModified）も宣言する。
   const label = SEASON_LABEL[season];
-  const itemListLd = data
-    ? {
-        "@context": "https://schema.org",
-        "@type": "ItemList",
-        name: `${year}年${label}アニメ 配信情報一覧`,
-        numberOfItems: data.items.length,
-        itemListElement: data.items.map((it, i) => ({
-          "@type": "ListItem",
-          position: i + 1,
-          url: `${siteUrl}/anime/${it.id}`,
-          name: it.title,
-        })),
-      }
+  const checkedDate = new Date().toISOString().slice(0, 10);
+  const structuredLd = data
+    ? [
+        {
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          name: `${year}年${label}アニメ 配信情報一覧`,
+          numberOfItems: data.items.length,
+          dateModified: checkedDate,
+          itemListElement: data.items.map((it, i) => ({
+            "@type": "ListItem",
+            position: i + 1,
+            url: `${siteUrl}/anime/${it.id}`,
+            name: it.title,
+          })),
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            { "@type": "ListItem", position: 1, name: "アニメ視聴ガイド", item: siteUrl },
+            { "@type": "ListItem", position: 2, name: `${year}年${label}アニメ`, item: `${siteUrl}/season/${year}/${season}` },
+          ],
+        },
+      ]
     : null;
 
   return (
     <>
-      {itemListLd && (
+      {structuredLd && (
         <script
           type="application/ld+json"
           // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredLd) }}
         />
       )}
       <Suspense fallback={<div className="wrap" />}>

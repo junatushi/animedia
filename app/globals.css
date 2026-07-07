@@ -573,10 +573,12 @@ body {
 }
 
 /* ── Grid & cards（メニューウィンドウ）───── */
+/* カードは「上部バー→タイトル→[サムネ左｜配信右]」の横長レイアウト。
+   横幅が要るので1枚を広めに取り、PCでは2〜3列、スマホでは1列にする。 */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(228px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 16px;
 }
 
 .card {
@@ -728,6 +730,66 @@ body {
   box-shadow: 0 0 10px rgba(255, 210, 74, 0.45);
   background: rgba(6, 10, 22, 0.7);
 }
+
+/* ── 横長カードのレイアウト（上部バー→タイトル→[サムネ｜配信]）───── */
+.card-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 12px;
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--border-soft);
+}
+.card-air-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent-2);
+  white-space: nowrap;
+}
+.card-cool {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* タイトルは全幅・小さめ（長い作品名が多いので2行まで）。 */
+.card > .card-title {
+  font-size: 13.5px;
+  line-height: 1.4;
+  margin: 0;
+  padding: 9px 12px 6px;
+}
+.card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+.card-thumb-col {
+  position: relative;
+  flex: 0 0 44%;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.card-svc-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+/* svc-col 内は gap で間隔を取るので、各要素の既定マージンは消す。 */
+.card-svc-col .card-pop { margin: 0; }
+.card-svc-col .badges { margin: 0; }
+.card-svc-col .no-haishin { margin: 0; }
+.card-svc-col .official { margin: 2px 0 0; }
+/* サムネ枠内でのアクション（共有・お気に入り）。thumb-col が position:relative の基準。 */
+.card-thumb-col .card-actions { top: 6px; right: 6px; }
 
 /* 今期の注目作ランキング */
 .ranking {
@@ -1045,6 +1107,13 @@ body {
 }
 .detail-source a { color: var(--muted-2); }
 .detail-source a:hover { color: var(--accent-2); }
+/* 配信情報の確認日（鮮度シグナル）。 */
+.detail-updated {
+  margin: 14px 0 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted-2);
+}
 
 .official {
   margin-top: 12px;
@@ -1156,35 +1225,18 @@ body {
   .theme-toggle,
   .share-x { padding: 9px 15px; min-height: 38px; display: inline-flex; align-items: center; }
 
-  /* ── 一覧カードを横長（サムネ小＋情報広め）にして、縦スクロール量を減らす。
-     画面に3件前後入るのが目安。サムネイルが無い分、配信サービスに横幅を多く割く。 */
+  /* 一覧カード（上部バー→タイトル→[サムネ｜配信]）はスマホでは1列。
+     カード内のサムネ｜配信の横並びは既定レイアウトのまま活きる。 */
   .grid { grid-template-columns: 1fr; gap: 12px; }
-  .card { flex-direction: row; align-items: stretch; }
-  .card .slash { display: none; } /* 横長カードでは斬撃演出は省く */
-  .card .thumb-empty,
-  .card .thumb-ai {
-    width: 92px;
-    flex: none;
-    aspect-ratio: auto;
-    height: auto;
-    align-self: stretch;
-    border-right: 1px solid var(--border-soft);
-  }
-  .card .thumb-ai-tag { font-size: 8px; padding: 1px 4px; top: 4px; left: 4px; }
-  .card .thumb-empty .mono { font-size: 34px; }
-  .card .thumb-empty .mono-kind { font-size: 8.5px; padding: 0.28em 0.5em; margin-bottom: 0.24em; }
-  .card-body { padding: 12px 14px; }
-  /* 共有・お気に入りボタンは横長カードの右上に重ねる。タイトルが潜り込まないよう余白確保。 */
-  .card-actions { gap: 8px; top: 8px; right: 8px; }
-  .card-action { width: 36px; height: 36px; }
-  .card-season { padding-right: 76px; }
-  .card-title { font-size: 14px; padding-right: 76px; -webkit-line-clamp: 2; }
-  .card-pop { margin-bottom: 8px; }
-  /* 横幅が広い分、配信バッジは1行に多く並ぶ。少しゆったり見せる。 */
-  .badges { gap: 7px; }
-
-  /* 他のクールの作品（簡易カード）も同じ横長レイアウトに合わせる。 */
-  .cross .grid { grid-template-columns: 1fr; }
+  .card > .card-title { font-size: 13px; padding: 8px 11px 5px; }
+  .card-topbar { padding: 6px 11px; }
+  .card-main { gap: 8px; padding: 0 11px 11px; }
+  .card-thumb-col { flex-basis: 42%; }
+  .card-thumb-col .mono { font-size: 30px; }
+  .card-thumb-col .mono-kind { font-size: 8.5px; padding: 0.28em 0.5em; margin-bottom: 0.24em; }
+  .thumb-ai-tag { font-size: 8px; padding: 1px 5px; }
+  .card-action { width: 34px; height: 34px; }
+  .badges { gap: 6px; }
 
   /* カレンダーはスマホでは全曜日を横並びにせず、曜日ボタンで1日ずつ見る前提。
      「すべて」表示時は1カラムで縦に積む（横7分割はスマホでは細すぎるため）。 */

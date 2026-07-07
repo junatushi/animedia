@@ -110,13 +110,44 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   if (content?.sourceUrl) {
     workLd.sameAs = content.sourceUrl;
   }
+  // 配信情報はAnnictからライブ取得（revalidateの範囲）なので、確認日を鮮度シグナルとして出す。
+  const checkedDate = new Date().toISOString().slice(0, 10);
+  workLd.dateModified = checkedDate;
+
+  // パンくず（Home → 作品名）。AI・検索エンジンにサイト構造を伝える。
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "アニメ視聴ガイド", item: siteUrl },
+      { "@type": "ListItem", position: 2, name: item.title, item: `${siteUrl}/anime/${id}` },
+    ],
+  };
+
+  // 「『作品名』はどこで配信されている？」というQ&AをFAQPageとして機械可読にする。
+  // これは生成AIに投げられる典型質問で、引用されればそのまま流入につながる。
+  const watchAnswer =
+    serviceNames.length > 0
+      ? `「${item.title}」は ${serviceNames.join("・")} で視聴できます（${checkedDate}時点、Annictより）。配信状況は変わることがあるため、視聴前に各サービスの最新情報もご確認ください。`
+      : `「${item.title}」の配信サービスは現時点でAnnictに登録がなく確認できません（${checkedDate}時点）。判明し次第このページに反映されます。`;
+  const faqLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: `「${item.title}」はどこで配信されている？`,
+        acceptedAnswer: { "@type": "Answer", text: watchAnswer },
+      },
+    ],
+  };
 
   return (
     <div className="wrap">
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(workLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify([workLd, breadcrumbLd, faqLd]) }}
       />
       <header className="masthead">
         <span className="eyebrow" aria-hidden="true">
@@ -212,9 +243,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
 
         <article className="card">
           <div className="card-body">
-            <h2 style={{ fontSize: 14.5, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
-              配信サービス
+            <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 8px", color: "var(--ink)" }}>
+              「{item.title}」はどこで配信されている？
             </h2>
+            {/* アンサーファースト: 結論（視聴可能サービス）を冒頭に文章で置く（AI引用対策）。 */}
+            <p className="detail-text" style={{ margin: "0 0 12px" }}>{watchAnswer}</p>
             {item.services.length === 0 && item.otherServices.length === 0 ? (
               <span className="no-haishin">配信情報なし</span>
             ) : (
@@ -248,6 +281,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                 公式サイト ↗
               </a>
             )}
+            <p className="detail-updated">配信情報の確認日: {checkedDate}（Annictより自動取得）</p>
           </div>
         </article>
       </div>

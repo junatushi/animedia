@@ -36,15 +36,34 @@ export const metadata: Metadata = {
   },
 };
 
-// 検索結果のリッチ表示・サイト構造の理解のための構造化データ（JSON-LD）。
-// 個々の作品はクライアント側取得のため一覧化できないので、まずはサイト自体を表す。
+// 検索結果・生成AIのリッチ表示／エンティティ理解のための構造化データ（JSON-LD）。
+// Organization（運営者エンティティ＋SNSの sameAs）と WebSite を @graph でまとめて宣言し、
+// WebSite.publisher から Organization を参照させることで実在性シグナルを強める。
 const jsonLd = {
   "@context": "https://schema.org",
-  "@type": "WebSite",
-  name: title,
-  url: siteUrl,
-  description,
-  inLanguage: "ja",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${siteUrl}#org`,
+      name: title,
+      url: siteUrl,
+      // 各SNSアカウントを紐付け、AI・検索エンジンに同一エンティティだと認識させる。
+      sameAs: [
+        "https://bsky.app/profile/animedia0705.bsky.social",
+        "https://mastodon.social/@animedia",
+        "https://x.com/animedia0705",
+      ],
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${siteUrl}#website`,
+      name: title,
+      url: siteUrl,
+      description,
+      inLanguage: "ja",
+      publisher: { "@id": `${siteUrl}#org` },
+    },
+  ],
 };
 
 export const viewport: Viewport = {

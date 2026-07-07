@@ -742,79 +742,84 @@ export default function SeasonExplorer({
           {filtered.map((it) => (
             <article key={it.id} className="card">
               <span className="slash" aria-hidden="true" />
-              {/* 権利者の画像は使わない。AI独断解釈サムネ（本作品と無関係な創作）が
-                  あればそれを、無ければモノグラムタイルを出す。 */}
-              <WorkTile id={it.id} title={it.title} />
-              <div className="card-actions">
-                <button
-                  type="button"
-                  className="card-action share"
-                  aria-label={`「${it.title}」をXで共有`}
-                  onClick={() => shareWork(it.title, it.id)}
-                >
-                  <span aria-hidden="true">↗</span>
-                </button>
-                <button
-                  type="button"
-                  className="card-action fav-btn"
-                  aria-pressed={favorites.has(it.id)}
-                  aria-label={favorites.has(it.id) ? "お気に入りから削除" : "お気に入りに追加"}
-                  onClick={() => toggleFavorite(it.id)}
-                >
-                  {favorites.has(it.id) ? "★" : "☆"}
-                </button>
+              {/* 上部バー：放送タイミング（左）＋クール（右）。 */}
+              <div className="card-topbar">
+                <span className="card-air-time">{airLabel(it) ?? "放送時期未定"}</span>
+                <span className="card-cool">{currentSeasonLabel}</span>
               </div>
-              <div className="card-body">
-                <span className="card-season">
-                  {currentSeasonLabel}
-                  {airLabel(it) && <span className="card-air">{airLabel(it)}</span>}
-                </span>
-                <h3 className="card-title">
-                  <Link href={`/anime/${it.id}`}>{it.title}</Link>
-                </h3>
-                {it.watchers > 0 && (
-                  <span className="card-pop" title="Annictで視聴登録している人数">
-                    {it.watchers.toLocaleString()}人が注目
-                  </span>
-                )}
-
-                {it.services.length === 0 && it.otherServices.length === 0 ? (
-                  <span className="no-haishin">配信情報なし</span>
-                ) : (
-                  <div className="badges">
-                    {it.services.map((s) => (
-                      <span
-                        key={s.key}
-                        className="badge"
-                        style={{ ["--c" as string]: s.color }}
-                      >
-                        <span
-                          className="badge-mark"
-                          style={{ background: s.color, color: textOn(s.color) }}
-                        >
-                          {brandMark(s.short)}
-                        </span>
-                        <span className="badge-name">{s.short}</span>
-                      </span>
-                    ))}
-                    {it.otherServices.map((name) => (
-                      <span key={name} className="badge badge-other">
-                        {name}
-                      </span>
-                    ))}
+              {/* タイトル（全幅）。 */}
+              <h3 className="card-title">
+                <Link href={`/anime/${it.id}`}>{it.title}</Link>
+              </h3>
+              {/* 下段：サムネ（左）＋配信サービス（右）。 */}
+              <div className="card-main">
+                <div className="card-thumb-col">
+                  {/* 権利者の画像は使わない。AI独断解釈サムネ（本作品と無関係な創作）が
+                      あればそれを、無ければモノグラムタイルを出す。 */}
+                  <WorkTile id={it.id} title={it.title} />
+                  <div className="card-actions">
+                    <button
+                      type="button"
+                      className="card-action share"
+                      aria-label={`「${it.title}」をXで共有`}
+                      onClick={() => shareWork(it.title, it.id)}
+                    >
+                      <span aria-hidden="true">↗</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="card-action fav-btn"
+                      aria-pressed={favorites.has(it.id)}
+                      aria-label={favorites.has(it.id) ? "お気に入りから削除" : "お気に入りに追加"}
+                      onClick={() => toggleFavorite(it.id)}
+                    >
+                      {favorites.has(it.id) ? "★" : "☆"}
+                    </button>
                   </div>
-                )}
-
-                {it.officialSiteUrl && (
-                  <a
-                    className="official"
-                    href={it.officialSiteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    公式サイト ↗
-                  </a>
-                )}
+                </div>
+                <div className="card-svc-col">
+                  {it.watchers > 0 && (
+                    <span className="card-pop" title="Annictで視聴登録している人数">
+                      {it.watchers.toLocaleString()}人が注目
+                    </span>
+                  )}
+                  {it.services.length === 0 && it.otherServices.length === 0 ? (
+                    <span className="no-haishin">配信情報なし</span>
+                  ) : (
+                    <div className="badges">
+                      {it.services.map((s) => (
+                        <span
+                          key={s.key}
+                          className="badge"
+                          style={{ ["--c" as string]: s.color }}
+                        >
+                          <span
+                            className="badge-mark"
+                            style={{ background: s.color, color: textOn(s.color) }}
+                          >
+                            {brandMark(s.short)}
+                          </span>
+                          <span className="badge-name">{s.short}</span>
+                        </span>
+                      ))}
+                      {it.otherServices.map((name) => (
+                        <span key={name} className="badge badge-other">
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {it.officialSiteUrl && (
+                    <a
+                      className="official"
+                      href={it.officialSiteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      公式サイト ↗
+                    </a>
+                  )}
+                </div>
               </div>
             </article>
           ))}

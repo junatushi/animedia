@@ -21,18 +21,18 @@ const MANIFEST = path.join(__dirname, "..", "content", "works", "imageIds.ts");
 // 作品ID → 独断と偏見プロンプト（画風は作品ごとに変える）＋seed。
 // prompt末尾に "no text, no watermark" 等を足して余計な文字入りを避ける。
 const PROMPTS = [
-  { id: 8410, seed: 7, prompt: "a single ornate hair ribbon floating in a swirling clockwork apocalypse sky, dark pastel storybook illustration, dreamy and ominous, no characters, no text" },
-  { id: 13582, seed: 42, prompt: "a weary middle-aged man resting in a field at sunset, magic staff glowing faintly, anime background art, warm nostalgic scenery, no faces, no text" },
-  { id: 8632, seed: 11, prompt: "a small worn military officer cap lying on a foggy war-torn battlefield at dawn, gritty oil painting, dramatic, no characters, no text" },
-  { id: 14132, seed: 23, prompt: "a small figure dashing across misty medieval japanese mountains, escaping, dynamic sumi-e ink wash painting, monochrome with a touch of red, no text" },
-  { id: 15557, seed: 5, prompt: "two paper cranes drifting under a fading violet twilight, bittersweet and delicate watercolor, soft and quiet, no characters, no text" },
-  { id: 17197, seed: 88, prompt: "a lone spiral tower rising from an endless moonlit desert under a starry sky, fantasy matte painting, epic and lonely, no characters, no text" },
-  { id: 17088, seed: 3, prompt: "a grumpy stray cat silhouette with a glowing cigarette in a neon back alley at night, humorous flat cartoon style, no text" },
-  { id: 16391, seed: 9, prompt: "a quiet smoking corner behind a convenience store at night, two glowing cigarette embers in the dark, cinematic slice of life, moody realism, no characters, no text" },
-  { id: 17361, seed: 14, prompt: "two umbrellas of opposite colors standing side by side in gentle rain, wholesome minimal flat vector illustration, pastel, no characters, no text" },
-  { id: 6187, seed: 30, prompt: "a retro taisho-era kyoto street lit by the first electric lightbulbs, steampunk, impressionist painting, warm nostalgic glow, no characters, no text" },
-  { id: 16658, seed: 100, prompt: "a hundred glowing heart-shaped balloons filling a bright cheerful sky, exuberant pop art, vivid and playful, no characters, no text" },
-  { id: 13052, seed: 55, prompt: "a rain-soaked neon cyberpunk city street with floating data streams and holograms, blade runner atmosphere, no characters, no text" },
+  { id: 8410, seed: 207, prompt: "an ornate magical clock face glowing in a swirling stormy twilight sky, dark gothic fairytale illustration, dramatic and mysterious, centered composition, no characters, no text" },
+  { id: 13582, seed: 242, prompt: "a lone weary traveler resting under a giant warm sunset in a grassy meadow, nostalgic anime background art, soft golden light, centered, no visible face, no text" },
+  { id: 8632, seed: 311, prompt: "a small worn military officer cap resting on a misty battlefield at dawn, muted gritty oil painting, somber mood, centered subject, no characters, no text" },
+  { id: 14132, seed: 223, prompt: "a nimble figure leaping across stylized mountains and clouds, traditional japanese ukiyo-e woodblock print, bold flat colors, no text" },
+  { id: 15557, seed: 405, prompt: "two delicate paper cranes over a soft pastel twilight, lyrical dreamy watercolor, tender and melancholic, centered, no characters, no text" },
+  { id: 17197, seed: 188, prompt: "a lone spiral watchtower on an endless moonlit desert, grand fantasy matte painting, starry sky, centered, no characters, no text" },
+  { id: 17088, seed: 303, prompt: "a chubby grumpy black cat sitting in a neon alley with a small wisp of smoke, cute flat cartoon sticker style, humorous, centered, no text" },
+  { id: 16391, seed: 209, prompt: "two glowing cigarette embers floating in a dark quiet parking lot at night, moody cinematic realism, soft bokeh lights, no characters, no text" },
+  { id: 17361, seed: 214, prompt: "two opposite-colored umbrellas side by side under cheerful rain, bright cute pop illustration, pastel poster style, centered, no characters, no text" },
+  { id: 6187, seed: 330, prompt: "a nostalgic taisho-era street glowing with the first electric lightbulbs, warm impressionist oil painting, steampunk, centered, no characters, no text" },
+  { id: 16658, seed: 500, prompt: "a joyful burst of a hundred heart-shaped balloons in a bright sky, vivid pop art poster, energetic and colorful, centered, no text" },
+  { id: 13052, seed: 155, prompt: "a neon-drenched rainy cyberpunk city with holographic signs and wet reflections, moody sci-fi concept art, no characters, no text" },
 ];
 
 function genOne({ id, prompt, seed }) {

@@ -12,11 +12,14 @@
 - [x] **JSON-LD構造化データ**（2026-07-06導入・2026-07-07拡充）: `app/layout.tsx`に`WebSite`スキーマ。
   さらに作品個別ページ（`/anime/[id]`）に`TVSeries`/`Movie`スキーマ（あらすじ・声優・監督・製作会社・原作・出版社入り）、
   シーズンページ（`/season/[year]/[season]`）に全作品の`ItemList`スキーマを追加
-- [x] **生成AI検索（LLM）向け最適化**（2026-07-07完了）: ChatGPT・Perplexity・Google AI Overviews等に拾われることを狙った施策。
+- [x] **生成AI検索（LLM）向け最適化**（2026-07-07完了・2026-07-07拡充）: ChatGPT・Perplexity・Google AI Overviews等に拾われることを狙った施策。方針の全体像は外部文書「生成AI時代のSEO対策（2026年7月版）」に準拠。
   (1) 作品ページの`TVSeries`/`Movie`構造化データで、あらすじ・声優・監督・製作会社・原作を機械可読に提供
   (2) `/llms.txt`（`app/llms.txt/route.ts`）でサイトの構造と主要URL・データ性質をMarkdownで明示
   (3) `robots.txt`で主要AIクローラ（GPTBot・ClaudeBot・PerplexityBot・Google-Extended等）を明示的に許可
   (4) シーズンページの`ItemList`で「その年その季節のアニメ一覧」を機械可読化
+  (5) **Organization＋sameAs**（Bluesky/Mastodon/X）でエンティティの実在性シグナルを付与（`app/layout.tsx`）
+  (6) 作品ページに**BreadcrumbList**・**FAQPage**（「『作品名』はどこで配信されている？」をアンサーファーストで可視表示＋スキーマ同期）・**dateModified**（配信情報の確認日を鮮度シグナルとして可視表示）を追加。シーズンページにもBreadcrumbList＋dateModified
+  - **未対応（手動・要判断）**: Bing Webmaster Tools登録（ChatGPT Search対策・要ユーザー操作）／運営者情報ページ（E-E-A-T・要運営者情報）／Wikidata登録・外部言及獲得／AI引用の月次モニタリング。`WatchAction`は各サービスの視聴ページ直リンクをAnnictが持たないため見送り（FAQPageの回答文で配信先を表現）
 - [x] **RSS/Atomフィード配信**（2026-07-06完了）: `/feed.xml`でサイトの更新履歴（`lib/changelog.ts`）をRSS 2.0配信。
   ※個々の作品情報はAnnict由来で確定した公開日時を持たないため、フィード対象は「サイト自体の更新」にしている
 
