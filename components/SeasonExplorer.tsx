@@ -748,31 +748,13 @@ export default function SeasonExplorer({
                 <span className="card-air-time">{airLabel(it) ?? "放送時期未定"}</span>
                 <span className="card-cool">{currentSeasonLabel}</span>
               </div>
-              {/* タイトル＋メタ（注目人数・公式サイト）をヘッダーにまとめ、
-                  下段の配信サービスはサムネの高さに収める（カード高さを揃える）。 */}
+              {/* タイトル（全幅）。 */}
               <div className="card-head">
                 <h3 className="card-title">
                   <Link href={`/anime/${it.id}`}>{it.title}</Link>
                 </h3>
-                <div className="card-head-meta">
-                  {it.watchers > 0 && (
-                    <span className="card-pop" title="Annictで視聴登録している人数">
-                      {it.watchers.toLocaleString()}人が注目
-                    </span>
-                  )}
-                  {it.officialSiteUrl && (
-                    <a
-                      className="official"
-                      href={it.officialSiteUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      公式サイト ↗
-                    </a>
-                  )}
-                </div>
               </div>
-              {/* 下段：サムネ（左）＋配信サービスのアイコン（右）。 */}
+              {/* 中段：サムネ（左）＋配信サービス（右）。 */}
               <div className="card-main">
                 <div className="card-thumb-col">
                   {/* 権利者の画像は使わない。AI独断解釈サムネ（本作品と無関係な創作）が
@@ -801,6 +783,26 @@ export default function SeasonExplorer({
                 <div className="card-svc-col">
                   <ServiceMarks services={it.services} otherServices={it.otherServices} />
                 </div>
+              </div>
+              {/* 最下段：注目人数（左）＋公式サイト（右）。サムネ・配信の下に置く。 */}
+              <div className="card-foot">
+                {it.watchers > 0 ? (
+                  <span className="card-pop" title="Annictで視聴登録している人数">
+                    {it.watchers.toLocaleString()}人が注目
+                  </span>
+                ) : (
+                  <span />
+                )}
+                {it.officialSiteUrl && (
+                  <a
+                    className="official"
+                    href={it.officialSiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    公式サイト ↗
+                  </a>
+                )}
               </div>
             </article>
           ))}

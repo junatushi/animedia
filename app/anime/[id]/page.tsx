@@ -188,12 +188,13 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
               {credits.casts.length > 0 && (
                 <section className="detail-section">
                   <h2 className="detail-heading">声優</h2>
-                  {/* 人数が多いので2〜3列のグリッドで縦の長さを抑える。 */}
+                  {/* 人数が多いので2〜3列のグリッドで縦を抑える。役名は声優名の上に小さく置き、
+                      1行に詰め込まず可読性を確保する。 */}
                   <ul className="detail-cast-grid">
                     {credits.casts.map((c, i) => (
-                      <li key={i}>
-                        {c.personName}
-                        {c.characterName && <span className="detail-sub">（{c.characterName}役）</span>}
+                      <li key={i} className="detail-cast">
+                        {c.characterName && <span className="detail-cast-role">{c.characterName}</span>}
+                        <span className="detail-cast-name">{c.personName}</span>
                       </li>
                     ))}
                   </ul>
@@ -228,7 +229,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                 <p className="detail-source">
                   参照:{" "}
                   <a href={content.sourceUrl} target="_blank" rel="noopener noreferrer">
-                    公式サイト等の一次情報 ↗
+                    公式サイト等の情報 ↗
                   </a>
                 </p>
               )}

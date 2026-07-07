@@ -6,9 +6,10 @@ function brandMark(short: string): string {
   return ch.length ? ch[0] : "?";
 }
 
-// 配信サービスを「アイコンのみ」で並べる（省スペース）。ただしサービス名は
-// title属性＋視覚的に隠したテキスト（.sr-only）としてDOMに保持するので、
-// スクリーンリーダー・検索エンジン・生成AIには「dアニメストア」等の名称が読める。
+// 配信サービスを「アイコン＋略称」のコンパクトなチップで並べる。
+// 略称だけだと1文字アイコンより分かりやすく、省スペースも両立できる。
+// 正式名称（例: dアニメストア）は title 属性＋視覚的に隠したテキスト（.sr-only）で
+// DOMに保持し、スクリーンリーダー・検索エンジン・生成AIにも伝わるようにする。
 export default function ServiceMarks({
   services,
   otherServices,
@@ -22,20 +23,23 @@ export default function ServiceMarks({
   return (
     <div className="svc-marks">
       {services.map((s) => (
-        <span
-          key={s.key}
-          className="svc-mark"
-          style={{ background: s.color, color: textOn(s.color) }}
-          title={s.name}
-        >
-          <span aria-hidden="true">{brandMark(s.short)}</span>
+        <span key={s.key} className="svc-chip" title={s.name}>
+          <span
+            className="svc-chip-mark"
+            style={{ background: s.color, color: textOn(s.color) }}
+            aria-hidden="true"
+          >
+            {brandMark(s.short)}
+          </span>
+          <span className="svc-chip-name" aria-hidden="true">
+            {s.short}
+          </span>
           <span className="sr-only">{s.name}</span>
         </span>
       ))}
       {otherServices.map((name) => (
-        <span key={name} className="svc-mark svc-mark-other" title={name}>
-          <span aria-hidden="true">＋</span>
-          <span className="sr-only">{name}</span>
+        <span key={name} className="svc-chip svc-chip-other" title={name}>
+          <span className="svc-chip-name">{name}</span>
         </span>
       ))}
     </div>
