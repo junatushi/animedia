@@ -24,7 +24,7 @@ const MAX_PROGRAM_PAGES = 12;
 
 interface ProgramConn {
   pageInfo: { hasNextPage: boolean; endCursor: string | null };
-  nodes: { channel: { name: string | null } | null }[];
+  nodes: { channel: { name: string | null } | null; startedAt: string | null }[];
 }
 
 interface RawWork {
@@ -54,7 +54,7 @@ query ($season: String!, $after: String) {
       image { recommendedImageUrl }
       programs(first: ${PROGRAMS_PER_WORK}) {
         pageInfo { hasNextPage endCursor }
-        nodes { channel { name } }
+        nodes { channel { name } startedAt }
       }
     }
   }
@@ -67,7 +67,7 @@ query ($id: Int!, $after: String) {
     nodes {
       programs(first: ${PROGRAMS_PER_WORK}, after: $after) {
         pageInfo { hasNextPage endCursor }
-        nodes { channel { name } }
+        nodes { channel { name } startedAt }
       }
     }
   }
@@ -85,7 +85,7 @@ query ($id: Int!) {
       image { recommendedImageUrl }
       programs(first: ${PROGRAMS_PER_WORK}) {
         pageInfo { hasNextPage endCursor }
-        nodes { channel { name } }
+        nodes { channel { name } startedAt }
       }
     }
   }

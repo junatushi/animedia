@@ -166,6 +166,8 @@ export default function SeasonExplorer({
   const [active, setActive] = useState<Set<string>>(new Set());
   // 人気順（API側で watchers 降順に整形済み）と、五十音順（タイトルの辞書順）を切り替える。
   const [sortKey, setSortKey] = useState<"popular" | "title">("popular");
+  // 一覧（グリッド）と、曜日別の配信スケジュール（カレンダー）の表示切り替え。
+  const [viewMode, setViewMode] = useState<"grid" | "calendar">("grid");
   // 複数の配信サービスを選んだ時、いずれか一致（OR）か全て一致（AND）かを切り替える。
   const [andMode, setAndMode] = useState(false);
 
@@ -318,6 +320,30 @@ export default function SeasonExplorer({
     return [...data.items].sort((a, b) => b.watchers - a.watchers).slice(0, 5);
   }, [data]);
 
+  // 配信スケジュールカレンダー用。曜日（月始まり）ごとに束ね、放送日が
+  // 取れない作品（配信情報なし等）は最後の「配信日未定」に集める。
+  const calendarGroups = useMemo<{ label: string; items: AnimeItem[] }[]>(() => {
+    const order = [1, 2, 3, 4, 5, 6, 0]; // 月火水木金土日
+    const labels = ["月", "火", "水", "木", "金", "土", "日"];
+    const buckets = new Map<number, AnimeItem[]>();
+    const tbd: AnimeItem[] = [];
+    for (const it of filtered) {
+      if (it.broadcastWeekday === null) {
+        tbd.push(it);
+        continue;
+      }
+      const list = buckets.get(it.broadcastWeekday) ?? [];
+      list.push(it);
+      buckets.set(it.broadcastWeekday, list);
+    }
+    for (const list of buckets.values()) {
+      list.sort((a, b) => (a.broadcastTime ?? "").localeCompare(b.broadcastTime ?? ""));
+    }
+    const groups = order.map((w, i) => ({ label: labels[i], items: buckets.get(w) ?? [] }));
+    if (tbd.length > 0) groups.push({ label: "配信日未定", items: tbd });
+    return groups;
+  }, [filtered]);
+
   return (
     <div className="wrap">
       <header className="masthead">
@@ -460,31 +486,51 @@ export default function SeasonExplorer({
               <b>{filtered.length}</b> 作品
               {filtered.length !== data.count ? `（全 ${data.count} 中）` : ""}
             </div>
-            <div className="sort" role="group" aria-label="並び替え">
+            <div className="sort" role="group" aria-label="表示形式">
               <button
                 type="button"
                 className="sort-btn"
-                aria-pressed={sortKey === "popular"}
-                onClick={() => setSortKey("popular")}
+                aria-pressed={viewMode === "grid"}
+                onClick={() => setViewMode("grid")}
               >
-                人気順
+                一覧
               </button>
               <button
                 type="button"
                 className="sort-btn"
-                aria-pressed={sortKey === "title"}
-                onClick={() => setSortKey("title")}
+                aria-pressed={viewMode === "calendar"}
+                onClick={() => setViewMode("calendar")}
               >
-                五十音順
+                カレンダー
               </button>
             </div>
+            {viewMode === "grid" && (
+              <div className="sort" role="group" aria-label="並び替え">
+                <button
+                  type="button"
+                  className="sort-btn"
+                  aria-pressed={sortKey === "popular"}
+                  onClick={() => setSortKey("popular")}
+                >
+                  人気順
+                </button>
+                <button
+                  type="button"
+                  className="sort-btn"
+                  aria-pressed={sortKey === "title"}
+                  onClick={() => setSortKey("title")}
+                >
+                  五十音順
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* 今期の注目作ランキング。検索・絞り込みをしていない素の状態のときだけ出し、
           そのシーズンの「顔ぶれ」を一目で見せて共有・再訪のきっかけにする。 */}
-      {!loading && !error && data && topRanking.length > 0 &&
+      {viewMode === "grid" && !loading && !error && data && topRanking.length > 0 &&
         query.trim() === "" && active.size === 0 && !favoritesOnly && (
           <section className="ranking" aria-label="今期の注目作ランキング">
             <h2 className="ranking-title">今期の注目作 TOP5</h2>
@@ -525,7 +571,67 @@ export default function SeasonExplorer({
         </div>
       )}
 
-      {!loading && !error && data && filtered.length > 0 && (
+      {/* 配信スケジュールカレンダー。放送/配信の初回日時（Annict programs の startedAt）から
+          導出した曜日ごとに束ねる。「配信日未定」は programs がない/日時が取れない作品。 */}
+      {viewMode === "calendar" && !loading && !error && data && filtered.length > 0 && (
+        <>
+          <p className="calendar-note">
+            時刻は初回放送/配信から推定したJSTの目安です。話数によって前後する場合があります。
+          </p>
+          <div className="calendar">
+          {calendarGroups.map((g) => (
+            <section key={g.label} className="calendar-day">
+              <h3 className="calendar-day-head">
+                {g.label}
+                <span className="calendar-day-count">{g.items.length}</span>
+              </h3>
+              {g.items.length === 0 ? (
+                <p className="calendar-empty">なし</p>
+              ) : (
+                <ul className="calendar-list">
+                  {g.items.map((it) => (
+                    <li key={it.id} className="calendar-item">
+                      {it.broadcastTime && (
+                        <span className="calendar-time">{it.broadcastTime}</span>
+                      )}
+                      <Link href={`/anime/${it.id}`} className="calendar-title">
+                        {it.title}
+                      </Link>
+                      {(it.services.length > 0 || it.otherServices.length > 0) && (
+                        <div className="badges calendar-badges">
+                          {it.services.map((s) => (
+                            <span
+                              key={s.key}
+                              className="badge"
+                              style={{ ["--c" as string]: s.color }}
+                            >
+                              <span
+                                className="badge-mark"
+                                style={{ background: s.color, color: textOn(s.color) }}
+                              >
+                                {brandMark(s.short)}
+                              </span>
+                              <span className="badge-name">{s.short}</span>
+                            </span>
+                          ))}
+                          {it.otherServices.map((name) => (
+                            <span key={name} className="badge badge-other">
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ))}
+          </div>
+        </>
+      )}
+
+      {viewMode === "grid" && !loading && !error && data && filtered.length > 0 && (
         <div className="grid">
           {filtered.map((it) => (
             <article key={it.id} className="card">

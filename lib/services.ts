@@ -83,6 +83,29 @@ export function textOn(hex: string): string {
   return luminance > 0.6 ? "#10141f" : "#ffffff";
 }
 
+// 全 programs の中で最も早い startedAt（=初回放送/配信）から、配信スケジュール
+// カレンダー用の曜日・時刻をJSTで求める。放送国内向けのTVチャンネルであっても
+// 大半の配信サービスは同日にシマルキャストされるため、作品単位の代表値として使える。
+// programs が無い/日時が取れない作品は null（=「配信日未定」としてカレンダーの外に出す）。
+function deriveBroadcastSlot(
+  nodes: { startedAt: string | null }[]
+): { weekday: number; time: string } | null {
+  let earliest: number | null = null;
+  for (const p of nodes) {
+    if (!p.startedAt) continue;
+    const ms = Date.parse(p.startedAt);
+    if (Number.isNaN(ms)) continue;
+    if (earliest === null || ms < earliest) earliest = ms;
+  }
+  if (earliest === null) return null;
+
+  const jst = new Date(earliest + 9 * 60 * 60 * 1000);
+  const weekday = jst.getUTCDay();
+  const hh = String(jst.getUTCHours()).padStart(2, "0");
+  const mm = String(jst.getUTCMinutes()).padStart(2, "0");
+  return { weekday, time: `${hh}:${mm}` };
+}
+
 // AnnictWork（生データ）→ AnimeItem（画面/APIが使う整形済みデータ）への変換。
 // シーズン一覧（getSeasonData）と作品個別ページ（getWorkData）の両方から共有する。
 export function toAnimeItem(w: {
@@ -91,7 +114,7 @@ export function toAnimeItem(w: {
   watchersCount: number | null;
   officialSiteUrl: string | null;
   image: { recommendedImageUrl: string | null } | null;
-  programs: { nodes: { channel: { name: string | null } | null }[] } | null;
+  programs: { nodes: { channel: { name: string | null } | null; startedAt: string | null }[] } | null;
 }): import("./types").AnimeItem {
   const serviceMap = new Map<string, ServiceDef>();
   const others = new Set<string>();
@@ -108,6 +131,8 @@ export function toAnimeItem(w: {
     // kind === "tv" は国内配信のみ表示のため捨てる
   }
 
+  const slot = deriveBroadcastSlot(w.programs?.nodes ?? []);
+
   return {
     id: w.annictId,
     title: w.title,
@@ -121,5 +146,7 @@ export function toAnimeItem(w: {
       color: def.color,
     })),
     otherServices: [...others],
+    broadcastWeekday: slot?.weekday ?? null,
+    broadcastTime: slot?.time ?? null,
   };
 }
