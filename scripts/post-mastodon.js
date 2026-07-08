@@ -1,6 +1,7 @@
-// Mastodon（無料・投稿APIに料金がかからない）へ日次ダイジェストを自動投稿する。
+// Mastodon（無料・投稿APIに料金がかからない）へ自動投稿する。
+// 投稿内容は POST_KIND（digest=日次 / season=新シーズン告知）で切り替わる。
 // Secrets未設定の間は「まだ設定されていない」ログを出してスキップする（失敗扱いにしない）。
-const { buildDigest } = require("./lib/build-digest");
+const { buildPost } = require("./lib/build-digest");
 
 async function main() {
   const instanceUrl = process.env.MASTODON_INSTANCE_URL; // 例: https://mstdn.jp
@@ -11,7 +12,7 @@ async function main() {
     return;
   }
 
-  const { text } = await buildDigest();
+  const { text } = await buildPost();
   const res = await fetch(`${instanceUrl.replace(/\/$/, "")}/api/v1/statuses`, {
     method: "POST",
     headers: {

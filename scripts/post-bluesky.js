@@ -1,7 +1,8 @@
-// Bluesky（無料・投稿APIに料金がかからない）へ日次ダイジェストを自動投稿する。
+// Bluesky（無料・投稿APIに料金がかからない）へ自動投稿する。
+// 投稿内容は POST_KIND（digest=日次 / season=新シーズン告知）で切り替わる。
 // Secrets未設定の間は「まだ設定されていない」ログを出してスキップする（失敗扱いにしない）。
 const { BskyAgent } = require("@atproto/api");
-const { buildDigest } = require("./lib/build-digest");
+const { buildPost } = require("./lib/build-digest");
 
 async function main() {
   const identifier = process.env.BLUESKY_IDENTIFIER;
@@ -12,7 +13,7 @@ async function main() {
     return;
   }
 
-  const { text } = await buildDigest();
+  const { text } = await buildPost();
   const agent = new BskyAgent({ service: "https://bsky.social" });
   await agent.login({ identifier, password });
   const res = await agent.post({ text, createdAt: new Date().toISOString() });

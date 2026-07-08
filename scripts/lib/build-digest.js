@@ -96,4 +96,35 @@ async function buildDigest(now = new Date()) {
   return { text, year, season, label, count: data.count, weekday };
 }
 
-module.exports = { buildDigest, truncate, MAX_LEN, SITE_URL };
+// 新シーズン開始の告知文。season-announce.yml が各クール初日に呼ぶ。
+async function buildSeasonAnnounce(now = new Date()) {
+  const { year, month } = jstParts(now);
+  const { key: season, label } = currentSeasonByMonth(month);
+
+  const res = await fetch(`${SITE_URL}/api/season?year=${year}&season=${season}`);
+  if (!res.ok) {
+    throw new Error(`サイトのAPI取得に失敗しました（${res.status}）`);
+  }
+  const data = await res.json();
+  const url = `${SITE_URL}/?year=${year}&season=${season}`;
+
+  const lines = [
+    `🎬 ${year}年${label}アニメ、始まりました！`,
+    "",
+    `今期${data.count}作品の配信状況を「アニメ視聴ガイド」でまとめています。どのアニメがどこで見られるか、サービス別に一覧でチェックできます。`,
+    "",
+    url,
+    `#${year}年${label}アニメ`,
+  ];
+  return { text: truncate(lines.join("\n"), MAX_LEN), year, season, label, count: data.count };
+}
+
+// 投稿スクリプト共通の入口。環境変数 POST_KIND で内容を切り替える。
+//   （未設定/"digest"）= 日次ダイジェスト（曜日で出し分け）
+//   "season"          = 新シーズン開始の告知
+async function buildPost(now = new Date()) {
+  const kind = process.env.POST_KIND || "digest";
+  return kind === "season" ? buildSeasonAnnounce(now) : buildDigest(now);
+}
+
+module.exports = { buildDigest, buildSeasonAnnounce, buildPost, truncate, MAX_LEN, SITE_URL };
