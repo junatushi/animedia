@@ -460,6 +460,9 @@ export default function SeasonExplorer({
 
   return (
     <div className="wrap">
+      <a href="#main-content" className="skip-link">
+        本文へスキップ
+      </a>
       <header className="masthead">
         <span className="eyebrow" aria-hidden="true">
           LINK START :: 今期アニメの配信データベースに接続完了
@@ -487,6 +490,7 @@ export default function SeasonExplorer({
         </div>
       </header>
 
+      <main id="main-content" tabIndex={-1}>
       <div className="controls">
         <div className="control-line">
           <div className="segmented" role="group" aria-label="シーズン">
@@ -543,6 +547,7 @@ export default function SeasonExplorer({
           className="search"
           type="text"
           placeholder="作品名・声優・スタッフでスキャン…"
+          aria-label="作品名・声優・スタッフでスキャン"
           value={query}
           onFocus={ensureSearchIndex}
           onChange={(e) => {
@@ -917,6 +922,7 @@ export default function SeasonExplorer({
         新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
         「その他配信」は未登録サービスの可能性があり、点線で表示しています。
       </p>
+      </main>
 
       <ScrollTopButton />
     </div>
