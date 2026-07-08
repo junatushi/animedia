@@ -888,8 +888,9 @@ body {
 .fold-summary::before {
   content: "▸";
   color: var(--accent-2);
-  font-size: 12px;
-  margin-right: 8px;
+  font-size: 18px;
+  line-height: 1;
+  margin-right: 9px;
 }
 .fold-panel[open] .fold-summary::before { content: "▾"; }
 .fold-summary-text {
@@ -905,6 +906,13 @@ body {
 .fold-panel[open] .svc-compare-list {
   margin-top: 12px;
 }
+
+/* 検索・配信サービス／声優チップの折りたたみパネル（既定は閉）。
+   .controls 内の他の行（シーズン/年）とは違いgapの外にあるので、開いた時の
+   内部スペーシングは自前で持つ。 */
+.fold-panel-controls { margin: 0; }
+.fold-panel-controls > .search { margin-top: 12px; }
+.fold-panel-controls > .filters { margin-top: 10px; }
 .ranking-title {
   font-family: var(--mono);
   font-size: 13px;

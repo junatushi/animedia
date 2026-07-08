@@ -548,84 +548,95 @@ export default function SeasonExplorer({
           <span className="control-label">年</span>
         </div>
 
-        <input
-          className="search"
-          type="text"
-          placeholder="作品名・声優・スタッフでスキャン…"
-          aria-label="作品名・声優・スタッフでスキャン"
-          value={query}
-          onFocus={ensureSearchIndex}
-          onChange={(e) => {
-            ensureSearchIndex();
-            setQuery(e.target.value);
-          }}
-        />
+        <details className="fold-panel fold-panel-controls">
+          <summary className="fold-summary">
+            <h2 className="fold-summary-text">検索・配信サービスで絞る</h2>
+          </summary>
 
-        {availableServices.length > 0 && (
-          <div className="filters" role="group" aria-label="配信サービスで絞り込み">
-            <button
-              className="chip chip-reset"
-              data-on={active.size === 0}
-              onClick={() => setActive(new Set())}
-            >
-              すべて
-            </button>
-            <button
-              type="button"
-              className="chip"
-              data-on={favoritesOnly}
-              aria-pressed={favoritesOnly}
-              onClick={() => setFavoritesOnly((v) => !v)}
-            >
-              ★ お気に入り
-            </button>
-            {active.size > 1 && (
+          <input
+            className="search"
+            type="text"
+            placeholder="作品名・声優・スタッフでスキャン…"
+            aria-label="作品名・声優・スタッフでスキャン"
+            value={query}
+            onFocus={ensureSearchIndex}
+            onChange={(e) => {
+              ensureSearchIndex();
+              setQuery(e.target.value);
+            }}
+          />
+
+          {availableServices.length > 0 && (
+            <div className="filters" role="group" aria-label="配信サービスで絞り込み">
+              <button
+                className="chip chip-reset"
+                data-on={active.size === 0}
+                onClick={() => setActive(new Set())}
+              >
+                すべて
+              </button>
               <button
                 type="button"
                 className="chip"
-                data-on={andMode}
-                aria-pressed={andMode}
-                title="複数選択時、いずれか一致（OR）か全て一致（AND）かを切り替え"
-                onClick={() => setAndMode((v) => !v)}
+                data-on={favoritesOnly}
+                aria-pressed={favoritesOnly}
+                onClick={() => setFavoritesOnly((v) => !v)}
               >
-                {andMode ? "AND" : "OR"}
+                ★ お気に入り
               </button>
-            )}
-            {availableServices.map((s) => {
-              const on = active.has(s.key);
-              return (
+              {active.size > 1 && (
                 <button
-                  key={s.key}
+                  type="button"
                   className="chip"
-                  data-on={on}
-                  style={on ? { background: s.color } : undefined}
-                  onClick={() => toggle(s.key)}
+                  data-on={andMode}
+                  aria-pressed={andMode}
+                  title="複数選択時、いずれか一致（OR）か全て一致（AND）かを切り替え"
+                  onClick={() => setAndMode((v) => !v)}
                 >
-                  {s.short}
+                  {andMode ? "AND" : "OR"}
                 </button>
-              );
-            })}
-          </div>
-        )}
+              )}
+              {availableServices.map((s) => {
+                const on = active.has(s.key);
+                return (
+                  <button
+                    key={s.key}
+                    className="chip"
+                    data-on={on}
+                    style={on ? { background: s.color } : undefined}
+                    onClick={() => toggle(s.key)}
+                  >
+                    {s.short}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </details>
 
         {availableCastChips.length > 0 && (
-          <div className="filters" role="group" aria-label="声優で絞り込み（試験実装）">
-            {availableCastChips.map(([name, count]) => {
-              const on = activeCast.has(name);
-              return (
-                <button
-                  key={name}
-                  type="button"
-                  className="chip chip-cast"
-                  data-on={on}
-                  onClick={() => toggleCast(name)}
-                  title={`今期${count}作品に出演`}
-                >
-                  {name}
-                </button>
-              );
-            })}
-          </div>
+          <details className="fold-panel fold-panel-controls">
+            <summary className="fold-summary">
+              <h2 className="fold-summary-text">出演作品が多い声優で絞る</h2>
+            </summary>
+            <div className="filters" role="group" aria-label="声優で絞り込み（試験実装）">
+              {availableCastChips.map(([name, count]) => {
+                const on = activeCast.has(name);
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    className="chip chip-cast"
+                    data-on={on}
+                    onClick={() => toggleCast(name)}
+                    title={`今期${count}作品に出演`}
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+          </details>
         )}
 
         {data && !loading && !error && (
