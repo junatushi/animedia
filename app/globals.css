@@ -919,6 +919,80 @@ body {
   text-overflow: ellipsis;
 }
 
+/* 配信サービス横断の比較表。「このサービスだけで何本見れるか」を横棒グラフで見せる。
+   ranking と対になる構造・見た目で統一する。 */
+.svc-compare {
+  margin: 0 0 30px;
+  padding: 18px 20px;
+  border-radius: var(--radius);
+  background: var(--paper);
+  border: 1px solid var(--border-soft);
+  box-shadow: 0 0 0 1px rgba(var(--border-bright-rgb), 0.08) inset;
+}
+.svc-compare-title {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--accent-2);
+  margin: 0 0 12px;
+  text-transform: uppercase;
+}
+.svc-compare-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.svc-compare-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.svc-compare-row:hover { background: var(--paper-2); }
+.svc-compare-name {
+  flex: 0 0 76px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+.svc-compare-bar-track {
+  flex: 1;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--paper-2);
+  overflow: hidden;
+}
+.svc-compare-bar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  min-width: 3px;
+  transition: width 0.3s ease;
+}
+.svc-compare-count {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 34px;
+  text-align: right;
+}
+
 /* 更新履歴（折りたたみ） */
 .changelog {
   margin-top: 40px;

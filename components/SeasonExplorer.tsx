@@ -320,8 +320,9 @@ export default function SeasonExplorer({
     };
   }, [year, season]);
 
-  // データに登場する配信サービスだけを、登場頻度順で絞り込みチップに出す
-  const availableServices = useMemo<ServiceTag[]>(() => {
+  // データに登場する配信サービスを、登場頻度（=何本その配信で観られるか）順に集計する。
+  // 絞り込みチップ（タグのみ）と比較表（件数つき）の両方がこの集計を使う。
+  const serviceUsage = useMemo<{ tag: ServiceTag; n: number }[]>(() => {
     if (!data) return [];
     const map = new Map<string, { tag: ServiceTag; n: number }>();
     for (const it of data.items) {
@@ -331,8 +332,12 @@ export default function SeasonExplorer({
         else map.set(s.key, { tag: s, n: 1 });
       }
     }
-    return [...map.values()].sort((a, b) => b.n - a.n).map((x) => x.tag);
+    return [...map.values()].sort((a, b) => b.n - a.n);
   }, [data]);
+  const availableServices = useMemo<ServiceTag[]>(
+    () => serviceUsage.map((x) => x.tag),
+    [serviceUsage],
+  );
 
   // 今期に複数作品へ出演している声優を、出演数の多い順にチップ化する（試験実装）。
   // 1作品だけの声優は対象外にして、チップの数を絞る。
@@ -685,6 +690,40 @@ export default function SeasonExplorer({
                 </li>
               ))}
             </ol>
+          </section>
+        )}
+
+      {/* 配信サービス横断の比較表。「このサービスだけで何本見れるか」を一目で見せる。
+          注目作ランキングと同じく、絞り込みをしていない素の状態でだけ「今期の顔ぶれ」として出す。
+          行をクリックするとそのサービスで絞り込める（既存のサービスチップと同じ toggle を再利用）。 */}
+      {viewMode === "grid" && !loading && !error && data && serviceUsage.length > 0 &&
+        query.trim() === "" && active.size === 0 && !favoritesOnly && (
+          <section className="svc-compare" aria-label="配信サービス別の対応本数">
+            <h2 className="svc-compare-title">配信サービス別 対応本数</h2>
+            <ul className="svc-compare-list">
+              {serviceUsage.map(({ tag, n }) => (
+                <li key={tag.key} className="svc-compare-item">
+                  <button
+                    type="button"
+                    className="svc-compare-row"
+                    onClick={() => toggle(tag.key)}
+                    title={`${tag.name}で絞り込む`}
+                  >
+                    <span className="svc-compare-name">{tag.short}</span>
+                    <span className="svc-compare-bar-track">
+                      <span
+                        className="svc-compare-bar"
+                        style={{
+                          width: `${(n / serviceUsage[0].n) * 100}%`,
+                          background: tag.color,
+                        }}
+                      />
+                    </span>
+                    <span className="svc-compare-count">{n}本</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           </section>
         )}
 
