@@ -196,6 +196,8 @@ export default function SeasonExplorer({
 
   const [query, setQuery] = useState("");
   const [active, setActive] = useState<Set<string>>(new Set());
+  // 声優チップで選択中の人物名（複数選択可、いずれか一致=OR）。試験実装。
+  const [activeCast, setActiveCast] = useState<Set<string>>(new Set());
   // 人気順（API側で watchers 降順に整形済み）と、五十音順（タイトルの辞書順）を切り替える。
   const [sortKey, setSortKey] = useState<"popular" | "title">("popular");
   // 一覧（グリッド）と、曜日別の配信スケジュール（カレンダー）の表示切り替え。
@@ -332,6 +334,24 @@ export default function SeasonExplorer({
     return [...map.values()].sort((a, b) => b.n - a.n).map((x) => x.tag);
   }, [data]);
 
+  // 今期に複数作品へ出演している声優を、出演数の多い順にチップ化する（試験実装）。
+  // 1作品だけの声優は対象外にして、チップの数を絞る。
+  const CAST_CHIP_MIN_COUNT = 2;
+  const CAST_CHIP_LIMIT = 20;
+  const availableCastChips = useMemo(() => {
+    if (!data) return [];
+    const map = new Map<string, number>();
+    for (const it of data.items) {
+      for (const name of it.castNames) {
+        map.set(name, (map.get(name) ?? 0) + 1);
+      }
+    }
+    return [...map.entries()]
+      .filter(([, n]) => n >= CAST_CHIP_MIN_COUNT)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, CAST_CHIP_LIMIT);
+  }, [data]);
+
   const filtered = useMemo(() => {
     if (!data) return [];
     const q = query.trim().toLowerCase();
@@ -346,15 +366,17 @@ export default function SeasonExplorer({
           : andMode
             ? [...active].every((k) => it.services.some((s) => s.key === k))
             : it.services.some((s) => active.has(s.key));
+      const okCast =
+        activeCast.size === 0 || it.castNames.some((n) => activeCast.has(n));
       const okFav = !favoritesOnly || favorites.has(it.id);
-      return okText && okSvc && okFav;
+      return okText && okSvc && okCast && okFav;
     });
     // "popular" は API が watchers 降順で返す並びをそのまま使う（再ソート不要）。
     if (sortKey === "title") {
       return [...list].sort((a, b) => a.title.localeCompare(b.title, "ja"));
     }
     return list;
-  }, [data, query, active, sortKey, andMode, favoritesOnly, favorites]);
+  }, [data, query, active, activeCast, sortKey, andMode, favoritesOnly, favorites]);
 
   // クール横断検索の結果。検索語が入っている時だけ、表示中クール以外の作品を
   // 軽量インデックスから拾う（タイトル・読み仮名で一致）。配信サービス絞り込み・
@@ -383,6 +405,19 @@ export default function SeasonExplorer({
       } else {
         next.add(key);
         track("filter_service", { service: key }); // どのサービスで絞り込まれるか
+      }
+      return next;
+    });
+  }
+
+  function toggleCast(name: string) {
+    setActiveCast((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+        track("filter_cast", { cast: name });
       }
       return next;
     });
@@ -557,6 +592,26 @@ export default function SeasonExplorer({
                   onClick={() => toggle(s.key)}
                 >
                   {s.short}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {availableCastChips.length > 0 && (
+          <div className="filters" role="group" aria-label="声優で絞り込み（試験実装）">
+            {availableCastChips.map(([name, count]) => {
+              const on = activeCast.has(name);
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  className="chip chip-cast"
+                  data-on={on}
+                  onClick={() => toggleCast(name)}
+                  title={`今期${count}作品に出演`}
+                >
+                  {name}
                 </button>
               );
             })}

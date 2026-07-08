@@ -49,6 +49,9 @@ export interface AnimeItem {
   // 声優・スタッフ名での検索用。casts(先頭5件)の人物名 + staffs(先頭40件)の
   // 人物/組織名をまとめたもの（重複除去済み）。UIには出さず検索マッチにのみ使う。
   creditNames: string[];
+  // 声優のみの人物名（casts、重複除去済み）。声優フィルターチップの構築に使う
+  // （creditNamesはスタッフ側に音楽レーベル・制作会社等の組織名も混ざるため分離）。
+  castNames: string[];
   // Annict の Media enum（"TV" / "MOVIE" / "OVA" / "WEB" / "OTHER"）。
   // 構造化データ（JSON-LD）で TVSeries / Movie を出し分けるのに使う。
   media: string | null;

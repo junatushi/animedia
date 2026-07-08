@@ -403,6 +403,8 @@ body {
   border-color: transparent;
   box-shadow: 0 0 14px rgba(var(--accent-rgb), 0.5);
 }
+/* 声優チップ（試験実装）。配信サービスチップと見分けやすいよう角丸を強める。 */
+.chip-cast { border-radius: 999px; }
 
 .count-row {
   display: flex;

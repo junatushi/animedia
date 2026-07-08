@@ -127,9 +127,10 @@ export function toAnimeItem(w: import("./types").AnnictWork): import("./types").
   const slot = deriveBroadcastSlot(w.programs?.nodes ?? []);
 
   // 声優・スタッフ名での検索用（UIには出さず、SeasonExplorerの検索マッチにのみ使う）。
+  const castNames = [...new Set(w.casts.map((c) => c.name))].filter(Boolean);
   const creditNames = [
     ...new Set([
-      ...w.casts.map((c) => c.name),
+      ...castNames,
       ...w.staffs.map((s) => s.resource?.name || s.name),
     ]),
   ].filter(Boolean);
@@ -150,6 +151,7 @@ export function toAnimeItem(w: import("./types").AnnictWork): import("./types").
     broadcastWeekday: slot?.weekday ?? null,
     broadcastTime: slot?.time ?? null,
     creditNames,
+    castNames,
     media: w.media ?? null,
   };
 }
