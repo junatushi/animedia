@@ -19,7 +19,11 @@
   (4) シーズンページの`ItemList`で「その年その季節のアニメ一覧」を機械可読化
   (5) **Organization＋sameAs**（Bluesky/Mastodon/X）でエンティティの実在性シグナルを付与（`app/layout.tsx`）
   (6) 作品ページに**BreadcrumbList**・**FAQPage**（「『作品名』はどこで配信されている？」をアンサーファーストで可視表示＋スキーマ同期）・**dateModified**（配信情報の確認日を鮮度シグナルとして可視表示）を追加。シーズンページにもBreadcrumbList＋dateModified
-  - **未対応（手動・要判断）**: Bing Webmaster Tools登録（ChatGPT Search対策・要ユーザー操作）／運営者情報ページ（E-E-A-T・要運営者情報）／Wikidata登録・外部言及獲得／AI引用の月次モニタリング。`WatchAction`は各サービスの視聴ページ直リンクをAnnictが持たないため見送り（FAQPageの回答文で配信先を表現）
+  - [x] **Bing Webmaster Tools登録**（2026-07-08ユーザー完了）
+  - [x] **運営者情報ページ**（2026-07-08完了）: `/about`を追加。運営名・経緯・お問い合わせ（X）・SNS（X/Bluesky/Mastodon）・データソースの説明を掲載、`sitemap.xml`にも追加、各ページ脚注からリンク
+  - **Wikidata登録・外部言及獲得**（2026-07-08ユーザー着手）: サイト外運用のため進捗はこちらでは追跡しない
+  - **AI引用の週次モニタリング**（2026-07-08ユーザー運用開始・週1回）: チェック用の質問例・記録方法は`docs/operations.md`「⑨AI引用モニタリング」参照
+  - `WatchAction`は各サービスの視聴ページ直リンクをAnnictが持たないため見送り（FAQPageの回答文で配信先を表現）
 - [x] **RSS/Atomフィード配信**（2026-07-06完了）: `/feed.xml`でサイトの更新履歴（`lib/changelog.ts`）をRSS 2.0配信。
   ※個々の作品情報はAnnict由来で確定した公開日時を持たないため、フィード対象は「サイト自体の更新」にしている
 
