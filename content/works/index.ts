@@ -90,6 +90,25 @@ import w17042 from "./17042.json";
 import w16440 from "./16440.json";
 import w16726 from "./16726.json";
 import w17196 from "./17196.json";
+import w17043 from "./17043.json";
+import w17379 from "./17379.json";
+import w16734 from "./16734.json";
+import w16475 from "./16475.json";
+import w13779 from "./13779.json";
+import w17054 from "./17054.json";
+import w17190 from "./17190.json";
+import w17643 from "./17643.json";
+import w17729 from "./17729.json";
+import w17820 from "./17820.json";
+import w16982 from "./16982.json";
+import w17308 from "./17308.json";
+import w17812 from "./17812.json";
+import w17857 from "./17857.json";
+import w17521 from "./17521.json";
+import w17881 from "./17881.json";
+import w17642 from "./17642.json";
+import w17901 from "./17901.json";
+import w17900 from "./17900.json";
 
 export const WORK_DETAILS: Record<number, WorkDetailContent> = {
   8410: w8410,
@@ -177,4 +196,23 @@ export const WORK_DETAILS: Record<number, WorkDetailContent> = {
   16440: w16440,
   16726: w16726,
   17196: w17196,
+  17043: w17043,
+  17379: w17379,
+  16734: w16734,
+  16475: w16475,
+  13779: w13779,
+  17054: w17054,
+  17190: w17190,
+  17643: w17643,
+  17729: w17729,
+  17820: w17820,
+  16982: w16982,
+  17308: w17308,
+  17812: w17812,
+  17857: w17857,
+  17521: w17521,
+  17881: w17881,
+  17642: w17642,
+  17901: w17901,
+  17900: w17900,
 };
