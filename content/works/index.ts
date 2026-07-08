@@ -109,6 +109,8 @@ import w17881 from "./17881.json";
 import w17642 from "./17642.json";
 import w17901 from "./17901.json";
 import w17900 from "./17900.json";
+import w17370 from "./17370.json";
+import w17819 from "./17819.json";
 
 export const WORK_DETAILS: Record<number, WorkDetailContent> = {
   8410: w8410,
@@ -215,4 +217,6 @@ export const WORK_DETAILS: Record<number, WorkDetailContent> = {
   17642: w17642,
   17901: w17901,
   17900: w17900,
+  17370: w17370,
+  17819: w17819,
 };
