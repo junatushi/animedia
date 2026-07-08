@@ -676,12 +676,14 @@ export default function SeasonExplorer({
         )}
       </div>
 
-      {/* 今期の注目作ランキング。検索・絞り込みをしていない素の状態のときだけ出し、
-          そのシーズンの「顔ぶれ」を一目で見せて共有・再訪のきっかけにする。 */}
+      {/* 今期の注目作ランキング。検索・絞り込みをしていない素の状態のときだけ出す。
+          配信情報（作品一覧）が下に押しやられないよう、既定は折りたたみ、クリックで開く。 */}
       {viewMode === "grid" && !loading && !error && data && topRanking.length > 0 &&
         query.trim() === "" && active.size === 0 && !favoritesOnly && (
-          <section className="ranking" aria-label="今期の注目作ランキング">
-            <h2 className="ranking-title">今期の注目作 TOP5</h2>
+          <details className="ranking fold-panel">
+            <summary className="fold-summary">
+              <h2 className="fold-summary-text">今期の注目作 TOP5</h2>
+            </summary>
             <ol className="ranking-list">
               {topRanking.map((it, i) => (
                 <li key={it.id} className="ranking-item">
@@ -690,16 +692,18 @@ export default function SeasonExplorer({
                 </li>
               ))}
             </ol>
-          </section>
+          </details>
         )}
 
       {/* 配信サービス横断の比較表。「このサービスだけで何本見れるか」を一目で見せる。
-          注目作ランキングと同じく、絞り込みをしていない素の状態でだけ「今期の顔ぶれ」として出す。
+          注目作ランキングと同じく、絞り込みをしていない素の状態でだけ出す。既定は折りたたみ。
           行をクリックするとそのサービスで絞り込める（既存のサービスチップと同じ toggle を再利用）。 */}
       {viewMode === "grid" && !loading && !error && data && serviceUsage.length > 0 &&
         query.trim() === "" && active.size === 0 && !favoritesOnly && (
-          <section className="svc-compare" aria-label="配信サービス別の対応本数">
-            <h2 className="svc-compare-title">配信サービス別 対応本数</h2>
+          <details className="svc-compare fold-panel">
+            <summary className="fold-summary">
+              <h2 className="fold-summary-text">配信サービス別 対応本数</h2>
+            </summary>
             <ul className="svc-compare-list">
               {serviceUsage.map(({ tag, n }) => (
                 <li key={tag.key} className="svc-compare-item">
@@ -724,7 +728,7 @@ export default function SeasonExplorer({
                 </li>
               ))}
             </ul>
-          </section>
+          </details>
         )}
 
       {loading && (

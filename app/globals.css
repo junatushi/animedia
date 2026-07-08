@@ -869,6 +869,42 @@ body {
   border: 1px solid var(--border-soft);
   box-shadow: 0 0 0 1px rgba(var(--border-bright-rgb), 0.08) inset;
 }
+
+/* 折りたたみパネル（注目作TOP5・配信サービス比較）。既定は閉じ、配信情報（作品一覧）を
+   上に見せる。開くとその場で展開する。ranking/svc-compare のパネル外観はそのまま流用。 */
+.fold-panel {
+  margin: 0 0 14px;
+}
+.fold-panel[open] {
+  margin-bottom: 30px;
+}
+.fold-summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+}
+.fold-summary::-webkit-details-marker { display: none; }
+.fold-summary::before {
+  content: "▸";
+  color: var(--accent-2);
+  font-size: 12px;
+  margin-right: 8px;
+}
+.fold-panel[open] .fold-summary::before { content: "▾"; }
+.fold-summary-text {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--accent-2);
+  margin: 0;
+  text-transform: uppercase;
+}
+/* 開いたときだけ、見出しと中身の間に余白を空ける（閉じている間は詰める）。 */
+.fold-panel[open] .ranking-list,
+.fold-panel[open] .svc-compare-list {
+  margin-top: 12px;
+}
 .ranking-title {
   font-family: var(--mono);
   font-size: 13px;
