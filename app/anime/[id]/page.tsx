@@ -266,6 +266,8 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         データ元: Annict（コミュニティ更新ベース）。配信情報は網羅率100%ではなく、
         新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
         「その他配信」は未登録サービスの可能性があり、点線で表示しています。
+        {" "}
+        <Link href="/about">運営者情報</Link>
       </p>
     </div>
   );

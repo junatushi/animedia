@@ -1,0 +1,113 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+
+const siteUrl = "https://animedia-khaki.vercel.app";
+const OPERATOR_NAME = "アニメディア";
+
+const title = "運営者情報";
+const description = "「アニメ視聴ガイド」の運営者情報・お問い合わせ先・SNSアカウントのご案内。";
+
+export const metadata: Metadata = {
+  title,
+  description,
+  alternates: { canonical: `${siteUrl}/about` },
+  openGraph: { title, description, url: `${siteUrl}/about`, type: "website" },
+  twitter: { card: "summary", title, description },
+};
+
+// E-E-A-T（発信者の実在性・信頼性）向上のための運営者情報ページ。
+// サーバーコンポーネントで完全にHTML化し、検索エンジン・生成AIから内容がそのまま見えるようにする。
+export default function AboutPage() {
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "アニメ視聴ガイド", item: siteUrl },
+      { "@type": "ListItem", position: 2, name: title, item: `${siteUrl}/about` },
+    ],
+  };
+
+  return (
+    <div className="wrap">
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+      />
+      <header className="masthead">
+        <span className="eyebrow" aria-hidden="true">
+          LINK START :: 運営者情報照会
+        </span>
+        <div className="brandrow">
+          <h1 className="brand">運営者情報</h1>
+        </div>
+        <div className="meta">
+          <Link href="/" className="official">
+            ← アニメ視聴ガイドのトップに戻る
+          </Link>
+        </div>
+      </header>
+
+      <div className="detail-page">
+        <article className="card">
+          <div className="card-body detail-body">
+            <section className="detail-section">
+              <h2 className="detail-heading">運営</h2>
+              <p className="detail-text">{OPERATOR_NAME}</p>
+            </section>
+
+            <section className="detail-section">
+              <h2 className="detail-heading">このサイトについて</h2>
+              <p className="detail-text">
+                今期アニメがどの配信サービスで観られるか、一覧でひと目で分かるサイトが欲しいと思って作りました。
+                配信情報はAnnictのデータをサーバー側でリアルタイムに取得しており、サイト側で推測データを埋めることはしていません。
+              </p>
+            </section>
+
+            <section className="detail-section">
+              <h2 className="detail-heading">お問い合わせ</h2>
+              <p className="detail-text">
+                ご意見・配信情報の誤りのご指摘等は、下記Xアカウントまでご連絡ください。
+              </p>
+              <p className="detail-text">
+                <a href="https://x.com/animedia0705" target="_blank" rel="noopener noreferrer">
+                  https://x.com/animedia0705 ↗
+                </a>
+              </p>
+            </section>
+
+            <section className="detail-section">
+              <h2 className="detail-heading">SNS</h2>
+              <ul className="detail-list">
+                <li>
+                  <a href="https://x.com/animedia0705" target="_blank" rel="noopener noreferrer">
+                    X（旧Twitter） ↗
+                  </a>
+                </li>
+                <li>
+                  <a href="https://bsky.app/profile/animedia0705.bsky.social" target="_blank" rel="noopener noreferrer">
+                    Bluesky ↗
+                  </a>
+                </li>
+                <li>
+                  <a href="https://mastodon.social/@animedia" target="_blank" rel="noopener noreferrer">
+                    Mastodon ↗
+                  </a>
+                </li>
+              </ul>
+            </section>
+
+            <section className="detail-section">
+              <h2 className="detail-heading">データについて</h2>
+              <p className="detail-text">
+                配信情報は<a href="https://annict.com/" target="_blank" rel="noopener noreferrer">Annict</a>
+                （コミュニティ更新ベース）から取得しています。網羅率は100%ではなく、新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
+                作品のあらすじ・見どころ等は、公式サイト等の一次情報を確認しながら人力で追記しています。
+              </p>
+            </section>
+          </div>
+        </article>
+      </div>
+    </div>
+  );
+}
