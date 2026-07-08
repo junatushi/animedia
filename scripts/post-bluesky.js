@@ -1,4 +1,4 @@
-// Bluesky（無料・投稿APIに料金がかからない）へ週次ダイジェストを自動投稿する。
+// Bluesky（無料・投稿APIに料金がかからない）へ日次ダイジェストを自動投稿する。
 // Secrets未設定の間は「まだ設定されていない」ログを出してスキップする（失敗扱いにしない）。
 const { BskyAgent } = require("@atproto/api");
 const { buildDigest } = require("./lib/build-digest");
