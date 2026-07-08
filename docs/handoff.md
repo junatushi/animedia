@@ -97,7 +97,7 @@ git fetch origin && git status -sb && git log origin/main -1 --oneline
 - **映画・記念短編・ゲーム原作系は公式にあらすじ非掲載のことが多い→見送り**（見送り済み: 17042/17043/17543/17379/16734/16475/16440/17190）
 
 ### AI独断解釈サムネ（`public/works/*.jpg`）
-- **42/109作品**が生成済み（IDは`scripts/gen-thumbnails.js`の`PROMPTS`参照）
+- **2026-07-08セッションで全110作品（Annict掲載増分含む）完了**。モノグラムタイルへのフォールバックは0件
 - Pollinations（無料・APIキー不要、`https://image.pollinations.ai/prompt/...`）で事前生成→静的ファイル保存。実行時コストゼロ
 - **作品ごとに画風を変える**方針（浮世絵・ポップアート・水彩・カートゥーン・サイバーパンク・墨絵・ピクセル調等）。実在キャラは描かない
 - **プロンプトは「no characters」だけだと人物が入り込む**。`absolutely no people, no figures, no silhouettes`と強めに否定する
@@ -138,7 +138,7 @@ git fetch origin && git status -sb && git log origin/main -1 --oneline
 
 ### コンテンツ
 - あらすじ・見どころ・出版社: 残り約39作品（70/109済み。ただし映画・記念短編・ゲーム原作系は公式非掲載で見送り分あり）
-- AIサムネ: 残り約67作品（42/109済み）
+- AIサムネ: **完了**（2026-07-08、全110作品）。新作追加時のみ都度対応
 
 ### その他（`docs/growth-ideas.md`のバックログ）
 - 声優・スタッフでの絞り込み機能（一覧の検索は声優名にマッチ済みだが、専用フィルタチップは未実装）
