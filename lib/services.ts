@@ -73,6 +73,22 @@ export function classifyChannel(rawName: string): ChannelClass {
   return { kind: "other", name: rawName.trim() };
 }
 
+// レンタル/都度課金扱いのサービス（content/works/rentalServices.ts で人力管理）を、
+// 通常の配信サービス一覧（見放題想定）から分離する。カード一覧・作品ページの両方で使う。
+export function splitRentalServices(
+  services: import("./types").ServiceTag[],
+  rentalKeys: string[] | undefined
+): { streaming: import("./types").ServiceTag[]; rental: import("./types").ServiceTag[] } {
+  if (!rentalKeys || rentalKeys.length === 0) {
+    return { streaming: services, rental: [] };
+  }
+  const rentalSet = new Set(rentalKeys);
+  return {
+    streaming: services.filter((s) => !rentalSet.has(s.key)),
+    rental: services.filter((s) => rentalSet.has(s.key)),
+  };
+}
+
 // バッジ背景色に対して読みやすい文字色（黒 or 白）を返す
 export function textOn(hex: string): string {
   const h = hex.replace("#", "");

@@ -2,8 +2,10 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getWorkData } from "@/lib/getWorkData";
+import { splitRentalServices } from "@/lib/services";
 import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
+import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import ServiceMarks from "@/components/ServiceMarks";
 
 const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
@@ -24,7 +26,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   }
   if (!item) return {};
 
-  const serviceNames = item.services.map((s) => s.short).join("・");
+  const { streaming } = splitRentalServices(item.services, RENTAL_SERVICES[item.id]);
+  const serviceNames = streaming.map((s) => s.short).join("・");
   const title = `${item.title} の配信状況`;
   const description = serviceNames
     ? `「${item.title}」は ${serviceNames} で配信中。アニメ視聴ガイドで最新の配信状況を確認できます。`
@@ -68,7 +71,12 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   // 生成AI検索・検索エンジンに作品の事実（あらすじ・声優・監督・製作会社・原作・配信先）を
   // 機械可読な形で渡すための構造化データ（JSON-LD）。人手で用意したあらすじがあればそれを、
   // 無ければ配信サービス一覧から生成した説明文を description に入れる。
-  const serviceNames = [...item.services.map((s) => s.short), ...item.otherServices];
+  // レンタル/都度課金扱いのサービスは「配信中（見放題）」から除外し、別枠で扱う。
+  const { streaming: streamingServices, rental: rentalServices } = splitRentalServices(
+    item.services,
+    RENTAL_SERVICES[item.id]
+  );
+  const serviceNames = [...streamingServices.map((s) => s.short), ...item.otherServices];
   const jsonLdDescription =
     content?.synopsis ||
     (serviceNames.length > 0
@@ -120,10 +128,16 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
 
   // 「『作品名』はどこで配信されている？」というQ&AをFAQPageとして機械可読にする。
   // これは生成AIに投げられる典型質問で、引用されればそのまま流入につながる。
+  const rentalNote =
+    rentalServices.length > 0
+      ? `${rentalServices.map((s) => s.short).join("・")}ではレンタル（都度課金）での視聴となります。`
+      : "";
   const watchAnswer =
     serviceNames.length > 0
-      ? `「${item.title}」は ${serviceNames.join("・")} で視聴できます（${checkedDate}時点、Annictより）。配信状況は変わることがあるため、視聴前に各サービスの最新情報もご確認ください。`
-      : `「${item.title}」の配信サービスは現時点でAnnictに登録がなく確認できません（${checkedDate}時点）。判明し次第このページに反映されます。`;
+      ? `「${item.title}」は ${serviceNames.join("・")} で視聴できます（${checkedDate}時点、Annictより）。${rentalNote}配信状況は変わることがあるため、視聴前に各サービスの最新情報もご確認ください。`
+      : rentalServices.length > 0
+        ? `「${item.title}」は見放題配信は現時点で確認できませんが、${rentalNote}（${checkedDate}時点）`
+        : `「${item.title}」の配信サービスは現時点でAnnictに登録がなく確認できません（${checkedDate}時点）。判明し次第このページに反映されます。`;
   const faqLd = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -243,8 +257,9 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
               「{item.title}」はどこで配信されている？
             </h2>
             {/* サービス名はアイコン内にテキストとして保持（.sr-only）。冗長な文章列挙はしない。
-                FAQPageの回答文（JSON-LD）側には名称を含めているのでAI・検索には伝わる。 */}
-            <ServiceMarks services={item.services} otherServices={item.otherServices} />
+                FAQPageの回答文（JSON-LD）側には名称を含めているのでAI・検索には伝わる。
+                レンタル/都度課金扱いのサービスはここには含めず、下の「レンタル作品」欄に分ける。 */}
+            <ServiceMarks services={streamingServices} otherServices={item.otherServices} />
 
             {item.officialSiteUrl && (
               <a
@@ -260,6 +275,20 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
             <p className="detail-updated">配信情報の確認日: {checkedDate}（Annictより自動取得）</p>
           </div>
         </article>
+
+        {rentalServices.length > 0 && (
+          <article className="card">
+            <div className="card-body">
+              <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
+                レンタル作品
+              </h2>
+              <p className="detail-text" style={{ margin: "0 0 10px" }}>
+                以下のサービスでは「見放題」ではなく、レンタル（都度課金）での視聴となります。
+              </p>
+              <ServiceMarks services={rentalServices} otherServices={[]} />
+            </div>
+          </article>
+        )}
       </div>
 
       <p className="footnote">

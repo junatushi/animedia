@@ -4,13 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { track } from "@vercel/analytics";
-import { textOn } from "@/lib/services";
+import { textOn, splitRentalServices } from "@/lib/services";
 import { CHANGELOG } from "@/lib/changelog";
 import ThemeToggle from "./ThemeToggle";
 import ScrollTopButton from "./ScrollTopButton";
 import ServiceMarks from "./ServiceMarks";
 import type { AnimeItem, SeasonResponse, ServiceTag, SearchIndexEntry } from "@/lib/types";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
+import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 
 // AI独断解釈サムネの注釈（全箇所で同じ文言を使う）。
 const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
@@ -326,7 +327,9 @@ export default function SeasonExplorer({
     if (!data) return [];
     const map = new Map<string, { tag: ServiceTag; n: number }>();
     for (const it of data.items) {
-      for (const s of it.services) {
+      // レンタル扱いのサービスは「見放題で何本見れるか」の対応本数には数えない。
+      const { streaming } = splitRentalServices(it.services, RENTAL_SERVICES[it.id]);
+      for (const s of streaming) {
         const cur = map.get(s.key);
         if (cur) cur.n += 1;
         else map.set(s.key, { tag: s, n: 1 });
@@ -818,30 +821,34 @@ export default function SeasonExplorer({
                       <Link href={`/anime/${it.id}`} className="calendar-title">
                         {it.title}
                       </Link>
-                      {(it.services.length > 0 || it.otherServices.length > 0) && (
-                        <div className="badges calendar-badges">
-                          {it.services.map((s) => (
-                            <span
-                              key={s.key}
-                              className="badge"
-                              style={{ ["--c" as string]: s.color }}
-                            >
+                      {(() => {
+                        const { streaming } = splitRentalServices(it.services, RENTAL_SERVICES[it.id]);
+                        if (streaming.length === 0 && it.otherServices.length === 0) return null;
+                        return (
+                          <div className="badges calendar-badges">
+                            {streaming.map((s) => (
                               <span
-                                className="badge-mark"
-                                style={{ background: s.color, color: textOn(s.color) }}
+                                key={s.key}
+                                className="badge"
+                                style={{ ["--c" as string]: s.color }}
                               >
-                                {brandMark(s.short)}
+                                <span
+                                  className="badge-mark"
+                                  style={{ background: s.color, color: textOn(s.color) }}
+                                >
+                                  {brandMark(s.short)}
+                                </span>
+                                <span className="badge-name">{s.short}</span>
                               </span>
-                              <span className="badge-name">{s.short}</span>
-                            </span>
-                          ))}
-                          {it.otherServices.map((name) => (
-                            <span key={name} className="badge badge-other">
-                              {name}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                            ))}
+                            {it.otherServices.map((name) => (
+                              <span key={name} className="badge badge-other">
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </li>
                   ))}
                 </ul>
@@ -895,7 +902,10 @@ export default function SeasonExplorer({
                   </div>
                 </div>
                 <div className="card-svc-col">
-                  <ServiceMarks services={it.services} otherServices={it.otherServices} />
+                  <ServiceMarks
+                    services={splitRentalServices(it.services, RENTAL_SERVICES[it.id]).streaming}
+                    otherServices={it.otherServices}
+                  />
                 </div>
               </div>
               {/* 最下段：注目人数（左）＋公式サイト（右）。サムネ・配信の下に置く。 */}
