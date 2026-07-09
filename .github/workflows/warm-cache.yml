@@ -1,12 +1,18 @@
 name: キャッシュ温め（/api/season）
 
 # /api/seasonはAnnictへの問い合わせ結果を10分キャッシュしている
-# （lib/annict.ts の next.revalidate）。キャッシュが切れた直後に訪問した人は
-# Annictへの生取得（実測7〜8秒）を直接待つことになるため、キャッシュの有効期限
-# （10分）より短い間隔で定期的に叩いておき、実訪問者が常にキャッシュ済み
-# （実測0.1秒前後）を引けるようにする。
+# （lib/annict.ts の next.revalidate）。トップページ（/）・シーズンページ
+# （/season/[year]/[season]）はどちらもこの同じキャッシュを参照するため、
+# ここを温めておけばその2つが両方とも速くなる。
 #
-# 対象は「現在のシーズン」を自動判定して1本だけ叩く（無駄なAnnict負荷を増やさない）。
+# キャッシュが切れた直後に訪問した人はAnnictへの生取得を直接待つことになる
+# （実測: 現行のクエリ最適化後でも2〜4秒程度、シーズンの作品数次第）ため、
+# キャッシュの有効期限（10分）より短い間隔で定期的に叩いておき、実訪問者が
+# 常にキャッシュ済み（実測0.1〜0.4秒）を引けるようにする。
+#
+# 対象は「今年の4シーズン」（季節タブでの切り替えが最も多いユースケードのため）。
+# 年をまたぐ・過去年への切り替えまでは温めない（頻度が低く、対象を広げすぎると
+# Annictへの負荷が増えるため）。
 on:
   schedule:
     - cron: "*/8 * * * *"
@@ -16,15 +22,10 @@ jobs:
   warm:
     runs-on: ubuntu-latest
     steps:
-      - name: 現在シーズンを判定してAPIを叩く
+      - name: 今年の4シーズン分のAPIを叩く
         run: |
-          MONTH=$(TZ=Asia/Tokyo date +%-m)
           YEAR=$(TZ=Asia/Tokyo date +%Y)
-          if [ "$MONTH" -le 3 ]; then SEASON=winter
-          elif [ "$MONTH" -le 6 ]; then SEASON=spring
-          elif [ "$MONTH" -le 9 ]; then SEASON=summer
-          else SEASON=autumn
-          fi
-          echo "warming: year=$YEAR season=$SEASON"
-          curl -s -o /dev/null -w "status=%{http_code} time=%{time_total}s\n" \
-            "https://animedia-khaki.vercel.app/api/season?year=${YEAR}&season=${SEASON}"
+          for SEASON in winter spring summer autumn; do
+            curl -s -o /dev/null -w "year=${YEAR} season=${SEASON} status=%{http_code} time=%{time_total}s\n" \
+              "https://animedia-khaki.vercel.app/api/season?year=${YEAR}&season=${SEASON}"
+          done

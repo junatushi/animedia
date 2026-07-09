@@ -7,10 +7,13 @@ import type { AnnictWork, RawCastNode, RawStaffNode } from "./types";
 
 const ENDPOINT = "https://api.annict.com/graphql";
 
-// 1リクエストあたりの作品数。1シーズンは100件を超えることがある
-// （実測: 2026-summer は 105 件）ので、pageInfo で必ずページ送りする。
-const PAGE_SIZE = 50;
-// 暴走防止の上限（PAGE_SIZE × MAX_PAGES 件まで）。通常シーズンは十分収まる。
+// 1リクエストあたりの作品数。250あれば通常シーズン（実測: 2026-summer
+// 111件、2022-winter 175件）は1リクエストで収まる。以前は50件区切り×
+// 複数ページを直列取得しており、ページ数に比例して待ち時間が積み上がる
+// （実測: 4ページ×約1.6秒=6.4秒）のが表示遅延の主因だった（2026-07-09計測）。
+// pageInfo は残すので、250件を超える大きなシーズンでも hasNextPage で
+// 正しく追いページングされる（暴走防止の上限は MAX_PAGES）。
+const PAGE_SIZE = 250;
 const MAX_PAGES = 20;
 
 // programs は「エピソード×チャンネル」の放送/配信記録。startedAt 昇順で並ぶため、
@@ -18,7 +21,13 @@ const MAX_PAGES = 20;
 // ここを小さく切ると配信欄が丸ごと欠落する（実測: 才女のお世話は programs 全210件、
 // dアニメストアは 127 番目に初出）。まず大きめに一括取得し、それでも hasNextPage が
 // 残る作品だけ programs を追いページングして“チャンネルの集合”を漏れなく揃える。
-const PROGRAMS_PER_WORK = 500;
+//
+// シーズン一覧クエリは50作品前後を1リクエストにまとめるため、1作品あたりの
+// programs 上限が応答時間に直結する（実測: 500件→300件で応答が約2〜3割短縮、
+// 追いページング発生率も低いまま）。作品個別ページは1作品だけの取得なので、
+// 完全性を優先して上限を高いまま維持する。
+const PROGRAMS_PER_WORK_LIST = 300;
+const PROGRAMS_PER_WORK_DETAIL = 500;
 // 1作品あたりの programs 追いページング上限（暴走防止。500×12=6000件まで）。
 const MAX_PROGRAM_PAGES = 12;
 
@@ -51,14 +60,17 @@ const CASTS_LIST = 5;
 const CASTS_DETAIL = 40;
 // staffs は「監督」「原作」「アニメーション制作」を探すための件数。多くの作品は
 // 数件〜20件程度に収まるが、余裕を持って40件まで見る（それでも無ければ省略）。
-const STAFFS_PER_WORK = 40;
+// シーズン一覧クエリは声優・スタッフ名検索のマッチ用途のみ（監督・製作会社等の
+// 表示は個別ページ専用）なので15件で十分実用に足り、応答時間短縮を優先する。
+const STAFFS_LIST = 15;
+const STAFFS_DETAIL = 40;
 
-function creditsFields(castsCount: number): string {
+function creditsFields(castsCount: number, staffsCount: number): string {
   return `
       casts(first: ${castsCount}) {
         nodes { name character { name } }
       }
-      staffs(first: ${STAFFS_PER_WORK}) {
+      staffs(first: ${staffsCount}) {
         nodes {
           name
           roleText
@@ -70,10 +82,10 @@ function creditsFields(castsCount: number): string {
         }
       }`;
 }
-const CREDITS_FIELDS = creditsFields(CASTS_LIST);
-const CREDITS_FIELDS_DETAIL = creditsFields(CASTS_DETAIL);
+const CREDITS_FIELDS = creditsFields(CASTS_LIST, STAFFS_LIST);
+const CREDITS_FIELDS_DETAIL = creditsFields(CASTS_DETAIL, STAFFS_DETAIL);
 
-// シーズンの作品一覧＋各作品の programs（最大 PROGRAMS_PER_WORK 件）＋
+// シーズンの作品一覧＋各作品の programs（最大 PROGRAMS_PER_WORK_LIST 件）＋
 // casts/staffs（声優・スタッフ名の検索用）を取る。
 const SEASON_QUERY = `
 query ($season: String!, $after: String) {
@@ -86,7 +98,7 @@ query ($season: String!, $after: String) {
       officialSiteUrl
       media
       image { recommendedImageUrl }
-      programs(first: ${PROGRAMS_PER_WORK}) {
+      programs(first: ${PROGRAMS_PER_WORK_LIST}) {
         pageInfo { hasNextPage endCursor }
         nodes { channel { name } startedAt }
       }
@@ -96,11 +108,12 @@ ${CREDITS_FIELDS}
 }`;
 
 // 一括取得で programs が切れた作品だけ、残りの programs を追い取りするクエリ。
+// シーズン一覧・作品個別ページ両方から呼ばれるため、完全性を優先し上限は高いまま。
 const PROGRAMS_QUERY = `
 query ($id: Int!, $after: String) {
   searchWorks(annictIds: [$id], first: 1) {
     nodes {
-      programs(first: ${PROGRAMS_PER_WORK}, after: $after) {
+      programs(first: ${PROGRAMS_PER_WORK_DETAIL}, after: $after) {
         pageInfo { hasNextPage endCursor }
         nodes { channel { name } startedAt }
       }
@@ -109,6 +122,8 @@ query ($id: Int!, $after: String) {
 }`;
 
 // 作品個別ページ（/anime/[id]）用に、1作品だけをIDで取得するクエリ。
+// 取得対象は1作品だけなので、programs/staffsの上限を一覧クエリより高く保っても
+// 応答時間への影響は小さい（完全性を優先）。
 const WORK_QUERY = `
 query ($id: Int!) {
   searchWorks(annictIds: [$id], first: 1) {
@@ -119,7 +134,7 @@ query ($id: Int!) {
       officialSiteUrl
       media
       image { recommendedImageUrl }
-      programs(first: ${PROGRAMS_PER_WORK}) {
+      programs(first: ${PROGRAMS_PER_WORK_DETAIL}) {
         pageInfo { hasNextPage endCursor }
         nodes { channel { name } startedAt }
       }

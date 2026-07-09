@@ -12,6 +12,7 @@ import ServiceMarks from "./ServiceMarks";
 import type { AnimeItem, SeasonResponse, ServiceTag, SearchIndexEntry } from "@/lib/types";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
+import { resolveYearSeason, validYears } from "@/lib/resolveSeasonParams";
 
 // AI独断解釈サムネの注釈（全箇所で同じ文言を使う）。
 const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
@@ -22,7 +23,6 @@ const SEASONS = [
   { key: "summer", label: "夏" },
   { key: "autumn", label: "秋" },
 ] as const;
-const SEASON_KEYS = new Set(SEASONS.map((s) => s.key));
 
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
@@ -30,14 +30,6 @@ const SEASON_LABEL: Record<string, string> = {
   summer: "夏",
   autumn: "秋",
 };
-
-function currentSeasonKey(): string {
-  const m = new Date().getMonth() + 1;
-  if (m <= 3) return "winter";
-  if (m <= 6) return "spring";
-  if (m <= 9) return "summer";
-  return "autumn";
-}
 
 // broadcastWeekday（0=日〜6=土）→ 曜日ラベル。カード内の放送タイミング表示に使う。
 const WEEKDAY_SHORT = ["日", "月", "火", "水", "木", "金", "土"];
@@ -172,20 +164,20 @@ export default function SeasonExplorer({
   const isFixed = fixedYear !== undefined && fixedSeason !== undefined;
 
   const thisYear = new Date().getFullYear();
-  const years = Array.from({ length: thisYear - 2009 }, (_, i) => thisYear - i);
+  const years = validYears(thisYear);
 
-  const initialYear =
-    fixedYear ??
-    (() => {
-      const y = Number(searchParams.get("year"));
-      return years.includes(y) ? y : thisYear;
-    })();
-  const initialSeasonKey =
-    fixedSeason ??
-    (() => {
-      const s = searchParams.get("season");
-      return s && SEASON_KEYS.has(s as (typeof SEASONS)[number]["key"]) ? s : currentSeasonKey();
-    })();
+  // resolveYearSeason はサーバー側（app/page.tsxのSSR初期データ取得）と同じロジックを
+  // 共有する（lib/resolveSeasonParams.ts）。isFixed=false（トップページ）の場合、
+  // ここで解決する年・シーズンは、SSR側が initialData を取得した際の年・シーズンと
+  // 一致する必要がある（一致しないと表示中の年・シーズンとinitialDataの中身がズレる）。
+  const resolved = isFixed
+    ? { year: fixedYear!, season: fixedSeason! }
+    : resolveYearSeason({
+        year: searchParams.get("year") ?? undefined,
+        season: searchParams.get("season") ?? undefined,
+      });
+  const initialYear = resolved.year;
+  const initialSeasonKey = resolved.season;
 
   const [year, setYear] = useState(initialYear);
   const [season, setSeason] = useState<string>(initialSeasonKey);
