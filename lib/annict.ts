@@ -143,34 +143,67 @@ ${CREDITS_FIELDS_DETAIL}
   }
 }`;
 
+// programs の追い取得を無制限に並列実行すると、1シーズンあたり数十〜百件規模の
+// 同時リクエストがAnnictに飛び、レート制限（429）を誘発する（2026-07-09実測で発生）。
+// 同時実行数を絞ってバーストを防ぐ。
+const PROGRAMS_FETCH_CONCURRENCY = 4;
+
 async function gql<T>(
   body: { query: string; variables: Record<string, unknown> },
   token: string
 ): Promise<T> {
-  const res = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-    // “できるだけリアルタイム” と Annict への負荷のバランス。
-    // 常に最新が欲しければ 0 に、負荷を下げたければ大きくする。
-    next: { revalidate: 600 },
-  });
+  const MAX_RETRIES = 3;
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+      // “できるだけリアルタイム” と Annict への負荷のバランス。
+      // 常に最新が欲しければ 0 に、負荷を下げたければ大きくする。
+      next: { revalidate: 600 },
+    });
 
-  if (res.status === 401) {
-    throw new Error("Annict トークンが無効です（401）。.env.local の ANNICT_TOKEN を確認してください。");
-  }
-  if (!res.ok) {
-    throw new Error(`Annict API がエラーを返しました（${res.status}）。`);
-  }
+    if (res.status === 401) {
+      throw new Error("Annict トークンが無効です（401）。.env.local の ANNICT_TOKEN を確認してください。");
+    }
+    if (res.status === 429) {
+      if (attempt >= MAX_RETRIES) {
+        throw new Error("Annict API がエラーを返しました（429）。しばらく待って再度お試しください。");
+      }
+      // レート制限。指数バックオフ＋ジッターで少し待って再試行する。
+      const waitMs = 500 * 2 ** attempt + Math.random() * 300;
+      await new Promise((r) => setTimeout(r, waitMs));
+      continue;
+    }
+    if (!res.ok) {
+      throw new Error(`Annict API がエラーを返しました（${res.status}）。`);
+    }
 
-  const json = (await res.json()) as { data?: T; errors?: unknown };
-  if (json.errors) {
-    throw new Error("Annict GraphQL エラー: " + JSON.stringify(json.errors));
+    const json = (await res.json()) as { data?: T; errors?: unknown };
+    if (json.errors) {
+      throw new Error("Annict GraphQL エラー: " + JSON.stringify(json.errors));
+    }
+    return (json.data ?? ({} as T));
   }
-  return (json.data ?? ({} as T));
+}
+
+// 配列を同時実行数を絞りつつ全件処理する（Promise.allの全並列だとバーストしすぎるため）。
+async function mapWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>
+): Promise<void> {
+  let index = 0;
+  async function worker() {
+    while (index < items.length) {
+      const i = index++;
+      await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
 
 // programs が上限で切れた作品について、残りの programs を全ページ取得する。
@@ -239,16 +272,16 @@ export async function fetchSeasonWorks(
   // programs が PROGRAMS_PER_WORK でも足りない作品だけ、残りを追い取りして完全化する。
   // （大半の作品は追加リクエスト0。放送局が多い一部の作品のみ数リクエスト増える）
   // 対象作品ごとに直列でawaitすると対象数に比例して待ち時間が積み上がる
-  // （実測: キャッシュ切れ直後で8秒超）ため、並列に投げる。
-  await Promise.all(
-    deduped.map(async (w) => {
-      const pi = w.programs?.pageInfo;
-      if (w.programs && pi?.hasNextPage && pi.endCursor) {
-        const extra = await fetchRemainingPrograms(w.annictId, pi.endCursor, token);
-        w.programs!.nodes.push(...extra);
-      }
-    })
-  );
+  // （実測: キャッシュ切れ直後で8秒超）ため並列化するが、無制限並列（Promise.all）は
+  // 対象作品数が多いシーズンでAnnictへの同時リクエストがバースト気味になり、
+  // レート制限（429）を誘発した（2026-07-09実測）。同時実行数を絞って投げる。
+  await mapWithConcurrency(deduped, PROGRAMS_FETCH_CONCURRENCY, async (w) => {
+    const pi = w.programs?.pageInfo;
+    if (w.programs && pi?.hasNextPage && pi.endCursor) {
+      const extra = await fetchRemainingPrograms(w.annictId, pi.endCursor, token);
+      w.programs!.nodes.push(...extra);
+    }
+  });
 
   // API 窓口（route.ts）が使う AnnictWork 形へ整形（programs は nodes だけ渡す）。
   return deduped.map((w) => ({
