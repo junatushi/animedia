@@ -223,13 +223,17 @@ export async function fetchSeasonWorks(
 
   // programs が PROGRAMS_PER_WORK でも足りない作品だけ、残りを追い取りして完全化する。
   // （大半の作品は追加リクエスト0。放送局が多い一部の作品のみ数リクエスト増える）
-  for (const w of deduped) {
-    const pi = w.programs?.pageInfo;
-    if (w.programs && pi?.hasNextPage && pi.endCursor) {
-      const extra = await fetchRemainingPrograms(w.annictId, pi.endCursor, token);
-      w.programs.nodes.push(...extra);
-    }
-  }
+  // 対象作品ごとに直列でawaitすると対象数に比例して待ち時間が積み上がる
+  // （実測: キャッシュ切れ直後で8秒超）ため、並列に投げる。
+  await Promise.all(
+    deduped.map(async (w) => {
+      const pi = w.programs?.pageInfo;
+      if (w.programs && pi?.hasNextPage && pi.endCursor) {
+        const extra = await fetchRemainingPrograms(w.annictId, pi.endCursor, token);
+        w.programs!.nodes.push(...extra);
+      }
+    })
+  );
 
   // API 窓口（route.ts）が使う AnnictWork 形へ整形（programs は nodes だけ渡す）。
   return deduped.map((w) => ({

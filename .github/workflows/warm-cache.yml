@@ -1,0 +1,30 @@
+name: キャッシュ温め（/api/season）
+
+# /api/seasonはAnnictへの問い合わせ結果を10分キャッシュしている
+# （lib/annict.ts の next.revalidate）。キャッシュが切れた直後に訪問した人は
+# Annictへの生取得（実測7〜8秒）を直接待つことになるため、キャッシュの有効期限
+# （10分）より短い間隔で定期的に叩いておき、実訪問者が常にキャッシュ済み
+# （実測0.1秒前後）を引けるようにする。
+#
+# 対象は「現在のシーズン」を自動判定して1本だけ叩く（無駄なAnnict負荷を増やさない）。
+on:
+  schedule:
+    - cron: "*/8 * * * *"
+  workflow_dispatch:
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 現在シーズンを判定してAPIを叩く
+        run: |
+          MONTH=$(TZ=Asia/Tokyo date +%-m)
+          YEAR=$(TZ=Asia/Tokyo date +%Y)
+          if [ "$MONTH" -le 3 ]; then SEASON=winter
+          elif [ "$MONTH" -le 6 ]; then SEASON=spring
+          elif [ "$MONTH" -le 9 ]; then SEASON=summer
+          else SEASON=autumn
+          fi
+          echo "warming: year=$YEAR season=$SEASON"
+          curl -s -o /dev/null -w "status=%{http_code} time=%{time_total}s\n" \
+            "https://animedia-khaki.vercel.app/api/season?year=${YEAR}&season=${SEASON}"
