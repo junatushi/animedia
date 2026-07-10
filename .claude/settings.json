@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node scripts/check.ts)",
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(npm audit *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git fetch *)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(node scripts/print-digest.js)",
+      "Bash(POST_KIND=season node scripts/print-digest.js)",
+      "Bash(node scripts/gen-thumbnails.js)",
+      "WebFetch(domain:animedia-khaki.vercel.app)",
+      "WebFetch(domain:developers.annict.com)",
+      "WebFetch(domain:animestore.docomo.ne.jp)",
+      "WebFetch(domain:eiga.com)",
+      "WebFetch(domain:www.animatetimes.com)",
+      "WebFetch(domain:r.jina.ai)",
+      "WebFetch(domain:ja.wikipedia.org)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/check-services.js",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}
