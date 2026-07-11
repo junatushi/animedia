@@ -7,11 +7,15 @@ import { track } from "@vercel/analytics";
 import { textOn, splitRentalServices } from "@/lib/services";
 import { CHANGELOG } from "@/lib/changelog";
 import ThemeToggle from "./ThemeToggle";
+import AuthWidget from "./AuthWidget";
+import { useAuth } from "./AuthProvider";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import ScrollTopButton from "./ScrollTopButton";
 import ServiceMarks from "./ServiceMarks";
 import type { AnimeItem, SeasonResponse, ServiceTag, SearchIndexEntry } from "@/lib/types";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
+import { WORK_ALIASES } from "@/content/works/aliases";
 import { resolveYearSeason, validYears } from "@/lib/resolveSeasonParams";
 
 // AI独断解釈サムネの注釈（全箇所で同じ文言を使う）。
@@ -252,6 +256,77 @@ export default function SeasonExplorer({
     });
   }
 
+  // 視聴済み＝お気に入りとは別機能。ログインユーザーごとにSupabase側で永続化する
+  // （localStorageではなくサーバー側が真実のソース）。ログインしていないユーザーには
+  // 一切影響しない（お気に入り等の既存機能はログイン不要のまま動作し続ける）。
+  const { user } = useAuth();
+  const [watched, setWatched] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (!user) {
+      setWatched(new Set());
+      return;
+    }
+    let abort = false;
+    fetch("/api/watched")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!abort && Array.isArray(j?.workIds)) setWatched(new Set(j.workIds));
+      })
+      .catch(() => {
+        // 取得失敗時は空のまま（視聴済み表示が出ないだけで、他の閲覧は影響しない）
+      });
+    return () => {
+      abort = true;
+    };
+  }, [user]);
+
+  function toggleWatched(id: number) {
+    if (!user) {
+      // Supabase未設定（外部セットアップ未完了）の間はボタン自体は表示されるが、
+      // ここで何もしない（クリックしても例外にしない）。設定完了後は自動的に動く。
+      if (!isSupabaseConfigured()) return;
+      // 未ログイン時はそのままGoogleログインへ誘導する（別モーダルは作らず簡潔にする）。
+      // redirectToにクエリ文字列を含めるとSupabaseのRedirect URL許可リストとの完全一致に
+      // 失敗する事例があったため、AuthWidget.tsxと同じくクエリ無しの固定URLにしている。
+      import("@/lib/supabase/client").then(({ createClient }) => {
+        const supabase = createClient();
+        supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: `${window.location.origin}/auth/callback` },
+        });
+      });
+      return;
+    }
+
+    const wasWatched = watched.has(id);
+    // 楽観的更新: サーバー応答を待たずに即座にUIへ反映する。
+    setWatched((prev) => {
+      const next = new Set(prev);
+      if (wasWatched) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+    const req = wasWatched
+      ? fetch("/api/watched", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workId: id }) })
+      : fetch("/api/watched", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workId: id }) });
+
+    req.then((r) => {
+      if (!r.ok) {
+        // 失敗したら楽観的更新を巻き戻す
+        setWatched((prev) => {
+          const next = new Set(prev);
+          if (wasWatched) next.add(id);
+          else next.delete(id);
+          return next;
+        });
+      } else if (!wasWatched) {
+        track("watched_add");
+      }
+    });
+  }
+
   // 年セレクトはネイティブ <select> だとハイライト色をブラウザ側が決めてしまい
   // サイトのダーク基調デザインに合わせられないため、自前のリストボックスにしている。
   const [yearMenuOpen, setYearMenuOpen] = useState(false);
@@ -356,10 +431,12 @@ export default function SeasonExplorer({
     if (!data) return [];
     const q = query.trim().toLowerCase();
     const list = data.items.filter((it) => {
+      const aliases = WORK_ALIASES[it.id] ?? [];
       const okText =
         q === "" ||
         it.title.toLowerCase().includes(q) ||
-        it.creditNames.some((n) => n.toLowerCase().includes(q));
+        it.creditNames.some((n) => n.toLowerCase().includes(q)) ||
+        aliases.some((a) => a.toLowerCase().includes(q));
       const okSvc =
         active.size === 0
           ? true
@@ -379,8 +456,8 @@ export default function SeasonExplorer({
   }, [data, query, active, activeCast, sortKey, andMode, favoritesOnly, favorites]);
 
   // クール横断検索の結果。検索語が入っている時だけ、表示中クール以外の作品を
-  // 軽量インデックスから拾う（タイトル・読み仮名で一致）。配信サービス絞り込み・
-  // お気に入りは重いデータが無いインデックスには適用できないため、無指定時のみ出す。
+  // 軽量インデックスから拾う（タイトル・読み仮名・通称/略称で一致）。配信サービス
+  // 絞り込み・お気に入りは重いデータが無いインデックスには適用できないため、無指定時のみ出す。
   const CROSS_LIMIT = 60;
   const crossMatches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -389,7 +466,14 @@ export default function SeasonExplorer({
     const currentIds = new Set((data?.items ?? []).map((it) => it.id));
     return searchIndex
       .filter((e) => !currentIds.has(e.id))
-      .filter((e) => e.title.toLowerCase().includes(q) || e.kana.toLowerCase().includes(q))
+      .filter((e) => {
+        const aliases = WORK_ALIASES[e.id] ?? [];
+        return (
+          e.title.toLowerCase().includes(q) ||
+          e.kana.toLowerCase().includes(q) ||
+          aliases.some((a) => a.toLowerCase().includes(q))
+        );
+      })
       .sort((a, b) => (b.year ?? 0) - (a.year ?? 0) || a.title.localeCompare(b.title, "ja"));
   }, [query, searchIndex, data, active, favoritesOnly]);
   const crossShown = crossMatches.slice(0, CROSS_LIMIT);
@@ -486,6 +570,7 @@ export default function SeasonExplorer({
           <button type="button" className="share-x" onClick={shareOnX}>
             Xで共有
           </button>
+          <AuthWidget />
           <ThemeToggle />
         </div>
       </header>
@@ -890,6 +975,38 @@ export default function SeasonExplorer({
                       onClick={() => toggleFavorite(it.id)}
                     >
                       {favorites.has(it.id) ? "★" : "☆"}
+                    </button>
+                    <button
+                      type="button"
+                      className="card-action watched-btn"
+                      aria-pressed={watched.has(it.id)}
+                      aria-label={
+                        watched.has(it.id)
+                          ? "視聴済みから削除"
+                          : user
+                            ? "視聴済みにする"
+                            : "視聴済みにする（Googleログインが必要）"
+                      }
+                      title="見た作品"
+                      onClick={() => toggleWatched(it.id)}
+                    >
+                      {/* 絵文字だと環境依存で表示されない/文字化けすることがあるため、
+                          確実に表示されるSVGの目玉アイコンにしている（stroke=currentColorで
+                          視聴済み時の色変化にも追従する）。 */}
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        width="16"
+                        height="16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
                     </button>
                   </div>
                 </div>

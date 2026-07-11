@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
+import AuthProvider from "@/components/AuthProvider";
 
 const title = "アニメ視聴ガイド";
 const description = "シーズンごとのアニメを、観られる国内配信サービス別に一覧。配信情報は Annict からリアルタイム取得。";
@@ -97,10 +98,12 @@ export default function RootLayout({
         />
       </head>
       <body>
-        {children}
-        {/* Vercel Web Analytics（Cookieレス・個人特定なし）。ページビューと
-            page.tsx で track() する行動イベントを収集する。 */}
-        <Analytics />
+        <AuthProvider>
+          {children}
+          {/* Vercel Web Analytics（Cookieレス・個人特定なし）。ページビューと
+              page.tsx で track() する行動イベントを収集する。 */}
+          <Analytics />
+        </AuthProvider>
       </body>
     </html>
   );

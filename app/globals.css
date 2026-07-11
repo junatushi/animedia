@@ -244,6 +244,43 @@ body {
   box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.3);
 }
 
+.auth-widget {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.auth-widget-loading {
+  width: 90px;
+  height: 28px;
+}
+.auth-widget-name {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.auth-widget-btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  background: var(--paper-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.auth-widget-btn:hover {
+  color: var(--accent-2);
+  border-color: var(--accent-2);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.3);
+}
+
 /* ── Controls（半透明のシステムウィンドウ）── */
 .controls {
   display: flex;
@@ -727,6 +764,12 @@ body {
   color: #ffd24a;
   border-color: rgba(255, 210, 74, 0.6);
   box-shadow: 0 0 10px rgba(255, 210, 74, 0.45);
+  background: rgba(6, 10, 22, 0.7);
+}
+.watched-btn[aria-pressed="true"] {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.6);
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.45);
   background: rgba(6, 10, 22, 0.7);
 }
 
@@ -1428,7 +1471,8 @@ body {
   .year-select { padding: 10px 15px; min-height: 42px; }
   .year-option { padding: 12px 14px; }
   .theme-toggle,
-  .share-x { padding: 9px 15px; min-height: 38px; display: inline-flex; align-items: center; }
+  .share-x,
+  .auth-widget-btn { padding: 9px 15px; min-height: 38px; display: inline-flex; align-items: center; }
 
   /* 一覧カードはスマホでは1列。画面に2〜3作品入るコンパクトさを優先。 */
   .grid { grid-template-columns: 1fr; gap: 10px; }
@@ -1547,6 +1591,9 @@ body {
   background: rgba(255, 255, 255, 0.55);
 }
 :root[data-theme="light"] .fav-btn[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.7);
+}
+:root[data-theme="light"] .watched-btn[aria-pressed="true"] {
   background: rgba(255, 255, 255, 0.7);
 }
 /* 年のプルダウンは、ライトでは背景が明るく透け感が伝わりにくいので、
