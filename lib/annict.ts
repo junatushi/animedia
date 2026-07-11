@@ -33,7 +33,18 @@ const MAX_PROGRAM_PAGES = 12;
 
 interface ProgramConn {
   pageInfo: { hasNextPage: boolean; endCursor: string | null };
-  nodes: { channel: { name: string | null } | null; startedAt: string | null }[];
+  // rebroadcast/episode はWORK_QUERY・PROGRAMS_QUERY（作品個別取得）でのみ取得する
+  // （配信開始通知機能が「今日の実配信日・話数」を特定するために使う）。
+  // SEASON_QUERY（一覧）では取得しないため、その場合は常にundefinedになる。
+  // episodeが未紐付けのprogramはAnnict側のnon-nullフィールド違反によりノード自体が
+  // nullで返ってくることがある（gql()が部分エラーとして許容するため）。呼び出し側は
+  // 必ずnullを除外して扱う。
+  nodes: ({
+    channel: { name: string | null } | null;
+    startedAt: string | null;
+    rebroadcast?: boolean | null;
+    episode?: { number: number | null; numberText: string | null } | null;
+  } | null)[];
 }
 
 interface RawWork {
@@ -115,7 +126,7 @@ query ($id: Int!, $after: String) {
     nodes {
       programs(first: ${PROGRAMS_PER_WORK_DETAIL}, after: $after) {
         pageInfo { hasNextPage endCursor }
-        nodes { channel { name } startedAt }
+        nodes { channel { name } startedAt rebroadcast episode { number numberText } }
       }
     }
   }
@@ -136,7 +147,7 @@ query ($id: Int!) {
       image { recommendedImageUrl }
       programs(first: ${PROGRAMS_PER_WORK_DETAIL}) {
         pageInfo { hasNextPage endCursor }
-        nodes { channel { name } startedAt }
+        nodes { channel { name } startedAt rebroadcast episode { number numberText } }
       }
 ${CREDITS_FIELDS_DETAIL}
     }
@@ -184,7 +195,14 @@ async function gql<T>(
 
     const json = (await res.json()) as { data?: T; errors?: unknown };
     if (json.errors) {
-      throw new Error("Annict GraphQL エラー: " + JSON.stringify(json.errors));
+      // Annict側は一部のprogramがepisode未紐付け等でnon-nullフィールド違反になることがあり、
+      // その場合でもdataは（該当ノードだけnullになった状態で）返ってくる（GraphQLのnull伝播）。
+      // dataが無い致命的なエラーの時だけ例外にし、部分的な失敗は警告に留めて処理を続行する
+      // （呼び出し側はprograms.nodesの要素がnullになり得る前提でfilterする）。
+      if (!json.data) {
+        throw new Error("Annict GraphQL エラー: " + JSON.stringify(json.errors));
+      }
+      console.warn("Annict GraphQL 部分的エラー（続行）:", JSON.stringify(json.errors).slice(0, 500));
     }
     return (json.data ?? ({} as T));
   }

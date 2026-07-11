@@ -9,7 +9,7 @@ import { CHANGELOG } from "@/lib/changelog";
 import ThemeToggle from "./ThemeToggle";
 import AuthWidget from "./AuthWidget";
 import { useAuth } from "./AuthProvider";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { useLoginGatedWorkSet } from "./useLoginGatedWorkSet";
 import ScrollTopButton from "./ScrollTopButton";
 import ServiceMarks from "./ServiceMarks";
 import type { AnimeItem, SeasonResponse, ServiceTag, SearchIndexEntry } from "@/lib/types";
@@ -256,76 +256,17 @@ export default function SeasonExplorer({
     });
   }
 
-  // 視聴済み＝お気に入りとは別機能。ログインユーザーごとにSupabase側で永続化する
-  // （localStorageではなくサーバー側が真実のソース）。ログインしていないユーザーには
-  // 一切影響しない（お気に入り等の既存機能はログイン不要のまま動作し続ける）。
+  // 視聴済み・配信通知希望＝お気に入りとは別機能。ログインユーザーごとにSupabase側で
+  // 永続化する（localStorageではなくサーバー側が真実のソース）。ログインしていない
+  // ユーザーには一切影響しない（お気に入り等の既存機能はログイン不要のまま動作し続ける）。
+  // 共通ロジックはuseLoginGatedWorkSet（components/useLoginGatedWorkSet.ts）に集約。
   const { user } = useAuth();
-  const [watched, setWatched] = useState<Set<number>>(new Set());
-
-  useEffect(() => {
-    if (!user) {
-      setWatched(new Set());
-      return;
-    }
-    let abort = false;
-    fetch("/api/watched")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (!abort && Array.isArray(j?.workIds)) setWatched(new Set(j.workIds));
-      })
-      .catch(() => {
-        // 取得失敗時は空のまま（視聴済み表示が出ないだけで、他の閲覧は影響しない）
-      });
-    return () => {
-      abort = true;
-    };
-  }, [user]);
-
-  function toggleWatched(id: number) {
-    if (!user) {
-      // Supabase未設定（外部セットアップ未完了）の間はボタン自体は表示されるが、
-      // ここで何もしない（クリックしても例外にしない）。設定完了後は自動的に動く。
-      if (!isSupabaseConfigured()) return;
-      // 未ログイン時はそのままGoogleログインへ誘導する（別モーダルは作らず簡潔にする）。
-      // redirectToにクエリ文字列を含めるとSupabaseのRedirect URL許可リストとの完全一致に
-      // 失敗する事例があったため、AuthWidget.tsxと同じくクエリ無しの固定URLにしている。
-      import("@/lib/supabase/client").then(({ createClient }) => {
-        const supabase = createClient();
-        supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: { redirectTo: `${window.location.origin}/auth/callback` },
-        });
-      });
-      return;
-    }
-
-    const wasWatched = watched.has(id);
-    // 楽観的更新: サーバー応答を待たずに即座にUIへ反映する。
-    setWatched((prev) => {
-      const next = new Set(prev);
-      if (wasWatched) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-
-    const req = wasWatched
-      ? fetch("/api/watched", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workId: id }) })
-      : fetch("/api/watched", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workId: id }) });
-
-    req.then((r) => {
-      if (!r.ok) {
-        // 失敗したら楽観的更新を巻き戻す
-        setWatched((prev) => {
-          const next = new Set(prev);
-          if (wasWatched) next.add(id);
-          else next.delete(id);
-          return next;
-        });
-      } else if (!wasWatched) {
-        track("watched_add");
-      }
-    });
-  }
+  const { items: watched, toggle: toggleWatched } = useLoginGatedWorkSet("/api/watched", () =>
+    track("watched_add") // 追加時だけ計測（人気把握のため。削除は取らない）
+  );
+  const { items: notifyRequested, toggle: toggleNotify } = useLoginGatedWorkSet("/api/notify", () =>
+    track("notify_add")
+  );
 
   // 年セレクトはネイティブ <select> だとハイライト色をブラウザ側が決めてしまい
   // サイトのダーク基調デザインに合わせられないため、自前のリストボックスにしている。
@@ -1006,6 +947,35 @@ export default function SeasonExplorer({
                       >
                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                         <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className="card-action notify-btn"
+                      aria-pressed={notifyRequested.has(it.id)}
+                      aria-label={
+                        notifyRequested.has(it.id)
+                          ? "配信通知を解除"
+                          : user
+                            ? "配信開始をメールで通知"
+                            : "配信開始をメールで通知（Googleログインが必要）"
+                      }
+                      title="配信開始を通知"
+                      onClick={() => toggleNotify(it.id)}
+                    >
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        width="16"
+                        height="16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
                       </svg>
                     </button>
                   </div>

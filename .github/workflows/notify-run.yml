@@ -1,0 +1,21 @@
+name: 配信開始メール通知の実行
+
+# 毎日08:00 JST（23:00 UTC 前日）に app/api/notify/run を叩く。
+# 実際の処理（対象作品の判定・メール送信）はサーバー側（route.ts）で行い、
+# ここでは決まった時刻に1回リクエストを送るだけ。x-cron-secretで
+# 認可し、GitHub Actions以外からの呼び出しを弾く。
+on:
+  schedule:
+    - cron: "0 23 * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: notify/run を実行
+        run: |
+          curl -s -X POST \
+            -H "x-cron-secret: ${{ secrets.NOTIFY_CRON_SECRET }}" \
+            -w "\nstatus=%{http_code} time=%{time_total}s\n" \
+            "https://animedia-khaki.vercel.app/api/notify/run"

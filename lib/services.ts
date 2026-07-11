@@ -104,11 +104,11 @@ export function textOn(hex: string): string {
 // 大半の配信サービスは同日にシマルキャストされるため、作品単位の代表値として使える。
 // programs が無い/日時が取れない作品は null（=「配信日未定」としてカレンダーの外に出す）。
 function deriveBroadcastSlot(
-  nodes: { startedAt: string | null }[]
+  nodes: ({ startedAt: string | null } | null)[]
 ): { weekday: number; time: string } | null {
   let earliest: number | null = null;
   for (const p of nodes) {
-    if (!p.startedAt) continue;
+    if (!p || !p.startedAt) continue;
     const ms = Date.parse(p.startedAt);
     if (Number.isNaN(ms)) continue;
     if (earliest === null || ms < earliest) earliest = ms;
@@ -129,6 +129,9 @@ export function toAnimeItem(w: import("./types").AnnictWork): import("./types").
   const others = new Set<string>();
 
   for (const p of w.programs?.nodes ?? []) {
+    // episode未紐付け等でAnnict側がnon-nullフィールド違反になった場合、
+    // そのprogramノード自体がnullで返ることがある（lib/annict.tsのgql()参照）。
+    if (!p) continue;
     const name = p.channel?.name;
     if (!name) continue;
     const c = classifyChannel(name);

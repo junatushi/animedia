@@ -16,7 +16,9 @@
     "@vercel/analytics": "^2.0.1",
     "next": "^14.2.35",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "resend": "^6.17.2",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@atproto/api": "^0.20.25",

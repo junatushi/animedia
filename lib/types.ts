@@ -20,7 +20,18 @@ export interface AnnictWork {
   // Annict の Media enum（TV / MOVIE / OVA / WEB / OTHER 等）。構造化データ（JSON-LD）で
   // 作品種別（TVSeries / Movie）を出し分けるために使う。
   media: string | null;
-  programs: { nodes: { channel: { name: string | null } | null; startedAt: string | null }[] } | null;
+  // rebroadcast/episode は作品個別取得（fetchWorkById）でのみ入る。シーズン一覧
+  // （fetchSeasonWorks）では取得しないため常にundefined（配信開始通知機能専用）。
+  // episode未紐付けのprogramはAnnict側のnon-nullフィールド違反によりノード自体が
+  // nullで返ってくることがあるため、要素はnull許容にしている。
+  programs: {
+    nodes: ({
+      channel: { name: string | null } | null;
+      startedAt: string | null;
+      rebroadcast?: boolean | null;
+      episode?: { number: number | null; numberText: string | null } | null;
+    } | null)[];
+  } | null;
   // 声優・スタッフ名での検索用に、シーズン一覧でも取得する（casts先頭5件・staffs先頭40件）。
   casts: RawCastNode[];
   staffs: RawStaffNode[];

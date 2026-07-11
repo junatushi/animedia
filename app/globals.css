@@ -772,6 +772,12 @@ body {
   box-shadow: 0 0 10px rgba(74, 222, 128, 0.45);
   background: rgba(6, 10, 22, 0.7);
 }
+.notify-btn[aria-pressed="true"] {
+  color: #60a5fa;
+  border-color: rgba(96, 165, 250, 0.6);
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.45);
+  background: rgba(6, 10, 22, 0.7);
+}
 
 /* スクリーンリーダー・検索エンジン用に、見た目は隠しつつDOMには残すテキスト。 */
 .sr-only {
@@ -1594,6 +1600,9 @@ body {
   background: rgba(255, 255, 255, 0.7);
 }
 :root[data-theme="light"] .watched-btn[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.7);
+}
+:root[data-theme="light"] .notify-btn[aria-pressed="true"] {
   background: rgba(255, 255, 255, 0.7);
 }
 /* 年のプルダウンは、ライトでは背景が明るく透け感が伝わりにくいので、
