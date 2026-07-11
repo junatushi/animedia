@@ -16,12 +16,13 @@ function currentSeasonByMonth(m) {
   return { key: "autumn", label: "秋" };
 }
 
-// GitHub Actionsのランナーは常にUTC。JST（+9h）に直してから年・月・曜日を取る。
+// GitHub Actionsのランナーは常にUTC。JST（+9h）に直してから年・月・日・曜日を取る。
 function jstParts(now) {
   const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   return {
     year: jst.getUTCFullYear(),
     month: jst.getUTCMonth() + 1,
+    day: jst.getUTCDate(),
     weekday: jst.getUTCDay(), // 0=日 〜 6=土（JST基準）
   };
 }
@@ -48,9 +49,14 @@ function buildTop5(data, year, label, url) {
 
 // 月〜土: その曜日に放送/配信のある今期アニメ。注目度順に、字数上限まで詰める。
 // 該当作品が無ければ null（呼び出し側でTOP5にフォールバック）。
-function buildTodayAiring(data, weekday, year, label, url) {
+// 基本ルール（2026-07-11）: broadcastWeekdayは「毎週その曜日」の推定でしかなく、
+// 放送開始前の作品も曜日が一致するだけで拾ってしまう（実例: Re:ゼロ4期奪還編を
+// 8月開始前の水曜に「今日放送」と誤案内しかける）。実際に放送開始日を迎えている
+// 作品（broadcastStartDate <= 今日）だけに絞る。
+function buildTodayAiring(data, weekday, year, label, url, todayStr) {
   const today = data.items
     .filter((it) => it.broadcastWeekday === weekday)
+    .filter((it) => !it.broadcastStartDate || it.broadcastStartDate <= todayStr)
     .sort((a, b) => b.watchers - a.watchers);
   if (today.length === 0) return null;
 
@@ -78,8 +84,9 @@ function buildTodayAiring(data, weekday, year, label, url) {
 }
 
 async function buildDigest(now = new Date()) {
-  const { year, month, weekday } = jstParts(now);
+  const { year, month, day, weekday } = jstParts(now);
   const { key: season, label } = currentSeasonByMonth(month);
+  const todayStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
   const res = await fetch(`${SITE_URL}/api/season?year=${year}&season=${season}`);
   if (!res.ok) {
@@ -91,7 +98,7 @@ async function buildDigest(now = new Date()) {
   const text =
     weekday === 0
       ? buildTop5(data, year, label, url)
-      : buildTodayAiring(data, weekday, year, label, url) || buildTop5(data, year, label, url);
+      : buildTodayAiring(data, weekday, year, label, url, todayStr) || buildTop5(data, year, label, url);
 
   return { text, year, season, label, count: data.count, weekday };
 }

@@ -99,13 +99,20 @@ export function textOn(hex: string): string {
   return luminance > 0.6 ? "#10141f" : "#ffffff";
 }
 
-// 全 programs の中で最も早い startedAt（=初回放送/配信）から、配信スケジュール
-// カレンダー用の曜日・時刻をJSTで求める。放送国内向けのTVチャンネルであっても
-// 大半の配信サービスは同日にシマルキャストされるため、作品単位の代表値として使える。
-// programs が無い/日時が取れない作品は null（=「配信日未定」としてカレンダーの外に出す）。
+// 呼び出し側でカード表示対象（配信サービス・その他配信）に絞り込んだ startedAt から、
+// 配信スケジュールカレンダー用の曜日・時刻をJSTで求める。TVチャンネル（カードには
+// 出さない）はここに含めない: TV各局は放送免許の都合で数十分単位の時差放送が普通にあり
+// （例: AT-Xが同作品の他局より30分早く放送する等）、最速のTV局を代表値にすると
+// カードに出ている配信サービスの実際の配信開始時刻とズレて「時間通りに見たのに配信されて
+// いない」という誤誘導になる（2026-07-11 実例: Re:ゼロ4期奪還編でAT-X 22:00 vs
+// 実際に表示されるABEMA/dアニメ 22:30）。programs が無い/日時が取れない作品は null
+// （=「配信日未定」としてカレンダーの外に出す）。
+// date（YYYY-MM-DD、JST）も併せて返す。まだ放送開始前の作品を「今週の曜日」のように
+// 見せてしまうミスリードを防ぐため、UI側（SeasonExplorer）で放送開始日までの残日数を
+// 判定する基準値として使う（基本ルール。2026-07-11 導入）。
 function deriveBroadcastSlot(
   nodes: ({ startedAt: string | null } | null)[]
-): { weekday: number; time: string } | null {
+): { weekday: number; time: string; date: string } | null {
   let earliest: number | null = null;
   for (const p of nodes) {
     if (!p || !p.startedAt) continue;
@@ -119,7 +126,10 @@ function deriveBroadcastSlot(
   const weekday = jst.getUTCDay();
   const hh = String(jst.getUTCHours()).padStart(2, "0");
   const mm = String(jst.getUTCMinutes()).padStart(2, "0");
-  return { weekday, time: `${hh}:${mm}` };
+  const yyyy = jst.getUTCFullYear();
+  const MM = String(jst.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(jst.getUTCDate()).padStart(2, "0");
+  return { weekday, time: `${hh}:${mm}`, date: `${yyyy}-${MM}-${dd}` };
 }
 
 // AnnictWork（生データ）→ AnimeItem（画面/APIが使う整形済みデータ）への変換。
@@ -127,6 +137,7 @@ function deriveBroadcastSlot(
 export function toAnimeItem(w: import("./types").AnnictWork): import("./types").AnimeItem {
   const serviceMap = new Map<string, ServiceDef>();
   const others = new Set<string>();
+  const streamingStarts: { startedAt: string | null }[] = [];
 
   for (const p of w.programs?.nodes ?? []) {
     // episode未紐付け等でAnnict側がnon-nullフィールド違反になった場合、
@@ -137,13 +148,16 @@ export function toAnimeItem(w: import("./types").AnnictWork): import("./types").
     const c = classifyChannel(name);
     if (c.kind === "service") {
       serviceMap.set(c.def.key, c.def);
+      streamingStarts.push({ startedAt: p.startedAt });
     } else if (c.kind === "other") {
       others.add(c.name);
+      streamingStarts.push({ startedAt: p.startedAt });
     }
-    // kind === "tv" は国内配信のみ表示のため捨てる
+    // kind === "tv" は国内配信のみ表示のため捨てる（曜日/時刻の算出からも除外。理由は
+    // deriveBroadcastSlot のコメント参照）
   }
 
-  const slot = deriveBroadcastSlot(w.programs?.nodes ?? []);
+  const slot = deriveBroadcastSlot(streamingStarts);
 
   // 声優・スタッフ名での検索用（UIには出さず、SeasonExplorerの検索マッチにのみ使う）。
   const castNames = [...new Set(w.casts.map((c) => c.name))].filter(Boolean);
@@ -167,6 +181,7 @@ export function toAnimeItem(w: import("./types").AnnictWork): import("./types").
       color: def.color,
     })),
     otherServices: [...others],
+    broadcastStartDate: slot?.date ?? null,
     broadcastWeekday: slot?.weekday ?? null,
     broadcastTime: slot?.time ?? null,
     creditNames,

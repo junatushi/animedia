@@ -37,9 +37,38 @@ const SEASON_LABEL: Record<string, string> = {
 
 // broadcastWeekday（0=日〜6=土）→ 曜日ラベル。カード内の放送タイミング表示に使う。
 const WEEKDAY_SHORT = ["日", "月", "火", "水", "木", "金", "土"];
+
+// 基本ルール（2026-07-11導入）: 放送開始の1週間より前は「毎週この曜日・時刻」のように
+// 見せない。まだ1話も配信されていない作品を「今週の水曜22:30」のように出すと、当日
+// アクセスしても配信されておらず誤誘導になる（実例: Re:ゼロ4期奪還編、8月開始なのに
+// 7月から曜日・時刻付きでカレンダーに出ていた）。放送開始日（JST日付）までの残日数で
+// 出し分ける: 1週間より先は日付表示＆カレンダー非表示、1週間以内〜放送済みは通常表示。
+const PREMIERE_LOOKAHEAD_DAYS = 7;
+
+// broadcastStartDate（"YYYY-MM-DD", JST）の何日後かを返す。過去日（放送開始済み）は負数。
+function daysUntilStart(dateStr: string): number {
+  const startMs = new Date(`${dateStr}T00:00:00+09:00`).getTime();
+  return Math.ceil((startMs - Date.now()) / (24 * 60 * 60 * 1000));
+}
+
+// 放送開始の1週間より前かどうか（true＝まだ先。日付表示にし、カレンダーには出さない）。
+function isFarBeforePremiere(it: AnimeItem): boolean {
+  if (!it.broadcastStartDate) return false;
+  return daysUntilStart(it.broadcastStartDate) > PREMIERE_LOOKAHEAD_DAYS;
+}
+
+// "YYYY-MM-DD" → "M/D"（JST日付文字列をそのまま分解するだけなのでタイムゾーン変換不要）。
+function formatMonthDay(dateStr: string): string {
+  const [, m, d] = dateStr.split("-");
+  return `${Number(m)}/${Number(d)}`;
+}
+
 function airLabel(it: AnimeItem): string | null {
   if (it.broadcastWeekday === null) return null;
   const wd = WEEKDAY_SHORT[it.broadcastWeekday] ?? "";
+  if (it.broadcastStartDate && isFarBeforePremiere(it)) {
+    return `${formatMonthDay(it.broadcastStartDate)}(${wd})〜`;
+  }
   return it.broadcastTime ? `${wd} ${it.broadcastTime}` : wd;
 }
 
@@ -457,12 +486,14 @@ export default function SeasonExplorer({
 
   // 配信スケジュールカレンダー用。曜日（月始まり）ごとに束ね、放送日が
   // 取れない作品（配信情報なし等）は最後の「配信日未定」に集める。
+  // 基本ルール: 放送開始の1週間より前の作品はカレンダーに出さない（airLabel と同じ理由）。
   const calendarGroups = useMemo<{ label: string; items: AnimeItem[] }[]>(() => {
     const order = [1, 2, 3, 4, 5, 6, 0]; // 月火水木金土日
     const labels = ["月", "火", "水", "木", "金", "土", "日"];
     const buckets = new Map<number, AnimeItem[]>();
     const tbd: AnimeItem[] = [];
     for (const it of filtered) {
+      if (isFarBeforePremiere(it)) continue;
       if (it.broadcastWeekday === null) {
         tbd.push(it);
         continue;
@@ -819,6 +850,7 @@ export default function SeasonExplorer({
           </div>
           <p className="calendar-note">
             時刻は初回放送/配信から推定した目安です。話数によって前後する場合があります。
+            放送開始の1週間前から表示されます。
           </p>
           <div className="calendar" data-single={calendarDay !== "all"}>
           {visibleCalendarGroups.map((g) => (

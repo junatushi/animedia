@@ -1,4 +1,5 @@
-import { classifyChannel } from "../lib/services.ts";
+import { classifyChannel, toAnimeItem } from "../lib/services.ts";
+import type { AnnictWork } from "../lib/types.ts";
 
 const samples: Array<[string, string]> = [
   // [入力チャンネル名, 期待する分類]
@@ -56,4 +57,73 @@ for (const [input, expect] of samples) {
   console.log(`${pass ? "✓" : "✗"}  ${input.padEnd(22)} → ${got}${pass ? "" : `  (期待: ${expect})`}`);
 }
 console.log(`\n結果: ${ok} 件OK / ${ng} 件NG`);
-if (ng > 0) process.exit(1);
+
+// ── 配信スケジュール（曜日・時刻）の回帰テスト ──
+// 2026-07-11 実例: Re:ゼロ4期奪還編で AT-X（TV、非表示）が ABEMA/dアニメ（実際に
+// カードへ表示される配信サービス）より30分早く放送されるデータになっており、
+// カレンダーがカードに出ていないAT-Xの時刻（22:00）を表示していた
+// （実際に見られるABEMA/dアニメは22:30開始）。TVチャンネルは曜日/時刻の算出対象から
+// 除外し、カードに表示される配信サービス側の時刻を使うことを固定する。
+function work(programs: { channel: string; startedAt: string }[]): AnnictWork {
+  return {
+    annictId: 1,
+    title: "テスト作品",
+    watchersCount: 0,
+    officialSiteUrl: null,
+    image: null,
+    media: "TV",
+    programs: {
+      nodes: programs.map((p) => ({ channel: { name: p.channel }, startedAt: p.startedAt })),
+    },
+    casts: [],
+    staffs: [],
+  };
+}
+
+let scheduleOk = 0;
+let scheduleNg = 0;
+function checkSchedule(
+  name: string,
+  w: AnnictWork,
+  expectWeekday: number | null,
+  expectTime: string | null,
+  expectDate: string | null
+) {
+  const item = toAnimeItem(w);
+  const pass =
+    item.broadcastWeekday === expectWeekday &&
+    item.broadcastTime === expectTime &&
+    item.broadcastStartDate === expectDate;
+  if (pass) scheduleOk++; else scheduleNg++;
+  console.log(
+    `${pass ? "✓" : "✗"}  ${name.padEnd(28)} → weekday=${item.broadcastWeekday} time=${item.broadcastTime} date=${item.broadcastStartDate}` +
+      (pass ? "" : `  (期待: weekday=${expectWeekday} time=${expectTime} date=${expectDate})`)
+  );
+}
+
+// AT-X（TV, 22:00）の方がABEMA/dアニメ（配信, 22:30）より早いが、表示すべきは配信側の時刻。
+checkSchedule(
+  "TV局が配信サービスより早い場合",
+  work([
+    { channel: "AT-X", startedAt: "2026-08-12T13:00:00Z" }, // JST 22:00 (TV, 非表示)
+    { channel: "ABEMA", startedAt: "2026-08-12T13:30:00Z" }, // JST 22:30 (配信, 表示対象)
+    { channel: "dアニメストア", startedAt: "2026-08-12T13:30:00Z" }, // JST 22:30
+  ]),
+  3, // 水
+  "22:30",
+  "2026-08-12"
+);
+// 配信サービスが無くTVのみの場合は「配信日未定」（=null）扱いにする。
+checkSchedule(
+  "TV局のみ（配信情報なし）",
+  work([{ channel: "TOKYO MX", startedAt: "2026-08-12T14:00:00Z" }]),
+  null,
+  null,
+  null
+);
+// programsが無い場合もnull。
+checkSchedule("programsなし", work([]), null, null, null);
+
+console.log(`結果（配信スケジュール）: ${scheduleOk} 件OK / ${scheduleNg} 件NG`);
+
+if (ng > 0 || scheduleNg > 0) process.exit(1);

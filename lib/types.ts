@@ -57,6 +57,10 @@ export interface AnimeItem {
   // programs が空/未登録の作品は null（「配信日未定」として扱う）。
   broadcastWeekday: number | null;
   broadcastTime: string | null;
+  // 上記と同じ最速 programs から導出した放送/配信開始日（"YYYY-MM-DD", JST）。
+  // 放送開始の1週間より前は「今週の曜日」のように見せず日付表示に切り替え、
+  // カレンダー（曜日別グリッド）にも出さない基本ルールの判定に使う（SeasonExplorer側）。
+  broadcastStartDate: string | null;
   // 声優・スタッフ名での検索用。casts(先頭5件)の人物名 + staffs(先頭40件)の
   // 人物/組織名をまとめたもの（重複除去済み）。UIには出さず検索マッチにのみ使う。
   creditNames: string[];
