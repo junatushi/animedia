@@ -1,0 +1,35 @@
+name: キャッシュ温め（過去年の/api/season）
+
+# lib/getSeasonData.ts で、過去年（今年より前）のシーズンデータは24時間キャッシュにしている
+# （放送済みで内容がほぼ動かないため、今年の10分より長く持たせている）。
+# しかし温め役は今まで今年の4シーズンだけ（warm-cache.yml）で、過去年は誰も温めて
+# いなかった。そのため過去年に切り替えた最初の1人が、キャッシュが切れるたびに
+# Annictへの生取得（実測5〜13秒）を踏むことになっていた。
+#
+# ここでは2010年〜昨年×4シーズンを1日1回叩いて、24時間キャッシュが切れる前に
+# 必ず再取得しておく（＝2人目以降だけでなく、通常は誰も生取得を踏まなくなる）。
+# Annict側の公開レート制限は不明（ドキュメントに記載なし）だが、このプロジェクトは
+# 過去に並列リクエストのバーストで429を経験している（lib/annict.tsのコメント参照）ため、
+# 保守的に「1日1回・1件ずつ・1秒間隔」に絞り、バーストさせない。
+# 対象は数十件/日程度（2010年〜昨年×4シーズン）で、既存の今年分Cron（720件/日）に対して
+# 小さい追加量。負荷が問題になるようなら頻度をさらに落とすか対象年数を絞る。
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 過去年×4シーズン分のAPIを1件ずつ叩く
+        run: |
+          THIS_YEAR=$(TZ=Asia/Tokyo date +%Y)
+          LAST_PAST_YEAR=$((THIS_YEAR - 1))
+          for YEAR in $(seq 2010 $LAST_PAST_YEAR); do
+            for SEASON in winter spring summer autumn; do
+              curl -s -o /dev/null -w "year=${YEAR} season=${SEASON} status=%{http_code} time=%{time_total}s\n" \
+                "https://animedia-khaki.vercel.app/api/season?year=${YEAR}&season=${SEASON}"
+              sleep 1
+            done
+          done
