@@ -1,4 +1,5 @@
 import { classifyChannel, toAnimeItem } from "../lib/services.ts";
+import { PROGRAMS_QUERY, PROGRAMS_QUERY_LIST } from "../lib/annict.ts";
 import type { AnnictWork } from "../lib/types.ts";
 
 const samples: Array<[string, string]> = [
@@ -126,4 +127,27 @@ checkSchedule("programsなし", work([]), null, null, null);
 
 console.log(`結果（配信スケジュール）: ${scheduleOk} 件OK / ${scheduleNg} 件NG`);
 
-if (ng > 0 || scheduleNg > 0) process.exit(1);
+// ── シーズン一覧の追い取得クエリの回帰テスト ──
+// 2026-07-12 実例: 片田舎のおっさん、剣聖になるⅡ（全国ネット24局+AT-X+BS朝日=
+// 300件超のprograms）で、300件を超えた分の追い取得にepisodeフィールドを含む
+// クエリ（PROGRAMS_QUERY）を使っていたため、Annictがepisode未紐付けprogramで
+// 返すnon-nullフィールド違反によりノードが丸ごとnullになり、配信サービス側の
+// programが失われて「配信情報なし」に見えていた。シーズン一覧の追い取得
+// （fetchSeasonWorks → fetchRemainingPrograms）はepisodeを使わないPROGRAMS_QUERY_LIST
+// を使うべきで、これが再び episode を含む形に統合されないよう固定する。
+let queryOk = 0;
+let queryNg = 0;
+function checkQueryField(name: string, query: string, field: string, shouldContain: boolean) {
+  const contains = query.includes(field);
+  const pass = contains === shouldContain;
+  if (pass) queryOk++; else queryNg++;
+  console.log(
+    `${pass ? "✓" : "✗"}  ${name.padEnd(40)} → ${field}を${contains ? "含む" : "含まない"}` +
+      (pass ? "" : `  (期待: ${shouldContain ? "含む" : "含まない"})`)
+  );
+}
+checkQueryField("PROGRAMS_QUERY_LIST（シーズン一覧の追い取得）", PROGRAMS_QUERY_LIST, "episode", false);
+checkQueryField("PROGRAMS_QUERY（作品個別/通知機能）", PROGRAMS_QUERY, "episode", true);
+console.log(`結果（追い取得クエリ）: ${queryOk} 件OK / ${queryNg} 件NG`);
+
+if (ng > 0 || scheduleNg > 0 || queryNg > 0) process.exit(1);

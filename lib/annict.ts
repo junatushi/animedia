@@ -118,15 +118,36 @@ ${CREDITS_FIELDS}
   }
 }`;
 
-// 一括取得で programs が切れた作品だけ、残りの programs を追い取りするクエリ。
-// シーズン一覧・作品個別ページ両方から呼ばれるため、完全性を優先し上限は高いまま。
-const PROGRAMS_QUERY = `
+// 一括取得で programs が切れた作品だけ、残りの programs を追い取りするクエリ（作品個別ページ用）。
+// rebroadcast/episode は配信開始通知機能が必要とするフィールド。
+// export はテスト用（scripts/check.ts が「一覧側はepisodeを要求しない」ことを固定する）。
+export const PROGRAMS_QUERY = `
 query ($id: Int!, $after: String) {
   searchWorks(annictIds: [$id], first: 1) {
     nodes {
       programs(first: ${PROGRAMS_PER_WORK_DETAIL}, after: $after) {
         pageInfo { hasNextPage endCursor }
         nodes { channel { name } startedAt rebroadcast episode { number numberText } }
+      }
+    }
+  }
+}`;
+
+// シーズン一覧の追い取得専用（2026-07-12導入）。上と違い episode フィールドを要求しない。
+// 理由: Annictはepisode未紐付けのprogramでnon-nullフィールド違反を返し、該当ノードが
+// channel/startedAtごと丸ごとnullになる（gql()参照）。放送局数が多く1ページ(300件)に
+// 収まらない作品（実例: 片田舎のおっさん、剣聖になるⅡ＝全国ネット24局+AT-X+BS朝日で
+// 300件超）は追い取得が発生し、そこでepisodeを要求すると配信サービス側の番組ノードが
+// 未紐付けのままnullになって丸ごと消え、「配信情報なし」に見えてしまっていた。
+// シーズン一覧（toAnimeItem）はepisode/rebroadcastを使わないため、要求しないことで
+// この事故を避ける。
+export const PROGRAMS_QUERY_LIST = `
+query ($id: Int!, $after: String) {
+  searchWorks(annictIds: [$id], first: 1) {
+    nodes {
+      programs(first: ${PROGRAMS_PER_WORK_DETAIL}, after: $after) {
+        pageInfo { hasNextPage endCursor }
+        nodes { channel { name } startedAt }
       }
     }
   }
@@ -225,10 +246,13 @@ async function mapWithConcurrency<T>(
 }
 
 // programs が上限で切れた作品について、残りの programs を全ページ取得する。
+// query は呼び出し側で使い分ける（一覧はepisode不要のPROGRAMS_QUERY_LIST、
+// 作品個別ページ/通知機能はrebroadcast/episodeが要るPROGRAMS_QUERYがデフォルト）。
 async function fetchRemainingPrograms(
   annictId: number,
   startAfter: string,
-  token: string
+  token: string,
+  query: string = PROGRAMS_QUERY
 ): Promise<ProgramConn["nodes"]> {
   const extra: ProgramConn["nodes"] = [];
   let after: string | null = startAfter;
@@ -236,7 +260,7 @@ async function fetchRemainingPrograms(
   for (let i = 0; i < MAX_PROGRAM_PAGES && after; i++) {
     const data: { searchWorks: { nodes: { programs: ProgramConn | null }[] } } =
       await gql<{ searchWorks: { nodes: { programs: ProgramConn | null }[] } }>(
-        { query: PROGRAMS_QUERY, variables: { id: annictId, after } },
+        { query, variables: { id: annictId, after } },
         token
       );
     const conn = data.searchWorks?.nodes?.[0]?.programs;
@@ -296,7 +320,7 @@ export async function fetchSeasonWorks(
   await mapWithConcurrency(deduped, PROGRAMS_FETCH_CONCURRENCY, async (w) => {
     const pi = w.programs?.pageInfo;
     if (w.programs && pi?.hasNextPage && pi.endCursor) {
-      const extra = await fetchRemainingPrograms(w.annictId, pi.endCursor, token);
+      const extra = await fetchRemainingPrograms(w.annictId, pi.endCursor, token, PROGRAMS_QUERY_LIST);
       w.programs!.nodes.push(...extra);
     }
   });
