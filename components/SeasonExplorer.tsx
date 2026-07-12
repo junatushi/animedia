@@ -1016,6 +1016,7 @@ export default function SeasonExplorer({
                   <ServiceMarks
                     services={splitRentalServices(it.services, RENTAL_SERVICES[it.id]).streaming}
                     otherServices={it.otherServices}
+                    hasBroadcastData={it.hasBroadcastData}
                   />
                 </div>
               </div>

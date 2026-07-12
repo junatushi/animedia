@@ -259,7 +259,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
             {/* サービス名はアイコン内にテキストとして保持（.sr-only）。冗長な文章列挙はしない。
                 FAQPageの回答文（JSON-LD）側には名称を含めているのでAI・検索には伝わる。
                 レンタル/都度課金扱いのサービスはここには含めず、下の「レンタル作品」欄に分ける。 */}
-            <ServiceMarks services={streamingServices} otherServices={item.otherServices} />
+            <ServiceMarks
+              services={streamingServices}
+              otherServices={item.otherServices}
+              hasBroadcastData={item.hasBroadcastData}
+            />
 
             {item.officialSiteUrl && (
               <a

@@ -139,12 +139,20 @@ export function toAnimeItem(w: import("./types").AnnictWork): import("./types").
   const others = new Set<string>();
   const streamingStarts: { startedAt: string | null }[] = [];
 
+  // Annictにこの作品のprogramsが1件でもあるか（TV放送のみでも true）。
+  // 配信サービスが0件のとき、「Annictに放送データ自体が無い」のか「TV放送はある
+  // がAnnictに配信サービスがまだ登録されていない」のかをUI側で出し分けるために使う
+  // （2026-07-12導入。実例: 片田舎のおっさん、剣聖になるⅡはTV放送28局分のデータは
+  // あるのに配信サービス登録が0件で、両者を一律「配信情報なし」と出すと実態と違う）。
+  let hasBroadcastData = false;
+
   for (const p of w.programs?.nodes ?? []) {
     // episode未紐付け等でAnnict側がnon-nullフィールド違反になった場合、
     // そのprogramノード自体がnullで返ることがある（lib/annict.tsのgql()参照）。
     if (!p) continue;
     const name = p.channel?.name;
     if (!name) continue;
+    hasBroadcastData = true;
     const c = classifyChannel(name);
     if (c.kind === "service") {
       serviceMap.set(c.def.key, c.def);
@@ -181,6 +189,7 @@ export function toAnimeItem(w: import("./types").AnnictWork): import("./types").
       color: def.color,
     })),
     otherServices: [...others],
+    hasBroadcastData,
     broadcastStartDate: slot?.date ?? null,
     broadcastWeekday: slot?.weekday ?? null,
     broadcastTime: slot?.time ?? null,

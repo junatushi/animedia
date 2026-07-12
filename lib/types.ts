@@ -52,6 +52,11 @@ export interface AnimeItem {
   watchers: number;
   services: ServiceTag[];
   otherServices: string[];
+  // Annictにこの作品のprograms（放送/配信記録）が1件でもあるか。TV放送のみで
+  // 配信サービスが0件の場合もtrue。services/otherServicesが両方空のとき、
+  // 「Annictに放送データ自体が無い」（false）か「放送はあるが配信サービス未登録」
+  // （true）かをUIで出し分けるために使う（ServiceMarks参照）。
+  hasBroadcastData: boolean;
   // 配信スケジュールカレンダー用。最も早い programs（=初回放送/配信）から
   // 導出した曜日（0=日〜6=土, JST）と時刻（"23:00"などJST）。
   // programs が空/未登録の作品は null（「配信日未定」として扱う）。

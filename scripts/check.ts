@@ -124,8 +124,30 @@ checkSchedule(
 );
 // programsが無い場合もnull。
 checkSchedule("programsなし", work([]), null, null, null);
-
 console.log(`結果（配信スケジュール）: ${scheduleOk} 件OK / ${scheduleNg} 件NG`);
+
+// ── hasBroadcastData（TV放送のみ vs Annictにデータ自体が無い、の区別）の回帰テスト ──
+// 2026-07-12 実例: 片田舎のおっさん、剣聖になるⅡはTV放送28局分のデータはあるが
+// 配信サービス登録が0件。これを「programsが1件も無い」作品と同じ「配信情報なし」で
+// 出すと実態と違う（ServiceMarksコンポーネント参照）。
+let bdOk = 0;
+let bdNg = 0;
+function checkHasBroadcastData(name: string, w: AnnictWork, expect: boolean) {
+  const item = toAnimeItem(w);
+  const pass = item.hasBroadcastData === expect;
+  if (pass) bdOk++; else bdNg++;
+  console.log(
+    `${pass ? "✓" : "✗"}  ${name.padEnd(28)} → hasBroadcastData=${item.hasBroadcastData}` +
+      (pass ? "" : `  (期待: ${expect})`)
+  );
+}
+checkHasBroadcastData(
+  "TV局のみでもtrue",
+  work([{ channel: "TOKYO MX", startedAt: "2026-08-12T14:00:00Z" }]),
+  true
+);
+checkHasBroadcastData("programsなしはfalse", work([]), false);
+console.log(`結果（hasBroadcastData）: ${bdOk} 件OK / ${bdNg} 件NG`);
 
 // ── シーズン一覧の追い取得クエリの回帰テスト ──
 // 2026-07-12 実例: 片田舎のおっさん、剣聖になるⅡ（全国ネット24局+AT-X+BS朝日=
@@ -150,4 +172,4 @@ checkQueryField("PROGRAMS_QUERY_LIST（シーズン一覧の追い取得）", PR
 checkQueryField("PROGRAMS_QUERY（作品個別/通知機能）", PROGRAMS_QUERY, "episode", true);
 console.log(`結果（追い取得クエリ）: ${queryOk} 件OK / ${queryNg} 件NG`);
 
-if (ng > 0 || scheduleNg > 0 || queryNg > 0) process.exit(1);
+if (ng > 0 || scheduleNg > 0 || bdNg > 0 || queryNg > 0) process.exit(1);

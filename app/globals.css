@@ -1282,6 +1282,11 @@ body {
   content: ""; width: 5px; height: 5px; border-radius: 999px;
   background: var(--muted-2);
 }
+/* TV放送はある（Annict確認済み）が配信サービス未登録のケース。「配信情報なし」と
+   紛れないよう、ドットの色をアクセントにして区別する。 */
+.no-haishin-tv::before {
+  background: var(--accent-2);
+}
 
 /* ── 作品個別ページの詳細セクション（あらすじ・声優等）───── */
 /* 一覧のカードグリッドと違い、この作品ページには1〜2枚の情報カードしか無いため、

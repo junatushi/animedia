@@ -8,8 +8,8 @@ model: sonnet
 あなたはこのプロジェクトの「配信サービス正規化（②）の保守担当」です。`lib/services.ts` の `SERVICES` と判定ロジックを健全に保ちます。
 
 ## 手順
-1. 対象シーズンの生のチャンネル名を集める。`lib/annict.ts` のクエリを使う一時スクリプトを書き、各作品の `programs.nodes.channel.name` を重複なく列挙する（`ANNICT_TOKEN` は `.env.local` から読む）。
-2. 各チャンネル名を `classifyChannel` にかけ、`other`（その他配信）や `tv` に分類された名前のうち、**実際は国内配信サービスらしきもの**を抽出する。
+1. `node scripts/audit-coverage.ts <year> <season>` を実行する（`ANNICT_TOKEN` は `.env.local` から自動で読む）。出力の(b)が「その他配信」（`classifyChannel`が`other`と判定した未知チャンネル名）の一覧。`tv`誤判定（本当は配信なのにTV扱いされている）を疑うときだけ、`lib/annict.ts` のクエリを使う一時スクリプトで生の `programs.nodes.channel.name` を列挙する。
+2. (b) の名前のうち、**実際は国内配信サービスらしきもの**を抽出する。
 3. 未対応の配信サービスごとに、`SERVICES` への追加エントリ案を作る:
    - `key` / `name` / `short` / `color`（ブランド寄り）/ `match`（正規化後＝小文字・半角・空白除去 の名前に当たる正規表現）
    - 既存サービスの誤判定（例: 放送チャンネルが配信扱い）があれば `TV_PATTERN` 側の修正も提案する。

@@ -13,12 +13,22 @@ function brandMark(short: string): string {
 export default function ServiceMarks({
   services,
   otherServices,
+  hasBroadcastData = false,
 }: {
   services: ServiceTag[];
   otherServices: string[];
+  // Annictに放送データ（TV含む）はあるが配信サービスが0件のときtrue。
+  // 「Annictにデータ自体が無い」場合と表示を分けるために使う（省略時はfalse＝従来通り）。
+  hasBroadcastData?: boolean;
 }) {
   if (services.length === 0 && otherServices.length === 0) {
-    return <span className="no-haishin">配信情報なし</span>;
+    return hasBroadcastData ? (
+      <span className="no-haishin no-haishin-tv" title="TV放送の記録はありますが、配信サービスはAnnictにまだ登録されていません">
+        TV放送のみ（配信情報は未登録の可能性）
+      </span>
+    ) : (
+      <span className="no-haishin">配信情報なし</span>
+    );
   }
   return (
     <div className="svc-marks">
