@@ -26,4 +26,16 @@ export const EXTRA_SERVICES: Record<number, ExtraServiceEntry[]> = {
       schedule: { weekday: 4, time: "00:15", startDate: "2026-07-09" }, // 木曜0:15、初回7/9
     },
   ],
+  // トミカとトム シーズン2: Annictに配信サービスの登録が無い（TV放送データはあるが
+  // 配信は0件）。タカラトミー公式サイトのライセンス情報ページで「dアニメストア」が
+  // 配信パートナーとして明記されている。dアニメ側の具体的な配信曜日・時刻は
+  // 確認できなかったためscheduleは付けない（TV放送＝テレ東系列日曜朝8:30とは別の
+  // タイミングの可能性があり、誤った時刻を創作しないため）。
+  17642: [
+    {
+      key: "d_anime",
+      sourceUrl: "https://www.takaratomy.co.jp/products/license/tomica_tom/anime/",
+      confirmedDate: "2026-07-12",
+    },
+  ],
 };
