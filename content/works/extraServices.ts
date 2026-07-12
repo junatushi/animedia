@@ -38,4 +38,15 @@ export const EXTRA_SERVICES: Record<number, ExtraServiceEntry[]> = {
       confirmedDate: "2026-07-12",
     },
   ],
+  // ラブル＆クルー（2026冬）: Annictに配信サービスの登録が無い（TV放送データはあるが
+  // 配信は0件）。U-NEXT公式プレスルームで「U-NEXT独占配信」「2026年1月10日（土）より
+  // 毎週土曜日正午に1話ずつ配信」と明記されており確認済み。
+  16739: [
+    {
+      key: "unext",
+      sourceUrl: "https://www.unext.co.jp/en/press-room/pawpatrol-announce-2026-01-10",
+      confirmedDate: "2026-07-12",
+      schedule: { weekday: 6, time: "12:00", startDate: "2026-01-10" }, // 土曜正午、初回1/10
+    },
+  ],
 };

@@ -46,6 +46,14 @@ const samples: Array<[string, string]> = [
   ["YouTube", "service:youtube"],               // 正式サービス化（旧: otherだった）
   ["メ～テレ", "tv"],                            // 名古屋テレビ（波ダッシュ表記）。旧: otherに漏れていた
   ["メーテレ", "tv"],                            // 同上・長音表記ゆれ
+
+  // ── 2026-07-12 service-mapper点検（2026冬・春クールの実データ）由来 ──
+  ["Crunchyroll", "service:crunchyroll"],       // 旧: otherに漏れていた（2026春）
+  ["ぎふチャン", "tv"],                          // ひらがな表記の岐阜CATV局。旧: otherに漏れていた（2026冬）
+  ["チャンネルNECO", "tv"],                      // 時代劇専門CS局。旧: otherに漏れていた（2026冬）
+  ["鉄道チャンネル", "tv"],                       // CS局。旧: otherに漏れていた（2026冬）
+  ["カートゥーンネットワーク", "tv"],               // CS/CATV局。旧: otherに漏れていた（2026春）
+  ["ディズニー・チャンネル", "tv"],                // CS/CATV局。Disney+（配信）とは別物。旧: otherに漏れていた（2026春）
 ];
 
 let ok = 0;
