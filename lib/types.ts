@@ -42,6 +42,10 @@ export interface ServiceTag {
   name: string;
   short: string;
   color: string;
+  // Annictにはまだ登録されておらず、公式サイト等の一次情報で人力確認したサービスの
+  // 場合のみ出典URLが入る（content/works/extraServices.ts参照）。UIが「手動確認」の
+  // 印と出典リンクを出すために使う。Annict由来の通常のサービスはundefined。
+  manualSourceUrl?: string;
 }
 
 export interface AnimeItem {

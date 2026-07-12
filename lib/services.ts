@@ -132,12 +132,38 @@ function deriveBroadcastSlot(
   return { weekday, time: `${hh}:${mm}`, date: `${yyyy}-${MM}-${dd}` };
 }
 
+// Annictにまだ登録されていない配信サービスを人力で補完するためのエントリ形。
+// content/works/extraServices.ts に実データを置き、getSeasonData/getWorkData から
+// toAnimeItem の第2引数として注入する（libがcontentに直接依存すると、check.tsの
+// node直実行・tsc・webpackの3ランタイムでimport解決が食い違うため、libは受け取る
+// だけにしてcontent側には依存しない。2026-07-12導入、[[lemino-manual-fill-deferred]]
+// で確立した設計を再利用）。
+export interface ExtraServiceEntry {
+  key: ServiceKey;
+  // 一次情報（公式サイト・公式発表記事等）のURL。CLAUDE.mdの「一次情報のみ・
+  // 創作しない」方針に従い必須とする。UI側で出典として表示する。
+  sourceUrl: string;
+  // 確認日（"YYYY-MM-DD"）。データが古くなっていないかの目安に使う。
+  confirmedDate: string;
+  // 任意: このサービスの配信スケジュール（曜日・時刻・初回配信日）を公式サイト等の
+  // 一次情報で確認できた場合のみ指定する。Annictの実データ（streamingStarts）が
+  // 1件でもあればそちらを優先し、これは「Annictに配信の実データが1件も無い」ときの
+  // フォールバックとしてのみ使う（deriveBroadcastSlotと同じJST基準）。
+  schedule?: { weekday: number; time: string; startDate: string };
+}
+
 // AnnictWork（生データ）→ AnimeItem（画面/APIが使う整形済みデータ）への変換。
 // シーズン一覧（getSeasonData）と作品個別ページ（getWorkData）の両方から共有する。
-export function toAnimeItem(w: import("./types").AnnictWork): import("./types").AnimeItem {
+export function toAnimeItem(
+  w: import("./types").AnnictWork,
+  extra: ExtraServiceEntry[] = []
+): import("./types").AnimeItem {
   const serviceMap = new Map<string, ServiceDef>();
   const others = new Set<string>();
   const streamingStarts: { startedAt: string | null }[] = [];
+  // 人力補完で追加したサービスkey→出典URL。UI（ServiceMarks）が「手動確認」の
+  // 印と出典リンクを出すために使う（Annict由来のサービスとは区別する）。
+  const manualSourceByKey = new Map<string, string>();
 
   // Annictにこの作品のprogramsが1件でもあるか（TV放送のみでも true）。
   // 配信サービスが0件のとき、「Annictに放送データ自体が無い」のか「TV放送はある
@@ -165,7 +191,24 @@ export function toAnimeItem(w: import("./types").AnnictWork): import("./types").
     // deriveBroadcastSlot のコメント参照）
   }
 
-  const slot = deriveBroadcastSlot(streamingStarts);
+  // 人力補完サービスをマージする。Annictにその配信の実際の放送/配信日時（startedAt）は
+  // 無いため、streamingStarts（曜日・時刻の算出元）には加えない（誤った時刻を創作
+  // しないため）。ただしextra側で一次情報の schedule が指定されていれば、Annictの
+  // 実データが無いときだけフォールバックとして使う（下のmanualSlot参照）。
+  let manualSlot: { weekday: number; time: string; date: string } | null = null;
+  for (const e of extra) {
+    const def = SERVICES.find((s) => s.key === e.key);
+    if (!def) continue; // SERVICESに存在しないkeyは無視（extraServices.tsの入力ミス対策）
+    serviceMap.set(def.key, def);
+    manualSourceByKey.set(def.key, e.sourceUrl);
+    if (e.schedule && !manualSlot) {
+      manualSlot = { weekday: e.schedule.weekday, time: e.schedule.time, date: e.schedule.startDate };
+    }
+  }
+
+  // Annictの実データ（streamingStarts）があれば必ずそちらを優先する。
+  // 人力のscheduleはAnnictに配信の実データが1件も無いときのフォールバック専用。
+  const slot = deriveBroadcastSlot(streamingStarts) ?? manualSlot;
 
   // 声優・スタッフ名での検索用（UIには出さず、SeasonExplorerの検索マッチにのみ使う）。
   const castNames = [...new Set(w.casts.map((c) => c.name))].filter(Boolean);
@@ -187,6 +230,7 @@ export function toAnimeItem(w: import("./types").AnnictWork): import("./types").
       name: def.name,
       short: def.short,
       color: def.color,
+      manualSourceUrl: manualSourceByKey.get(def.key),
     })),
     otherServices: [...others],
     hasBroadcastData,
@@ -237,7 +281,10 @@ function deriveCredits(
 }
 
 // AnnictWork → AnimeDetail への変換。作品個別ページ専用（casts/staffsの完全なクレジット付き）。
-export function toAnimeDetail(w: import("./types").AnnictWork): import("./types").AnimeDetail {
-  const item = toAnimeItem(w);
+export function toAnimeDetail(
+  w: import("./types").AnnictWork,
+  extra: ExtraServiceEntry[] = []
+): import("./types").AnimeDetail {
+  const item = toAnimeItem(w, extra);
   return { ...item, credits: deriveCredits(w.casts, w.staffs) };
 }

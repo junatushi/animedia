@@ -5,6 +5,7 @@
 import { unstable_cache } from "next/cache";
 import { fetchSeasonWorks } from "./annict";
 import { toAnimeItem } from "./services";
+import { EXTRA_SERVICES } from "@/content/works/extraServices";
 import type { SeasonResponse } from "./types";
 
 export const VALID_SEASONS = new Set(["winter", "spring", "summer", "autumn"]);
@@ -32,7 +33,9 @@ async function fetchAndBuild(year: string, season: string): Promise<SeasonRespon
 
   const seasonStr = `${year}-${season}`;
   const works = await fetchSeasonWorks(seasonStr, token);
-  const items = works.map(toAnimeItem).sort((a, b) => b.watchers - a.watchers);
+  const items = works
+    .map((w) => toAnimeItem(w, EXTRA_SERVICES[w.annictId]))
+    .sort((a, b) => b.watchers - a.watchers);
 
   return { season: seasonStr, count: items.length, items };
 }

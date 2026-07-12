@@ -16,6 +16,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { fetchSeasonWorks } from "../lib/annict.ts";
 import { toAnimeItem } from "../lib/services.ts";
+import { EXTRA_SERVICES } from "../content/works/extraServices.ts";
 
 // .env.local を最小限だけ読み込む（dotenv非依存。process.envに無いキーだけ補う）。
 function loadEnvLocal(): void {
@@ -53,16 +54,26 @@ async function main() {
 
   console.log(`対象: ${seasonStr}\n`);
   const works = await fetchSeasonWorks(seasonStr, token);
-  const items = works.map(toAnimeItem);
+  // .map(toAnimeItem) と書くと Array.map が (item, index, array) を渡すため、
+  // indexがtoAnimeItemの第2引数(extra)に入り壊れる。単項のアロー関数で明示的に渡す。
+  const items = works.map((w) => toAnimeItem(w));
 
   // (a) 配信サービス0件だがTV放送データはある作品。注目度（watchers）が高い順。
-  const tvOnly = items
-    .filter((it) => it.services.length === 0 && it.otherServices.length === 0 && it.hasBroadcastData)
+  // extraServices.tsで既に人力補完済みの作品は除外する（毎回同じ通知が出るのを防ぐ）。
+  const tvOnlyAll = items.filter(
+    (it) => it.services.length === 0 && it.otherServices.length === 0 && it.hasBroadcastData
+  );
+  const alreadyCovered = tvOnlyAll.filter((it) => (EXTRA_SERVICES[it.id]?.length ?? 0) > 0);
+  const tvOnly = tvOnlyAll
+    .filter((it) => (EXTRA_SERVICES[it.id]?.length ?? 0) === 0)
     .sort((a, b) => b.watchers - a.watchers);
 
   console.log(`(a) 配信サービス未登録の疑い（TV放送データあり・配信サービス0件）: ${tvOnly.length} 件`);
   for (const it of tvOnly) {
     console.log(`  - [${it.id}] ${it.title}（注目 ${it.watchers}人）`);
+  }
+  if (alreadyCovered.length > 0) {
+    console.log(`  （うち content/works/extraServices.ts で人力補完済み: ${alreadyCovered.length} 件、表示から除外）`);
   }
 
   // (b) 「その他配信」に落ちた未知チャンネル名（SERVICESへの追加候補）。

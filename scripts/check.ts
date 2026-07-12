@@ -149,6 +149,87 @@ checkHasBroadcastData(
 checkHasBroadcastData("programsなしはfalse", work([]), false);
 console.log(`結果（hasBroadcastData）: ${bdOk} 件OK / ${bdNg} 件NG`);
 
+// ── 人力補完サービス（content/works/extraServices.ts）マージの回帰テスト ──
+// 2026-07-12導入。Annictにデータが無くても、extraで渡したサービスは services に
+// manualSourceUrl付きで入り、かつ実際の配信日時が不明なため曜日/時刻は変えないこと。
+let extraOk = 0;
+let extraNg = 0;
+type TestExtra = {
+  key: import("../lib/services.ts").ServiceKey;
+  sourceUrl: string;
+  confirmedDate: string;
+  schedule?: { weekday: number; time: string; startDate: string };
+};
+function checkExtraMerge(
+  name: string,
+  w: AnnictWork,
+  extra: TestExtra[],
+  expectKeys: string[],
+  expectWeekday: number | null,
+  expectTime: string | null = null
+) {
+  const item = toAnimeItem(w, extra);
+  const gotKeys = item.services.map((s) => s.key).sort();
+  // extraで渡したkeyだけがmanualSourceUrlを持つべき（実データ由来のkeyは持たない）。
+  const manualKeys = new Set(extra.map((e) => e.key));
+  const sourceCorrect = item.services.every(
+    (s) => !!s.manualSourceUrl === manualKeys.has(s.key as import("../lib/services.ts").ServiceKey)
+  );
+  const pass =
+    JSON.stringify(gotKeys) === JSON.stringify([...expectKeys].sort()) &&
+    sourceCorrect &&
+    item.broadcastWeekday === expectWeekday &&
+    item.broadcastTime === expectTime;
+  if (pass) extraOk++; else extraNg++;
+  console.log(
+    `${pass ? "✓" : "✗"}  ${name.padEnd(28)} → services=${gotKeys.join(",")} weekday=${item.broadcastWeekday} time=${item.broadcastTime}` +
+      (pass ? "" : `  (期待: services=${expectKeys.join(",")} weekday=${expectWeekday} time=${expectTime})`)
+  );
+}
+checkExtraMerge(
+  "programsゼロでも手動補完が入る（schedule無し）",
+  work([]),
+  [{ key: "prime", sourceUrl: "https://example.com/", confirmedDate: "2026-07-12" }],
+  ["prime"],
+  null // 実際の配信日時が無いため曜日は算出しない
+);
+checkExtraMerge("extra未指定なら従来通り", work([]), [], [], null);
+// 2026-07-12実例: 片田舎のおっさん、剣聖になるⅡ。Annictに配信の実データが無いとき、
+// 一次情報で確認したscheduleをフォールバックとして使う。
+checkExtraMerge(
+  "Annict実データが無ければscheduleをフォールバック使用",
+  work([]),
+  [
+    {
+      key: "prime",
+      sourceUrl: "https://example.com/",
+      confirmedDate: "2026-07-12",
+      schedule: { weekday: 4, time: "00:15", startDate: "2026-07-09" },
+    },
+  ],
+  ["prime"],
+  4,
+  "00:15"
+);
+// Annictに実データ（配信サービスのstartedAt）があれば、そちらを必ず優先する
+// （人力scheduleが古くなっていても実データで上書きされることを保証する）。
+checkExtraMerge(
+  "Annict実データがあればscheduleより優先",
+  work([{ channel: "ABEMA", startedAt: "2026-08-12T13:30:00Z" }]), // JST 水22:30
+  [
+    {
+      key: "prime",
+      sourceUrl: "https://example.com/",
+      confirmedDate: "2026-07-12",
+      schedule: { weekday: 4, time: "00:15", startDate: "2026-07-09" },
+    },
+  ],
+  ["abema", "prime"],
+  3,
+  "22:30"
+);
+console.log(`結果（人力補完マージ）: ${extraOk} 件OK / ${extraNg} 件NG`);
+
 // ── シーズン一覧の追い取得クエリの回帰テスト ──
 // 2026-07-12 実例: 片田舎のおっさん、剣聖になるⅡ（全国ネット24局+AT-X+BS朝日=
 // 300件超のprograms）で、300件を超えた分の追い取得にepisodeフィールドを含む
@@ -172,4 +253,4 @@ checkQueryField("PROGRAMS_QUERY_LIST（シーズン一覧の追い取得）", PR
 checkQueryField("PROGRAMS_QUERY（作品個別/通知機能）", PROGRAMS_QUERY, "episode", true);
 console.log(`結果（追い取得クエリ）: ${queryOk} 件OK / ${queryNg} 件NG`);
 
-if (ng > 0 || scheduleNg > 0 || bdNg > 0 || queryNg > 0) process.exit(1);
+if (ng > 0 || scheduleNg > 0 || bdNg > 0 || queryNg > 0 || extraNg > 0) process.exit(1);

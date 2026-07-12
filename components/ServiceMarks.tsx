@@ -33,7 +33,15 @@ export default function ServiceMarks({
   return (
     <div className="svc-marks">
       {services.map((s) => (
-        <span key={s.key} className="svc-chip" title={s.name}>
+        <span
+          key={s.key}
+          className={s.manualSourceUrl ? "svc-chip svc-chip-manual" : "svc-chip"}
+          title={
+            s.manualSourceUrl
+              ? `${s.name}（Annict未登録・公式情報で手動確認）`
+              : s.name
+          }
+        >
           <span
             className="svc-chip-mark"
             style={{ background: s.color, color: textOn(s.color) }}
@@ -45,6 +53,19 @@ export default function ServiceMarks({
             {s.short}
           </span>
           <span className="sr-only">{s.name}</span>
+          {/* Annictに無く人力補完したサービスは、出典（一次情報）へのリンクを添えて
+              「自動取得ではない」ことを利用者に伝える（CLAUDE.mdの一次情報明示方針）。 */}
+          {s.manualSourceUrl && (
+            <a
+              href={s.manualSourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="svc-chip-manual-mark"
+              aria-label={`${s.name}の配信情報の出典（手動確認）`}
+            >
+              ✓
+            </a>
+          )}
         </span>
       ))}
       {otherServices.map((name) => (

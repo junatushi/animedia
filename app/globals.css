@@ -899,6 +899,25 @@ body {
   padding: 3px 8px;
 }
 .svc-chip-other .svc-chip-name { color: var(--muted-2); }
+/* Annictに無く公式サイト等で人力確認したサービス。通常チップと見分けられるよう
+   枠を点線にし、出典リンク（✓マーク）を添える（svc-chip-otherとは違いブランド色は
+   維持する＝サービス自体は確定しているため）。 */
+.svc-chip-manual { border-style: dashed; }
+.svc-chip-manual-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--accent-2);
+  border: 1px solid var(--accent-2);
+  text-decoration: none;
+  flex: none;
+}
+.svc-chip-manual-mark:hover { background: rgba(var(--accent-2-rgb), 0.18); }
 /* 最下段：注目人数（左）＋公式サイト（右）。サムネ・配信の下に置く。 */
 .card-foot {
   display: flex;

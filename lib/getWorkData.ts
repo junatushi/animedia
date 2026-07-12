@@ -1,6 +1,7 @@
 // 作品個別ページ（app/anime/[id]/page.tsx）用のデータ取得ロジック。
 import { fetchWorkById } from "./annict";
 import { toAnimeDetail } from "./services";
+import { EXTRA_SERVICES } from "@/content/works/extraServices";
 import type { AnimeDetail } from "./types";
 
 export async function getWorkData(id: number): Promise<AnimeDetail | null> {
@@ -11,5 +12,5 @@ export async function getWorkData(id: number): Promise<AnimeDetail | null> {
 
   const w = await fetchWorkById(id, token);
   if (!w) return null;
-  return toAnimeDetail(w);
+  return toAnimeDetail(w, EXTRA_SERVICES[id]);
 }
