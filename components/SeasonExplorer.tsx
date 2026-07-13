@@ -1157,6 +1157,8 @@ export default function SeasonExplorer({
         新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
         「その他配信」は未登録サービスの可能性があり、点線で表示しています。
         {" "}
+        <Link href={`/exclusive/${year}/${season}`}>{year}年{SEASON_LABEL[season]}アニメの独占配信まとめ</Link>
+        {" ・ "}
         <Link href="/about">運営者情報</Link>
       </p>
       </main>
