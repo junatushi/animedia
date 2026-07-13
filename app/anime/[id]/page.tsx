@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getWorkData } from "@/lib/getWorkData";
 import { splitRentalServices } from "@/lib/services";
+import { seasonKeyForMonth, SEASON_LABEL } from "@/lib/resolveSeasonParams";
 import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
@@ -116,13 +117,40 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   const checkedDate = new Date().toISOString().slice(0, 10);
   workLd.dateModified = checkedDate;
 
-  // パンくず（Home → 作品名）。AI・検索エンジンにサイト構造を伝える。
+  // 放送開始日（JST, "YYYY-MM-DD"）から、この作品がどのクールに属するかを逆算する。
+  // 「シーズン別ページ」への内部リンクを作ることで、そのクールの他の作品にも
+  // 回遊させる（＝シーズンページへの内部被リンクが増え、クロール・回遊双方にプラス）。
+  // 放送開始日が未定の作品（broadcastStartDateがnull）はリンクを出さない。
+  const workSeason = item.broadcastStartDate
+    ? (() => {
+        const [y, m] = item.broadcastStartDate!.split("-").map(Number);
+        const seasonKey = seasonKeyForMonth(m);
+        return { year: y, key: seasonKey, label: SEASON_LABEL[seasonKey] };
+      })()
+    : null;
+
+  // パンくず（Home → シーズン → 作品名）。AI・検索エンジンにサイト構造を伝える。
   const breadcrumbLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "アニメ視聴ガイド", item: siteUrl },
-      { "@type": "ListItem", position: 2, name: item.title, item: `${siteUrl}/anime/${id}` },
+      ...(workSeason
+        ? [
+            {
+              "@type": "ListItem",
+              position: 2,
+              name: `${workSeason.year}年${workSeason.label}アニメ`,
+              item: `${siteUrl}/season/${workSeason.year}/${workSeason.key}`,
+            },
+          ]
+        : []),
+      {
+        "@type": "ListItem",
+        position: workSeason ? 3 : 2,
+        name: item.title,
+        item: `${siteUrl}/anime/${id}`,
+      },
     ],
   };
 
@@ -168,6 +196,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
           <Link href="/" className="official">
             ← アニメ視聴ガイドのトップに戻る
           </Link>
+          {workSeason && (
+            <Link href={`/season/${workSeason.year}/${workSeason.key}`} className="official">
+              {workSeason.year}年{workSeason.label}アニメ一覧を見る
+            </Link>
+          )}
         </div>
       </header>
 

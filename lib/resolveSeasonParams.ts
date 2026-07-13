@@ -7,12 +7,24 @@
 export const SEASON_KEYS = new Set(["winter", "spring", "summer", "autumn"]);
 
 export function currentSeasonKey(): string {
-  const m = new Date().getMonth() + 1;
-  if (m <= 3) return "winter";
-  if (m <= 6) return "spring";
-  if (m <= 9) return "summer";
+  return seasonKeyForMonth(new Date().getMonth() + 1);
+}
+
+// 任意の月（1〜12）からクールキーを求める。作品の放送開始月から「どのクールの
+// 作品か」を逆算する用途（例: app/anime/[id]/page.tsx のシーズンページへの内部リンク）。
+export function seasonKeyForMonth(month: number): string {
+  if (month <= 3) return "winter";
+  if (month <= 6) return "spring";
+  if (month <= 9) return "summer";
   return "autumn";
 }
+
+export const SEASON_LABEL: Record<string, string> = {
+  winter: "冬",
+  spring: "春",
+  summer: "夏",
+  autumn: "秋",
+};
 
 // 年セレクタが表示する選択肢と同じ範囲（2010年〜今年）。範囲外の年が
 // クエリに来た場合は今年にフォールバックする。
