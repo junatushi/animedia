@@ -160,6 +160,21 @@ function brandMark(short: string): string {
   return ch.length ? ch[0] : "?";
 }
 
+// 行動ログ共通処理。Vercel Web Analytics（無料プランはカスタムイベントがダッシュボードに
+// 出ない）に加えて、自前の /api/track にも送る（Supabase無料枠に記録し、/admin/analyticsで見る）。
+// 計測はユーザー操作の成否に影響してはいけないため、失敗しても握りつぶす（catchのみ）。
+function logEvent(event: string, data?: Record<string, string | number | boolean | null>) {
+  track(event, data);
+  fetch("/api/track", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ event, data }),
+    keepalive: true,
+  }).catch(() => {
+    // オフライン・Supabase未設定時等は無視する（体験は既存のtrack()同様に壊さない）
+  });
+}
+
 // X（旧Twitter）の投稿画面を、本文とURLをプリセットして開く共通処理。
 function openXIntent(text: string, url: string) {
   const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
@@ -182,14 +197,14 @@ function nativeShareOrX(title: string, url: string) {
 
 // 現在のページ（選択中の年・シーズンの一覧）を共有する。
 function shareOnX() {
-  track("share_site");
+  logEvent("share_site");
   nativeShareOrX("アニメ視聴ガイド ― 今期アニメの配信状況をサービス別にスキャン", window.location.href);
 }
 
 // 個別の作品を共有する。URLは作品個別ページ（/anime/[id]）の固定リンクを使う
 // ことで、共有された側が常に最新の配信情報を見られ、検索にも拾われやすくなる。
 function shareWork(title: string, id: number) {
-  track("share_work", { title });
+  logEvent("share_work", { title });
   const url = `${window.location.origin}/anime/${id}`;
   nativeShareOrX(`「${title}」の配信状況をチェック｜アニメ視聴ガイド`, url);
 }
@@ -295,7 +310,7 @@ export default function SeasonExplorer({
         next.delete(id);
       } else {
         next.add(id);
-        track("favorite_add"); // 追加時だけ計測（人気把握のため。削除は取らない）
+        logEvent("favorite_add"); // 追加時だけ計測（人気把握のため。削除は取らない）
       }
       try {
         localStorage.setItem(FAVORITES_KEY, JSON.stringify([...next]));
@@ -312,10 +327,10 @@ export default function SeasonExplorer({
   // 共通ロジックはuseLoginGatedWorkSet（components/useLoginGatedWorkSet.ts）に集約。
   const { user } = useAuth();
   const { items: watched, toggle: toggleWatched } = useLoginGatedWorkSet("/api/watched", () =>
-    track("watched_add") // 追加時だけ計測（人気把握のため。削除は取らない）
+    logEvent("watched_add") // 追加時だけ計測（人気把握のため。削除は取らない）
   );
   const { items: notifyRequested, toggle: toggleNotify } = useLoginGatedWorkSet("/api/notify", () =>
-    track("notify_add")
+    logEvent("notify_add")
   );
 
   // 年セレクトはネイティブ <select> だとハイライト色をブラウザ側が決めてしまい
@@ -486,7 +501,7 @@ export default function SeasonExplorer({
         next.delete(key);
       } else {
         next.add(key);
-        track("filter_service", { service: key }); // どのサービスで絞り込まれるか
+        logEvent("filter_service", { service: key }); // どのサービスで絞り込まれるか
         // 「独占」と実サービスを組み合わせた時はORのままだと「独占の何か」or「そのサービス」
         // という意図と違う絞り込みになってしまうため、この組み合わせが成立した瞬間だけ
         // 自動でANDに切り替える（ユーザーがどちらを先にクリックしても結果は同じにする）。
@@ -505,7 +520,7 @@ export default function SeasonExplorer({
         next.delete(name);
       } else {
         next.add(name);
-        track("filter_cast", { cast: name });
+        logEvent("filter_cast", { cast: name });
       }
       return next;
     });
@@ -592,7 +607,7 @@ export default function SeasonExplorer({
                 aria-pressed={season === s.key}
                 onClick={() => {
                   setSeason(s.key);
-                  track("change_season", { season: s.key, year });
+                  logEvent("change_season", { season: s.key, year });
                 }}
               >
                 {s.label}
