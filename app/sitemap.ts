@@ -74,6 +74,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.7,
       });
     }
+
+    // 声優別ページ（/person/[name]/[year]/[season]）は、今期2作品以上に出演している
+    // 声優だけをサイトマップに含める（app/person/.../page.tsx のMIN_APPEARANCESと同じ閾値。
+    // 競合が強い領域のため、薄いページを大量に登録して低品質判定されるのを避ける）。
+    const castCounts = new Map<string, number>();
+    for (const it of data.items) {
+      for (const castName of it.castNames) {
+        castCounts.set(castName, (castCounts.get(castName) ?? 0) + 1);
+      }
+    }
+    for (const [castName, count] of castCounts) {
+      if (count < 2) continue;
+      entries.push({
+        url: `${siteUrl}/person/${encodeURIComponent(castName)}/${year}/${season}`,
+        lastModified: new Date(),
+        changeFrequency: "daily",
+        priority: 0.5,
+      });
+    }
   } catch {
     // Annictから取得できない場合はルートURLのみのサイトマップにフォールバックする
   }
