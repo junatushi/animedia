@@ -2,8 +2,10 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getWorkData } from "@/lib/getWorkData";
+import { getSeasonData } from "@/lib/getSeasonData";
 import { splitRentalServices } from "@/lib/services";
 import { seasonKeyForMonth, SEASON_LABEL } from "@/lib/resolveSeasonParams";
+import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
 import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
@@ -129,6 +131,28 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
       })()
     : null;
 
+  // 声優名から /person/[name]/[year]/[season] へのリンクを張るための対象集合。
+  // そのクールで2作品以上に出演している声優だけがページ化されている
+  // （PERSON_PAGE_MIN_APPEARANCES。lib/personPage.ts参照）ため、それ未満の声優に
+  // リンクを張るとリンク切れ（404）になる。ここで同じシーズンのAnnictデータ
+  // （getSeasonDataは10分/24時間キャッシュ済みなので追加負荷は小さい）を見て、
+  // 実際にページが存在する声優だけを事前に絞り込む。
+  const linkableCastNames = new Set<string>();
+  if (workSeason) {
+    try {
+      const seasonData = await getSeasonData(String(workSeason.year), workSeason.key);
+      const counts = new Map<string, number>();
+      for (const it of seasonData.items) {
+        for (const castName of it.castNames) counts.set(castName, (counts.get(castName) ?? 0) + 1);
+      }
+      for (const [castName, count] of counts) {
+        if (count >= PERSON_PAGE_MIN_APPEARANCES) linkableCastNames.add(castName);
+      }
+    } catch {
+      // 取得に失敗しても声優名をプレーンテキストで出すだけなので、ページ全体は壊さない。
+    }
+  }
+
   // パンくず（Home → シーズン → 作品名）。AI・検索エンジンにサイト構造を伝える。
   const breadcrumbLd = {
     "@context": "https://schema.org",
@@ -241,7 +265,16 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                     {credits.casts.map((c, i) => (
                       <li key={i} className="detail-cast">
                         {c.characterName && <span className="detail-cast-role">{c.characterName}</span>}
-                        <span className="detail-cast-name">{c.personName}</span>
+                        {workSeason && linkableCastNames.has(c.personName) ? (
+                          <Link
+                            href={`/person/${encodeURIComponent(c.personName)}/${workSeason.year}/${workSeason.key}`}
+                            className="detail-cast-name"
+                          >
+                            {c.personName}
+                          </Link>
+                        ) : (
+                          <span className="detail-cast-name">{c.personName}</span>
+                        )}
                       </li>
                     ))}
                   </ul>

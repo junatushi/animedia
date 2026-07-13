@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
+import { PERSON_PAGE_MIN_APPEARANCES as MIN_APPEARANCES } from "@/lib/personPage";
 import { PERSON_FILMOGRAPHY } from "@/content/people/filmography";
 import type { AnimeItem } from "@/lib/types";
 
@@ -12,12 +13,6 @@ const SEASON_LABEL: Record<string, string> = {
   summer: "夏",
   autumn: "秋",
 };
-
-// 「今期2作品以上に出演」の声優だけをページ化する（components/SeasonExplorer.tsx の
-// 声優チップと同じ閾値）。競合（アニメイトタイムズ等）が強い領域であり、出演1作品だけの
-// 薄いページを量産すると検索エンジンに低品質判定されるリスクがあるため、絞り込む
-// （docs/growth-ideas.md の流入調査 2026-07-13 で明記した懸念への対応）。
-const MIN_APPEARANCES = 2;
 
 type Params = { name: string; year: string; season: string };
 
