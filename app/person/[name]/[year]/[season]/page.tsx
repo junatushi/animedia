@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
+import { PERSON_FILMOGRAPHY } from "@/content/people/filmography";
 import type { AnimeItem } from "@/lib/types";
 
 const siteUrl = "https://animedia-khaki.vercel.app";
@@ -39,8 +40,13 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   if (works.length < MIN_APPEARANCES) return {};
 
   const label = SEASON_LABEL[season];
-  const title = `${name}が出演する${year}年${label}アニメ一覧`;
-  const description = `${name}さんが出演する${year}年${label}アニメを一覧でまとめました。配信サービスもあわせてアニメ視聴ガイドで確認できます。`;
+  const filmography = PERSON_FILMOGRAPHY[name];
+  const title = filmography
+    ? `${name}の代表作・${year}年${label}アニメ出演作一覧`
+    : `${name}が出演する${year}年${label}アニメ一覧`;
+  const description = filmography
+    ? `${name}さんの代表作（役名付き）と、${year}年${label}アニメの出演作をまとめました。配信サービスもあわせてアニメ視聴ガイドで確認できます。`
+    : `${name}さんが出演する${year}年${label}アニメを一覧でまとめました。配信サービスもあわせてアニメ視聴ガイドで確認できます。`;
   const url = `${siteUrl}/person/${encodeURIComponent(name)}/${year}/${season}`;
 
   return {
@@ -74,6 +80,7 @@ export default async function PersonPage({ params }: { params: Params }) {
 
   if (!fetchError && works.length < MIN_APPEARANCES) notFound();
 
+  const filmography = PERSON_FILMOGRAPHY[name];
   const checkedDate = new Date().toISOString().slice(0, 10);
   const structuredLd = !fetchError
     ? [
@@ -127,7 +134,7 @@ export default async function PersonPage({ params }: { params: Params }) {
         </span>
         <div className="brandrow">
           <h1 className="brand">
-            {name}が出演する{year}年{label}アニメ
+            {filmography ? `${name}の代表作・出演作品` : `${name}が出演する${year}年${label}アニメ`}
           </h1>
         </div>
         <div className="meta">
@@ -149,18 +156,40 @@ export default async function PersonPage({ params }: { params: Params }) {
                 <p className="detail-text">{fetchError}</p>
               </section>
             ) : (
-              <section className="detail-section">
-                <h2 className="detail-heading">
-                  出演作品（{works.length}作品・{checkedDate}時点）
-                </h2>
-                <ul className="detail-list">
-                  {works.map((it) => (
-                    <li key={it.id}>
-                      <Link href={`/anime/${it.id}`}>{it.title}</Link>
-                    </li>
-                  ))}
-                </ul>
-              </section>
+              <>
+                {filmography && (
+                  <section className="detail-section">
+                    <h2 className="detail-heading">代表作（役名付き）</h2>
+                    <ul className="detail-list">
+                      {filmography.works.map((w, i) => (
+                        <li key={i}>
+                          {w.title} — {w.character}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="detail-updated">
+                      出典:{" "}
+                      <a href={filmography.sourceUrl} target="_blank" rel="noopener noreferrer">
+                        {filmography.sourceUrl}
+                      </a>
+                      {" "}（確認日: {filmography.confirmedDate}）
+                    </p>
+                  </section>
+                )}
+
+                <section className="detail-section">
+                  <h2 className="detail-heading">
+                    {year}年{label}アニメの出演作品（{works.length}作品・{checkedDate}時点）
+                  </h2>
+                  <ul className="detail-list">
+                    {works.map((it) => (
+                      <li key={it.id}>
+                        <Link href={`/anime/${it.id}`}>{it.title}</Link>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              </>
             )}
           </div>
         </article>

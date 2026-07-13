@@ -151,7 +151,7 @@ export default async function ExclusivePage({ params }: { params: Params }) {
               <h2 className="detail-heading">この一覧について</h2>
               <p className="detail-text">
                 見放題配信サービスが1社だけの作品（レンタル/都度課金サービスは対象外）を「独占配信」として、
-                サービス別にまとめています（{checkedDate}時点、Annictより）。複数社で配信されている作品はここには含まれません。
+                サービス別にまとめています（{checkedDate}時点）。複数社で配信されている作品はここには含まれません。
               </p>
             </section>
 

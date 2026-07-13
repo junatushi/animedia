@@ -137,7 +137,7 @@ export default async function ServicePage({ params }: { params: Params }) {
               <h2 className="detail-heading">この一覧について</h2>
               <p className="detail-text">
                 {year}年{label}アニメのうち、{service.name}で配信されている作品を人気順（注目度順）でまとめています
-                （{checkedDate}時点、Annictより）。配信情報は網羅率100%ではなく、新作は反映が遅れることがあります。
+                （{checkedDate}時点）。配信情報は網羅率100%ではなく、新作は反映が遅れることがあります。
               </p>
             </section>
 

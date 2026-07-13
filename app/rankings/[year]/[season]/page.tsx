@@ -185,7 +185,7 @@ export default async function RankingsPage({ params }: { params: Params }) {
                 <section className="detail-section">
                   <h2 className="detail-heading">配信サービス別 対応本数ランキング</h2>
                   <p className="detail-text">
-                    見放題配信サービスが対応している作品数の多い順（{checkedDate}時点、Annictより。
+                    見放題配信サービスが対応している作品数の多い順（{checkedDate}時点。
                     レンタル/都度課金サービスは対象外）。
                     {coverage[0] && `${coverage[0].tag.name}が${coverage[0].count}作品で最多。`}
                   </p>
