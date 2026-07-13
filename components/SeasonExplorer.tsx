@@ -18,6 +18,13 @@ import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import { WORK_ALIASES } from "@/content/works/aliases";
 import { resolveYearSeason, validYears } from "@/lib/resolveSeasonParams";
 
+// 「独占」は実在の配信サービスではなく、「見放題配信サービスが1つだけの作品」を
+// 指す仮想チップ。active（配信サービスの絞り込みSet）に同居させることで、既存の
+// OR/AND切り替えがそのまま使える（例: 「独占」+「dアニメ」をANDにすると
+// dアニメの独占配信作品だけに絞れる）。lib/services.ts の ServiceKey には
+// 実データ由来のキーだけを置きたいのでUI側だけの定数として持つ。
+const EXCLUSIVE_KEY = "__exclusive__";
+
 // AI独断解釈サムネの注釈（全箇所で同じ文言を使う）。
 const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
 
@@ -407,12 +414,19 @@ export default function SeasonExplorer({
         it.title.toLowerCase().includes(q) ||
         it.creditNames.some((n) => n.toLowerCase().includes(q)) ||
         aliases.some((a) => a.toLowerCase().includes(q));
+      const matchesKey = (k: string) => {
+        if (k === EXCLUSIVE_KEY) {
+          const { streaming } = splitRentalServices(it.services, RENTAL_SERVICES[it.id]);
+          return streaming.length === 1;
+        }
+        return it.services.some((s) => s.key === k);
+      };
       const okSvc =
         active.size === 0
           ? true
           : andMode
-            ? [...active].every((k) => it.services.some((s) => s.key === k))
-            : it.services.some((s) => active.has(s.key));
+            ? [...active].every(matchesKey)
+            : [...active].some(matchesKey);
       const okCast =
         activeCast.size === 0 || it.castNames.some((n) => activeCast.has(n));
       const okFav = !favoritesOnly || favorites.has(it.id);
@@ -459,6 +473,12 @@ export default function SeasonExplorer({
       } else {
         next.add(key);
         track("filter_service", { service: key }); // どのサービスで絞り込まれるか
+        // 「独占」と実サービスを組み合わせた時はORのままだと「独占の何か」or「そのサービス」
+        // という意図と違う絞り込みになってしまうため、この組み合わせが成立した瞬間だけ
+        // 自動でANDに切り替える（ユーザーがどちらを先にクリックしても結果は同じにする）。
+        if (next.size > 1 && next.has(EXCLUSIVE_KEY)) {
+          setAndMode(true);
+        }
       }
       return next;
     });
@@ -635,6 +655,16 @@ export default function SeasonExplorer({
                 onClick={() => setFavoritesOnly((v) => !v)}
               >
                 ★ お気に入り
+              </button>
+              <button
+                type="button"
+                className="chip"
+                data-on={active.has(EXCLUSIVE_KEY)}
+                aria-pressed={active.has(EXCLUSIVE_KEY)}
+                title="見放題配信サービスが1つだけの作品に絞る（他のサービスチップとANDにすると「◯◯の独占」で絞り込める）"
+                onClick={() => toggle(EXCLUSIVE_KEY)}
+              >
+                独占
               </button>
               {active.size > 1 && (
                 <button
