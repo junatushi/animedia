@@ -174,7 +174,7 @@ export default async function ExclusivePage({ params }: { params: Params }) {
               groups.map((g) => (
                 <section className="detail-section" key={g.tag.key}>
                   <h2 className="detail-heading" style={{ color: g.tag.color }}>
-                    {g.tag.name}独占（{g.items.length}作品）
+                    <Link href={`/service/${g.tag.key}/${year}/${season}`}>{g.tag.name}</Link>独占（{g.items.length}作品）
                   </h2>
                   <ul className="detail-list">
                     {g.items.map((it) => (

@@ -52,6 +52,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.6,
       });
     }
+
+    // サービス別ページ（/service/[key]/[year]/[season]）は、実際にそのシーズンで
+    // 配信作品があるサービスだけをサイトマップに含める（0件の薄いページを登録しない）。
+    // ページ自体は見放題・レンタルの両方を含めて表示するため、ここでの集計も両方見る。
+    const serviceKeys = new Set<string>();
+    for (const it of data.items) {
+      for (const s of it.services) serviceKeys.add(s.key);
+    }
+    for (const key of serviceKeys) {
+      entries.push({
+        url: `${siteUrl}/service/${key}/${year}/${season}`,
+        lastModified: new Date(),
+        changeFrequency: "daily",
+        priority: 0.7,
+      });
+    }
   } catch {
     // Annictから取得できない場合はルートURLのみのサイトマップにフォールバックする
   }
