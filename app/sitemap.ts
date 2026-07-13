@@ -44,6 +44,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily",
       priority: 0.85,
     });
+    entries.push({
+      url: `${siteUrl}/rankings/${year}/${season}`,
+      lastModified: new Date(),
+      changeFrequency: "daily",
+      priority: 0.8,
+    });
     for (const it of data.items) {
       entries.push({
         url: `${siteUrl}/anime/${it.id}`,

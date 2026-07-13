@@ -1159,6 +1159,8 @@ export default function SeasonExplorer({
         {" "}
         <Link href={`/exclusive/${year}/${season}`}>{year}年{SEASON_LABEL[season]}アニメの独占配信まとめ</Link>
         {" ・ "}
+        <Link href={`/rankings/${year}/${season}`}>配信サービス勢力図・ランキング</Link>
+        {" ・ "}
         <Link href="/about">運営者情報</Link>
       </p>
       </main>
