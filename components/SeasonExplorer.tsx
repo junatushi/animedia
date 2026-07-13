@@ -166,10 +166,24 @@ function openXIntent(text: string, url: string) {
   window.open(intent, "_blank", "noopener,noreferrer,width=600,height=480");
 }
 
+// 共有導線の共通処理。スマホ（Android Chrome・iOS Safari等）は navigator.share が使えるため、
+// LINE・Instagram・コピーなどOS標準の共有シートを出す（日本のアニメ層はX以外にLINEでの
+// 共有比率も高いため、X固定より間口が広い）。非対応環境（主にデスクトップ）は
+// 従来どおりXの投稿画面にフォールバックする。
+function nativeShareOrX(title: string, url: string) {
+  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    navigator.share({ title, url }).catch(() => {
+      // ユーザーがシートを閉じた場合等の AbortError はエラー扱いしない
+    });
+    return;
+  }
+  openXIntent(title, url);
+}
+
 // 現在のページ（選択中の年・シーズンの一覧）を共有する。
 function shareOnX() {
   track("share_site");
-  openXIntent("アニメ視聴ガイド ― 今期アニメの配信状況をサービス別にスキャン", window.location.href);
+  nativeShareOrX("アニメ視聴ガイド ― 今期アニメの配信状況をサービス別にスキャン", window.location.href);
 }
 
 // 個別の作品を共有する。URLは作品個別ページ（/anime/[id]）の固定リンクを使う
@@ -177,7 +191,7 @@ function shareOnX() {
 function shareWork(title: string, id: number) {
   track("share_work", { title });
   const url = `${window.location.origin}/anime/${id}`;
-  openXIntent(`「${title}」の配信状況をチェック｜アニメ視聴ガイド`, url);
+  nativeShareOrX(`「${title}」の配信状況をチェック｜アニメ視聴ガイド`, url);
 }
 
 export interface SeasonExplorerProps {
@@ -560,7 +574,7 @@ export default function SeasonExplorer({
             今期アニメの配信状況をサービス別にスキャン
           </span>
           <button type="button" className="share-x" onClick={shareOnX}>
-            Xで共有
+            共有
           </button>
           <AuthWidget />
           <ThemeToggle />
@@ -965,7 +979,7 @@ export default function SeasonExplorer({
                     <button
                       type="button"
                       className="card-action share"
-                      aria-label={`「${it.title}」をXで共有`}
+                      aria-label={`「${it.title}」をシェア`}
                       onClick={() => shareWork(it.title, it.id)}
                     >
                       <span aria-hidden="true">↗</span>
