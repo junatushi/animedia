@@ -35,6 +35,11 @@
 - [x] **配信サービス横断の比較表**（2026-07-08完了）: 「今期の注目作TOP5」直下に「配信サービス別 対応本数」を追加。各サービスの対応本数を横棒グラフで表示し、行クリックで既存のサービスチップと同じ絞り込みができる
 - アニメ系Discordサーバー・まとめサイトへの手動告知（担当者の手間は増えるが即効性あり）
 - インフルエンサー的なアニメアカウントへの言及・リプライ（オーガニックな拡散のきっかけ作り）
+- [x] **投稿文案の自動生成コマンド**（2026-07-13導入）: `node scripts/print-digest.js coverage`で
+  「配信情報の充足率報告」（件数は`/api/season`から実測、手で数えない）、
+  `node scripts/print-digest.js feature "機能名" "説明"`で「新機能・修正の告知」を自動生成する。
+  `scripts/lib/build-digest.js`の`buildCoverageReport`/`buildFeatureAnnounce`。詳細は
+  `docs/sns-templates.md`「0.」参照
 - [x] **見込みユーザー/コミュニティ候補の発掘ツール**（2026-07-13導入）: `outreach-scout` サブエージェントが
   Discordサーバー・まとめ/感想サイト・「配信どこ」系の困りごと・Xの公開言及（検索エンジン経由）を
   Web検索で拾い、出典URLつきの候補を`docs/outreach-candidates.md`に追記する。`docs/sns-growth-research.md`

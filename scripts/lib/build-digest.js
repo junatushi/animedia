@@ -126,12 +126,77 @@ async function buildSeasonAnnounce(now = new Date()) {
   return { text: truncate(lines.join("\n"), MAX_LEN), year, season, label, count: data.count };
 }
 
+// 配信情報の充足率報告（sns-templates.md「2. 配信情報が埋まってきた報告」に対応）。
+// シーズン開始2〜3週間後、「◯件中◯件で配信サービスが判明」を毎回手で数えず自動生成する。
+// hasBroadcastData（TV放送含む番組データが1件でもあるか）ではなく、実際に見られる
+// 配信サービスが1件でもあるかで「判明」を判定する（lib/services.tsのAnimeItem.services）。
+function buildCoverageReport(data, year, label, url) {
+  const total = data.count;
+  const filled = data.items.filter((it) => it.services && it.services.length > 0).length;
+  const lines = [
+    `今期（${year}年${label}アニメ）の配信情報、現在${total}件中${filled}件で配信サービスが判明しています。`,
+    "（残りは配信側の登録待ち。見つかり次第自動反映されます）",
+    "",
+    url,
+    `#${year}年${label}アニメ`,
+  ];
+  return truncate(lines.join("\n"), MAX_LEN);
+}
+
+// 新機能・修正の告知（sns-templates.md「3. バグ修正の告知」「4. 新機能の告知」に対応）。
+// featureName（機能名・一言タイトル）とfeatureDesc（説明。省略可）を埋め込むだけの
+// シンプルなテンプレートで、文章そのものの創作はしない（事実を渡す側の責任にする）。
+function buildFeatureAnnounce(featureName, featureDesc, year, label, url) {
+  if (!featureName) {
+    throw new Error("featureName が空です（FEATURE_NAME env か第2引数で渡してください）");
+  }
+  const lines = [
+    "アニメ視聴ガイドに新機能を追加しました。",
+    `▶ ${featureName}`,
+    ...(featureDesc ? [featureDesc] : []),
+    "",
+    url,
+  ];
+  return truncate(lines.join("\n"), MAX_LEN);
+}
+
 // 投稿スクリプト共通の入口。環境変数 POST_KIND で内容を切り替える。
 //   （未設定/"digest"）= 日次ダイジェスト（曜日で出し分け）
 //   "season"          = 新シーズン開始の告知
+//   "coverage"        = 配信情報の充足率報告（件数は実データから自動算出）
+//   "feature"         = 新機能・修正の告知（FEATURE_NAME/FEATURE_DESC env が必要）
 async function buildPost(now = new Date()) {
   const kind = process.env.POST_KIND || "digest";
-  return kind === "season" ? buildSeasonAnnounce(now) : buildDigest(now);
+  if (kind === "season") return buildSeasonAnnounce(now);
+  if (kind === "digest") return buildDigest(now);
+
+  // coverage/feature は「今期の件数」という共通の実データが要るので、ここで一度だけ取得する。
+  const { year, month } = jstParts(now);
+  const { key: season, label } = currentSeasonByMonth(month);
+  const res = await fetch(`${SITE_URL}/api/season?year=${year}&season=${season}`);
+  if (!res.ok) {
+    throw new Error(`サイトのAPI取得に失敗しました（${res.status}）`);
+  }
+  const data = await res.json();
+  const url = `${SITE_URL}/?year=${year}&season=${season}`;
+
+  if (kind === "coverage") {
+    return { text: buildCoverageReport(data, year, label, url), year, season, label, count: data.count };
+  }
+  if (kind === "feature") {
+    const text = buildFeatureAnnounce(process.env.FEATURE_NAME, process.env.FEATURE_DESC, year, label, url);
+    return { text, year, season, label, count: data.count };
+  }
+  throw new Error(`未知の POST_KIND です: ${kind}`);
 }
 
-module.exports = { buildDigest, buildSeasonAnnounce, buildPost, truncate, MAX_LEN, SITE_URL };
+module.exports = {
+  buildDigest,
+  buildSeasonAnnounce,
+  buildCoverageReport,
+  buildFeatureAnnounce,
+  buildPost,
+  truncate,
+  MAX_LEN,
+  SITE_URL,
+};

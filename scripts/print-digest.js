@@ -1,6 +1,14 @@
-// 投稿本文を標準出力に出すだけのスクリプト。POST_KIND（digest=日次 / season=新シーズン告知）で
-// 内容が切り替わる。X（手動投稿）用の下書きIssue作成や、動作確認に使う。
+// 投稿本文を標準出力に出すだけのスクリプト。GitHub Actions（daily-digest.yml/season-announce.yml）
+// からは環境変数 POST_KIND で呼ばれる。手元で新機能・修正を告知したい時は、以下のように
+// コマンドライン引数でも指定できる（env指定と等価。手打ちの手間を減らすためのショートカット）:
+//   node scripts/print-digest.js coverage
+//   node scripts/print-digest.js feature "独占チップ" "配信サービスをAND条件で絞れるようになりました"
 const { buildPost } = require("./lib/build-digest");
+
+const [, , argKind, argName, argDesc] = process.argv;
+if (argKind) process.env.POST_KIND = argKind;
+if (argName) process.env.FEATURE_NAME = argName;
+if (argDesc) process.env.FEATURE_DESC = argDesc;
 
 buildPost()
   .then(({ text }) => {
