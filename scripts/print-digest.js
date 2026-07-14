@@ -11,8 +11,9 @@ if (argName) process.env.FEATURE_NAME = argName;
 if (argDesc) process.env.FEATURE_DESC = argDesc;
 
 buildPost()
-  .then(({ text }) => {
-    process.stdout.write(text + "\n");
+  .then(({ posts }) => {
+    // 日曜はTOP5＋曜日紹介の2投稿になりうるため、区切り線を挟んで両方出す。
+    process.stdout.write(posts.map((p) => p.text).join("\n\n---\n\n") + "\n");
   })
   .catch((err) => {
     console.error("投稿本文の生成に失敗しました:", err);

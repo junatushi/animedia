@@ -2,9 +2,13 @@ name: 毎日ダイジェスト（Bluesky/Mastodon自動投稿＋Xの下書きIss
 
 # 毎日 21:00 JST（12:00 UTC）に自動実行。手動実行（workflow_dispatch）も可能。
 # 投稿内容は曜日で出し分ける（scripts/lib/build-digest.js）:
-#   日曜=今期の注目作TOP5 / 月〜土=その曜日に放送・配信のある今期アニメ。
+#   日曜=今期の注目作TOP5＋その日の放送/配信があれば曜日紹介（最大2投稿）
+#   月〜土=その曜日に放送・配信のある今期アニメ。
 # Bluesky/Mastodonは投稿APIが無料のため自動投稿する。Xは有料化されたため
 # 自動投稿はせず、コピペ用の下書きをGitHub Issueとして起票するだけにする。
+# 投稿にはサイト実画面のスクリーンショット（カレンダー表示の該当曜日 / 「今期の注目作
+# TOP5」パネル）を添付する。Playwrightのヘッドレスブラウザで本番サイトを直接開いて撮る
+# （新規デザインの画像は作らない。2026-07-14導入）。
 on:
   schedule:
     - cron: "0 12 * * *"
@@ -23,6 +27,9 @@ jobs:
         with:
           node-version: 20
       - run: npm ci
+
+      - name: スクリーンショット撮影用にChromiumをインストール
+        run: npx playwright install --with-deps chromium
 
       - name: ダイジェスト本文を生成
         run: node scripts/print-digest.js > digest.txt

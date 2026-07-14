@@ -263,9 +263,20 @@ export default function SeasonExplorer({
   // 人気順（API側で watchers 降順に整形済み）と、五十音順（タイトルの辞書順）を切り替える。
   const [sortKey, setSortKey] = useState<"popular" | "title">("popular");
   // 一覧（グリッド）と、曜日別の配信スケジュール（カレンダー）の表示切り替え。
-  const [viewMode, setViewMode] = useState<"grid" | "calendar">("grid");
+  // ?view=calendar&day=火 のようなURLクエリで初期状態を復元できる（SNS自動投稿の
+  // スクリーンショット撮影がヘッドレスブラウザから直接その画面を開けるようにするため。
+  // 2026-07-14導入）。それ以外の通常閲覧では従来通りクリック操作で切り替わる。
+  const CALENDAR_DAY_LABELS = ["月", "火", "水", "木", "金", "土", "日", "配信日未定"];
+  const [viewMode, setViewMode] = useState<"grid" | "calendar">(
+    searchParams.get("view") === "calendar" ? "calendar" : "grid"
+  );
   // カレンダー表示で、特定の曜日だけに絞り込むためのラベル（"all" = 全曜日）。
-  const [calendarDay, setCalendarDay] = useState<string>("all");
+  const [calendarDay, setCalendarDay] = useState<string>(() => {
+    const day = searchParams.get("day");
+    return day && CALENDAR_DAY_LABELS.includes(day) ? day : "all";
+  });
+  // ?ranking=open で「今期の注目作 TOP5」パネルを初期状態から開いておける（同上の理由）。
+  const [rankingOpen] = useState(() => searchParams.get("ranking") === "open");
   // 複数の配信サービスを選んだ時、いずれか一致（OR）か全て一致（AND）かを切り替える。
   const [andMode, setAndMode] = useState(false);
 
@@ -802,7 +813,7 @@ export default function SeasonExplorer({
           配信情報（作品一覧）が下に押しやられないよう、既定は折りたたみ、クリックで開く。 */}
       {viewMode === "grid" && !loading && !error && data && topRanking.length > 0 &&
         query.trim() === "" && active.size === 0 && !favoritesOnly && (
-          <details className="ranking fold-panel">
+          <details className="ranking fold-panel" open={rankingOpen}>
             <summary className="fold-summary">
               <h2 className="fold-summary-text">今期の注目作 TOP5</h2>
             </summary>

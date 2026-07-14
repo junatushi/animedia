@@ -1,9 +1,10 @@
 // SNS投稿下書きを組み立てる共通ロジック。曜日によって内容を出し分ける（毎日投稿ローテーション）。
-//   日曜: 今期の注目作TOP5
+//   日曜: 今期の注目作TOP5 ＋ その日に放送/配信があれば曜日紹介（2投稿になりうる）
 //   月〜土: その曜日に放送/配信のある今期アニメ（broadcastWeekdayで抽出）
 // デプロイ済みの本番サイトのAPI（/api/season）を叩くだけなので、
 // ANNICT_TOKENの複製やAnnictへの直接アクセスは不要。
-const SITE_URL = "https://animedia-khaki.vercel.app";
+// DIGEST_SITE_URL を設定すると差し替えられる（ローカルの開発サーバーに向けた動作確認用）。
+const SITE_URL = process.env.DIGEST_SITE_URL || "https://animedia-khaki.vercel.app";
 
 // X(280字)・Bluesky(300字)双方で安全に収まるよう、控えめな上限で統一する。
 const MAX_LEN = 260;
@@ -33,18 +34,38 @@ function truncate(text, max) {
   return chars.slice(0, max - 1).join("") + "…";
 }
 
-// 日曜: 今期の注目作TOP5
+// TOP5投稿は文字数制限があるため正式タイトルを短縮する。新しい呼び方を作るのではなく、
+// サブタイトル区切り（～〈(－等）以降を落とすだけの機械的な短縮にとどめる
+// （CLAUDE.mdの「創作しない」方針に準拠。既存の通称データ content/works/aliases.ts は
+// このスクリプトが素のNodeで動く関係で読み込まず、単純カットで統一する）。
+function shortTitle(title, max = 16) {
+  const base = title.split(/[～〈(（\-―]/)[0].trim() || title;
+  const chars = [...base];
+  return chars.length <= max ? base : chars.slice(0, max).join("") + "…";
+}
+
+// カレンダー表示の該当曜日タブ、または「今期の注目作TOP5」パネルを開いた状態を
+// 直接開けるURL（components/SeasonExplorer.tsx の ?view=calendar&day=.. / ?ranking=open
+// 対応、2026-07-14導入）。投稿添付用のスクリーンショット撮影に使う。
+function calendarScreenshot(url, weekdayLabel) {
+  return { url: `${url}&view=calendar&day=${encodeURIComponent(weekdayLabel)}`, selector: ".calendar" };
+}
+function rankingScreenshot(url) {
+  return { url: `${url}&ranking=open`, selector: ".ranking" };
+}
+
+// 日曜: 今期の注目作TOP5（人数付き）
 function buildTop5(data, year, label, url) {
   const top5 = [...data.items].sort((a, b) => b.watchers - a.watchers).slice(0, 5);
   const lines = [
     `今週の「アニメ視聴ガイド」注目作TOP5（${year}年${label}アニメ）`,
     "",
-    ...top5.map((it, i) => `${i + 1}. ${it.title}`),
+    ...top5.map((it, i) => `${i + 1}. ${shortTitle(it.title)}（${it.watchers.toLocaleString("ja-JP")}人が注目）`),
     "",
     url,
     `#${year}年${label}アニメ`,
   ];
-  return truncate(lines.join("\n"), MAX_LEN);
+  return { text: truncate(lines.join("\n"), MAX_LEN), screenshot: rankingScreenshot(url) };
 }
 
 // 月〜土: その曜日に放送/配信のある今期アニメ。注目度順に、字数上限まで詰める。
@@ -83,6 +104,9 @@ function buildTodayAiring(data, weekday, year, label, url, todayStr) {
   return truncate([header, "", ...picks, "", tail, url, tag].join("\n"), MAX_LEN);
 }
 
+// 月〜土は1投稿（曜日紹介。放送作品が無ければTOP5にフォールバック）。
+// 日曜は「TOP5」＋「その日の放送/配信があれば曜日紹介」の最大2投稿にする
+// （2026-07-14: 日曜もアニメ紹介をする方針に変更）。
 async function buildDigest(now = new Date()) {
   const { year, month, day, weekday } = jstParts(now);
   const { key: season, label } = currentSeasonByMonth(month);
@@ -95,12 +119,17 @@ async function buildDigest(now = new Date()) {
   const data = await res.json();
   const url = `${SITE_URL}/?year=${year}&season=${season}`;
 
-  const text =
-    weekday === 0
-      ? buildTop5(data, year, label, url)
-      : buildTodayAiring(data, weekday, year, label, url, todayStr) || buildTop5(data, year, label, url);
+  const airingText = buildTodayAiring(data, weekday, year, label, url, todayStr);
+  const airingPost = airingText
+    ? { text: airingText, screenshot: calendarScreenshot(url, WEEKDAY_LABEL[weekday]) }
+    : null;
 
-  return { text, year, season, label, count: data.count, weekday };
+  const posts =
+    weekday === 0
+      ? [buildTop5(data, year, label, url), ...(airingPost ? [airingPost] : [])]
+      : [airingPost ?? buildTop5(data, year, label, url)];
+
+  return { posts, year, season, label, count: data.count, weekday };
 }
 
 // 新シーズン開始の告知文。season-announce.yml が各クール初日に呼ぶ。
@@ -123,7 +152,13 @@ async function buildSeasonAnnounce(now = new Date()) {
     url,
     `#${year}年${label}アニメ`,
   ];
-  return { text: truncate(lines.join("\n"), MAX_LEN), year, season, label, count: data.count };
+  return {
+    posts: [{ text: truncate(lines.join("\n"), MAX_LEN), screenshot: null }],
+    year,
+    season,
+    label,
+    count: data.count,
+  };
 }
 
 // 配信情報の充足率報告（sns-templates.md「2. 配信情報が埋まってきた報告」に対応）。
@@ -181,11 +216,12 @@ async function buildPost(now = new Date()) {
   const url = `${SITE_URL}/?year=${year}&season=${season}`;
 
   if (kind === "coverage") {
-    return { text: buildCoverageReport(data, year, label, url), year, season, label, count: data.count };
+    const text = buildCoverageReport(data, year, label, url);
+    return { posts: [{ text, screenshot: null }], year, season, label, count: data.count };
   }
   if (kind === "feature") {
     const text = buildFeatureAnnounce(process.env.FEATURE_NAME, process.env.FEATURE_DESC, year, label, url);
-    return { text, year, season, label, count: data.count };
+    return { posts: [{ text, screenshot: null }], year, season, label, count: data.count };
   }
   throw new Error(`未知の POST_KIND です: ${kind}`);
 }
