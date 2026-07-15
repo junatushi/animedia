@@ -1,0 +1,131 @@
+{
+  "generatedAt": "2026-07-16T03:00:00.000Z",
+  "site": "https://animedia-khaki.vercel.app",
+  "sourceFiles": [
+    "content/demand/raw/2026-07-16-leads.jsonl"
+  ],
+  "windowDays": 7,
+  "totalRawHits": 7,
+  "leadCount": 7,
+  "droppedDup": 0,
+  "droppedOld": 0,
+  "droppedClosed": 0,
+  "notLead": 0,
+  "leads": [
+    {
+      "type": "サービス選び",
+      "source": "chiebukuro",
+      "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q13202635463",
+      "title": "いろんなアニメを見たいのですが、どの動画配信サービスに登録するのが1番良いでしょうか？",
+      "snippet": "今はAmazonプライムに登録しているが、アニメを見るならどのサブスクがいいか迷っています",
+      "date": null,
+      "dateUnknown": true,
+      "status": null,
+      "work": null,
+      "services": [
+        "Amazon Prime Video"
+      ],
+      "intent": 3,
+      "reply": "今期アニメを「どの配信サービスで見られるか」作品ごとに一覧で比較できるサイトを作っています。サービス選びの参考にどうぞ👉 https://animedia-khaki.vercel.app/?ref=chiebukuro",
+      "score": 2.8
+    },
+    {
+      "type": "作品配信先",
+      "source": "chiebukuro",
+      "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q11329218976",
+      "title": "幼女戦記アニメ2期はNetflixで配信されるでしょうか？",
+      "snippet": "公式のオフィシャル情報がまだなく、どこで配信されるか分からないので教えてほしい",
+      "date": null,
+      "dateUnknown": true,
+      "status": null,
+      "work": {
+        "id": 8632,
+        "title": "幼女戦記Ⅱ"
+      },
+      "services": [
+        "Netflix"
+      ],
+      "intent": 1,
+      "reply": "「幼女戦記Ⅱ」がどこで配信されているかは、配信サービス別に一覧でまとめています。よければ参考にどうぞ👉 https://animedia-khaki.vercel.app/anime/8632?ref=chiebukuro",
+      "score": 2.8
+    },
+    {
+      "type": "作品配信先",
+      "source": "chiebukuro",
+      "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q10326523520",
+      "title": "86というアニメを観たいのですが、どこで配信されてるか教えてください",
+      "snippet": "86-エイティシックス-をどこで見れるか、配信サービスを教えてほしいです",
+      "date": null,
+      "dateUnknown": true,
+      "status": null,
+      "work": null,
+      "services": [],
+      "intent": 2,
+      "reply": "今期アニメの配信先をサービス別に一覧にしています。よければ参考に👉 https://animedia-khaki.vercel.app/?ref=chiebukuro",
+      "score": 2.3
+    },
+    {
+      "type": "サービス選び",
+      "source": "chiebukuro",
+      "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q14245872219",
+      "title": "動画アプリについてです。今期アニメを最速配信しているアプリってどこでしょうか？",
+      "snippet": "今期アニメを最速で配信しているアプリ・配信サービスがどこか知りたいです",
+      "date": null,
+      "dateUnknown": true,
+      "status": null,
+      "work": null,
+      "services": [],
+      "intent": 2,
+      "reply": "今期アニメを「どの配信サービスで見られるか」作品ごとに一覧で比較できるサイトを作っています。サービス選びの参考にどうぞ👉 https://animedia-khaki.vercel.app/?ref=chiebukuro",
+      "score": 2.3
+    },
+    {
+      "type": "作品配信先",
+      "source": "chiebukuro",
+      "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q11310917986",
+      "title": "ポケモンアニメ全シリーズ観れる配信サービスはありますか？",
+      "snippet": "全シリーズ見るにはどうしたらいいでしょうか。現状どこで配信されているか教えてほしい",
+      "date": null,
+      "dateUnknown": true,
+      "status": null,
+      "work": null,
+      "services": [],
+      "intent": 1,
+      "reply": "今期アニメの配信先をサービス別に一覧にしています。よければ参考に👉 https://animedia-khaki.vercel.app/?ref=chiebukuro",
+      "score": 1.8
+    },
+    {
+      "type": "作品配信先",
+      "source": "chiebukuro",
+      "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q11324356521",
+      "title": "名探偵コナンのアニメ全話と劇場版を見れる動画配信サービスはなんでしょうか？",
+      "snippet": "AmazonプライムやNetflixなどで見れるのか、どこで配信されているか知りたいです",
+      "date": null,
+      "dateUnknown": true,
+      "status": null,
+      "work": null,
+      "services": [
+        "Netflix",
+        "Amazon Prime Video"
+      ],
+      "intent": 1,
+      "reply": "今期アニメの配信先をサービス別に一覧にしています。よければ参考に👉 https://animedia-khaki.vercel.app/?ref=chiebukuro",
+      "score": 1.8
+    },
+    {
+      "type": "サービス選び",
+      "source": "chiebukuro",
+      "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q12328592427",
+      "title": "アニメがダウンロードできるアニメ配信サイト教えてください できるだけ安いやつで",
+      "snippet": "月額が安くダウンロード機能もついていて、アニメが多い配信サービスを探しています",
+      "date": null,
+      "dateUnknown": true,
+      "status": null,
+      "work": null,
+      "services": [],
+      "intent": 1,
+      "reply": "今期アニメを「どの配信サービスで見られるか」作品ごとに一覧で比較できるサイトを作っています。サービス選びの参考にどうぞ👉 https://animedia-khaki.vercel.app/?ref=chiebukuro",
+      "score": 1.8
+    }
+  ]
+}

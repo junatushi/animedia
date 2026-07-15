@@ -1,0 +1,329 @@
+{
+  "generatedAt": "2026-07-16T03:00:00.000Z",
+  "sourceFiles": [
+    "content/demand/raw/2026-07-15.jsonl"
+  ],
+  "windowDays": 7,
+  "totalRawHits": 14,
+  "keptHits": 14,
+  "droppedOld": 0,
+  "droppedDup": 0,
+  "unknownDateHits": 14,
+  "serviceDemand": [
+    {
+      "key": "dアニメストア",
+      "score": 6.5,
+      "mentions": 6,
+      "signals": [
+        "(加入|契約|登録|入っ?|入る|課金)(すべき|した(い|方)|しようか|するか|迷)",
+        "(サブスク|配信サービス).{0,6}(おすすめ|どれ|比較|迷)",
+        "どの(サブスク|配信サービス|サービス).{0,4}(いい|おすすめ|安い|お得)",
+        "どのサブスク",
+        "おすすめ.{0,6}(サブスク|配信|サービス)",
+        "(最速|見放題|安い|無料).{0,8}(配信|サブスク|アプリ|サイト|サービス)",
+        "(値上げ|コスパ|乗り換え|一番いい|どれがいい)",
+        "見逃し(配信)?",
+        "(解約|退会|やめ)(すべき|した(い|方)|ようか|るか|迷)"
+      ],
+      "hits": [
+        {
+          "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q11306038016",
+          "title": "結局アニメを見るならどのサブスクがおすすめなんですか？",
+          "date": null,
+          "source": "chiebukuro"
+        },
+        {
+          "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q12312821782",
+          "title": "どのサブスクが、おすすめでしょうか？",
+          "date": null,
+          "source": "chiebukuro"
+        },
+        {
+          "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q13324763413",
+          "title": "アニメ見放題のサブスクでおすすめはありますか？",
+          "date": null,
+          "source": "chiebukuro"
+        },
+        {
+          "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q13312610333",
+          "title": "アニメを見るためにサブスクに入るならどれが一番おすすめですか？",
+          "date": null,
+          "source": "chiebukuro"
+        },
+        {
+          "url": "https://zukkazu.com/this-term-animation-distribution-service/",
+          "title": "2026年夏アニメの見逃し配信情報を徹底比較！おすすめサブスク一覧",
+          "date": null,
+          "source": "matome"
+        },
+        {
+          "url": "https://animeanime.jp/article/2026/04/13/97820.html",
+          "title": "「dアニメストア」解約方法まとめ！できない時の対処法も徹底解説",
+          "date": null,
+          "source": "web"
+        }
+      ]
+    },
+    {
+      "key": "Netflix",
+      "score": 5.5,
+      "mentions": 6,
+      "signals": [
+        "(加入|契約|登録|入っ?|入る|課金)(すべき|した(い|方)|しようか|するか|迷)",
+        "(サブスク|配信サービス).{0,6}(おすすめ|どれ|比較|迷)",
+        "どの(サブスク|配信サービス|サービス).{0,4}(いい|おすすめ|安い|お得)",
+        "どのサブスク",
+        "おすすめ.{0,6}(サブスク|配信|サービス)",
+        "(値上げ|コスパ|乗り換え|一番いい|どれがいい)",
+        "どこ(で|に)?(見|観|視聴|配信)",
+        "配信.{0,4}(どこ|ある\\?|されて(ない|る\\?)|予定|なし|未定)",
+        "視聴方法",
+        "独占配信"
+      ],
+      "hits": [
+        {
+          "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q11306038016",
+          "title": "結局アニメを見るならどのサブスクがおすすめなんですか？",
+          "date": null,
+          "source": "chiebukuro"
+        },
+        {
+          "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q11324871296",
+          "title": "おすすめサブスクを教えてください（アニメ、ドラマ、映画など）",
+          "date": null,
+          "source": "chiebukuro"
+        },
+        {
+          "url": "https://www.entameyell.com/netofuri-not-anime/",
+          "title": "ネットフリックスで見放題じゃないアニメ50作【解決方法あり】",
+          "date": null,
+          "source": "web"
+        },
+        {
+          "url": "https://beaconlink.jp/vpn/netflix-anime/",
+          "title": "Netflixのアニメが消えた？配信終了作品を見る方法",
+          "date": null,
+          "source": "web"
+        },
+        {
+          "url": "https://s-kaikibu.com/anime-exclusive/",
+          "title": "2026春アニメ【独占配信】今期の作品一覧！どこで見られるか調査",
+          "date": null,
+          "source": "web"
+        },
+        {
+          "url": "https://abemaquick.com/1-delivery-2026summer-anime/",
+          "title": "2026夏アニメ独占配信リスト【ABEMA・Netflix・アマプラ・FOD・ディズニープラス・DMM TV・Lemino】",
+          "date": null,
+          "source": "matome"
+        }
+      ]
+    },
+    {
+      "key": "Amazon Prime Video",
+      "score": 3.9000000000000004,
+      "mentions": 4,
+      "signals": [
+        "おすすめ.{0,6}(サブスク|配信|サービス)",
+        "(サブスク|配信サービス).{0,6}(おすすめ|どれ|比較|迷)",
+        "どの(サブスク|配信サービス|サービス).{0,4}(いい|おすすめ|安い|お得)",
+        "どのサブスク",
+        "(値上げ|コスパ|乗り換え|一番いい|どれがいい)",
+        "どこ(で|に)?(見|観|視聴|配信)",
+        "配信.{0,4}(どこ|ある\\?|されて(ない|る\\?)|予定|なし|未定)",
+        "独占配信"
+      ],
+      "hits": [
+        {
+          "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q12312821782",
+          "title": "どのサブスクが、おすすめでしょうか？",
+          "date": null,
+          "source": "chiebukuro"
+        },
+        {
+          "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q11324871296",
+          "title": "おすすめサブスクを教えてください（アニメ、ドラマ、映画など）",
+          "date": null,
+          "source": "chiebukuro"
+        },
+        {
+          "url": "https://s-kaikibu.com/anime-exclusive/",
+          "title": "2026春アニメ【独占配信】今期の作品一覧！どこで見られるか調査",
+          "date": null,
+          "source": "web"
+        },
+        {
+          "url": "https://abemaquick.com/1-delivery-2026summer-anime/",
+          "title": "2026夏アニメ独占配信リスト【ABEMA・Netflix・アマプラ・FOD・ディズニープラス・DMM TV・Lemino】",
+          "date": null,
+          "source": "matome"
+        }
+      ]
+    },
+    {
+      "key": "U-NEXT",
+      "score": 2.6,
+      "mentions": 2,
+      "signals": [
+        "(加入|契約|登録|入っ?|入る|課金)(すべき|した(い|方)|しようか|するか|迷)",
+        "(サブスク|配信サービス).{0,6}(おすすめ|どれ|比較|迷)",
+        "どの(サブスク|配信サービス|サービス).{0,4}(いい|おすすめ|安い|お得)",
+        "どのサブスク",
+        "おすすめ.{0,6}(サブスク|配信|サービス)",
+        "(値上げ|コスパ|乗り換え|一番いい|どれがいい)"
+      ],
+      "hits": [
+        {
+          "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q11306038016",
+          "title": "結局アニメを見るならどのサブスクがおすすめなんですか？",
+          "date": null,
+          "source": "chiebukuro"
+        },
+        {
+          "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q11324871296",
+          "title": "おすすめサブスクを教えてください（アニメ、ドラマ、映画など）",
+          "date": null,
+          "source": "chiebukuro"
+        }
+      ]
+    },
+    {
+      "key": "ABEMA",
+      "score": 2.1,
+      "mentions": 3,
+      "signals": [
+        "どこ(で|に)?(見|観|視聴|配信)",
+        "配信.{0,4}(どこ|ある\\?|されて(ない|る\\?)|予定|なし|未定)",
+        "独占配信",
+        "(最速|見放題|安い|無料).{0,8}(配信|サブスク|アプリ|サイト|サービス)"
+      ],
+      "hits": [
+        {
+          "url": "https://s-kaikibu.com/anime-exclusive/",
+          "title": "2026春アニメ【独占配信】今期の作品一覧！どこで見られるか調査",
+          "date": null,
+          "source": "web"
+        },
+        {
+          "url": "https://abemaquick.com/1-delivery-2026summer-anime/",
+          "title": "2026夏アニメ独占配信リスト【ABEMA・Netflix・アマプラ・FOD・ディズニープラス・DMM TV・Lemino】",
+          "date": null,
+          "source": "matome"
+        },
+        {
+          "url": "https://www.senilog.com/11773/",
+          "title": "【2026夏アニメ】ABEMAで見れる作品まとめ｜独占・最速配信も一覧",
+          "date": null,
+          "source": "web"
+        }
+      ]
+    },
+    {
+      "key": "DMM TV",
+      "score": 1.8,
+      "mentions": 2,
+      "signals": [
+        "(サブスク|配信サービス).{0,6}(おすすめ|どれ|比較|迷)",
+        "(最速|見放題|安い|無料).{0,8}(配信|サブスク|アプリ|サイト|サービス)",
+        "独占配信"
+      ],
+      "hits": [
+        {
+          "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q13324763413",
+          "title": "アニメ見放題のサブスクでおすすめはありますか？",
+          "date": null,
+          "source": "chiebukuro"
+        },
+        {
+          "url": "https://abemaquick.com/1-delivery-2026summer-anime/",
+          "title": "2026夏アニメ独占配信リスト【ABEMA・Netflix・アマプラ・FOD・ディズニープラス・DMM TV・Lemino】",
+          "date": null,
+          "source": "matome"
+        }
+      ]
+    },
+    {
+      "key": "Disney+",
+      "score": 0.5,
+      "mentions": 1,
+      "signals": [
+        "独占配信"
+      ],
+      "hits": [
+        {
+          "url": "https://abemaquick.com/1-delivery-2026summer-anime/",
+          "title": "2026夏アニメ独占配信リスト【ABEMA・Netflix・アマプラ・FOD・ディズニープラス・DMM TV・Lemino】",
+          "date": null,
+          "source": "matome"
+        }
+      ]
+    },
+    {
+      "key": "FOD",
+      "score": 0.5,
+      "mentions": 1,
+      "signals": [
+        "独占配信"
+      ],
+      "hits": [
+        {
+          "url": "https://abemaquick.com/1-delivery-2026summer-anime/",
+          "title": "2026夏アニメ独占配信リスト【ABEMA・Netflix・アマプラ・FOD・ディズニープラス・DMM TV・Lemino】",
+          "date": null,
+          "source": "matome"
+        }
+      ]
+    },
+    {
+      "key": "Lemino",
+      "score": 0.5,
+      "mentions": 1,
+      "signals": [
+        "独占配信"
+      ],
+      "hits": [
+        {
+          "url": "https://abemaquick.com/1-delivery-2026summer-anime/",
+          "title": "2026夏アニメ独占配信リスト【ABEMA・Netflix・アマプラ・FOD・ディズニープラス・DMM TV・Lemino】",
+          "date": null,
+          "source": "matome"
+        }
+      ]
+    }
+  ],
+  "workWhereToWatch": [
+    {
+      "key": "ワンピース",
+      "score": 0.8,
+      "mentions": 1,
+      "signals": [
+        "どこ(で|に)?(見|観|視聴|配信)",
+        "視聴方法"
+      ],
+      "hits": [
+        {
+          "url": "https://beaconlink.jp/vpn/netflix-anime/",
+          "title": "Netflixのアニメが消えた？配信終了作品を見る方法",
+          "date": null,
+          "source": "web"
+        }
+      ]
+    }
+  ],
+  "unclassified": [
+    {
+      "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q11326457956",
+      "title": "なにかサブスクを入れようと思っているのですが、おすすめを教えて欲しいです",
+      "date": null,
+      "source": "chiebukuro",
+      "hasSignal": false
+    },
+    {
+      "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q11313104801",
+      "title": "皆さんのおすすめのサブスクってなんですか！",
+      "date": null,
+      "source": "chiebukuro",
+      "hasSignal": true
+    }
+  ]
+}
