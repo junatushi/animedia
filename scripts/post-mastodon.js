@@ -6,6 +6,26 @@
 const { buildPost } = require("./lib/build-digest");
 const { captureScreenshot } = require("./lib/capture-screenshot");
 
+// media_id が処理完了する（GET /api/v1/media/:id が200を返す）まで待つ。Mastodonは
+// 画像のサムネイル/blurhash生成を非同期で行い、処理中は206を返す。処理中のIDをそのまま
+// statusesに渡すと画像が無言で添付されないことがある（実際にMastodonだけ添付が
+// 効かなかった不具合の原因。2026-07-15確認）。
+async function waitForMediaReady(instanceUrl, accessToken, mediaId, timeoutMs = 20000) {
+  const base = instanceUrl.replace(/\/$/, "");
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const res = await fetch(`${base}/api/v1/media/${mediaId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (res.status === 200) return;
+    if (res.status !== 206) {
+      throw new Error(`メディア処理状況の確認に失敗しました（${res.status}）: ${await res.text()}`);
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  throw new Error("メディアの処理が時間内に完了しませんでした");
+}
+
 async function uploadMedia(instanceUrl, accessToken, png) {
   const form = new FormData();
   form.append("file", new Blob([png], { type: "image/png" }), "screenshot.png");
@@ -18,6 +38,9 @@ async function uploadMedia(instanceUrl, accessToken, png) {
     throw new Error(`メディアアップロードに失敗しました（${res.status}）: ${await res.text()}`);
   }
   const json = await res.json();
+  // 202はまだ処理中（同期完了なら200）。どちらのケースも、statusesに使う前に
+  // 処理完了を待つ（既に完了済みなら即座に200が返るのでコストは小さい）。
+  await waitForMediaReady(instanceUrl, accessToken, json.id);
   return json.id;
 }
 
