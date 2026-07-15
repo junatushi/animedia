@@ -1,18 +1,23 @@
-name: キャッシュ温め（/api/season）
+name: キャッシュ温め（今年分）
 
-# /api/seasonはAnnictへの問い合わせ結果を10分キャッシュしている
-# （lib/annict.ts の next.revalidate）。トップページ（/）・シーズンページ
-# （/season/[year]/[season]）はどちらもこの同じキャッシュを参照するため、
-# ここを温めておけばその2つが両方とも速くなる。
+# 今年分の表示を常時速く保つための温め。対象は3種類:
+#   1) /api/season … トップページのSPAが季節タブ切替でクライアント側から叩くAPI。
+#      Annict問い合わせ結果のデータキャッシュ（lib/annict.ts の next.revalidate=600、
+#      および lib/getSeasonData.ts の unstable_cache 10分）を温める。
+#   2) /season/{year}/{season} … SEO用のSSRシーズンページ。2026-07-15にISR化
+#      （revalidate=600）したので、ここを叩くとページHTMLがCDNエッジに載り、以後の
+#      実訪問者は関数を実行せず X-Vercel-Cache: HIT（0.1s級）を引く。
+#   3) / … トップページ。searchParamsを使う都合でエッジキャッシュできず毎回サーバー
+#      関数で描画されるため、関数がコールドだと初回2秒級になる。定期的に叩いて関数を
+#      温め続け、コールド起動を防ぐ。
 #
-# キャッシュが切れた直後に訪問した人はAnnictへの生取得を直接待つことになる
-# （実測: 現行のクエリ最適化後でも2〜4秒程度、シーズンの作品数次第）ため、
-# キャッシュの有効期限（10分）より短い間隔で定期的に叩いておき、実訪問者が
-# 常にキャッシュ済み（実測0.1〜0.4秒）を引けるようにする。
+# これまでは 1) だけを温めており、2)/3) の「描画関数」は温まっていなかったため、
+# 主要入口の / やシーズンページに久しぶりに来た訪問者がコールド起動を踏んでいた
+# （実測2026-07-15: /season/2026/autumn が一度2.3s、温まると0.4s）。
 #
-# 対象は「今年の4シーズン」（季節タブでの切り替えが最も多いユースケードのため）。
-# 年をまたぐ・過去年への切り替えまでは温めない（頻度が低く、対象を広げすぎると
-# Annictへの負荷が増えるため）。
+# 対象は「今年の4シーズン」。過去年はISR＋静的スナップショット（content/snapshots/）で
+# 既に常時速いため温め不要。GitHub Actionsのscheduleは高負荷時に遅延しうるので、
+# 8分間隔は10分キャッシュに対する安全マージン。追加費用なし（無料枠内）。
 on:
   schedule:
     - cron: "*/8 * * * *"
@@ -22,10 +27,17 @@ jobs:
   warm:
     runs-on: ubuntu-latest
     steps:
-      - name: 今年の4シーズン分のAPIを叩く
+      - name: 今年分のAPI・シーズンページ・トップを温める
         run: |
+          BASE="https://animedia-khaki.vercel.app"
           YEAR=$(TZ=Asia/Tokyo date +%Y)
+          # トップページ（関数を温める。エッジキャッシュ不可のため毎回関数実行）
+          curl -s -o /dev/null -w "top / status=%{http_code} time=%{time_total}s\n" "$BASE/"
           for SEASON in winter spring summer autumn; do
-            curl -s -o /dev/null -w "year=${YEAR} season=${SEASON} status=%{http_code} time=%{time_total}s\n" \
-              "https://animedia-khaki.vercel.app/api/season?year=${YEAR}&season=${SEASON}"
+            # データキャッシュ＋API関数
+            curl -s -o /dev/null -w "api ${YEAR}/${SEASON} status=%{http_code} time=%{time_total}s\n" \
+              "$BASE/api/season?year=${YEAR}&season=${SEASON}"
+            # ISRシーズンページ（エッジキャッシュを温める → 実訪問者はHIT）
+            curl -s -o /dev/null -w "page ${YEAR}/${SEASON} status=%{http_code} time=%{time_total}s\n" \
+              "$BASE/season/${YEAR}/${SEASON}"
           done

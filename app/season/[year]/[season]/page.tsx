@@ -14,6 +14,27 @@ const SEASON_LABEL: Record<string, string> = {
   autumn: "秋",
 };
 
+// ISR（2026-07-15導入）。これが無いと動的セグメント[year]/[season]は毎リクエスト
+// サーバー関数で描画され（実測: 全ページ X-Vercel-Cache: MISS / no-store）、
+// 関数がコールドだと初回2秒級（実測2024autumn 2.3s）を踏んでいた。revalidate を
+// 入れるとページHTML自体がCDNエッジにキャッシュされ、以後は関数を実行せず
+// X-Vercel-Cache: HIT（0.1s級）になる。10分はデータ側キャッシュ
+// （lib/getSeasonData.ts の CURRENT_YEAR_REVALIDATE=600）と揃えた鮮度。
+// 過去年はスナップショット由来で内容が動かないため、10分ごとの再検証でも
+// 実質同じHTMLが再生成されるだけ（コストはスナップショット読み込みのみ）。
+export const revalidate = 600;
+
+// 動的セグメント[year]/[season]は generateStaticParams が無いと revalidate を付けても
+// 動的レンダリング（no-store）のままCDNキャッシュされない。今年の4シーズンを列挙して
+// 静的生成対象にすることでISR（エッジキャッシュ＋10分再検証）が有効になる。ここに無い
+// 年（過去年など）も dynamicParams（既定true）により初回オンデマンド生成→以後キャッシュ
+// される。build時に今年分のgetSeasonDataを呼ぶが、失敗してもpage側でcatchしdata未指定で
+// 描画されるためbuildは落ちない。年はbuild（=デプロイ）時点の西暦で決まる。
+export function generateStaticParams() {
+  const year = String(new Date().getFullYear());
+  return ["winter", "spring", "summer", "autumn"].map((season) => ({ year, season }));
+}
+
 type Params = { year: string; season: string };
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
