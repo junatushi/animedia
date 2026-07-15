@@ -12,22 +12,19 @@ const SEASON_ORDER = ["winter", "spring", "summer", "autumn"] as const;
 // 直近何年分をインデックス化するか（当年＋過去 PAST_YEARS 年）。
 const PAST_YEARS = 2;
 
-function currentSeasonIndex(month: number): number {
-  if (month <= 3) return 0; // winter
-  if (month <= 6) return 1; // spring
-  if (month <= 9) return 2; // summer
-  return 3; // autumn
-}
-
-// 当年の現在クールまで、過去 PAST_YEARS 年分を遡って対象シーズン文字列を作る。
+// 対象シーズン文字列を作る。年セレクタ（lib/resolveSeasonParams.ts の validYears）は
+// 「今年」なら未来クールも含めて丸ごと選べる（例: 現在7月でも2026年秋を選んで閲覧できる）
+// ため、インデックスもそれに合わせて当年は4クール全部を含める。以前は「現在の暦月までの
+// クール」で打ち切っていたが、それだと年内の未来クール（閲覧可能）だけがインデックスから
+// 漏れ、そのクールを見ている時だけ「他のクールの作品」欄に重複/非対称なヒット数が出る
+// 不具合があった（実例: 2026年秋を見ながら「ジョジョ」を検索すると、当年秋クールの現在
+// データ＋インデックス側で見つかる別クール分が合算されて2件に見えるのに、他のクールから
+// 見ると同じインデックスの上限が壁になり1件しか出なかった）。
 function targetSeasons(now: Date): string[] {
   const year = now.getFullYear();
-  const curIdx = currentSeasonIndex(now.getMonth() + 1);
   const seasons: string[] = [];
   for (let y = year - PAST_YEARS; y <= year; y++) {
     for (let s = 0; s < SEASON_ORDER.length; s++) {
-      // 当年は現在クールまで（未来クールは含めない）。
-      if (y === year && s > curIdx) break;
       seasons.push(`${y}-${SEASON_ORDER[s]}`);
     }
   }
