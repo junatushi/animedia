@@ -235,4 +235,8 @@ module.exports = {
   truncate,
   MAX_LEN,
   SITE_URL,
+  // 週次X成長キット（build-growth-kit.js）から再利用する小ヘルパー。
+  jstParts,
+  currentSeasonByMonth,
+  shortTitle,
 };

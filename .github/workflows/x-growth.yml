@@ -1,0 +1,39 @@
+name: 週次X成長キット（フォロワー獲得アクションの下書きIssue）
+
+# 毎週月曜 20:00 JST（11:00 UTC）に自動実行。手動実行（workflow_dispatch）も可能。
+# 「1週間ぶんのXアカウント成長アクション」（投稿ドラフト・見込み客への検索クエリ＋リプ下書き・
+# 投稿時刻/ハッシュタグ・週次チェック）を1つのGitHub Issueとして起票する。
+# 日次ダイジェスト（daily-digest.yml）が「その日の投稿ネタ」を配るのに対し、こちらは
+# フォロー転換とリーチの動線をまとめた週次のチェックリスト。
+#
+# 投稿・リプ・フォローはすべて手動（Xを開いて人が実行）。X APIは従量課金のため自動投稿は
+# せず、自動フォロー/大量DM/スクレイピング（ToS違反）も行わない。数字・作品名・配信先は
+# デプロイ済みサイトの /api/season（Annict実データ）から取得する（ANNICT_TOKENの複製は不要）。
+on:
+  schedule:
+    - cron: "0 11 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  growth-kit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 成長キット本文を生成
+        run: node scripts/print-growth-kit.js > growth-kit.md
+
+      - name: 成長キットをGitHub Issueとして起票（手動実行用）
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --title "今週のX成長アクション ($(date +%Y-%m-%d))" \
+            --body-file growth-kit.md
