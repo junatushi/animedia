@@ -58,9 +58,34 @@ const getCachedPastYearSeasonData = unstable_cache(fetchAndBuild, ["season-data-
   revalidate: PAST_YEAR_REVALIDATE,
 });
 
+// 過去年（放送終了済み）のシーズンは content/snapshots/{year}-{season}.json に確定値を
+// 固定しておき（scripts/snapshot-past-seasons.ts で生成）、それを即返す。
+// 理由: 過去年をライブ取得＋Vercelデータキャッシュに頼っていた時期は、温めCronが成功した
+// 翌日でもキャッシュが追い出されて初回5〜10秒のコールドを踏んでいた（2026-07-15計測で
+// 2024夏9.4s/2020冬5.1s）。放送済みで内容がほぼ動かないデータは取り直す必要がないため、
+// リポジトリ同梱のJSONを読むことでキャッシュ追い出しの影響を受けず常時0.1s未満にする。
+// webpackは `../content/snapshots/*.json` を各シーズン個別のチャンクに分割するため、
+// リクエストされた年季のJSONだけが読み込まれる（全件がバンドルに載って肥大することはない）。
+// スナップショット未生成の過去年（年またぎ直後など）は従来のライブ取得へフォールバックする。
+async function loadPastYearSnapshot(
+  year: string,
+  season: string
+): Promise<SeasonResponse | null> {
+  try {
+    const mod = await import(`../content/snapshots/${year}-${season}.json`);
+    return (mod.default ?? mod) as SeasonResponse;
+  } catch {
+    return null;
+  }
+}
+
 export async function getSeasonData(year: string, season: string): Promise<SeasonResponse> {
   const isCurrentYear = Number(year) === new Date().getFullYear();
-  return isCurrentYear
-    ? getCachedCurrentYearSeasonData(year, season)
-    : getCachedPastYearSeasonData(year, season);
+  if (isCurrentYear) {
+    return getCachedCurrentYearSeasonData(year, season);
+  }
+  const snapshot = await loadPastYearSnapshot(year, season);
+  if (snapshot) return snapshot;
+  // スナップショットが無い過去年はライブ取得（＋24時間キャッシュ）にフォールバック。
+  return getCachedPastYearSeasonData(year, season);
 }
