@@ -6,7 +6,7 @@ import SeasonExplorer from "@/components/SeasonExplorer";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import type { SeasonResponse } from "@/lib/types";
 
-const siteUrl = "https://animedia-khaki.vercel.app";
+import { siteUrl } from "@/lib/siteUrl";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",

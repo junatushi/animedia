@@ -6,7 +6,7 @@ import { splitRentalServices } from "@/lib/services";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import type { AnimeItem, ServiceTag } from "@/lib/types";
 
-const siteUrl = "https://animedia-khaki.vercel.app";
+import { siteUrl } from "@/lib/siteUrl";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",

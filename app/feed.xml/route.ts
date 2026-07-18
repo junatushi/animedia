@@ -1,6 +1,6 @@
 import { CHANGELOG } from "@/lib/changelog";
 
-const siteUrl = "https://animedia-khaki.vercel.app";
+import { siteUrl } from "@/lib/siteUrl";
 const title = "アニメ視聴ガイド";
 const description = "シーズンごとのアニメを、観られる国内配信サービス別に一覧。配信情報は Annict からリアルタイム取得。";
 

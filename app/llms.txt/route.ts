@@ -1,7 +1,7 @@
 // /llms.txt — 生成AI（LLM）向けにサイトの構造と主要URLを簡潔に伝えるファイル。
 // llms.txt の慣習（https://llmstxt.org/）に沿って、AIがサイト内容を正確に要約・引用
 // しやすいように、Markdownで「何のサイトか」「どこに何があるか」を明示する。
-const siteUrl = "https://animedia-khaki.vercel.app";
+import { siteUrl } from "@/lib/siteUrl";
 
 function currentSeason(): { year: number; season: string; label: string } {
   const now = new Date();

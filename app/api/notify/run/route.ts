@@ -16,7 +16,7 @@ import { fetchWorkById } from "@/lib/annict";
 import { toAnimeItem } from "@/lib/services";
 import { signUnsubscribeToken } from "@/lib/notifyUnsubscribeToken";
 
-const SITE_URL = "https://animedia-khaki.vercel.app";
+import { siteUrl as SITE_URL } from "@/lib/siteUrl";
 // Annictへの直列アクセスを緩やかにする（対象作品数が多い日でもバーストさせない）。
 const FETCH_DELAY_MS = 500;
 

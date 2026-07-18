@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const siteUrl = "https://animedia-khaki.vercel.app";
+import { siteUrl } from "@/lib/siteUrl";
 
 // 生成AI検索（ChatGPT / Perplexity / Google AI Overviews 等）に載ることを狙い、
 // 主要なAIクローラを明示的に許可する。既定の `*` でも許可されるが、Google-Extended や

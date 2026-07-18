@@ -4,13 +4,14 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { verifyUnsubscribeToken } from "@/lib/notifyUnsubscribeToken";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { siteUrl } from "@/lib/siteUrl";
 
 function htmlPage(message: string): NextResponse {
   return new NextResponse(
     `<!doctype html><html lang="ja"><meta charset="utf-8"><title>配信通知の停止 | アニメ視聴ガイド</title>
 <body style="font-family:sans-serif;max-width:480px;margin:80px auto;text-align:center;color:#222">
 <p>${message}</p>
-<p><a href="https://animedia-khaki.vercel.app/">アニメ視聴ガイドに戻る</a></p>
+<p><a href="${siteUrl}/">アニメ視聴ガイドに戻る</a></p>
 </body></html>`,
     { headers: { "Content-Type": "text/html; charset=utf-8" } }
   );

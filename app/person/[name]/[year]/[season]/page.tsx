@@ -6,7 +6,7 @@ import { PERSON_PAGE_MIN_APPEARANCES as MIN_APPEARANCES } from "@/lib/personPage
 import { PERSON_FILMOGRAPHY } from "@/content/people/filmography";
 import type { AnimeItem } from "@/lib/types";
 
-const siteUrl = "https://animedia-khaki.vercel.app";
+import { siteUrl } from "@/lib/siteUrl";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
