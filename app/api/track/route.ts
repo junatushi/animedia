@@ -6,7 +6,8 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
-// components/SeasonExplorer.tsx が送るイベント名のみ許可する（任意の値の書き込みを防ぐ）。
+// クライアント（components/SeasonExplorer.tsx・components/AffiliateCtas.tsx）が送る
+// イベント名のみ許可する（任意の値の書き込みを防ぐ）。
 const ALLOWED_EVENTS = new Set([
   "share_site",
   "share_work",
@@ -16,6 +17,7 @@ const ALLOWED_EVENTS = new Set([
   "filter_service",
   "filter_cast",
   "change_season",
+  "affiliate_click",
 ]);
 
 export async function POST(request: Request) {

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { track } from "@vercel/analytics";
+import { logEvent } from "@/lib/logEvent";
 import { textOn, splitRentalServices } from "@/lib/services";
 import { CHANGELOG } from "@/lib/changelog";
 import ThemeToggle from "./ThemeToggle";
@@ -158,21 +158,6 @@ function WorkTile({ id, title }: { id: number; title: string }) {
 function brandMark(short: string): string {
   const ch = [...short.trim()];
   return ch.length ? ch[0] : "?";
-}
-
-// 行動ログ共通処理。Vercel Web Analytics（無料プランはカスタムイベントがダッシュボードに
-// 出ない）に加えて、自前の /api/track にも送る（Supabase無料枠に記録し、/admin/analyticsで見る）。
-// 計測はユーザー操作の成否に影響してはいけないため、失敗しても握りつぶす（catchのみ）。
-function logEvent(event: string, data?: Record<string, string | number | boolean | null>) {
-  track(event, data);
-  fetch("/api/track", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ event, data }),
-    keepalive: true,
-  }).catch(() => {
-    // オフライン・Supabase未設定時等は無視する（体験は既存のtrack()同様に壊さない）
-  });
 }
 
 // X（旧Twitter）の投稿画面を、本文とURLをプリセットして開く共通処理。
@@ -1173,6 +1158,8 @@ export default function SeasonExplorer({
         <Link href={`/rankings/${year}/${season}`}>配信サービス勢力図・ランキング</Link>
         {" ・ "}
         <Link href="/about">運営者情報</Link>
+        {" ・ "}
+        <Link href="/privacy">プライバシーポリシー・広告掲載について</Link>
       </p>
       </main>
 

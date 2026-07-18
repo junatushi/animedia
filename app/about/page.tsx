@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-const siteUrl = "https://animedia-khaki.vercel.app";
+import { siteUrl } from "@/lib/siteUrl";
 const OPERATOR_NAME = "アニメディア";
 
 const title = "運営者情報";
@@ -110,6 +110,14 @@ export default function AboutPage() {
               </p>
               <p className="detail-text">
                 アカウント・データの削除をご希望の場合は、下記Xアカウントまでご連絡ください。
+              </p>
+            </section>
+
+            <section className="detail-section">
+              <h2 className="detail-heading">プライバシー・広告について</h2>
+              <p className="detail-text">
+                アクセス解析の内容・ログイン時に取得する情報・広告（アフィリエイトプログラム）の掲載方針は、
+                <Link href="/privacy">プライバシーポリシー・広告掲載について</Link>をご覧ください。
               </p>
             </section>
 

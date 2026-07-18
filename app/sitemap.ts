@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getSeasonData } from "@/lib/getSeasonData";
 
-const siteUrl = "https://animedia-khaki.vercel.app";
+import { siteUrl } from "@/lib/siteUrl";
 
 function currentSeason(): { year: number; season: string } {
   const now = new Date();
@@ -26,6 +26,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.3,
+    },
+    {
+      url: `${siteUrl}/privacy`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.2,
     },
   ];
 

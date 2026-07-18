@@ -4,8 +4,10 @@ import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import { SERVICES, splitRentalServices } from "@/lib/services";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
+import { pickAffiliate } from "@/lib/affiliate";
+import AffiliateCtas from "@/components/AffiliateCtas";
 
-const siteUrl = "https://animedia-khaki.vercel.app";
+import { siteUrl } from "@/lib/siteUrl";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -171,6 +173,20 @@ export default async function ServicePage({ params }: { params: Params }) {
                 </ul>
               </section>
             )}
+
+            {/* このページの主役サービスが提携済みならCTAを出す（未提携なら何も出ない）。 */}
+            {(() => {
+              const p = pickAffiliate(service.key);
+              return (
+                <AffiliateCtas
+                  items={
+                    p
+                      ? [{ serviceKey: service.key, serviceName: service.name, color: service.color, url: p.url, asp: p.asp }]
+                      : []
+                  }
+                />
+              );
+            })()}
           </div>
         </article>
       </div>
