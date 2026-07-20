@@ -177,8 +177,9 @@ ${CREDITS_FIELDS_DETAIL}
 
 // programs の追い取得を無制限に並列実行すると、1シーズンあたり数十〜百件規模の
 // 同時リクエストがAnnictに飛び、レート制限（429）を誘発する（2026-07-09実測で発生）。
-// 同時実行数を絞ってバーストを防ぐ。
-const PROGRAMS_FETCH_CONCURRENCY = 4;
+// 同時実行数を絞ってバーストを防ぐ。8は2026-07-21実測で429なし・追い取得1.39s→1.10s
+// （追い対象13作品時）。追い対象が急増するシーズンで429が出たら4に戻す。
+const PROGRAMS_FETCH_CONCURRENCY = 8;
 
 async function gql<T>(
   body: { query: string; variables: Record<string, unknown> },

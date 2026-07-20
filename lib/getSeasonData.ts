@@ -48,7 +48,12 @@ async function fetchAndBuild(year: string, season: string): Promise<SeasonRespon
 // 動くことはほぼ無いので、現在年と同じ10分でキャッシュを切らす必要はない。
 // 過去年は24時間キャッシュにして、1日のうちで同じ年に複数人が訪れても
 // 2人目以降はコールドを踏まないようにする（1人目の初回コールドだけは避けられない）。
-const CURRENT_YEAR_REVALIDATE = 600;
+// 今期のTTL。温めCron（.github/workflows/warm-cache.yml、8分間隔）より長くしないと
+// 意味がないが、GitHub Actionsのscheduleは高負荷時に10〜15分遅延することがあり、
+// 600秒だと「Cronが遅れた窓」で実訪問者がキャッシュ切れの再構築（2026-07-21実測で
+// 5〜6秒。シーズン進行でprogramsが積み上がり悪化した）を踏んでいた。900秒にして
+// Cron遅延を吸収し、再構築は原則Cron側が負担するようにする（鮮度は最大15分に緩む）。
+const CURRENT_YEAR_REVALIDATE = 900;
 const PAST_YEAR_REVALIDATE = 60 * 60 * 24;
 
 const getCachedCurrentYearSeasonData = unstable_cache(fetchAndBuild, ["season-data-current"], {
