@@ -4,8 +4,7 @@ import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import { SERVICES, splitRentalServices } from "@/lib/services";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
-import { pickAffiliate } from "@/lib/affiliate";
-import AffiliateCtas from "@/components/AffiliateCtas";
+import ServiceMarks from "@/components/ServiceMarks";
 
 import { siteUrl } from "@/lib/siteUrl";
 const SEASON_LABEL: Record<string, string> = {
@@ -141,6 +140,12 @@ export default async function ServicePage({ params }: { params: Params }) {
                 {year}年{label}アニメのうち、{service.name}で配信されている作品を人気順（注目度順）でまとめています
                 （{checkedDate}時点）。配信情報は網羅率100%ではなく、新作は反映が遅れることがあります。
               </p>
+              {/* このページの主役サービスへのリンク。提携済みならアフィリエイト（PR表示付き）、
+                  未提携なら公式サイトへリンクする（ServiceMarksの単一サービス表示として再利用）。 */}
+              <ServiceMarks
+                services={[{ key: service.key, name: service.name, short: service.short, color: service.color }]}
+                otherServices={[]}
+              />
             </section>
 
             {fetchError && (
@@ -173,20 +178,6 @@ export default async function ServicePage({ params }: { params: Params }) {
                 </ul>
               </section>
             )}
-
-            {/* このページの主役サービスが提携済みならCTAを出す（未提携なら何も出ない）。 */}
-            {(() => {
-              const p = pickAffiliate(service.key);
-              return (
-                <AffiliateCtas
-                  items={
-                    p
-                      ? [{ serviceKey: service.key, serviceName: service.name, color: service.color, url: p.url, asp: p.asp }]
-                      : []
-                  }
-                />
-              );
-            })()}
           </div>
         </article>
       </div>

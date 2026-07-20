@@ -20,6 +20,10 @@ export interface ServiceDef {
   short: string;  // バッジ用の短い名前
   color: string;  // ブランド寄りの色
   match: RegExp;  // 正規化したチャンネル名に対して判定
+  // 公式トップページのURL（2026-07-18確認、一次情報＝各社公式サイトで直接確認）。
+  // バッジのリンク先が未提携（アフィリエイトリンクが無い）場合のフォールバック先として使う
+  // （ServiceMarksコンポーネント参照）。全SERVICESエントリで必須。
+  officialUrl: string;
 }
 
 // 半角化・小文字化・空白/長音の揺れを吸収
@@ -38,25 +42,32 @@ function norm(s: string): string {
 // ブルー系のガラス質HUD）とはバッジ側の発光演出（globals.css の .badge-mark の
 // box-shadow）で馴染ませており、色相そのものはブランドから変えていない。
 export const SERVICES: ServiceDef[] = [
-  { key: "d_anime",      name: "dアニメストア",         short: "dアニメ",    color: "#ff7a00", match: /dアニメ|danime|d-anime/ },
-  { key: "abema",        name: "ABEMA",                 short: "ABEMA",     color: "#22c55e", match: /abema/ },
-  { key: "netflix",      name: "Netflix",               short: "Netflix",   color: "#e50914", match: /netflix/ },
-  { key: "prime",        name: "Amazon Prime Video",    short: "Prime",     color: "#00a8e1", match: /primevideo|prime-video|amazonprime|amazon|prime/ },
-  { key: "unext",        name: "U-NEXT",                short: "U-NEXT",    color: "#8b5cf6", match: /u-next|unext/ },
-  { key: "dmm",          name: "DMM TV",                short: "DMM TV",    color: "#ff2e63", match: /dmmtv|dmm/ },
-  { key: "lemino",       name: "Lemino",                short: "Lemino",    color: "#e4007f", match: /lemino|dtv/ },
-  { key: "disney",       name: "Disney+",               short: "Disney+",   color: "#2a6df5", match: /disney/ },
-  { key: "hulu",         name: "Hulu",                  short: "Hulu",      color: "#10d27a", match: /hulu/ },
-  { key: "bandai",       name: "バンダイチャンネル",     short: "バンチャ",   color: "#e6002d", match: /バンダイ|bandai/ },
-  { key: "fod",          name: "FOD",                   short: "FOD",       color: "#d8132f", match: /\bfod\b|フジテレビオンデマンド/ },
-  { key: "niconico",     name: "ニコニコ",               short: "ニコニコ",   color: "#d59a00", match: /niconico|ニコニコ|nicovideo/ },
-  { key: "anime_houdai", name: "アニメ放題",             short: "アニメ放題", color: "#d61a1a", match: /アニメ放題|animehoudai/ },
-  { key: "wowow_od",     name: "WOWOWオンデマンド",      short: "WOWOW OD",  color: "#1f7ae0", match: /wowowオンデマンド|wowow-od/ },
-  { key: "telasa",       name: "TELASA",                short: "TELASA",    color: "#ff8c1a", match: /telasa/ },
-  { key: "youtube",      name: "YouTube",               short: "YouTube",   color: "#ff0000", match: /youtube|ユーチューブ/ },
+  { key: "d_anime",      name: "dアニメストア",         short: "dアニメ",    color: "#ff7a00", match: /dアニメ|danime|d-anime/, officialUrl: "https://animestore.docomo.ne.jp/animestore/tp/" },
+  { key: "abema",        name: "ABEMA",                 short: "ABEMA",     color: "#22c55e", match: /abema/, officialUrl: "https://abema.tv/" },
+  { key: "netflix",      name: "Netflix",               short: "Netflix",   color: "#e50914", match: /netflix/, officialUrl: "https://www.netflix.com/" },
+  { key: "prime",        name: "Amazon Prime Video",    short: "Prime",     color: "#00a8e1", match: /primevideo|prime-video|amazonprime|amazon|prime/, officialUrl: "https://www.amazon.co.jp/gp/video/storefront/" },
+  { key: "unext",        name: "U-NEXT",                short: "U-NEXT",    color: "#8b5cf6", match: /u-next|unext/, officialUrl: "https://video.unext.jp/" },
+  { key: "dmm",          name: "DMM TV",                short: "DMM TV",    color: "#ff2e63", match: /dmmtv|dmm/, officialUrl: "https://tv.dmm.com/vod/" },
+  { key: "lemino",       name: "Lemino",                short: "Lemino",    color: "#e4007f", match: /lemino|dtv/, officialUrl: "https://lemino.docomo.ne.jp/" },
+  { key: "disney",       name: "Disney+",               short: "Disney+",   color: "#2a6df5", match: /disney/, officialUrl: "https://disneyplus.disney.co.jp/" },
+  { key: "hulu",         name: "Hulu",                  short: "Hulu",      color: "#10d27a", match: /hulu/, officialUrl: "https://www.hulu.jp/" },
+  { key: "bandai",       name: "バンダイチャンネル",     short: "バンチャ",   color: "#e6002d", match: /バンダイ|bandai/, officialUrl: "https://www.b-ch.com/" },
+  { key: "fod",          name: "FOD",                   short: "FOD",       color: "#d8132f", match: /\bfod\b|フジテレビオンデマンド/, officialUrl: "https://fod.fujitv.co.jp/" },
+  { key: "niconico",     name: "ニコニコ",               short: "ニコニコ",   color: "#d59a00", match: /niconico|ニコニコ|nicovideo/, officialUrl: "https://ch.nicovideo.jp/" },
+  { key: "anime_houdai", name: "アニメ放題",             short: "アニメ放題", color: "#d61a1a", match: /アニメ放題|animehoudai/, officialUrl: "https://www.animehodai.jp/" },
+  { key: "wowow_od",     name: "WOWOWオンデマンド",      short: "WOWOW OD",  color: "#1f7ae0", match: /wowowオンデマンド|wowow-od/, officialUrl: "https://wod.wowow.co.jp/" },
+  { key: "telasa",       name: "TELASA",                short: "TELASA",    color: "#ff8c1a", match: /telasa/, officialUrl: "https://www.telasa.jp/" },
+  { key: "youtube",      name: "YouTube",               short: "YouTube",   color: "#ff0000", match: /youtube|ユーチューブ/, officialUrl: "https://www.youtube.com/" },
   // 2026-07-12 service-mapper点検で発見（2026春クールの実データ、otherServicesに漏れていた）。
-  { key: "crunchyroll",  name: "Crunchyroll",           short: "Crunchyroll", color: "#f47521", match: /crunchyroll/ },
+  { key: "crunchyroll",  name: "Crunchyroll",           short: "Crunchyroll", color: "#f47521", match: /crunchyroll/, officialUrl: "https://www.crunchyroll.com/" },
 ];
+
+// key→ServiceDef の逆引き（officialUrl参照用）。ServiceMarksがバッジのリンク先
+// （アフィリエイトが無ければ公式サイト）を決めるのに使う。
+const SERVICE_BY_KEY = new Map(SERVICES.map((s) => [s.key, s]));
+export function getOfficialUrl(key: string): string | undefined {
+  return SERVICE_BY_KEY.get(key as ServiceKey)?.officialUrl;
+}
 
 // 配信に当たらなかった名前のうち、地上波/BS/CS など放送局を判定して除外する
 // 2026-07-12追記: ぎふチャン（ひらがな表記の岐阜のCATV局）・チャンネルNECO（時代劇専門CS局）・

@@ -1072,6 +1072,7 @@ export default function SeasonExplorer({
                     services={splitRentalServices(it.services, RENTAL_SERVICES[it.id]).streaming}
                     otherServices={it.otherServices}
                     hasBroadcastData={it.hasBroadcastData}
+                    hideDisclosure
                   />
                 </div>
               </div>

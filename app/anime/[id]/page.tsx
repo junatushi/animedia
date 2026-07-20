@@ -9,9 +9,7 @@ import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
 import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
-import { pickAffiliate } from "@/lib/affiliate";
 import ServiceMarks from "@/components/ServiceMarks";
-import AffiliateCtas from "@/components/AffiliateCtas";
 
 const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
 
@@ -333,17 +331,6 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
               hasBroadcastData={item.hasBroadcastData}
             />
 
-            {/* 提携済みサービスのみCTAが出る（未提携なら空配列→何も表示されず従来のまま）。
-                リンクは lib/affiliate.ts が「その時点で報酬額が最大のASP」を自動選択する。 */}
-            <AffiliateCtas
-              items={streamingServices.flatMap((s) => {
-                const p = pickAffiliate(s.key);
-                return p
-                  ? [{ serviceKey: s.key, serviceName: s.name, color: s.color, url: p.url, asp: p.asp }]
-                  : [];
-              })}
-            />
-
             {item.officialSiteUrl && (
               <a
                 className="official"
@@ -368,7 +355,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
               <p className="detail-text" style={{ margin: "0 0 10px" }}>
                 以下のサービスでは「見放題」ではなく、レンタル（都度課金）での視聴となります。
               </p>
-              <ServiceMarks services={rentalServices} otherServices={[]} />
+              <ServiceMarks services={rentalServices} otherServices={[]} hideDisclosure />
             </div>
           </article>
         )}
