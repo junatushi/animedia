@@ -1,26 +1,32 @@
 name: キャッシュ温め（今年分）
 
 # 今年分の表示を常時速く保つための温め。対象は3種類:
-#   1) /api/season … トップページのSPAが季節タブ切替でクライアント側から叩くAPI。
-#      Annict問い合わせ結果のデータキャッシュ（lib/annict.ts の next.revalidate=600、
-#      および lib/getSeasonData.ts の unstable_cache 10分）を温める。
+#   1) /api/season … トップページ/SeasonExplorerが季節・年の切替時にクライアント側から
+#      叩くAPI。データキャッシュ（lib/annict.ts の next.revalidate=600、lib/getSeasonData.ts
+#      の unstable_cache 15分=900s）に加え、応答自体もCDNエッジにキャッシュされる
+#      （route.ts の s-maxage=600 / stale-while-revalidate=86400、2026-07-21導入）ので、
+#      ここを叩くと次の実訪問者は関数を実行せず X-Vercel-Cache: HIT（0.1s級）を引く。
 #   2) /season/{year}/{season} … SEO用のSSRシーズンページ。2026-07-15にISR化
 #      （revalidate=600）したので、ここを叩くとページHTMLがCDNエッジに載り、以後の
 #      実訪問者は関数を実行せず X-Vercel-Cache: HIT（0.1s級）を引く。
-#   3) / … トップページ。searchParamsを使う都合でエッジキャッシュできず毎回サーバー
-#      関数で描画されるため、関数がコールドだと初回2秒級になる。定期的に叩いて関数を
-#      温め続け、コールド起動を防ぐ。
+#   3) / … トップページ。2026-07-21にISR化（searchParams依存を外し revalidate=900）した
+#      ので、2) と同じくページHTMLがCDNエッジに載り実訪問者はHITを引く。ここを叩くと
+#      エッジHTMLの再検証と描画関数の温めを兼ねる（以前は searchParams 依存で毎回動的
+#      描画され、関数コールドで初回2秒級を踏んでいた）。
 #
 # これまでは 1) だけを温めており、2)/3) の「描画関数」は温まっていなかったため、
 # 主要入口の / やシーズンページに久しぶりに来た訪問者がコールド起動を踏んでいた
 # （実測2026-07-15: /season/2026/autumn が一度2.3s、温まると0.4s）。
 #
 # 対象は「今年の4シーズン」。過去年はISR＋静的スナップショット（content/snapshots/）で
-# 既に常時速いため温め不要。GitHub Actionsのscheduleは高負荷時に遅延しうるので、
-# 8分間隔は10分キャッシュに対する安全マージン。追加費用なし（無料枠内）。
+# 既に常時速いため温め不要。GitHub Actionsのscheduleは高負荷時に遅延しうるものの、
+# 5分間隔にして関数インスタンス・エッジキャッシュをより温かく保ち、ディープリンク
+# （別クール/過去年）訪問者が関数コールド（実測で単発2.4s）を踏む確率を下げる。
+# データキャッシュ（getSeasonData の unstable_cache 900s）が大半を吸収するため
+# Annictへの実アクセスはほぼ増えない。追加費用なし（無料枠内）。
 on:
   schedule:
-    - cron: "*/8 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -31,7 +37,7 @@ jobs:
         run: |
           BASE="https://animedia-khaki.vercel.app"
           YEAR=$(TZ=Asia/Tokyo date +%Y)
-          # トップページ（関数を温める。エッジキャッシュ不可のため毎回関数実行）
+          # トップページ（ISR化済み。エッジHTMLの再検証＋描画関数の温めを兼ねる）
           curl -s -o /dev/null -w "top / status=%{http_code} time=%{time_total}s\n" "$BASE/"
           for SEASON in winter spring summer autumn; do
             # データキャッシュ＋API関数

@@ -235,11 +235,22 @@ export default function SeasonExplorer({
 
   const [year, setYear] = useState(initialYear);
   const [season, setSeason] = useState<string>(initialSeasonKey);
-  const [data, setData] = useState<SeasonResponse | null>(initialData ?? null);
-  const [loading, setLoading] = useState(!initialData);
+  // トップ "/" は ISR 化（2026-07-21）で initialData が常に「今期」になるため、URLクエリが
+  // 別クール/過去年を指すディープリンク（?year=&season=）では initialData と表示したいクールが
+  // 食い違う。initialData がいま解決したクール（initialYear-initialSeasonKey）と一致する時だけ
+  // 初期データとして採用し、一致しない時は null（スケルトン）にして下の useEffect に正しい
+  // クールをフェッチさせる。/season/.. の固定ページや、今期の "/" では常に一致するので従来
+  // どおり即時表示になる（SeasonResponse.season は "2026-summer" 形式）。
+  const initialMatches =
+    !!initialData && initialData.season === `${initialYear}-${initialSeasonKey}`;
+  const [data, setData] = useState<SeasonResponse | null>(
+    initialMatches ? initialData! : null
+  );
+  const [loading, setLoading] = useState(!initialMatches);
   const [error, setError] = useState<string | null>(null);
-  // サーバーから初期データを受け取った最初の1回だけ、client fetchをスキップする。
-  const skipNextFetch = useRef(!!initialData);
+  // 初期データが表示クールと一致する最初の1回だけ client fetch をスキップする（一致しない
+  // ＝ディープリンク時は下の useEffect で正しいクールを取得する）。
+  const skipNextFetch = useRef(initialMatches);
 
   const [query, setQuery] = useState("");
   const [active, setActive] = useState<Set<string>>(new Set());
