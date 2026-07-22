@@ -1,0 +1,67 @@
+name: GH_SECRETS_PAT 期限切れ通知
+
+# GH_SECRETS_PAT（Threadsトークンの自動延長用PAT。docs/threads-setup.md手順5）は
+# fine-grained PATのためGitHub側で有効期限が切れると自動更新できない。今回設定した
+# 期限は2027-07-23。切れる約1ヶ月前と1週間前にGitHub Issueを起票して更新を促す。
+#
+# cronの日/月は毎年一致するが、ジョブ内で年をチェックし対象年（EXPIRY_YEAR）以外は
+# 何もせず終了する。PATを作り直して次の期限が変わったら、下のEXPIRY_YEAR/EXPIRY_DATEと
+# cronの日付を新しい期限に合わせて更新すること（更新しなければ「1ヶ月前」の通知が
+# ずれるだけで、実害はない）。
+on:
+  schedule:
+    - cron: "0 9 23 6 *" # 1ヶ月前（2027-06-23 09:00 JST）
+    - cron: "0 9 16 7 *" # 1週間前（2027-07-16 09:00 JST）
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  EXPIRY_YEAR: "2027"
+  EXPIRY_DATE: "2027-07-23"
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 対象年以外はスキップ
+        id: check
+        run: |
+          CURRENT_YEAR=$(TZ=Asia/Tokyo date +%Y)
+          if [ "$CURRENT_YEAR" != "$EXPIRY_YEAR" ]; then
+            echo "対象年（${EXPIRY_YEAR}）ではないためスキップします（現在: ${CURRENT_YEAR}）。"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 更新案内の本文をファイルに生成
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          {
+            echo "Threadsトークン自動延長用PAT（\`GH_SECRETS_PAT\`）の有効期限が ${EXPIRY_DATE} に迫っています。"
+            echo ""
+            echo "**更新手順（docs/threads-setup.md 手順5と同じ）**:"
+            echo "1. https://github.com/settings/personal-access-tokens で新しいfine-grained PATを作成"
+            echo "   - Expiration: 「No expiration」は避け、カスタムで次の期限（例: 1年後）を設定"
+            echo "   - Repository access: このリポジトリのみ"
+            echo "   - Permissions: 「+ Add permissions」→ Secrets を Read and write"
+            echo "2. 生成したトークンをこのリポジトリの Settings → Secrets and variables → Actions で"
+            echo "   \`GH_SECRETS_PAT\` に上書き登録"
+            echo "3. このワークフロー（.github/workflows/pat-expiry-reminder.yml）の"
+            echo "   \`EXPIRY_YEAR\`・\`EXPIRY_DATE\`・cronの日付を新しい期限に合わせて更新する"
+            echo ""
+            echo "更新しないまま期限が切れると、Threadsトークンの週次自動延長"
+            echo "（threads-refresh-token.yml）が止まり、60日後にはThreadsへの自動投稿も止まる。"
+          } > pat-reminder-body.md
+
+      - name: 更新案内のIssueを起票
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --title "GH_SECRETS_PAT の更新が必要です（期限: ${EXPIRY_DATE}）" \
+            --body-file pat-reminder-body.md
