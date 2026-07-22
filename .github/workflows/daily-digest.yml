@@ -1,14 +1,15 @@
-name: 毎日ダイジェスト（Bluesky/Mastodon自動投稿＋Xの下書きIssue）
+name: 毎日ダイジェスト（Bluesky/Mastodon/Threads自動投稿＋Xの下書きIssue）
 
 # 毎日 21:00 JST（12:00 UTC）に自動実行。手動実行（workflow_dispatch）も可能。
 # 投稿内容は曜日で出し分ける（scripts/lib/build-digest.js）:
 #   日曜=今期の注目作TOP5＋その日の放送/配信があれば曜日紹介（最大2投稿）
 #   月〜土=その曜日に放送・配信のある今期アニメ。
-# Bluesky/Mastodonは投稿APIが無料のため自動投稿する。Xは有料化されたため
+# Bluesky/Mastodon/Threadsは投稿APIが無料のため自動投稿する。Xは有料化されたため
 # 自動投稿はせず、コピペ用の下書きをGitHub Issueとして起票するだけにする。
 # 投稿にはサイト実画面のスクリーンショット（カレンダー表示の該当曜日 / 「今期の注目作
 # TOP5」パネル）を添付する。Playwrightのヘッドレスブラウザで本番サイトを直接開いて撮る
-# （新規デザインの画像は作らない。2026-07-14導入）。
+# （新規デザインの画像は作らない。2026-07-14導入）。Threadsは画像添付非対応（公開URL
+# 必須のため）でテキストのみ投稿する。
 on:
   schedule:
     - cron: "0 12 * * *"
@@ -45,6 +46,11 @@ jobs:
         env:
           MASTODON_INSTANCE_URL: ${{ secrets.MASTODON_INSTANCE_URL }}
           MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+
+      - name: Threadsへ自動投稿（無料・Secrets未設定ならスキップ）
+        run: node scripts/post-threads.js
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
 
       - name: Xの下書きをGitHub Issueとして起票（手動投稿用）
         env:

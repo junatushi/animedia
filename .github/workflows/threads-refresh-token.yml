@@ -1,0 +1,54 @@
+name: Threadsトークン自動リフレッシュ
+
+# Threadsの長期アクセストークンは60日で失効する。放置すると2ヶ月に一度、手動で
+# 再認可（docs/threads-setup.md）が必要になるため、毎週月曜12:00 JST（03:00 UTC）に
+# 自動実行してリフレッシュし、新トークンをGitHub Secretsへ書き戻す。手動実行
+# （workflow_dispatch）も可能。
+#
+# リフレッシュAPIの利用条件は「前回の発行/リフレッシュから24時間以上経過」かつ
+# 「期限内（60日以内）」（Threads公式仕様）。週次実行なら余裕を持って両方満たせる
+# （7日 > 24時間、60日に対して週1回なので期限切れの前に何度もリフレッシュの機会がある）。
+#
+# THREADS_ACCESS_TOKEN と GH_SECRETS_PAT（このリポジトリのSecrets: Read and writeを
+# 持つfine-grained PAT。取得手順はdocs/threads-setup.md）の両方が登録済みのときだけ動く。
+# どちらか未設定なら「未設定のためスキップ」を出して正常終了する（失敗扱いにしない）。
+#
+# リフレッシュ自体が失敗した場合（＝60日の期限切れ等で再認可が必要）はこのジョブを
+# 失敗させる。GitHub Actionsはデフォルトでワークフロー失敗時にリポジトリの通知先へ
+# メール等を送るため、それが「再認可が必要」のサインになる（docs/operations.mdの⑦-3）。
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+# 既定のGITHUB_TOKENは一切使わない（Secretsの書き戻しはGH_SECRETS_PATで行う）ため、
+# 権限をすべて外しておく。
+permissions: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 長期アクセストークンをリフレッシュしてSecretsへ書き戻す
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_SECRETS_PAT }}
+        run: |
+          if [ -z "$THREADS_ACCESS_TOKEN" ] || [ -z "$GH_TOKEN" ]; then
+            echo "Threadsトークン自動リフレッシュ未設定のためスキップします（THREADS_ACCESS_TOKEN / GH_SECRETS_PAT が未登録）。"
+            exit 0
+          fi
+
+          RESPONSE=$(curl -s "https://graph.threads.net/refresh_access_token?grant_type=th_refresh_token&access_token=${THREADS_ACCESS_TOKEN}")
+          NEW_TOKEN=$(echo "$RESPONSE" | jq -r '.access_token // empty')
+
+          if [ -z "$NEW_TOKEN" ]; then
+            echo "トークンのリフレッシュに失敗しました。レスポンス: $RESPONSE"
+            echo "60日の有効期限切れ等で再認可が必要な可能性があります。docs/threads-setup.mdの手順をやり直してください。"
+            exit 1
+          fi
+
+          # マスクしてからでないとログに新トークンの値が残ってしまう。
+          echo "::add-mask::$NEW_TOKEN"
+          gh secret set THREADS_ACCESS_TOKEN --repo "${{ github.repository }}" --body "$NEW_TOKEN"
+          echo "THREADS_ACCESS_TOKENを更新しました。"
