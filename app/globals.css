@@ -645,6 +645,15 @@ body {
   backdrop-filter: blur(10px);
   position: relative;
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  /* 画面外のカードは描画・レイアウト・backdrop-filterのblurごとスキップする（2026-07-24導入）。
+     1シーズン最大120作品を1枚のクライアントコンポーネント（SeasonExplorer）で全件up-front描画
+     しており、CPU/GPUの弱いスマホでは全カードのレイアウト＋blur合成で初回3〜5秒かかっていた
+     （実測: TTFB/HTMLはCDN HITで速く、遅さはクライアント側の描画コストだった）。
+     content-visibilityは見た目・SEO・ページ内検索(Ctrl+F)を変えない。intrinsic-sizeは実測の
+     カード高さ（モバイル約275px）を初期見積りに置き、autoキーワードで初回描画後は実寸を記憶して
+     スクロール時の位置ジャンプを防ぐ。 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 280px;
 }
 /* ホバーで剣戟が一閃する（ダーク=閃光のアスナの緋色×金、ライト=黒の剣士キリトの漆黒）。 */
 .card .slash {
