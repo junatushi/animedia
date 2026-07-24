@@ -31,4 +31,11 @@ export interface AffiliateProgram {
 //   { asp: "A8.net", url: "https://px.a8.net/svt/ejp?a8mat=XXXXX", rewardYen: 1430, rewardNote: "税込・無料トライアル登録", confirmedDate: "2026-07-20", active: true },
 //   { asp: "バリューコマース", url: "https://ck.jp.ap.valuecommerce.com/servlet/referral?sid=XXXX&pid=XXXX", rewardYen: 1320, rewardNote: "税込・無料トライアル登録", confirmedDate: "2026-07-20", active: true },
 // ],
-export const AFFILIATE_PROGRAMS: Partial<Record<ServiceKey, AffiliateProgram[]>> = {};
+export const AFFILIATE_PROGRAMS: Partial<Record<ServiceKey, AffiliateProgram[]>> = {
+  abema: [
+    { asp: "A8.net", url: "https://px.a8.net/svt/ejp?a8mat=4B83D3+16V93U+4EKC+60WN6", rewardYen: 902, rewardNote: "税込・新規会員登録（ABEMAプレミアム）", confirmedDate: "2026-07-24", active: true },
+  ],
+  prime: [
+    { asp: "バリューコマース", url: "https://primevideojapan.sjv.io/MKAnAo", rewardYen: 836, rewardNote: "税込・新規登録後の動画視聴。他に月額サブスクリプション契約209円、レンタル・購入は税込8.36%、新規登録のみは0円", confirmedDate: "2026-07-24", active: true },
+  ],
+};
