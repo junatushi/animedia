@@ -27,6 +27,7 @@ jobs:
       - run: npm ci
 
       - name: 告知本文を生成
+        id: announce
         run: node scripts/print-digest.js > announce.txt
 
       - name: Blueskyへ自動投稿（無料・Secrets未設定ならスキップ）
@@ -47,6 +48,9 @@ jobs:
           THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
 
       - name: Xの下書きをGitHub Issueとして起票（手動投稿用）
+        # daily-digest.yml と同じ理由。Threads等の投稿失敗でXの下書き起票を
+        # 巻き添えスキップさせない（本文生成が失敗したときだけ起票しない）。2026-07-24追加。
+        if: ${{ !cancelled() && steps.announce.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
