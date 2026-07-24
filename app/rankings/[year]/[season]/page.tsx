@@ -15,6 +15,18 @@ const SEASON_LABEL: Record<string, string> = {
 };
 const WEEKDAY_LABEL = ["日", "月", "火", "水", "木", "金", "土"];
 
+// ISR（2026-07-24導入。app/season/[year]/[season]/page.tsx と同じ理由・同じ値）。
+// これが無いと動的セグメント[year]/[season]は毎リクエスト動的レンダリングになり
+// CDNエッジにキャッシュされない。10分はgetSeasonData側のキャッシュ鮮度と揃えた。
+export const revalidate = 600;
+
+// season配下と同様、今年の4シーズンを静的生成対象にしてISRを有効化する。
+// それ以外の年はdynamicParams（既定true）で初回オンデマンド生成→以後キャッシュされる。
+export function generateStaticParams() {
+  const year = String(new Date().getFullYear());
+  return ["winter", "spring", "summer", "autumn"].map((season) => ({ year, season }));
+}
+
 type Params = { year: string; season: string };
 
 interface ServiceCount {

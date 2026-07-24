@@ -1,6 +1,6 @@
 name: キャッシュ温め（今年分）
 
-# 今年分の表示を常時速く保つための温め。対象は3種類:
+# 今年分の表示を常時速く保つための温め。対象は5種類:
 #   1) /api/season … トップページ/SeasonExplorerが季節・年の切替時にクライアント側から
 #      叩くAPI。データキャッシュ（lib/annict.ts の next.revalidate=600、lib/getSeasonData.ts
 #      の unstable_cache 15分=900s）に加え、応答自体もCDNエッジにキャッシュされる
@@ -13,15 +13,24 @@ name: キャッシュ温め（今年分）
 #      ので、2) と同じくページHTMLがCDNエッジに載り実訪問者はHITを引く。ここを叩くと
 #      エッジHTMLの再検証と描画関数の温めを兼ねる（以前は searchParams 依存で毎回動的
 #      描画され、関数コールドで初回2秒級を踏んでいた）。
+#   4) /rankings/{year}/{season} … 配信サービス勢力図・ランキングのSSRページ。
+#   5) /exclusive/{year}/{season} … 独占配信まとめのSSRページ。
+#      4)/5) とも2026-07-24にISR化（revalidate=600、season配下と同じパターン）。
+#      現在クールのみ温める（4シーズン全部ではない。ランキング/独占配信の需要は
+#      基本的に今期に集中するため）。
 #
 # これまでは 1) だけを温めており、2)/3) の「描画関数」は温まっていなかったため、
 # 主要入口の / やシーズンページに久しぶりに来た訪問者がコールド起動を踏んでいた
 # （実測2026-07-15: /season/2026/autumn が一度2.3s、温まると0.4s）。
 #
-# 対象は「今年の4シーズン」。過去年はISR＋静的スナップショット（content/snapshots/）で
-# 既に常時速いため温め不要。GitHub Actionsのscheduleは高負荷時に遅延しうるものの、
-# 5分間隔にして関数インスタンス・エッジキャッシュをより温かく保ち、ディープリンク
-# （別クール/過去年）訪問者が関数コールド（実測で単発2.4s）を踏む確率を下げる。
+# 対象は基本的に「今年の4シーズン」（4)/5)は現在クールのみ）。過去年はISR＋静的
+# スナップショット（content/snapshots/）で既に常時速いため温め不要。5分間隔にして
+# 関数インスタンス・エッジキャッシュをより温かく保ち、ディープリンク（別クール/
+# 過去年）訪問者が関数コールド（実測で単発2.4s）を踏む確率を下げる狙いだが、
+# 実際はGitHub Actionsのscheduleが高負荷時に間引かれ、3〜9時間毎になることが
+# 判明している（2026-07-24確認）。表示速度の本線はISR（revalidate）自体であり、
+# この温めはあくまで補助（コールドを引く確率を下げるだけで、無くても致命的では
+# ない）と理解した上で運用する。
 # データキャッシュ（getSeasonData の unstable_cache 900s）が大半を吸収するため
 # Annictへの実アクセスはほぼ増えない。追加費用なし（無料枠内）。
 on:
@@ -37,6 +46,13 @@ jobs:
         run: |
           BASE="https://animedia-khaki.vercel.app"
           YEAR=$(TZ=Asia/Tokyo date +%Y)
+          MONTH=$(TZ=Asia/Tokyo date +%-m)
+          # lib/resolveSeasonParams.ts の seasonKeyForMonth と同じ月→クール判定
+          if [ "$MONTH" -le 3 ]; then CURRENT_SEASON="winter"
+          elif [ "$MONTH" -le 6 ]; then CURRENT_SEASON="spring"
+          elif [ "$MONTH" -le 9 ]; then CURRENT_SEASON="summer"
+          else CURRENT_SEASON="autumn"
+          fi
           # トップページ（ISR化済み。エッジHTMLの再検証＋描画関数の温めを兼ねる）
           curl -s -o /dev/null -w "top / status=%{http_code} time=%{time_total}s\n" "$BASE/"
           for SEASON in winter spring summer autumn; do
@@ -47,3 +63,8 @@ jobs:
             curl -s -o /dev/null -w "page ${YEAR}/${SEASON} status=%{http_code} time=%{time_total}s\n" \
               "$BASE/season/${YEAR}/${SEASON}"
           done
+          # ランキング・独占配信まとめは現在クールのみ温める（2026-07-24にISR化）
+          curl -s -o /dev/null -w "page rankings ${YEAR}/${CURRENT_SEASON} status=%{http_code} time=%{time_total}s\n" \
+            "$BASE/rankings/${YEAR}/${CURRENT_SEASON}"
+          curl -s -o /dev/null -w "page exclusive ${YEAR}/${CURRENT_SEASON} status=%{http_code} time=%{time_total}s\n" \
+            "$BASE/exclusive/${YEAR}/${CURRENT_SEASON}"
