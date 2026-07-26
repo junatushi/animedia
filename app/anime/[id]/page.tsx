@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getWorkData } from "@/lib/getWorkData";
 import { getSeasonData } from "@/lib/getSeasonData";
-import { splitRentalServices } from "@/lib/services";
+import { splitRentalServices, getServiceKana, sortServicesForMetadata } from "@/lib/services";
 import { seasonKeyForMonth, SEASON_LABEL } from "@/lib/resolveSeasonParams";
 import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
 import { WORK_DETAILS } from "@/content/works";
@@ -30,11 +30,26 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   if (!item) return {};
 
   const { streaming } = splitRentalServices(item.services, RENTAL_SERVICES[item.id]);
-  const serviceNames = streaming.map((s) => s.short).join("・");
-  const title = `${item.title} の配信状況`;
-  const description = serviceNames
-    ? `「${item.title}」は ${serviceNames} で配信中。アニメ視聴ガイドで最新の配信状況を確認できます。`
-    : `「${item.title}」の配信状況をアニメ視聴ガイドで確認できます。`;
+  // 2026-07-26のSearch Console実測では、表示回数を集めているクエリが
+  // 「{作品名} 第二期 ユーネクスト」「{作品名} 配信」のように「どこで見られるか」を
+  // 直接問う形だった（平均掲載順位19.8位＝2ページ目、上位ページはCTR 0%）。
+  // titleを「〜の配信状況」から検索語に近い「〜はどこで配信？」に寄せ、
+  // 主要な配信サービス名を前方に置いてスニペットでの一致を上げる。
+  // Annict由来の並び順は作品ごとにばらつく（先頭がFOD等になり、実際に検索されている
+  // 主要サービスがtitleから漏れる）ため、実クエリの多い順（sortServicesForMetadata）に揃える。
+  const serviceShorts = sortServicesForMetadata(streaming).map((s) => s.short);
+  const leadServices = serviceShorts.slice(0, 2).join("・");
+  const restCount = serviceShorts.length - 2;
+  const title = leadServices
+    ? `${item.title}はどこで配信？${leadServices}${restCount > 0 ? `ほか${restCount}サービス` : ""}`
+    : `${item.title}はどこで配信？最新の配信状況`;
+  // 配信が1件も無い作品に「配信中」と読める説明文を出すと誤誘導になるため、
+  // 「まだ確認できていない」と正直に書く（CLAUDE.mdの推測で埋めない方針と同じ）。
+  const descServices =
+    serviceShorts.slice(0, 5).join("・") + (serviceShorts.length > 5 ? "ほか" : "");
+  const description = serviceShorts.length
+    ? `「${item.title}」を見放題で配信している動画配信サービスは ${descServices}。どのサービスで見られるかをアニメ視聴ガイドが最新データで一覧にしています。`
+    : `「${item.title}」の配信サービスは現時点で確認できていません。判明し次第このページに反映します。今期アニメの配信状況はアニメ視聴ガイドで確認できます。`;
   const url = `${siteUrl}/anime/${id}`;
 
   return {
@@ -80,6 +95,17 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
     RENTAL_SERVICES[item.id]
   );
   const serviceNames = [...streamingServices.map((s) => s.short), ...item.otherServices];
+  // 検索する人はサービス名をカタカナで書くことが多い（2026-07-26のSearch Console実測で
+  // 「ユーネクスト」「ネットフリックス」を含むクエリが表示回数の上位を占めていた）。
+  // ページ内に英字表記しか無いとこの表記ゆれを拾えないため、FAQの回答文でだけ
+  // 「U-NEXT（ユーネクスト）」と一度併記する（title・descriptionには入れず、詰め込みはしない）。
+  const serviceLabels = [
+    ...streamingServices.map((s) => {
+      const kana = getServiceKana(s.key);
+      return kana ? `${s.short}（${kana}）` : s.short;
+    }),
+    ...item.otherServices,
+  ];
   const jsonLdDescription =
     content?.synopsis ||
     (serviceNames.length > 0
@@ -186,10 +212,13 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
       : "";
   const watchAnswer =
     serviceNames.length > 0
-      ? `「${item.title}」は ${serviceNames.join("・")} で視聴できます（${checkedDate}時点、Annictより）。${rentalNote}配信状況は変わることがあるため、視聴前に各サービスの最新情報もご確認ください。`
+      ? `「${item.title}」は ${serviceLabels.join("・")} で視聴できます（${checkedDate}時点、Annictより）。${rentalNote}配信状況は変わることがあるため、視聴前に各サービスの最新情報もご確認ください。`
       : rentalServices.length > 0
         ? `「${item.title}」は見放題配信は現時点で確認できませんが、${rentalNote}（${checkedDate}時点）`
         : `「${item.title}」の配信サービスは現時点でAnnictに登録がなく確認できません（${checkedDate}時点）。判明し次第このページに反映されます。`;
+  // 「どこで配信？」に加えて、content/works/{id}.json に人力で用意したQ&A
+  // （「2期から見ても大丈夫？」「どの順番で見る？」等）も同じFAQPageに載せる。
+  // 配信先だけでなく視聴前の判断材料まで1ページで揃うと、検索結果からの離脱が減る。
   const faqLd = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -199,6 +228,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         name: `「${item.title}」はどこで配信されている？`,
         acceptedAnswer: { "@type": "Answer", text: watchAnswer },
       },
+      ...(content?.faq ?? []).map((f) => ({
+        "@type": "Question",
+        name: f.question,
+        acceptedAnswer: { "@type": "Answer", text: f.answer },
+      })),
     ],
   };
 
@@ -236,6 +270,60 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
             <figcaption className="detail-hero-note">※ {AI_IMAGE_NOTE}</figcaption>
           </figure>
         )}
+        {/* 「どこで配信されているか」の答えを、あらすじ・声優などの補足情報より先に置く
+            （2026-07-27に並びを変更）。このページに来る検索クエリは
+            「{作品名} 配信」「{作品名} ユーネクスト」のように視聴先を直接問う形が大半で
+            （2026-07-26のSearch Console実測）、答えが下にあるとスマホでは
+            あらすじ→見どころ→よくある質問→声優グリッドを全部スクロールしないと届かず、
+            戻られてしまう。検索意図に対する答えを最初の画面に入れる。 */}
+        <article className="card">
+          <div className="card-body">
+            <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
+              「{item.title}」はどこで配信されている？
+            </h2>
+            {/* 見出しの問いに対する答えを、まず1文の可視テキストで返す（2026-07-26追加）。
+                以前はバッジだけを置き、回答文はJSON-LD（FAQPage）の中にしか無かったが、
+                検索結果のスニペットに使われるのは可視テキストのため、同じ文をここにも出す。
+                サービス名の正式名称はバッジ内にも .sr-only で保持している。
+                レンタル/都度課金扱いのサービスはここには含めず、下の「レンタル作品」欄に分ける。 */}
+            <p style={{ margin: "0 0 12px", fontSize: 14, lineHeight: 1.7, color: "var(--ink)" }}>
+              {watchAnswer}
+            </p>
+            <ServiceMarks
+              services={streamingServices}
+              otherServices={item.otherServices}
+              hasBroadcastData={item.hasBroadcastData}
+            />
+
+            {item.officialSiteUrl && (
+              <a
+                className="official"
+                href={item.officialSiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ marginTop: 14 }}
+              >
+                公式サイト ↗
+              </a>
+            )}
+            <p className="detail-updated">配信情報の確認日: {checkedDate}（Annictより自動取得）</p>
+          </div>
+        </article>
+
+        {rentalServices.length > 0 && (
+          <article className="card">
+            <div className="card-body">
+              <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
+                レンタル作品
+              </h2>
+              <p className="detail-text" style={{ margin: "0 0 10px" }}>
+                以下のサービスでは「見放題」ではなく、レンタル（都度課金）での視聴となります。
+              </p>
+              <ServiceMarks services={rentalServices} otherServices={[]} hideDisclosure />
+            </div>
+          </article>
+        )}
+
         {(content || credits.casts.length > 0 || credits.director || credits.productionCompany || credits.originalCreators.length > 0) && (
           <article className="card">
             <div className="card-body detail-body">
@@ -253,6 +341,19 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                       ))}
                     </ul>
                   </section>
+                  {content.faq && content.faq.length > 0 && (
+                    <section className="detail-section">
+                      <h2 className="detail-heading">よくある質問</h2>
+                      <div className="detail-faq">
+                        {content.faq.map((f, i) => (
+                          <div key={i}>
+                            <h3 className="detail-faq-q">{f.question}</h3>
+                            <p className="detail-text">{f.answer}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                 </>
               )}
 
@@ -313,49 +414,6 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                   </a>
                 </p>
               )}
-            </div>
-          </article>
-        )}
-
-        <article className="card">
-          <div className="card-body">
-            <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
-              「{item.title}」はどこで配信されている？
-            </h2>
-            {/* サービス名はアイコン内にテキストとして保持（.sr-only）。冗長な文章列挙はしない。
-                FAQPageの回答文（JSON-LD）側には名称を含めているのでAI・検索には伝わる。
-                レンタル/都度課金扱いのサービスはここには含めず、下の「レンタル作品」欄に分ける。 */}
-            <ServiceMarks
-              services={streamingServices}
-              otherServices={item.otherServices}
-              hasBroadcastData={item.hasBroadcastData}
-            />
-
-            {item.officialSiteUrl && (
-              <a
-                className="official"
-                href={item.officialSiteUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ marginTop: 14 }}
-              >
-                公式サイト ↗
-              </a>
-            )}
-            <p className="detail-updated">配信情報の確認日: {checkedDate}（Annictより自動取得）</p>
-          </div>
-        </article>
-
-        {rentalServices.length > 0 && (
-          <article className="card">
-            <div className="card-body">
-              <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
-                レンタル作品
-              </h2>
-              <p className="detail-text" style={{ margin: "0 0 10px" }}>
-                以下のサービスでは「見放題」ではなく、レンタル（都度課金）での視聴となります。
-              </p>
-              <ServiceMarks services={rentalServices} otherServices={[]} hideDisclosure />
             </div>
           </article>
         )}

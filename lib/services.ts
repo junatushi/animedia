@@ -24,6 +24,11 @@ export interface ServiceDef {
   // バッジのリンク先が未提携（アフィリエイトリンクが無い）場合のフォールバック先として使う
   // （ServiceMarksコンポーネント参照）。全SERVICESエントリで必須。
   officialUrl: string;
+  // カタカナ表記（任意。2026-07-26 Search Console実測で「U-NEXT ユーネクスト」のような
+  // カナ検索の表示回数が多い一方サイト内にカナ表記が無くクリック0件だったため追加。
+  // 作品ページのFAQ回答文で英字表記に併記する。名称が元々日本語のサービスや、
+  // カナで検索されることが稀なサービスには意図的に付けない。
+  kana?: string;
 }
 
 // 半角化・小文字化・空白/長音の揺れを吸収
@@ -43,23 +48,23 @@ function norm(s: string): string {
 // box-shadow）で馴染ませており、色相そのものはブランドから変えていない。
 export const SERVICES: ServiceDef[] = [
   { key: "d_anime",      name: "dアニメストア",         short: "dアニメ",    color: "#ff7a00", match: /dアニメ|danime|d-anime/, officialUrl: "https://animestore.docomo.ne.jp/animestore/tp/" },
-  { key: "abema",        name: "ABEMA",                 short: "ABEMA",     color: "#22c55e", match: /abema/, officialUrl: "https://abema.tv/" },
-  { key: "netflix",      name: "Netflix",               short: "Netflix",   color: "#e50914", match: /netflix/, officialUrl: "https://www.netflix.com/" },
-  { key: "prime",        name: "Amazon Prime Video",    short: "Prime",     color: "#00a8e1", match: /primevideo|prime-video|amazonprime|amazon|prime/, officialUrl: "https://www.amazon.co.jp/gp/video/storefront/" },
-  { key: "unext",        name: "U-NEXT",                short: "U-NEXT",    color: "#8b5cf6", match: /u-next|unext/, officialUrl: "https://video.unext.jp/" },
+  { key: "abema",        name: "ABEMA",                 short: "ABEMA",     color: "#22c55e", match: /abema/, officialUrl: "https://abema.tv/", kana: "アベマ" },
+  { key: "netflix",      name: "Netflix",               short: "Netflix",   color: "#e50914", match: /netflix/, officialUrl: "https://www.netflix.com/", kana: "ネットフリックス" },
+  { key: "prime",        name: "Amazon Prime Video",    short: "Prime",     color: "#00a8e1", match: /primevideo|prime-video|amazonprime|amazon|prime/, officialUrl: "https://www.amazon.co.jp/gp/video/storefront/", kana: "アマゾンプライムビデオ" },
+  { key: "unext",        name: "U-NEXT",                short: "U-NEXT",    color: "#8b5cf6", match: /u-next|unext/, officialUrl: "https://video.unext.jp/", kana: "ユーネクスト" },
   { key: "dmm",          name: "DMM TV",                short: "DMM TV",    color: "#ff2e63", match: /dmmtv|dmm/, officialUrl: "https://tv.dmm.com/vod/" },
-  { key: "lemino",       name: "Lemino",                short: "Lemino",    color: "#e4007f", match: /lemino|dtv/, officialUrl: "https://lemino.docomo.ne.jp/" },
-  { key: "disney",       name: "Disney+",               short: "Disney+",   color: "#2a6df5", match: /disney/, officialUrl: "https://disneyplus.disney.co.jp/" },
-  { key: "hulu",         name: "Hulu",                  short: "Hulu",      color: "#10d27a", match: /hulu/, officialUrl: "https://www.hulu.jp/" },
+  { key: "lemino",       name: "Lemino",                short: "Lemino",    color: "#e4007f", match: /lemino|dtv/, officialUrl: "https://lemino.docomo.ne.jp/", kana: "レミノ" },
+  { key: "disney",       name: "Disney+",               short: "Disney+",   color: "#2a6df5", match: /disney/, officialUrl: "https://disneyplus.disney.co.jp/", kana: "ディズニープラス" },
+  { key: "hulu",         name: "Hulu",                  short: "Hulu",      color: "#10d27a", match: /hulu/, officialUrl: "https://www.hulu.jp/", kana: "フールー" },
   { key: "bandai",       name: "バンダイチャンネル",     short: "バンチャ",   color: "#e6002d", match: /バンダイ|bandai/, officialUrl: "https://www.b-ch.com/" },
   { key: "fod",          name: "FOD",                   short: "FOD",       color: "#d8132f", match: /\bfod\b|フジテレビオンデマンド/, officialUrl: "https://fod.fujitv.co.jp/" },
   { key: "niconico",     name: "ニコニコ",               short: "ニコニコ",   color: "#d59a00", match: /niconico|ニコニコ|nicovideo/, officialUrl: "https://ch.nicovideo.jp/" },
   { key: "anime_houdai", name: "アニメ放題",             short: "アニメ放題", color: "#d61a1a", match: /アニメ放題|animehoudai/, officialUrl: "https://www.animehodai.jp/" },
   { key: "wowow_od",     name: "WOWOWオンデマンド",      short: "WOWOW OD",  color: "#1f7ae0", match: /wowowオンデマンド|wowow-od/, officialUrl: "https://wod.wowow.co.jp/" },
-  { key: "telasa",       name: "TELASA",                short: "TELASA",    color: "#ff8c1a", match: /telasa/, officialUrl: "https://www.telasa.jp/" },
+  { key: "telasa",       name: "TELASA",                short: "TELASA",    color: "#ff8c1a", match: /telasa/, officialUrl: "https://www.telasa.jp/", kana: "テラサ" },
   { key: "youtube",      name: "YouTube",               short: "YouTube",   color: "#ff0000", match: /youtube|ユーチューブ/, officialUrl: "https://www.youtube.com/" },
   // 2026-07-12 service-mapper点検で発見（2026春クールの実データ、otherServicesに漏れていた）。
-  { key: "crunchyroll",  name: "Crunchyroll",           short: "Crunchyroll", color: "#f47521", match: /crunchyroll/, officialUrl: "https://www.crunchyroll.com/" },
+  { key: "crunchyroll",  name: "Crunchyroll",           short: "Crunchyroll", color: "#f47521", match: /crunchyroll/, officialUrl: "https://www.crunchyroll.com/", kana: "クランチロール" },
 ];
 
 // key→ServiceDef の逆引き（officialUrl参照用）。ServiceMarksがバッジのリンク先
@@ -67,6 +72,41 @@ export const SERVICES: ServiceDef[] = [
 const SERVICE_BY_KEY = new Map(SERVICES.map((s) => [s.key, s]));
 export function getOfficialUrl(key: string): string | undefined {
   return SERVICE_BY_KEY.get(key as ServiceKey)?.officialUrl;
+}
+// ServiceTag.key は string 型（lib/types.ts）で渡ってくるため、getOfficialUrl と
+// 同じく string を受けてマップ側でキャストする。
+export function getServiceKana(key: string): string | undefined {
+  return SERVICE_BY_KEY.get(key as ServiceKey)?.kana;
+}
+
+// title・description にサービス名を並べるときの優先順。
+// SERVICES 自体の並びは classifyChannel の「判定優先順」（例: "amazon prime video" を
+// prime より先に別サービスへ誤マッチさせないための順序）であって、
+// 「検索する人がどのサービス名で探しているか」とは別物。titleに入るのは先頭2件だけなので、
+// この2つを取り違えると実際に検索されているサービス名がtitleから漏れる。
+// 2026-07-26のSearch Console実測（/anime/14132、28日）では、この作品に付いたクエリのうち
+// 「ユーネクスト」を含むものが32表示・「ネットフリックス」が13表示だったのに対し、
+// ABEMAを含むクエリは0だった。実際に検索されている順に寄せる。
+// ここに無いサービスは末尾（SERVICES の並び順を維持）に回る。
+const METADATA_SERVICE_PRIORITY: ServiceKey[] = [
+  "d_anime",
+  "unext",
+  "netflix",
+  "prime",
+  "abema",
+  "disney",
+  "hulu",
+  "dmm",
+  "lemino",
+];
+export function sortServicesForMetadata<T extends { key: string }>(services: T[]): T[] {
+  const rank = (key: string) => {
+    const i = METADATA_SERVICE_PRIORITY.indexOf(key as ServiceKey);
+    if (i >= 0) return i;
+    const fallback = SERVICES.findIndex((s) => s.key === key);
+    return METADATA_SERVICE_PRIORITY.length + (fallback >= 0 ? fallback : SERVICES.length);
+  };
+  return [...services].sort((a, b) => rank(a.key) - rank(b.key));
 }
 
 // 配信に当たらなかった名前のうち、地上波/BS/CS など放送局を判定して除外する

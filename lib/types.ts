@@ -123,6 +123,11 @@ export interface WorkDetailContent {
   synopsis: string;
   highlights: string[];
   publisher?: string | null;
+  // 「2期から見ても大丈夫？」「どの順番で見ればいい？」のように、視聴前に検索される疑問と回答。
+  // 作品ページに可視テキストとして出しつつ、FAQPage構造化データにも入れる（＝生成AIの回答に
+  // 引用されうる形にする）。answerは一次情報で確認できた事実だけで書き、確認できないことは
+  // 書かない（sourceUrlに載せた出典で裏が取れる範囲に留める）。未整備の作品は省略。
+  faq?: { question: string; answer: string }[];
   // 記載内容の根拠にした一次情報（公式サイト等）のURL。検証可能性のため必須。
   sourceUrl: string;
 }
