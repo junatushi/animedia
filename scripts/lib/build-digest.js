@@ -6,6 +6,10 @@
 // DIGEST_SITE_URL を設定すると差し替えられる（ローカルの開発サーバーに向けた動作確認用）。
 const SITE_URL = process.env.DIGEST_SITE_URL || "https://animedia-khaki.vercel.app";
 
+// スポットライト枠（2026-07-27導入）の対象作品リスト。実測データの一次情報は
+// content/sns/spotlight.js 側のコメントを参照。
+const { SPOTLIGHT_WORKS } = require("../../content/sns/spotlight");
+
 // X(280字)・Bluesky(300字)双方で安全に収まるよう、控えめな上限で統一する。
 const MAX_LEN = 260;
 const WEEKDAY_LABEL = ["日", "月", "火", "水", "木", "金", "土"];
@@ -104,6 +108,85 @@ function buildTodayAiring(data, weekday, year, label, url, todayStr) {
   return truncate([header, "", ...picks, "", tail, url, tag].join("\n"), MAX_LEN);
 }
 
+// スポットライト枠（2026-07-27導入）: GSC・Vercel Analyticsの実測で需要が確認できている
+// 作品（content/sns/spotlight.js の SPOTLIGHT_WORKS）を、日替わりで1本だけ名指しで紹介し
+// 作品ページへ直接送客する。従来の「その曜日の放送作品」「TOP5」は一覧型で、実際にアクセスが
+// 来ている作品を個別に押し出す枠が無かったため追加。
+// 該当作品が無ければ null（呼び出し側でスキップ）。
+function buildSpotlight(data, year, label, todayStr) {
+  const itemById = new Map(data.items.map((it) => [it.id, it]));
+
+  const candidates = SPOTLIGHT_WORKS
+    // APIの実データ（it）にSPOTLIGHT_WORKS側のhashtagを合流させる。単純にitemById.get()の
+    // 結果だけを使うとAPI側のオブジェクトに置き換わり、元エントリのhashtagが消えてしまうため。
+    .map((w) => {
+      const it = itemById.get(w.annictId);
+      return it ? { ...it, hashtag: w.hashtag } : null;
+    })
+    // 1) SPOTLIGHT_WORKS のうち、今見ているクールに存在しない作品は除外（過去クール混入対策）
+    .filter((it) => it != null)
+    // 2) 配信サービスが0件の作品は除外（「どこで見れる？」の答えが無いため）
+    .filter((it) => it.services && it.services.length > 0)
+    // 3) 放送開始1週間前ルール（CLAUDE.md準拠）と同じ趣旨で、broadcastStartDateが今日より
+    //    後（＝まだ1話も配信されていない）作品は除外する。未放送作を「配信中」と紹介すると
+    //    誤誘導になる。broadcastStartDateが無い（＝既に配信中で曜日枠が無い等）作品は対象にする。
+    .filter((it) => !it.broadcastStartDate || it.broadcastStartDate <= todayStr);
+
+  if (candidates.length === 0) return null;
+
+  // 日替わりで1件をローテーション。Math.random()は使わず、1970-01-01からの経過日数を
+  // 候補数で割った余りでインデックスを決める（同じ日なら何度実行しても同じ結果になる）。
+  // 日付の数字の和ではなく経過日数を使うのは、和だと衝突が多く（7/27と7/30が同じ値になる）
+  // 一部の作品ばかり選ばれてしまうため。経過日数なら候補を必ず1周ずつ均等に回る。
+  const dayIndex = Math.floor(Date.parse(`${todayStr}T00:00:00Z`) / 86400000);
+  const picked = candidates[dayIndex % candidates.length];
+
+  const [, m, d] = todayStr.split("-");
+  const dateLabel = `${Number(m)}/${Number(d)}`;
+
+  const serviceNames = picked.services.map((s) => s.short);
+  const serviceLine =
+    serviceNames.length <= 3
+      ? `${serviceNames.join("・")}で配信中（${dateLabel}時点）。`
+      : `${serviceNames.slice(0, 3).join("・")}ほか計${serviceNames.length}サービスで配信中（${dateLabel}時点）。`;
+  // 注目人数は「多い」と読めるときだけ出す。「35人が注目」のように小さい数字を載せると
+  // 興味付けどころか不人気の印象になるため、100人未満は行ごと省く（数字を盛らない代わりに
+  // 黙る、という扱い。CLAUDE.mdの「推測や創作で埋めない」方針と両立させる）。
+  const WATCHERS_MIN = 100;
+  const watchersLine =
+    picked.watchers >= WATCHERS_MIN ? `${picked.watchers.toLocaleString("ja-JP")}人が注目。` : "";
+
+  // リンクは必ず作品ページ（/anime/{annictId}）にする。従来のダイジェスト投稿はトップページ
+  // URLだったが、GSC実測で検索表示が付いているのは作品ページのため、SNSからの導線もそこに
+  // 集約する（トップページ経由だと再検索の手間が発生し離脱しやすい）。
+  const seasonTag = `#${year}年${label}アニメ`;
+  // 作品名タグ（hashtag、2026-07-27追加）は季節タグより先に置く。作品名の方が検索・通知に
+  // 引っかかりやすく、埋もれさせたくないため（content/sns/spotlight.jsのコメント参照）。
+  const workTag = picked.hashtag ? `#${picked.hashtag}` : null;
+  const buildLines = (tagLine) => [
+    `【どこで見れる？】${picked.title}`,
+    "",
+    `${watchersLine}${serviceLine}`,
+    "見放題で見られるサービスをまとめています。",
+    "",
+    `${SITE_URL}/anime/${picked.id}`,
+    tagLine,
+  ];
+
+  if (workTag) {
+    const withWorkTag = buildLines(`${workTag} ${seasonTag}`).join("\n");
+    // 260字上限は必ず守る。ただし既存のtruncate()は末尾を「…」で機械的に切るため、
+    // ハッシュタグの途中で千切れると検索に引っかからなくなる。それを避けるため、
+    // 超過時は先にtruncateへ流さず、作品名タグごと落として季節タグだけに戻す
+    // （通常の投稿文＝季節タグのみは元々260字に収まる想定のため、この段階で切り詰める
+    // 必要はまず発生しない）。
+    if ([...withWorkTag].length <= MAX_LEN) {
+      return { text: withWorkTag, screenshot: null };
+    }
+  }
+  return { text: truncate(buildLines(seasonTag).join("\n"), MAX_LEN), screenshot: null };
+}
+
 // 月〜土は1投稿（曜日紹介。放送作品が無ければTOP5にフォールバック）。
 // 日曜は「TOP5」＋「その日の放送/配信があれば曜日紹介」の最大2投稿にする
 // （2026-07-14: 日曜もアニメ紹介をする方針に変更）。
@@ -128,6 +211,10 @@ async function buildDigest(now = new Date()) {
     weekday === 0
       ? [buildTop5(data, year, label, url), ...(airingPost ? [airingPost] : [])]
       : [airingPost ?? buildTop5(data, year, label, url)];
+
+  // スポットライト枠は曜日による出し分けをせず毎日追加する（候補が無ければ追加しない）。
+  const spotlightPost = buildSpotlight(data, year, label, todayStr);
+  if (spotlightPost) posts.push(spotlightPost);
 
   return { posts, year, season, label, count: data.count, weekday };
 }
