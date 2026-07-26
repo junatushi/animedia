@@ -1653,8 +1653,8 @@ a.detail-cast-name:hover { text-decoration: underline; }
 
 /* ── 配信バッジのアフィリエイト/公式サイトリンク（components/ServiceMarks.tsx） ──
    2026-07-18: バッジ自体をリンク化（アフィリエイトがあればそれ、無ければ公式サイト）。
-   ステマ規制対応: PRタグは12px未満でも視認できる配色・枠線で明瞭にし、開示文
-   （.svc-disclosure）は本文と同じ12px以上を保つ。 */
+   2026-07-27: バッジ上のPRタグ（.svc-chip-pr）は廃止。ステマ規制対応はtitle属性
+   （「（広告リンク）」）と開示文（.svc-disclosure、本文と同じ12px以上）で行う。 */
 .svc-chip-link {
   display: inline-flex;
   align-items: center;
@@ -1664,17 +1664,6 @@ a.detail-cast-name:hover { text-decoration: underline; }
   border-radius: 3px;
 }
 .svc-chip-link:hover .svc-chip-name { color: var(--accent-2); }
-.svc-chip-pr {
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  padding: 1px 4px;
-  border-radius: 3px;
-  border: 1px solid var(--muted);
-  color: var(--muted);
-  line-height: 1.4;
-  flex: none;
-}
 .svc-disclosure {
   font-size: 12px;
   color: var(--muted);

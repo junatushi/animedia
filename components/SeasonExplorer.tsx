@@ -976,7 +976,8 @@ export default function SeasonExplorer({
       )}
 
       {viewMode === "grid" && !loading && !error && data && filtered.length > 0 && (
-        <div className="grid">
+        <>
+          <div className="grid">
           {filtered.map((it) => (
             <article key={it.id} className="card">
               <span className="slash" aria-hidden="true" />
@@ -1109,7 +1110,16 @@ export default function SeasonExplorer({
               </div>
             </article>
           ))}
-        </div>
+          </div>
+          {/* ステマ規制（景表法）対応: カード一覧では ServiceMarks を hideDisclosure 付きで
+              呼んでおり作品ごとの開示文は出さないため、一覧全体につき1回だけここで開示する
+              （消費者庁ステマ規制Q&A Q13: 広告リンクである旨の明瞭な表示が必要）。
+              filtered.length > 0 の条件節の中にあるので、表示作品が0件のときは出ない。 */}
+          <p className="svc-disclosure">
+            配信サービスのボタンには広告リンク（アフィリエイト）が含まれます。
+            リンク経由の登録等により、当サイトが報酬を受け取ることがあります。
+          </p>
+        </>
       )}
 
       {/* クール横断検索の結果。検索語が入っている時だけ、表示中クール以外の作品を

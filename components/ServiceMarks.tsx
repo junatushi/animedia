@@ -21,6 +21,12 @@ function brandMark(short: string): string {
 // 起きない設計（SERVICESの全エントリがofficialUrl必須）だが、万一取得できない場合は
 // リンクなしのバッジとして表示する（バッジ自体を非表示にはしない＝表示件数は減らさない）。
 // アフィリエイトリンクの有無でバッジの表示・非表示は変えない。
+//
+// ステマ規制（景表法）対応（2026-07-27にPRタグ廃止・開示文一本化に変更）:
+// 以前はアフィリエイトのあるバッジに「PR」タグを個別表示していたが、現在はバッジにPR表示は
+// 無く、title属性（「（広告リンク）」）と開示文（.svc-disclosure）で広告リンクである旨を示す。
+// 開示文は本コンポーネント単体では作品ごとに出るが、hideDisclosure=trueの画面（一覧等）では
+// 呼び出し側が画面につき1回だけ自前で.svc-disclosureを表示する責任を持つ（下記hideDisclosure参照）。
 export default function ServiceMarks({
   services,
   otherServices,
@@ -34,7 +40,9 @@ export default function ServiceMarks({
   hasBroadcastData?: boolean;
   // シーズン一覧のカード等、同じServiceMarksが作品数ぶん繰り返される画面では、
   // 開示文（.svc-disclosure）を作品ごとに何度も出すと冗長になるため省略できる。
-  // 個々のバッジのPRタグ自体は省略しない（バッジ単体でも広告リンクと分かる状態を保つ）。
+  // ただしステマ規制（景表法）対応上、開示文は画面のどこかに必ず必要なため、
+  // hideDisclosureを使う呼び出し側（例: components/SeasonExplorer.tsx のカード一覧）は
+  // 一覧全体につき1回、自前で.svc-disclosureを表示すること。
   hideDisclosure?: boolean;
 }) {
   if (services.length === 0 && otherServices.length === 0) {
@@ -71,7 +79,6 @@ export default function ServiceMarks({
                 {s.short}
               </span>
               <span className="sr-only">{s.name}</span>
-              {program && <span className="svc-chip-pr" aria-hidden="true">PR</span>}
             </>
           );
           return (
@@ -82,7 +89,7 @@ export default function ServiceMarks({
                 s.manualSourceUrl
                   ? `${s.name}（Annict未登録・公式情報で手動確認）`
                   : program
-                    ? `${s.name}（広告リンク・PR）`
+                    ? `${s.name}（広告リンク）`
                     : s.name
               }
             >
@@ -127,12 +134,14 @@ export default function ServiceMarks({
           </span>
         ))}
       </div>
-      {/* ステマ規制（景表法）対応: PRバッジが1件でもあれば、リンクの近くに
-          広告である旨を明示する（消費者庁ステマ規制Q&A Q13: 一般消費者に明瞭な表示が必要）。 */}
+      {/* ステマ規制（景表法）対応: バッジ自体にPR表示は無いため、アフィリエイトリンクが
+          1件でもあれば開示文で広告である旨を明示する（消費者庁ステマ規制Q&A Q13:
+          一般消費者に明瞭な表示が必要）。hideDisclosure=trueの呼び出し側（一覧画面など）は
+          この開示文を出さない代わりに、呼び出し側が画面につき1回、自前で表示する責任を持つ。 */}
       {hasAnyAffiliate && !hideDisclosure && (
         <p className="svc-disclosure">
-          PR表示のあるボタンは広告リンクです。当サイトはアフィリエイトプログラムに参加しており、
-          リンク経由の登録により報酬を受け取ることがあります。
+          配信サービスのボタンには広告リンク（アフィリエイト）が含まれます。
+          リンク経由の登録等により、当サイトが報酬を受け取ることがあります。
         </p>
       )}
     </div>
