@@ -18,6 +18,20 @@ name: キャッシュ温め（今年分）
 #      4)/5) とも2026-07-24にISR化（revalidate=600、season配下と同じパターン）。
 #      現在クールのみ温める（4シーズン全部ではない。ランキング/独占配信の需要は
 #      基本的に今期に集中するため）。
+#   6) /anime/{id} … 作品個別ページ（2026-07-27追加）。同日にISR化した
+#      （revalidate=900。それ以前は毎リクエスト動的描画で、本番実測でも常に
+#      x-vercel-cache: MISS の0.42〜0.82秒。スマホでカードをタップしても画面が
+#      変わらない体感の主因だった）。ここを温めると実訪問者はHITを引く
+#      （ローカル本番ビルド実測: コールド0.13秒 → HIT 0.009秒）。
+#      対象は現在クールの注目度（watchers）上位 WORK_LIMIT 件。トップページ・
+#      ランキングページの既定の並びが watchers 降順なので、上位から温めることが
+#      そのまま「利用者が最初に目にする＝タップされやすいカード」の順になる。
+#      全作品（今期132件）を温めない理由は、ISRの再検証1回につきAnnictへ
+#      GraphQLが1〜2本飛ぶため。上位60件なら猫と竜（42位・667人）のような
+#      中位の作品まで入り、ほとんど末尾（100位=19人、132位=1人）だけが外れる。
+#      末尾の作品も動かなくなるわけではなく、初回アクセスだけ従来どおり
+#      1秒弱かかり、その後15分間はキャッシュに載る。件数を増やしたいときは
+#      下の WORK_LIMIT を上げる（Annictへの負荷と引き換え）。
 #
 # これまでは 1) だけを温めており、2)/3) の「描画関数」は温まっていなかったため、
 # 主要入口の / やシーズンページに久しぶりに来た訪問者がコールド起動を踏んでいた
@@ -68,3 +82,40 @@ jobs:
             "$BASE/rankings/${YEAR}/${CURRENT_SEASON}"
           curl -s -o /dev/null -w "page exclusive ${YEAR}/${CURRENT_SEASON} status=%{http_code} time=%{time_total}s\n" \
             "$BASE/exclusive/${YEAR}/${CURRENT_SEASON}"
+
+      - name: 作品ページ（現在クールの注目度上位）を温める
+        run: |
+          BASE="https://animedia-khaki.vercel.app"
+          # 温める件数。増やすとカバー範囲が広がる代わりにAnnictへの再検証が増える。
+          WORK_LIMIT=60
+          YEAR=$(TZ=Asia/Tokyo date +%Y)
+          MONTH=$(TZ=Asia/Tokyo date +%-m)
+          if [ "$MONTH" -le 3 ]; then CURRENT_SEASON="winter"
+          elif [ "$MONTH" -le 6 ]; then CURRENT_SEASON="spring"
+          elif [ "$MONTH" -le 9 ]; then CURRENT_SEASON="summer"
+          else CURRENT_SEASON="autumn"
+          fi
+          # 上のステップで /api/season を叩いた直後なのでエッジHITで返る（追加負荷なし）。
+          # 応答は { season, count, items: [...] } 形式。items は既に watchers 降順だが、
+          # 並びの前提を持たずに済むよう念のためここでも降順に並べ直す。
+          # 配列スライス（.[:$n]）ではなく limit を使う。jqの版差の影響を受けにくく、
+          # watchers が欠けている作品があっても // 0 で落ちない。
+          IDS=$(curl -s "$BASE/api/season?year=${YEAR}&season=${CURRENT_SEASON}" \
+            | jq -r --argjson n "$WORK_LIMIT" \
+              '.items | sort_by(-(.watchers // 0)) | limit($n; .[]) | .id')
+          if [ -z "$IDS" ]; then
+            echo "作品IDを取得できませんでした（/api/season の応答を確認）"
+            exit 1
+          fi
+          echo "温め対象: $(echo "$IDS" | wc -l) 件"
+          MISS=0
+          for ID in $IDS; do
+            # ISRのキャッシュエントリはHTMLとRSCペイロードが1組で書かれるため、
+            # HTMLを1回叩けばカードのタップ（＝クライアント遷移でRSCを取得）も
+            # HITになる（ローカル本番ビルドで実測確認済み）。
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/anime/${ID}")
+            [ "$CODE" = "200" ] || { echo "anime/${ID} status=${CODE}"; MISS=$((MISS+1)); }
+            # Annict側への再検証が一斉に走らないよう軽く間隔を空ける。
+            sleep 0.2
+          done
+          echo "完了（200以外: ${MISS} 件）"

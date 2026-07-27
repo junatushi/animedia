@@ -28,6 +28,35 @@ import { siteUrl } from "@/lib/siteUrl";
 
 type Params = { id: string };
 
+// 作品ページのISR（2026-07-21にトップページへ入れたのと同じ考え方・2026-07-27導入）。
+// これ以前はrevalidate未指定＝毎リクエストで動的描画しており、本番の実測でも
+// x-vercel-cache: MISS が続き0.42〜0.82秒（Annictのデータキャッシュが切れた直後は数秒）
+// サーバー側で待たされていた。App Routerのクライアント遷移はこの間まったく画面が
+// 変わらないため、スマホでは「タップしたのに進まない」ように見えていた。
+// 放送中の配信情報は分単位で変わるものではないので、ページHTMLごとエッジに載せる。
+// 15分はgetSeasonDataのキャッシュ（900s）と揃えてある。
+// 効果（ローカル本番ビルド実測）: 初回0.81秒 → 2回目以降0.010秒（x-nextjs-cache: HIT）。
+export const revalidate = 900;
+
+// generateStaticParams が無いと revalidate を書いてもルートが prerender-manifest に
+// 載らず、毎リクエスト動的描画のまま（実測: ビルド出力で /anime/[id] だけ ƒ のままで
+// manifest の dynamicRoutes に現れない）。空配列を返して「ビルド時には1件も焼かないが、
+// アクセスされたIDから順にISRキャッシュに載せる」構成にする。作品数は数千件あるので
+// ビルド時に全部焼くのは現実的でなく、実際にタップされたものだけキャッシュすれば足りる。
+//
+// 副次効果（Next.jsの仕様。実機での計測は未実施）: ルートが静的扱い（ビルド出力の ●）に
+// なると <Link> が画面内に入ったカードのRSCペイロードを先読みするようになる。動的ルートの
+// ままだと loading.tsx が無い限り一切先読みしないので、この点でも体感が変わるはず。
+//
+// なお、ここに loading.tsx を置くとタップ直後に骨組みを出せるが、ストリーミングで
+// ヘッダが先に確定するため notFound() が 404 ではなく 200（ソフト404）で返るように
+// なる（実測: /anime/88888888 の .meta が status:200 になり、loading.tsx を消すと
+// 404 に戻る）。存在しない作品IDが200で返るのは検索エンジンに対して有害なので、
+// loading.tsx は置かず、ISR＋先読みで速さを担保する方針にした。
+export async function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const id = Number(params.id);
   if (!Number.isInteger(id) || id <= 0) return {};

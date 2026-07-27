@@ -591,6 +591,8 @@ body {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  /* タイトルのリンクを行全体に引き伸ばすための基準（下の .calendar-title::after）。 */
+  position: relative;
 }
 .calendar-time {
   font-family: var(--mono);
@@ -610,6 +612,13 @@ body {
   overflow: hidden;
 }
 .calendar-title:hover { color: var(--accent-2); text-decoration: underline; }
+/* カレンダー表示も一覧カードと同じ問題（タイトル文字だけがタップ領域）を抱えていたため、
+   時刻・配信バッジを含む行全体をタップ領域にする。行内に他のリンクは無い（バッジは span）。 */
+.calendar-title::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
 .calendar-badges { gap: 4px; margin-top: 2px; }
 .calendar-badges .badge {
   font-size: 10px;
@@ -1272,6 +1281,34 @@ body {
 .card-compact .card-body { padding: 12px 14px 14px; }
 .card-title a { color: inherit; text-decoration: none; }
 .card-title a:hover { color: var(--accent-2); text-decoration: underline; }
+
+/* ── カード全体をタップ領域にする（stretched link・2026-07-27導入）─────────
+   これ以前、カードから作品ページ（/anime/{id}）へ進める領域は「タイトルの文字そのもの」
+   だけで、タップ領域がタイトルの文字数に比例して小さくなっていた。スマホ幅375pxでの実測:
+   「幼女戦記Ⅱ」61×17px（カード面積の1.1%）、「猫と竜」36×17px、「盗掘王」39×17px。
+   Apple(44×44pt)・Google(48×48dp)の推奨タップ領域を大きく下回り、短いタイトルの作品ほど
+   「カードを押しても何も起きない」状態になっていた（実報告: 幼女戦記Ⅱ）。
+   タイトルのリンクを ::after でカード全面に引き伸ばし、カードのどこを押しても作品ページへ
+   進むようにする。リンク要素は増えないので、スクリーンリーダー・検索エンジンから見た
+   構造は変わらない。 */
+.card-title a::after {
+  content: "";
+  /* 基準は .card（position: relative）。.card-head/.card-title は position 未指定なので
+     ここがカード全面に広がる。中間に position を付けると領域が縮むので注意。 */
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+/* 引き伸ばしたリンク（z-index: 1）より上に出して、個別に押せるようにする要素。
+   カード右上のアクション（.card-actions）は既に z-index: 4 で指定済み。
+   上げるのは「リンクそのもの」だけにする（配信バッジの列や最下段の行ごと上げると、
+   バッジ同士の隙間や「◯人が注目」のようなただのテキストまでタップ領域から抜ける）。 */
+.card .svc-chip-link,
+.card .svc-chip-manual-mark,
+.card .official {
+  position: relative;
+  z-index: 2;
+}
 
 /* ── Badges ───────────────────────────────── */
 .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
