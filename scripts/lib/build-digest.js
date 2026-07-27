@@ -38,6 +38,28 @@ function truncate(text, max) {
   return chars.slice(0, max - 1).join("") + "…";
 }
 
+// Threads専用: 末尾のハッシュタグ行を先頭の1つだけに削る。
+//
+// Threadsは1投稿につき「トピックタグ」を1つしか受け付けない（Meta公式の仕様。タグ乱用を
+// 防ぐための意図的な制限）。2つ目以降の「#タグ」はリンクにならず地の文としてそのまま
+// 残るため、複数タグを書くと投稿の末尾が中途半端に壊れて見える。
+// 2026-07-27にスポットライト枠へ作品名タグを足して1投稿2タグになったため、Threadsだけ
+// この関数を通す（X/Bluesky/Mastodonは複数タグが正常に機能するので本文は変えない）。
+//
+// なお、Threadsは採用したトピックタグを「#」記号なしで表示する（2023-12の仕様変更）。
+// 投稿画面に「#」が出ないのは欠落ではなく仕様であり、タグ自体は機能している。
+//
+// 末尾行がハッシュタグだけで構成されている場合にのみ働き、それ以外の本文には触らない。
+// 将来どの投稿種別にタグを増やしても自動的に効くように、タグ配列ではなく本文側で判定する。
+const HASHTAG_ONLY_LINE = /^#\S+(?:[ 　]+#\S+)+$/;
+function toSingleHashtagText(text) {
+  const lines = text.split("\n");
+  const lastIndex = lines.length - 1;
+  if (!HASHTAG_ONLY_LINE.test(lines[lastIndex])) return text;
+  lines[lastIndex] = lines[lastIndex].split(/[ 　]+/)[0];
+  return lines.join("\n");
+}
+
 // TOP5投稿は文字数制限があるため正式タイトルを短縮する。新しい呼び方を作るのではなく、
 // サブタイトル区切り（～〈(－等）以降を落とすだけの機械的な短縮にとどめる
 // （CLAUDE.mdの「創作しない」方針に準拠。既存の通称データ content/works/aliases.ts は
@@ -58,6 +80,18 @@ function rankingScreenshot(url) {
   return { url: `${url}&ranking=open`, selector: ".ranking" };
 }
 
+// Threads用の画像URL（2026-07-27追加）。
+// Threads APIは画像のバイナリ投稿に対応しておらず、公開サーバー上の image_url を
+// cURLで取りに来る仕様のため、Playwrightで撮ったPNG（公開URLを持たない）は添付できない。
+// そこでサイト側に同等の内容を描く公開エンドポイント（app/api/sns-image）を用意し、
+// そのURLを渡す。screenshot（Playwright用のページURL+セレクタ）とは別物なので分けて持つ。
+function airingImage(weekdayLabel) {
+  return `${SITE_URL}/api/sns-image?kind=airing&day=${encodeURIComponent(weekdayLabel)}`;
+}
+function rankingImage() {
+  return `${SITE_URL}/api/sns-image?kind=ranking`;
+}
+
 // 日曜: 今期の注目作TOP5（人数付き）
 function buildTop5(data, year, label, url) {
   const top5 = [...data.items].sort((a, b) => b.watchers - a.watchers).slice(0, 5);
@@ -69,7 +103,7 @@ function buildTop5(data, year, label, url) {
     url,
     `#${year}年${label}アニメ`,
   ];
-  return { text: truncate(lines.join("\n"), MAX_LEN), screenshot: rankingScreenshot(url) };
+  return { text: truncate(lines.join("\n"), MAX_LEN), screenshot: rankingScreenshot(url), image: rankingImage() };
 }
 
 // 月〜土: その曜日に放送/配信のある今期アニメ。注目度順に、字数上限まで詰める。
@@ -163,6 +197,10 @@ function buildSpotlight(data, year, label, todayStr) {
   // 作品名タグ（hashtag、2026-07-27追加）は季節タグより先に置く。作品名の方が検索・通知に
   // 引っかかりやすく、埋もれさせたくないため（content/sns/spotlight.jsのコメント参照）。
   const workTag = picked.hashtag ? `#${picked.hashtag}` : null;
+  // スポットライトは1作品を名指しする投稿なので、Threadsに添付する画像はその作品ページの
+  // OGP画像（既存の app/anime/[id]/opengraph-image）をそのまま使う。専用の画像を
+  // 作り足す必要がなく、リンク先と絵柄が一致する。
+  const workImage = `${SITE_URL}/anime/${picked.id}/opengraph-image`;
   const buildLines = (tagLine) => [
     `【どこで見れる？】${picked.title}`,
     "",
@@ -181,10 +219,10 @@ function buildSpotlight(data, year, label, todayStr) {
     // （通常の投稿文＝季節タグのみは元々260字に収まる想定のため、この段階で切り詰める
     // 必要はまず発生しない）。
     if ([...withWorkTag].length <= MAX_LEN) {
-      return { text: withWorkTag, screenshot: null };
+      return { text: withWorkTag, screenshot: null, image: workImage };
     }
   }
-  return { text: truncate(buildLines(seasonTag).join("\n"), MAX_LEN), screenshot: null };
+  return { text: truncate(buildLines(seasonTag).join("\n"), MAX_LEN), screenshot: null, image: workImage };
 }
 
 // 月〜土は1投稿（曜日紹介。放送作品が無ければTOP5にフォールバック）。
@@ -204,7 +242,11 @@ async function buildDigest(now = new Date()) {
 
   const airingText = buildTodayAiring(data, weekday, year, label, url, todayStr);
   const airingPost = airingText
-    ? { text: airingText, screenshot: calendarScreenshot(url, WEEKDAY_LABEL[weekday]) }
+    ? {
+        text: airingText,
+        screenshot: calendarScreenshot(url, WEEKDAY_LABEL[weekday]),
+        image: airingImage(WEEKDAY_LABEL[weekday]),
+      }
     : null;
 
   const posts =
@@ -320,6 +362,7 @@ module.exports = {
   buildFeatureAnnounce,
   buildPost,
   truncate,
+  toSingleHashtagText,
   MAX_LEN,
   SITE_URL,
   // 週次X成長キット（build-growth-kit.js）から再利用する小ヘルパー。

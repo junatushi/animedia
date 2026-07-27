@@ -1,6 +1,7 @@
 import { classifyChannel, toAnimeItem } from "../lib/services.ts";
 import { PROGRAMS_QUERY, PROGRAMS_QUERY_LIST } from "../lib/annict.ts";
 import type { AnnictWork } from "../lib/types.ts";
+import { toSingleHashtagText } from "./lib/build-digest.js";
 
 const samples: Array<[string, string]> = [
   // [入力チャンネル名, 期待する分類]
@@ -261,4 +262,44 @@ checkQueryField("PROGRAMS_QUERY_LIST（シーズン一覧の追い取得）", PR
 checkQueryField("PROGRAMS_QUERY（作品個別/通知機能）", PROGRAMS_QUERY, "episode", true);
 console.log(`結果（追い取得クエリ）: ${queryOk} 件OK / ${queryNg} 件NG`);
 
-if (ng > 0 || scheduleNg > 0 || bdNg > 0 || queryNg > 0 || extraNg > 0) process.exit(1);
+// ── Threadsのハッシュタグ1個制限の回帰テスト ──
+// Threadsは1投稿につきトピックタグを1つしか受け付けず、2つ目以降の「#タグ」は
+// リンクにならず地の文として残る（Meta公式の仕様）。2026-07-27にスポットライト枠へ
+// 作品名タグを足して1投稿2タグになり、Threadsの投稿末尾だけが崩れる状態になった。
+// post-threads.js は toSingleHashtagText を通してから投稿する。他SNS（X/Bluesky/
+// Mastodon）は複数タグが正常に機能するため本文を変えてはいけない＝この関数は
+// 「末尾がハッシュタグだけの行」以外に触らないことも同時に固定する。
+let tagOk = 0;
+let tagNg = 0;
+function checkSingleHashtag(name: string, input: string, expected: string) {
+  const actual = toSingleHashtagText(input);
+  const pass = actual === expected;
+  if (pass) tagOk++; else tagNg++;
+  console.log(
+    `${pass ? "✓" : "✗"}  ${name.padEnd(40)} → ${JSON.stringify(actual.split("\n").pop())}` +
+      (pass ? "" : `  (期待: ${JSON.stringify(expected.split("\n").pop())})`)
+  );
+}
+checkSingleHashtag(
+  "2タグ（スポットライト）は先頭だけ残す",
+  "【どこで見れる？】闇芝居 十七期\n\nhttps://example.com/anime/17812\n#闇芝居 #2026年夏アニメ",
+  "【どこで見れる？】闇芝居 十七期\n\nhttps://example.com/anime/17812\n#闇芝居"
+);
+checkSingleHashtag(
+  "1タグはそのまま",
+  "今週の注目作TOP5\n\nhttps://example.com/\n#2026年夏アニメ",
+  "今週の注目作TOP5\n\nhttps://example.com/\n#2026年夏アニメ"
+);
+checkSingleHashtag(
+  "タグ無しはそのまま",
+  "アニメ視聴ガイドに新機能を追加しました。\n\nhttps://example.com/",
+  "アニメ視聴ガイドに新機能を追加しました。\n\nhttps://example.com/"
+);
+checkSingleHashtag(
+  "本文中の#（末尾行がタグだけでない）には触らない",
+  "1位 #1 の作品はこちら\nhttps://example.com/",
+  "1位 #1 の作品はこちら\nhttps://example.com/"
+);
+console.log(`結果（Threadsのタグ1個制限）: ${tagOk} 件OK / ${tagNg} 件NG`);
+
+if (ng > 0 || scheduleNg > 0 || bdNg > 0 || queryNg > 0 || extraNg > 0 || tagNg > 0) process.exit(1);

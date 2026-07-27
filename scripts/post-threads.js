@@ -20,15 +20,22 @@
 // FINISHEDになるまで待つ」ことを推奨しているため、GET /{creation-id}?fields=status,error_message
 // をポーリングし、FINISHEDを確認してから公開する。
 //
-// 画像添付はしない: ThreadsのIMAGE投稿は公開URLのimage_urlが必須で、バイナリの直接
-// アップロードに対応していない。本スクリプトのスクリーンショット（Playwrightで撮る
-// PNGバイナリ）は公開URLを持たないため添付できない。ただし本文中の最初のURL
-// （ダイジェストのサイトURL）はmedia_type=TEXTでも自動でリンクプレビューカードになる
-// （link_attachment未指定時の公式仕様）ため、画像なしでも導線は保たれる。
-// post.screenshot は他SNS向けの指定なのでここでは無視する。
+// 【画像の扱い・2026-07-27修正】ThreadsのIMAGE投稿は公開サーバー上のimage_urlが必須で、
+// バイナリの直接アップロードに対応していない（公式: "We will cURL your image using the URL
+// provided so it must be on a public server."）。そのため他SNS向けのPlaywright製
+// スクリーンショット（post.screenshot＝公開URLを持たないPNGバイナリ）は添付できず、
+// 導入時からThreadsだけ画像なしになっていた。
+// サイト側に公開画像エンドポイント（app/api/sns-image）を用意し、post.image に入れた
+// 公開URLを media_type=IMAGE + image_url で渡す形に変更した。
+// post.image が無い投稿は従来どおり media_type=TEXT（本文中の最初のURLが自動で
+// リンクプレビューカードになるので導線は保たれる）。
+//
+// 【ハッシュタグ・2026-07-27修正】Threadsは1投稿につきトピックタグを1つしか受け付けない。
+// 2つ目以降の「#タグ」はリンクにならず地の文として残るため、toSingleHashtagText で
+// 末尾のタグ行を先頭1つに削ってから投稿する。
 //
 // レート制限は投稿250件/24h、本文上限は500字（既存のMAX_LEN=260で余裕を持って収まる）。
-const { buildPost } = require("./lib/build-digest");
+const { buildPost, toSingleHashtagText } = require("./lib/build-digest");
 
 // THREADS_API_BASE はローカルのスタブサーバーに向けた動作確認用（build-digest.js の
 // DIGEST_SITE_URL と同じ思想）。通常運用では未設定のまま本番APIを使う。
@@ -63,6 +70,21 @@ async function waitUntilPublishable(creationId, accessToken) {
   throw new Error(`Threadsコンテナが${(POLL_TRIES * POLL_INTERVAL_MS) / 1000}秒以内にFINISHEDになりませんでした`);
 }
 
+// コンテナ（下書き）を1つ作る。成功でcreation_id、失敗でnullを返す（呼び出し側が
+// 画像あり→なしへフォールバックできるよう、ここでは投げずにnullで返す）。
+async function createContainer(userId, accessToken, fields) {
+  const res = await fetch(`${API_BASE}/${userId}/threads`, {
+    method: "POST",
+    body: new URLSearchParams({ ...fields, access_token: accessToken }),
+  });
+  if (!res.ok) {
+    console.warn(`Threadsコンテナの作成に失敗（${res.status}）: ${await res.text()}`);
+    return null;
+  }
+  const { id } = await res.json();
+  return id ?? null;
+}
+
 async function main() {
   const accessToken = process.env.THREADS_ACCESS_TOKEN;
 
@@ -80,19 +102,26 @@ async function main() {
   const { posts } = await buildPost();
 
   for (const post of posts) {
+    const text = toSingleHashtagText(post.text);
+
     // 1. コンテナ作成（この時点ではまだ公開されない）
-    const createRes = await fetch(`${API_BASE}/${userId}/threads`, {
-      method: "POST",
-      body: new URLSearchParams({
-        media_type: "TEXT",
-        text: post.text,
-        access_token: accessToken,
-      }),
-    });
-    if (!createRes.ok) {
-      throw new Error(`Threads投稿に失敗しました（${createRes.status}）: ${await createRes.text()}`);
+    // 画像付きを試し、失敗したらテキストのみで作り直す。image_url はThreads側が
+    // cURLで取りに来る外部依存なので、画像生成の一時的な失敗やデプロイ直後の
+    // コールドスタートで取得できないことがある。そこで毎日の投稿そのものを
+    // 落とすのは割に合わない（画像は「あると良い」もので、本文とリンクが本体）。
+    let creationId = null;
+    if (post.image) {
+      creationId = await createContainer(userId, accessToken, { media_type: "IMAGE", text, image_url: post.image });
+      if (!creationId) {
+        console.warn(`画像付きコンテナの作成に失敗したため、テキストのみで投稿します: ${post.image}`);
+      }
     }
-    const { id: creationId } = await createRes.json();
+    if (!creationId) {
+      creationId = await createContainer(userId, accessToken, { media_type: "TEXT", text });
+      if (!creationId) {
+        throw new Error("Threads投稿に失敗しました（テキストのみのコンテナも作成できませんでした）");
+      }
+    }
 
     // 1.5. コンテナがサーバー側で処理され公開可能（FINISHED）になるまで待つ。
     // これを飛ばすと直後の公開が "Media Not Found" で失敗する（2026-07-24修正の要点）。
