@@ -13,6 +13,17 @@ import ServiceMarks from "@/components/ServiceMarks";
 
 const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
 
+const WEEKDAY_SHORT = ["日", "月", "火", "水", "木", "金", "土"];
+
+// "YYYY-MM-DD"（JSTの日付）→「2026年8月28日(金)」。
+// 曜日は Date.UTC で「日付そのもの」として組み立てて求める
+// （`new Date("2026-08-28T00:00:00+09:00")` をUTCで読むと前日になり曜日が1日ずれる）。
+function formatJpDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const wd = WEEKDAY_SHORT[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] ?? "";
+  return `${y}年${m}月${d}日(${wd})`;
+}
+
 import { siteUrl } from "@/lib/siteUrl";
 
 type Params = { id: string };
@@ -47,9 +58,13 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   // 「まだ確認できていない」と正直に書く（CLAUDE.mdの推測で埋めない方針と同じ）。
   const descServices =
     serviceShorts.slice(0, 5).join("・") + (serviceShorts.length > 5 ? "ほか" : "");
+  // 劇場公開日が判明している作品（＝配信がまだ無い劇場作品が大半）は、公開日を
+  // description の先頭に出す。「{作品名} 公開日」は劇場作品で最も検索される問いで、
+  // 配信の有無だけを書いた説明文よりスニペットが検索意図に一致する。
+  const releaseLead = item.releaseDate ? `${formatJpDate(item.releaseDate.date)}劇場公開。` : "";
   const description = serviceShorts.length
-    ? `「${item.title}」を見放題で配信している動画配信サービスは ${descServices}。どのサービスで見られるかをアニメ視聴ガイドが最新データで一覧にしています。`
-    : `「${item.title}」の配信サービスは現時点で確認できていません。判明し次第このページに反映します。今期アニメの配信状況はアニメ視聴ガイドで確認できます。`;
+    ? `${releaseLead}「${item.title}」を見放題で配信している動画配信サービスは ${descServices}。どのサービスで見られるかをアニメ視聴ガイドが最新データで一覧にしています。`
+    : `${releaseLead}「${item.title}」の配信サービスは現時点で確認できていません。判明し次第このページに反映します。今期アニメの配信状況はアニメ視聴ガイドで確認できます。`;
   const url = `${siteUrl}/anime/${id}`;
 
   return {
@@ -141,17 +156,32 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   if (content?.sourceUrl) {
     workLd.sameAs = content.sourceUrl;
   }
+  // 劇場公開日（人力補完。content/works/releaseDates.ts）。Annictは劇場公開日を持たず
+  // （GraphQLに該当フィールドが無く、REST v1のreleased_onも新作映画では空）、programsも
+  // 0件のため、これが無いと劇場作品のページには日付が一切出ない。一次情報で確認できた
+  // 作品にだけ入る。
+  const release = item.releaseDate ?? null;
+
   // 配信情報はAnnictからライブ取得（revalidateの範囲）なので、確認日を鮮度シグナルとして出す。
-  const checkedDate = new Date().toISOString().slice(0, 10);
+  // JSTの日付にする（toISOString()はUTCのため、JSTの朝9時までは前日の日付になってしまう）。
+  const checkedDate = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   workLd.dateModified = checkedDate;
+  if (release) {
+    // schema.org の Movie/TVSeries が持つ公開日。生成AI・検索エンジンに
+    // 「いつ公開か」を機械可読な形で渡す。
+    workLd.datePublished = release.date;
+  }
 
   // 放送開始日（JST, "YYYY-MM-DD"）から、この作品がどのクールに属するかを逆算する。
   // 「シーズン別ページ」への内部リンクを作ることで、そのクールの他の作品にも
   // 回遊させる（＝シーズンページへの内部被リンクが増え、クロール・回遊双方にプラス）。
   // 放送開始日が未定の作品（broadcastStartDateがnull）はリンクを出さない。
-  const workSeason = item.broadcastStartDate
+  // 劇場公開作品はprogramsが無く放送開始日も出ないため、公開日をクール逆算にも使う
+  // （これが無いと劇場作品だけシーズンページへの内部リンク・パンくずが消える）。
+  const seasonBaseDate = item.broadcastStartDate ?? release?.date ?? null;
+  const workSeason = seasonBaseDate
     ? (() => {
-        const [y, m] = item.broadcastStartDate!.split("-").map(Number);
+        const [y, m] = seasonBaseDate.split("-").map(Number);
         const seasonKey = seasonKeyForMonth(m);
         return { year: y, key: seasonKey, label: SEASON_LABEL[seasonKey] };
       })()
@@ -215,7 +245,12 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
       ? `「${item.title}」は ${serviceLabels.join("・")} で視聴できます（${checkedDate}時点、Annictより）。${rentalNote}配信状況は変わることがあるため、視聴前に各サービスの最新情報もご確認ください。`
       : rentalServices.length > 0
         ? `「${item.title}」は見放題配信は現時点で確認できませんが、${rentalNote}（${checkedDate}時点）`
-        : `「${item.title}」の配信サービスは現時点でAnnictに登録がなく確認できません（${checkedDate}時点）。判明し次第このページに反映されます。`;
+        : // 劇場公開日が判明している作品は「配信が無い」だけで終わらせず、公開前／公開済みの
+          // どちらなのかまで書く（劇場公開前の作品に配信が無いのは当然で、それを伏せると
+          // 「取り扱いが無い作品」に見えてしまう）。上映終了は確認できないため「公開中」とは書かない。
+          release
+          ? `「${item.title}」は${formatJpDate(release.date)}${release.date > checkedDate ? "に劇場公開予定です" : "に劇場公開された作品です"}。配信サービスは現時点でAnnictに登録がなく確認できません（${checkedDate}時点）。判明し次第このページに反映されます。`
+          : `「${item.title}」の配信サービスは現時点でAnnictに登録がなく確認できません（${checkedDate}時点）。判明し次第このページに反映されます。`;
   // 「どこで配信？」に加えて、content/works/{id}.json に人力で用意したQ&A
   // （「2期から見ても大丈夫？」「どの順番で見る？」等）も同じFAQPageに載せる。
   // 配信先だけでなく視聴前の判断材料まで1ページで揃うと、検索結果からの離脱が減る。
@@ -228,6 +263,21 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         name: `「${item.title}」はどこで配信されている？`,
         acceptedAnswer: { "@type": "Answer", text: watchAnswer },
       },
+      // 「{作品名} 公開日」は劇場作品で最も検索される問いのひとつなので、
+      // 公開日が確認できている作品にはQ&Aとしても載せる（可視テキストは下の
+      // 「劇場公開日」行と対応する）。
+      ...(release
+        ? [
+            {
+              "@type": "Question",
+              name: `「${item.title}」の劇場公開日はいつ？`,
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: `「${item.title}」の劇場公開日は${formatJpDate(release.date)}です（公式サイト等の発表より、${release.confirmedDate}確認）。公開日は変更されることがあるため、最新情報は公式サイトもご確認ください。`,
+              },
+            },
+          ]
+        : []),
       ...(content?.faq ?? []).map((f) => ({
         "@type": "Question",
         name: f.question,
@@ -281,6 +331,17 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
             <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
               「{item.title}」はどこで配信されている？
             </h2>
+            {/* 劇場公開日（人力補完）。Annictは公開日を持たないため、確認できた作品にだけ出る。
+                出典リンクと確認日を必ず添える（延期・変更されうるため）。 */}
+            {release && (
+              <p className="detail-release">
+                劇場公開日: <strong>{formatJpDate(release.date)}</strong>{" "}
+                <a href={release.sourceUrl} target="_blank" rel="noopener noreferrer">
+                  出典 ↗
+                </a>
+                <span className="detail-sub">（{release.confirmedDate}確認・変更の可能性あり）</span>
+              </p>
+            )}
             {/* 見出しの問いに対する答えを、まず1文の可視テキストで返す（2026-07-26追加）。
                 以前はバッジだけを置き、回答文はJSON-LD（FAQPage）の中にしか無かったが、
                 検索結果のスニペットに使われるのは可視テキストのため、同じ文をここにも出す。

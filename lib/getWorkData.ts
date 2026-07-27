@@ -2,6 +2,7 @@
 import { fetchWorkById } from "./annict";
 import { toAnimeDetail } from "./services";
 import { EXTRA_SERVICES } from "@/content/works/extraServices";
+import { RELEASE_DATES } from "@/content/works/releaseDates";
 import type { AnimeDetail } from "./types";
 
 export async function getWorkData(id: number): Promise<AnimeDetail | null> {
@@ -12,5 +13,5 @@ export async function getWorkData(id: number): Promise<AnimeDetail | null> {
 
   const w = await fetchWorkById(id, token);
   if (!w) return null;
-  return toAnimeDetail(w, EXTRA_SERVICES[id]);
+  return toAnimeDetail(w, EXTRA_SERVICES[id], RELEASE_DATES[id]);
 }

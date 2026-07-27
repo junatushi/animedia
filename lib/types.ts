@@ -48,6 +48,20 @@ export interface ServiceTag {
   manualSourceUrl?: string;
 }
 
+// 劇場公開日のように、Annict が持たない日付を人力で補完するためのエントリ。
+// 実データは content/works/releaseDates.ts に置き、getSeasonData/getWorkData から
+// toAnimeItem/toAnimeDetail の第3引数として注入する（ExtraServiceEntry と同じ設計。
+// lib は content に直接依存させない）。
+export interface ReleaseDateEntry {
+  // 劇場公開日（"YYYY-MM-DD", JST）。
+  date: string;
+  // 一次情報（公式サイト・配給/製作会社の発表等）のURL。CLAUDE.mdの「一次情報のみ・
+  // 創作しない」方針に従い必須とする。UI側で出典として表示する。
+  sourceUrl: string;
+  // 確認日（"YYYY-MM-DD"）。公開日は延期・変更されることがあるため鮮度の目安に使う。
+  confirmedDate: string;
+}
+
 export interface AnimeItem {
   id: number;
   title: string;
@@ -66,6 +80,11 @@ export interface AnimeItem {
   // programs が空/未登録の作品は null（「配信日未定」として扱う）。
   broadcastWeekday: number | null;
   broadcastTime: string | null;
+  // 劇場公開日（人力補完）。Annict の API は劇場公開日を持たない（GraphQL に
+  // フィールドが無く、REST v1 の released_on も新作映画では空のことが多い）ため、
+  // 公式サイト等の一次情報で確認できた作品にだけ content/works/releaseDates.ts で
+  // 与える（未確認の作品は null。推測では埋めない）。
+  releaseDate: ReleaseDateEntry | null;
   // 上記と同じ最速 programs から導出した放送/配信開始日（"YYYY-MM-DD", JST）。
   // 放送開始の1週間より前は「今週の曜日」のように見せず日付表示に切り替え、
   // カレンダー（曜日別グリッド）にも出さない基本ルールの判定に使う（SeasonExplorer側）。

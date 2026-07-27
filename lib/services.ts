@@ -211,9 +211,12 @@ export interface ExtraServiceEntry {
 
 // AnnictWork（生データ）→ AnimeItem（画面/APIが使う整形済みデータ）への変換。
 // シーズン一覧（getSeasonData）と作品個別ページ（getWorkData）の両方から共有する。
+// release は劇場公開日の人力補完（content/works/releaseDates.ts）。Annictは劇場公開日を
+// 持たないため、確認できた作品だけ呼び出し側から注入する（未確認は undefined → null）。
 export function toAnimeItem(
   w: import("./types").AnnictWork,
-  extra: ExtraServiceEntry[] = []
+  extra: ExtraServiceEntry[] = [],
+  release?: import("./types").ReleaseDateEntry
 ): import("./types").AnimeItem {
   const serviceMap = new Map<string, ServiceDef>();
   const others = new Set<string>();
@@ -291,6 +294,7 @@ export function toAnimeItem(
     })),
     otherServices: [...others],
     hasBroadcastData,
+    releaseDate: release ?? null,
     broadcastStartDate: slot?.date ?? null,
     broadcastWeekday: slot?.weekday ?? null,
     broadcastTime: slot?.time ?? null,
@@ -340,8 +344,9 @@ function deriveCredits(
 // AnnictWork → AnimeDetail への変換。作品個別ページ専用（casts/staffsの完全なクレジット付き）。
 export function toAnimeDetail(
   w: import("./types").AnnictWork,
-  extra: ExtraServiceEntry[] = []
+  extra: ExtraServiceEntry[] = [],
+  release?: import("./types").ReleaseDateEntry
 ): import("./types").AnimeDetail {
-  const item = toAnimeItem(w, extra);
+  const item = toAnimeItem(w, extra, release);
   return { ...item, credits: deriveCredits(w.casts, w.staffs) };
 }

@@ -1412,6 +1412,17 @@ a.detail-cast-name:hover { text-decoration: underline; }
 }
 .detail-source a { color: var(--muted-2); }
 .detail-source a:hover { color: var(--accent-2); }
+/* 劇場公開日（人力補完・出典リンク付き）。劇場作品はここが最も探されている事実なので、
+   配信バッジより先に、本文と同じ大きさで置く。 */
+.detail-release {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ink);
+}
+.detail-release strong { font-weight: 700; }
+.detail-release a { color: var(--accent-2); }
+
 /* 配信情報の確認日（鮮度シグナル）。 */
 .detail-updated {
   margin: 14px 0 0;

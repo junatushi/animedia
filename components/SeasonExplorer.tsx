@@ -70,7 +70,22 @@ function formatMonthDay(dateStr: string): string {
   return `${Number(m)}/${Number(d)}`;
 }
 
+// "YYYY-MM-DD"（JST日付）→ 曜日インデックス（0=日〜6=土）。
+// Date.UTC で「日付そのもの」として組み立てる（`new Date("2026-08-28T00:00:00+09:00")`
+// をUTCで読むと前日15:00になり曜日が1日ずれる）。
+function weekdayOfDate(dateStr: string): number {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
 function airLabel(it: AnimeItem): string | null {
+  // 劇場公開作品は programs（放送/配信記録）が無く曜日・時刻が出せないため、
+  // 人力補完した公開日（content/works/releaseDates.ts）があればそれを出す。
+  // 「公開中」等の状態は劇場ごとの上映終了が分からず断定できないので書かない。
+  if (it.broadcastWeekday === null && it.releaseDate) {
+    const wd = WEEKDAY_SHORT[weekdayOfDate(it.releaseDate.date)] ?? "";
+    return `${formatMonthDay(it.releaseDate.date)}(${wd})公開`;
+  }
   if (it.broadcastWeekday === null) return null;
   const wd = WEEKDAY_SHORT[it.broadcastWeekday] ?? "";
   if (it.broadcastStartDate && isFarBeforePremiere(it)) {
