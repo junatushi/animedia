@@ -108,7 +108,7 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   載る〈以前はsearchParamsを読むため毎回動的描画=no-storeで0.5〜2.8s掛かっていた〉。年・季節の
   切替やディープリンク〈?year=&season=〉の解決はクライアント側=SeasonExplorerが担う）
 - `app/season/[year]/[season]/page.tsx` … シーズン別のSSRページ（SEO用。シーズン名でのタイトル/OGPを動的生成）
-- `app/anime/[id]/page.tsx` … 作品個別のSSRページ（SEO用。「作品名 配信」検索の受け皿。声優/監督/製作会社/原作＋あらすじ等も表示）
+- `app/anime/[id]/page.tsx` … 作品個別のSSRページ（SEO用。「作品名 配信」検索の受け皿。声優/監督/製作会社/原作＋あらすじ等も表示）。2026-07-27にISR化（`revalidate=900` ＋ `generateStaticParams`が**空配列**。後者が無いと`revalidate`を書いてもprerender-manifestに載らず動的のまま）。ここに`loading.tsx`を置くと`notFound()`が200（ソフト404）になるため置かない。詳細は`docs/operations.md`の⑦-6
 - `components/SeasonExplorer.tsx` … 上記3ページが共有する画面本体（"use client"）。`initialData`を渡すとSSR結果をそのまま使い、再フェッチしない。検索欄は作品名に加え声優・スタッフ名（`creditNames`）にもマッチし、さらに `/api/search-index` を使って表示中クール以外の作品も「他のクールの作品」枠でヒットさせる（年数・季節セレクタは検索の絞り込みには使わず、閲覧クールの切替のみ。各カードに放送クールを表示）。一覧/カレンダー（曜日別配信スケジュール）の表示切替もここ
 - `components/ThemeToggle.tsx` … ライト/ダークのテーマ切替（SAOモチーフ。ダーク＝黒の剣士キリト基調、ライト＝閃光のアスナ基調）。`localStorage`に保存
 - `app/globals.css` … テーマ本体。ダーク/ライトの2テーマをCSS変数で切替
@@ -130,6 +130,14 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   `buildTodayAiring`）など、`broadcastWeekday` で「今日放送」を判定する箇所は同様に
   `broadcastStartDate` で放送開始済みかを確認すること。曜日・時刻を使った新機能を
   追加するときは、この「放送開始前は出さない」ルールを必ず踏襲する。
+- **【基本ルール】カードのタップ領域（2026-07-27導入）**: 一覧カード・カレンダー行は
+  タイトルのリンクを`::after`でカード/行の全面に引き伸ばしている（stretched link。
+  `app/globals.css`の`.card-title a::after`／`.calendar-title::after`）。カード内に
+  リンクやボタンを追加するときは、そのリンク**要素そのもの**にだけ`position:relative`＋
+  `z-index`を付けて上に出すこと。列や行ごと`z-index`を上げると、要素同士の隙間や
+  ただのテキストがタップ領域から抜け落ちる。カード側の`position:relative`を外したり、
+  タイトルとカードの間の要素に`position`を付けたりすると引き伸ばしが効かなくなる。
+  経緯は`docs/operations.md`の⑦-6。
 - 配信網羅率は Annict のコミュニティ更新依存で100%ではない。新作は配信欄が空になりうる。
   「配信情報なし」は仕様であり、勝手に推測データで埋めない。
 - `content/works/` のあらすじ・見どころ・出版社も同様に、公式サイト等の一次情報で確認できた
