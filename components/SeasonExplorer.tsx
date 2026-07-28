@@ -16,7 +16,7 @@ import type { AnimeItem, SeasonResponse, ServiceTag, SearchIndexEntry } from "@/
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import { WORK_ALIASES } from "@/content/works/aliases";
-import { resolveYearSeason, validYears } from "@/lib/resolveSeasonParams";
+import { currentSeasonKey, resolveYearSeason, validYears } from "@/lib/resolveSeasonParams";
 
 // 「独占」は実在の配信サービスではなく、「見放題配信サービスが1つだけの作品」を
 // 指す仮想チップ。active（配信サービスの絞り込みSet）に同居させることで、既存の
@@ -380,8 +380,19 @@ export default function SeasonExplorer({
 
   // 選択中の年・シーズンをURLに反映する（共有リンクが「今見ている内容」を再現できるように）。
   // /season/.. の固定表示ページではパス自体が年・シーズンを表すので同期しない。
+  // ただし「今期」＝クエリ無しの既定表示と同じ内容なので、その場合はクエリを付けずパスだけに
+  // 戻す（2026-07-28）。以前は常に ?year=&season= を書いていたため、訪問者がアドレスバーから
+  // 共有するURLが必ず "/?year=2026&season=summer" になり、"/" と同一内容の重複URLが
+  // クロールされて Search Console の「重複しています。ユーザーにより、正規ページとして
+  // 選択されていません」の原因になっていた。canonical（app/page.tsx）と併せて発生源も断つ。
   useEffect(() => {
     if (isFixed) return;
+    const isDefaultView =
+      year === new Date().getFullYear() && season === currentSeasonKey();
+    if (isDefaultView) {
+      window.history.replaceState(null, "", pathname);
+      return;
+    }
     const params = new URLSearchParams();
     params.set("year", String(year));
     params.set("season", season);

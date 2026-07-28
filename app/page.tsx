@@ -1,8 +1,19 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import SeasonExplorer from "@/components/SeasonExplorer";
 import { getSeasonData } from "@/lib/getSeasonData";
 import { currentSeasonKey } from "@/lib/resolveSeasonParams";
+import { siteUrl } from "@/lib/siteUrl";
 import type { SeasonResponse } from "@/lib/types";
+
+// トップは同じ内容が複数URLで存在しうる（?year=&season= のディープリンク、SNS/リード
+// 発掘で配る ?ref=、スクリーンショット用の ?view=&day=&ranking= など）。canonical を
+// 宣言していなかったため、Search Console で「重複しています。ユーザーにより、正規ページ
+// として選択されていません」（Duplicate without user-selected canonical）が発生していた
+// （2026-07-28）。他のページ（/season/** /anime/** など）は各 page.tsx で canonical 済み。
+export const metadata: Metadata = {
+  alternates: { canonical: siteUrl },
+};
 
 // ISR化（2026-07-21）。以前は searchParams（?year=&season=）をサーバー側で読んでいたため、
 // Next.js はこのページを動的レンダリング（no-store）にせざるを得ず、毎リクエストをサーバー
