@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { classifyChannel, toAnimeItem } from "../lib/services.ts";
 import { PROGRAMS_QUERY, PROGRAMS_QUERY_LIST } from "../lib/annict.ts";
 import type { AnnictWork } from "../lib/types.ts";
@@ -302,4 +303,35 @@ checkSingleHashtag(
 );
 console.log(`結果（Threadsのタグ1個制限）: ${tagOk} 件OK / ${tagNg} 件NG`);
 
-if (ng > 0 || scheduleNg > 0 || bdNg > 0 || queryNg > 0 || extraNg > 0 || tagNg > 0) process.exit(1);
+// ── 配信バッジの中に「別の遷移先のリンク」を入れないことの回帰テスト（2026-07-28導入）──
+// 事故の経緯: 人力補完サービスの出典（ニュース記事）へのリンクを「✓」としてバッジの中に
+// 置いていたため、Prime Videoのバッジを押したつもりで無関係な記事に飛ぶ状態になっていた。
+// 配信サービスのバッジは「押したら、そのサービスに行ける」以外の遷移先を持ってはいけない。
+// バッジ列（.svc-chips）の中に現れる href は、pickAffiliate→officialUrl で決まる href 変数
+// ただ1つであること、を機械的に固定する（人の目のレビューに頼らない）。
+// この検査が落ちたら、リンクをバッジの外（.svc-manual-note のような注記）に出すこと。
+let badgeNg = 0;
+{
+  const src = readFileSync(new URL("../components/ServiceMarks.tsx", import.meta.url), "utf8");
+  // 目印はJSXの className に限定する（コメント内の同名文字列に当たらないようにするため）。
+  const start = src.indexOf('className="svc-chips"');
+  const end = src.indexOf('className="svc-manual-note"', start);
+  const chips = start >= 0 && end > start ? src.slice(start, end) : null;
+  if (!chips) {
+    badgeNg++;
+    console.log("✗  ServiceMarks.tsx のバッジ列（.svc-chips〜.svc-manual-note）を特定できない");
+    console.log("   → 構造を変えたなら、この検査の目印も更新すること（検査を消さない）");
+  } else {
+    const hrefs = [...chips.matchAll(/href=\{([^}]*)\}/g)].map((m) => m[1].trim());
+    const pass = hrefs.length === 1 && hrefs[0] === "href";
+    if (!pass) badgeNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"バッジ内のリンク先は配信サービスのみ".padEnd(36)} → ${JSON.stringify(hrefs)}` +
+        (pass ? "" : `  (期待: ["href"]＝pickAffiliate/officialUrl。出典等はバッジの外に出す)`)
+    );
+  }
+}
+console.log(`結果（配信バッジの遷移先）: ${badgeNg === 0 ? 1 : 0} 件OK / ${badgeNg} 件NG`);
+
+if (ng > 0 || scheduleNg > 0 || bdNg > 0 || queryNg > 0 || extraNg > 0 || tagNg > 0 || badgeNg > 0)
+  process.exit(1);

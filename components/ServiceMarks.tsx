@@ -10,6 +10,15 @@ function brandMark(short: string): string {
   return ch.length ? ch[0] : "?";
 }
 
+// バッジのtitle属性。広告リンクか／人力補完かは同時に成り立つので、該当する注記を全て並べる。
+function titleFor(name: string, isAd: boolean, isManual: boolean): string {
+  const notes = [
+    isAd ? "広告リンク" : null,
+    isManual ? "Annict未登録・公式情報で手動確認" : null,
+  ].filter(Boolean);
+  return notes.length ? `${name}（${notes.join("・")}）` : name;
+}
+
 // 配信サービスを「アイコン＋略称」のコンパクトなチップで並べる。
 // 略称だけだと1文字アイコンより分かりやすく、省スペースも両立できる。
 // 正式名称（例: dアニメストア）は title 属性＋視覚的に隠したテキスト（.sr-only）で
@@ -27,11 +36,18 @@ function brandMark(short: string): string {
 // 無く、title属性（「（広告リンク）」）と開示文（.svc-disclosure）で広告リンクである旨を示す。
 // 開示文は本コンポーネント単体では作品ごとに出るが、hideDisclosure=trueの画面（一覧等）では
 // 呼び出し側が画面につき1回だけ自前で.svc-disclosureを表示する責任を持つ（下記hideDisclosure参照）。
+//
+// 人力補完サービスの出典（2026-07-28変更）: 以前はバッジの中に「✓」の小さなアンカーを
+// 並べ、それが出典記事（例: ニュースサイト）に飛んでいた。バッジ本体（配信サービスへの
+// リンク）と14pxしか離れておらず記号だけで意味も伝わらないため、「Prime Videoのバッジを
+// 押したのに無関係な記事に飛んだ」という誤タップを生んでいた。現在はバッジ内のアンカーを
+// 廃止し、バッジ列の下に文章＋ラベル付きリンク（.svc-manual-note）で出典を示す。
 export default function ServiceMarks({
   services,
   otherServices,
   hasBroadcastData = false,
   hideDisclosure = false,
+  hideManualNote = false,
 }: {
   services: ServiceTag[];
   otherServices: string[];
@@ -44,6 +60,10 @@ export default function ServiceMarks({
   // hideDisclosureを使う呼び出し側（例: components/SeasonExplorer.tsx のカード一覧）は
   // 一覧全体につき1回、自前で.svc-disclosureを表示すること。
   hideDisclosure?: boolean;
+  // 人力補完サービスの出典注記（.svc-manual-note）を出さない。カード一覧のように
+  // 1画面に何十件もバッジが並ぶ場所では注記が繰り返されて邪魔になるため、そこだけ
+  // 省く（点線のバッジ＋title属性で「手動確認」は伝わり、出典は作品ページに出る）。
+  hideManualNote?: boolean;
 }) {
   if (services.length === 0 && otherServices.length === 0) {
     return hasBroadcastData ? (
@@ -61,6 +81,7 @@ export default function ServiceMarks({
     return { service: s, program, href };
   });
   const hasAnyAffiliate = links.some((l) => l.program);
+  const manualServices = services.filter((s) => s.manualSourceUrl);
 
   return (
     <div className="svc-marks">
@@ -85,13 +106,10 @@ export default function ServiceMarks({
             <span
               key={s.key}
               className={s.manualSourceUrl ? "svc-chip svc-chip-manual" : "svc-chip"}
-              title={
-                s.manualSourceUrl
-                  ? `${s.name}（Annict未登録・公式情報で手動確認）`
-                  : program
-                    ? `${s.name}（広告リンク）`
-                    : s.name
-              }
+              /* 手動確認と広告リンクは両立する（人力補完したサービスに提携リンクが
+                 あるケース）。以前は手動確認を優先して「（広告リンク）」が消えていたため、
+                 該当する注記を全て並べる（ステマ規制対応の表示を落とさない）。 */
+              title={titleFor(s.name, !!program, !!s.manualSourceUrl)}
             >
               {href ? (
                 <a
@@ -111,20 +129,6 @@ export default function ServiceMarks({
               ) : (
                 markAndName
               )}
-              {/* Annictに無く人力補完したサービスは、出典（一次情報）へのリンクを添えて
-                  「自動取得ではない」ことを利用者に伝える（CLAUDE.mdの一次情報明示方針）。
-                  上のリンクとは別のアンカーなので、入れ子にならないよう兄弟要素にする。 */}
-              {s.manualSourceUrl && (
-                <a
-                  href={s.manualSourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="svc-chip-manual-mark"
-                  aria-label={`${s.name}の配信情報の出典（手動確認）`}
-                >
-                  ✓
-                </a>
-              )}
             </span>
           );
         })}
@@ -134,6 +138,23 @@ export default function ServiceMarks({
           </span>
         ))}
       </div>
+      {/* Annictに無く人力補完したサービスの出典（一次情報）。CLAUDE.mdの一次情報明示方針。
+          バッジの中ではなくバッジ列の下に、何のリンクか分かる文言を添えて置く（バッジ本体＝
+          配信サービスへのリンクと押し間違えないため。2026-07-28変更）。 */}
+      {manualServices.length > 0 && !hideManualNote && (
+        <p className="svc-manual-note">
+          点線のバッジはAnnictに未登録の配信情報を公式サイト・報道記事で確認して補完したものです（
+          {manualServices.map((s, i) => (
+            <span key={s.key}>
+              {i > 0 && "・"}
+              <a href={s.manualSourceUrl} target="_blank" rel="noopener noreferrer">
+                {s.name}の出典記事 ↗
+              </a>
+            </span>
+          ))}
+          ）。
+        </p>
+      )}
       {/* ステマ規制（景表法）対応: バッジ自体にPR表示は無いため、アフィリエイトリンクが
           1件でもあれば開示文で広告である旨を明示する（消費者庁ステマ規制Q&A Q13:
           一般消費者に明瞭な表示が必要）。hideDisclosure=trueの呼び出し側（一覧画面など）は

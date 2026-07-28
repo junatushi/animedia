@@ -1111,6 +1111,7 @@ export default function SeasonExplorer({
                     otherServices={it.otherServices}
                     hasBroadcastData={it.hasBroadcastData}
                     hideDisclosure
+                    hideManualNote
                   />
                 </div>
               </div>

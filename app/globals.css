@@ -920,24 +920,11 @@ body {
 }
 .svc-chip-other .svc-chip-name { color: var(--muted-2); }
 /* Annictに無く公式サイト等で人力確認したサービス。通常チップと見分けられるよう
-   枠を点線にし、出典リンク（✓マーク）を添える（svc-chip-otherとは違いブランド色は
-   維持する＝サービス自体は確定しているため）。 */
+   枠を点線にする（svc-chip-otherとは違いブランド色は維持する＝サービス自体は確定
+   しているため）。出典リンクは以前チップ内に「✓」で添えていたが、バッジ本体（配信
+   サービスへのリンク）と押し間違えるため、2026-07-28にバッジ列の下の注記
+   （.svc-manual-note）へ移した。 */
 .svc-chip-manual { border-style: dashed; }
-.svc-chip-manual-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  font-size: 9px;
-  line-height: 1;
-  color: var(--accent-2);
-  border: 1px solid var(--accent-2);
-  text-decoration: none;
-  flex: none;
-}
-.svc-chip-manual-mark:hover { background: rgba(var(--accent-2-rgb), 0.18); }
 /* 最下段：注目人数（左）＋公式サイト（右）。サムネ・配信の下に置く。 */
 .card-foot {
   display: flex;
@@ -1304,7 +1291,7 @@ body {
    上げるのは「リンクそのもの」だけにする（配信バッジの列や最下段の行ごと上げると、
    バッジ同士の隙間や「◯人が注目」のようなただのテキストまでタップ領域から抜ける）。 */
 .card .svc-chip-link,
-.card .svc-chip-manual-mark,
+.card .svc-manual-note a,
 .card .official {
   position: relative;
   z-index: 2;
@@ -1728,3 +1715,12 @@ a.detail-cast-name:hover { text-decoration: underline; }
   line-height: 1.6;
   margin: 8px 0 0;
 }
+/* 人力補完サービスの出典注記（components/ServiceMarks.tsx、2026-07-28導入）。
+   バッジ内の「✓」リンクの置き換え。何のリンクか文言で分かるようにしたのが要点。 */
+.svc-manual-note {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
+.svc-manual-note a { color: var(--accent-2); }

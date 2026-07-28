@@ -71,9 +71,13 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   公式トップページURL。バッジのリンク先でアフィリエイトが無いときのフォールバックに使う
 - `components/ServiceMarks.tsx` … 配信バッジ本体。**バッジ自体がリンク**（2026-07-19変更）で、
   リンク先は`pickAffiliate`が返す提携リンク（あれば）→ 無ければ`officialUrl`（公式サイト）の順。
-  アフィリエイトの有無でバッジの表示・非表示は変えない（表示件数は常に一定）。PRタグ・開示文
-  （`.svc-disclosure`）はステマ規制対応で、`hideDisclosure`propでカード一覧など反復表示箇所の
-  重複を抑制できる（バッジ単体のPRタグは省略しない）。単一サービスのCTA用途にも再利用できる
+  アフィリエイトの有無でバッジの表示・非表示は変えない（表示件数は常に一定）。ステマ規制対応は
+  バッジの`title`属性（「〜（広告リンク）」）＋開示文（`.svc-disclosure`）で行う（バッジ上のPRタグは
+  2026-07-27廃止）。`hideDisclosure`propでカード一覧など反復表示箇所の重複を抑制できるが、その画面は
+  呼び出し側が1回だけ開示文を出す責任を持つ。**バッジの中に別のリンクを入れないこと**（2026-07-28:
+  人力補完の出典を「✓」でバッジ内に置いていたところ、バッジ本体＝配信サービスへのリンクと押し
+  間違えて無関係な記事に飛ぶ事故になった。出典はバッジ列の下の注記`.svc-manual-note`に文言付きで
+  出し、カード一覧では`hideManualNote`で省く）。単一サービスのCTA用途にも再利用できる
   （`app/service/[key]/...`が使用）
 - `app/privacy/page.tsx` … プライバシーポリシー・広告掲載方針（2026-07-18導入。ステマ規制・ASP/AdSense
   審査対応）。実際に行っていることだけを書く方針。計測・ログイン情報の記載を変えたら実装と同期させる
@@ -84,7 +88,7 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `scripts/audit-coverage.ts` … 配信データ網羅率の点検スクリプト（`node scripts/audit-coverage.ts [year] [season]`）。season-updater/service-mapperエージェントが使う
 - `scripts/demand-scan.js` + `scripts/lib/demand-analyze.js` + `content/demand/` … 配信の需要シグナル収集・集計（2026-07-16導入）。`queries.js`が収集用の正準クエリ、`raw/<日付>.jsonl`が入力（WebSearchで収集）、`out/`が集計JSON。集計ロジック（直近N日フィルタ・重複排除・需要分類・作品/サービス抽出・スコア）は`demand-analyze.js`に純粋関数で分離。詳細は`docs/demand-scan.md`
 - `scripts/lead-finder.js` … 流入リード発掘（2026-07-16導入）。`demand-scan`と同じ`raw/<日付>.jsonl`（任意で`status:open|closed`付き）を入力に、ガイドを必要としている個人の投稿を抽出し、作品を`/api/search-index`で`/anime/{id}`に解決して返信下書き付きの`docs/leads-<日付>.md`を出力。分類は`demand-analyze.js`を流用。リンクの`?ref=<媒体>`で流入実測。開/閉判定はnodeから不可のため収集時にClaudeがWebFetchで`status`を記録する設計。本命は同エンジンのX リーチ枠への転用（`docs/x-growth-playbook.md`）。詳細は`docs/demand-scan.md`後半
-- `content/works/extraServices.ts` … Annictにまだ登録されていない配信サービスを人力補完する一覧（2026-07-12導入。`rentalServices.ts`と同じ思想）。`{ key, sourceUrl, confirmedDate }`必須（一次情報のみ・出典明示。CLAUDE.mdの方針に準拠）。任意で`schedule: { weekday, time, startDate }`も指定でき、**Annictに配信の実データが1件も無いときだけ**曜日・時刻カレンダーのフォールバックとして使う（Annict実データがあれば必ずそちらを優先）。`getSeasonData`/`getWorkData`から`toAnimeItem`/`toAnimeDetail`の第2引数に注入され、`ServiceMarks`が通常のAnnict由来サービスとは違う見た目（点線枠＋出典リンクの✓マーク）で表示する。対象は`audit-coverage.ts`の(a)に出た注目作から都度追加する方針（全件を追う保守コストは避ける）
+- `content/works/extraServices.ts` … Annictにまだ登録されていない配信サービスを人力補完する一覧（2026-07-12導入。`rentalServices.ts`と同じ思想）。`{ key, sourceUrl, confirmedDate }`必須（一次情報のみ・出典明示。CLAUDE.mdの方針に準拠）。任意で`schedule: { weekday, time, startDate }`も指定でき、**Annictに配信の実データが1件も無いときだけ**曜日・時刻カレンダーのフォールバックとして使う（Annict実データがあれば必ずそちらを優先）。`getSeasonData`/`getWorkData`から`toAnimeItem`/`toAnimeDetail`の第2引数に注入され、`ServiceMarks`が通常のAnnict由来サービスとは違う見た目（点線枠）で表示し、出典はバッジ列の下の注記（`.svc-manual-note`。カード一覧では`hideManualNote`で省略）にリンクする。対象は`audit-coverage.ts`の(a)に出た注目作から都度追加する方針（全件を追う保守コストは避ける）
 - `content/works/releaseDates.ts` … 劇場公開日の人力補完（2026-07-27導入）。**Annictは劇場公開日を持たない**
   （GraphQLのWork型に該当フィールドが無く、REST v1の`released_on`も新作映画では空。実例:劇場版まどマギ
   〈ワルプルギスの廻天〉はAnnict側の日付情報が`season_name="2026-summer"`だけ）。サイトの日付は
@@ -138,6 +142,18 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   ただのテキストがタップ領域から抜け落ちる。カード側の`position:relative`を外したり、
   タイトルとカードの間の要素に`position`を付けたりすると引き伸ばしが効かなくなる。
   経緯は`docs/operations.md`の⑦-6。
+- **【基本ルール】配信バッジの遷移先（2026-07-28導入・重大度高）**: 配信サービスのバッジを
+  押したら、**必ずそのサービス自身**（`pickAffiliate`の提携リンク → 無ければ`officialUrl`の
+  公式サイト）に行くこと。バッジの中に、行き先の違うリンクを**絶対に入れない**。
+  経緯: 人力補完の出典（ニュース記事）を「✓」でバッジ内に置いていたため、Prime Videoの
+  バッジのつもりで無関係な記事に飛ぶ事故になった（利用者の信頼と広告の成果計上を同時に
+  壊すため、インシデント級の扱い）。出典・補足情報はバッジ列の外（`.svc-manual-note`のような
+  注記）に、**何のリンクか分かる文言を付けて**置く。記号だけのリンクにしない。
+  `node scripts/check.ts` に機械的な検査（バッジ列の中に現れる`href`は1つだけ・中身は`href`変数）
+  を入れてあるので、**この検査を消したり目印を外したりしない**。詳細は`docs/operations.md`の⑦-7。
+- **【基本ルール】バッジ上の「PR」表記は復活させない（2026-07-28確認）**: ステマ規制対応は
+  バッジの`title`属性＋ページ下部の開示文（`.svc-disclosure`）で行う方針で確定している。
+  事故が起きない限り「PRタグを付ける」提案はしない（2026-07-27に廃止済み。再提案も不要）。
 - 配信網羅率は Annict のコミュニティ更新依存で100%ではない。新作は配信欄が空になりうる。
   「配信情報なし」は仕様であり、勝手に推測データで埋めない。
 - `content/works/` のあらすじ・見どころ・出版社も同様に、公式サイト等の一次情報で確認できた
