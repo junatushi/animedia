@@ -36,6 +36,7 @@ export const AFFILIATE_PROGRAMS: Partial<Record<ServiceKey, AffiliateProgram[]>>
     { asp: "A8.net", url: "https://px.a8.net/svt/ejp?a8mat=4B83D3+16V93U+4EKC+60WN6", rewardYen: 902, rewardNote: "税込・新規会員登録（ABEMAプレミアム）", confirmedDate: "2026-07-24", active: true },
   ],
   prime: [
+    { asp: "afb", url: "https://t.afi-b.com/visit.php?a=915733P-r510403Z&p=i9877067", rewardYen: 845, rewardNote: "税込・新規登録後7日以内のプライムビデオ初回視聴（1動画を10分以上）。他にチャンネル登録100円、レンタル・購入は税込8.47%", confirmedDate: "2026-07-28", active: true },
     { asp: "バリューコマース", url: "https://primevideojapan.sjv.io/MKAnAo", rewardYen: 836, rewardNote: "税込・新規登録後の動画視聴。他に月額サブスクリプション契約209円、レンタル・購入は税込8.36%、新規登録のみは0円", confirmedDate: "2026-07-24", active: true },
   ],
 };
