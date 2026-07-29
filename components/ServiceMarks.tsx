@@ -47,7 +47,6 @@ export default function ServiceMarks({
   otherServices,
   hasBroadcastData = false,
   hideDisclosure = false,
-  hideManualNote = false,
 }: {
   services: ServiceTag[];
   otherServices: string[];
@@ -60,10 +59,6 @@ export default function ServiceMarks({
   // hideDisclosureを使う呼び出し側（例: components/SeasonExplorer.tsx のカード一覧）は
   // 一覧全体につき1回、自前で.svc-disclosureを表示すること。
   hideDisclosure?: boolean;
-  // 人力補完サービスの出典注記（.svc-manual-note）を出さない。カード一覧のように
-  // 1画面に何十件もバッジが並ぶ場所では注記が繰り返されて邪魔になるため、そこだけ
-  // 省く（点線のバッジ＋title属性で「手動確認」は伝わり、出典は作品ページに出る）。
-  hideManualNote?: boolean;
 }) {
   if (services.length === 0 && otherServices.length === 0) {
     return hasBroadcastData ? (
@@ -81,7 +76,6 @@ export default function ServiceMarks({
     return { service: s, program, href };
   });
   const hasAnyAffiliate = links.some((l) => l.program);
-  const manualServices = services.filter((s) => s.manualSourceUrl);
 
   return (
     <div className="svc-marks">
@@ -138,23 +132,11 @@ export default function ServiceMarks({
           </span>
         ))}
       </div>
-      {/* Annictに無く人力補完したサービスの出典（一次情報）。CLAUDE.mdの一次情報明示方針。
-          バッジの中ではなくバッジ列の下に、何のリンクか分かる文言を添えて置く（バッジ本体＝
-          配信サービスへのリンクと押し間違えないため。2026-07-28変更）。 */}
-      {manualServices.length > 0 && !hideManualNote && (
-        <p className="svc-manual-note">
-          点線のバッジはAnnictに未登録の配信情報を公式サイト・報道記事で確認して補完したものです（
-          {manualServices.map((s, i) => (
-            <span key={s.key}>
-              {i > 0 && "・"}
-              <a href={s.manualSourceUrl} target="_blank" rel="noopener noreferrer">
-                {s.name}の出典記事 ↗
-              </a>
-            </span>
-          ))}
-          ）。
-        </p>
-      )}
+      {/* 人力補完サービスの出典（.svc-manual-note）は、この一覧が繰り返し出る画面
+          （カード一覧・作品ページ）ごとに冗長にならないよう、呼び出し側（作品ページ
+          なら app/anime/[id]/page.tsx）が「配信情報の確認日」の下に1回だけ出す。
+          2026-07-29: 以前ここに毎回同じ説明文を挟んでいたが、意図の薄い埋め込みは
+          しない方針にしたため撤去した。 */}
       {/* ステマ規制（景表法）対応: バッジ自体にPR表示は無いため、アフィリエイトリンクが
           1件でもあれば開示文で広告である旨を明示する（消費者庁ステマ規制Q&A Q13:
           一般消費者に明瞭な表示が必要）。hideDisclosure=trueの呼び出し側（一覧画面など）は

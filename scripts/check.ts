@@ -309,17 +309,19 @@ console.log(`結果（Threadsのタグ1個制限）: ${tagOk} 件OK / ${tagNg} �
 // 配信サービスのバッジは「押したら、そのサービスに行ける」以外の遷移先を持ってはいけない。
 // バッジ列（.svc-chips）の中に現れる href は、pickAffiliate→officialUrl で決まる href 変数
 // ただ1つであること、を機械的に固定する（人の目のレビューに頼らない）。
-// この検査が落ちたら、リンクをバッジの外（.svc-manual-note のような注記）に出すこと。
+// この検査が落ちたら、リンクをバッジの外（呼び出し側の出典注記など）に出すこと。
 let badgeNg = 0;
 {
   const src = readFileSync(new URL("../components/ServiceMarks.tsx", import.meta.url), "utf8");
   // 目印はJSXの className に限定する（コメント内の同名文字列に当たらないようにするため）。
+  // svc-manual-note は2026-07-29にServiceMarks.tsx本体から撤去され呼び出し側（作品ページ）
+  // に移ったため、バッジ列の終端は次の svc-disclosure ブロックとの間で取る。
   const start = src.indexOf('className="svc-chips"');
-  const end = src.indexOf('className="svc-manual-note"', start);
+  const end = src.indexOf('className="svc-disclosure"', start);
   const chips = start >= 0 && end > start ? src.slice(start, end) : null;
   if (!chips) {
     badgeNg++;
-    console.log("✗  ServiceMarks.tsx のバッジ列（.svc-chips〜.svc-manual-note）を特定できない");
+    console.log("✗  ServiceMarks.tsx のバッジ列（.svc-chips〜.svc-disclosure）を特定できない");
     console.log("   → 構造を変えたなら、この検査の目印も更新すること（検査を消さない）");
   } else {
     const hrefs = [...chips.matchAll(/href=\{([^}]*)\}/g)].map((m) => m[1].trim());

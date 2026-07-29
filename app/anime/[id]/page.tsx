@@ -139,6 +139,9 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
     RENTAL_SERVICES[item.id]
   );
   const serviceNames = [...streamingServices.map((s) => s.short), ...item.otherServices];
+  // 点線バッジ（Annict未登録・公式サイト/報道記事で人力確認）の出典。バッジ内には置かず
+  // （2026-07-28の誤タップ事故対応）、「配信情報の確認日」の下に簡略表示で1回だけ出す。
+  const manualSources = streamingServices.filter((s) => s.manualSourceUrl);
   // 検索する人はサービス名をカタカナで書くことが多い（2026-07-26のSearch Console実測で
   // 「ユーネクスト」「ネットフリックス」を含むクエリが表示回数の上位を占めていた）。
   // ページ内に英字表記しか無いとこの表記ゆれを拾えないため、FAQの回答文でだけ
@@ -271,7 +274,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
       : "";
   const watchAnswer =
     serviceNames.length > 0
-      ? `「${item.title}」は ${serviceLabels.join("・")} で視聴できます（${checkedDate}時点、Annictより）。${rentalNote}配信状況は変わることがあるため、視聴前に各サービスの最新情報もご確認ください。`
+      ? `「${item.title}」は ${serviceLabels.join("・")} で視聴できます（${checkedDate}時点）。${rentalNote}配信状況は変わることがあるため、視聴前に各サービスの最新情報もご確認ください。`
       : rentalServices.length > 0
         ? `「${item.title}」は見放題配信は現時点で確認できませんが、${rentalNote}（${checkedDate}時点）`
         : // 劇場公開日が判明している作品は「配信が無い」だけで終わらせず、公開前／公開済みの
@@ -397,6 +400,19 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
               </a>
             )}
             <p className="detail-updated">配信情報の確認日: {checkedDate}（Annictより自動取得）</p>
+            {manualSources.length > 0 && (
+              <p className="svc-manual-note">
+                出典:{" "}
+                {manualSources.map((s, i) => (
+                  <span key={s.key}>
+                    {i > 0 && "・"}
+                    <a href={s.manualSourceUrl} target="_blank" rel="noopener noreferrer">
+                      {s.short}の記事 ↗
+                    </a>
+                  </span>
+                ))}
+              </p>
+            )}
           </div>
         </article>
 

@@ -60,7 +60,6 @@ export default function AboutPage() {
               <h2 className="detail-heading">このサイトについて</h2>
               <p className="detail-text">
                 今期アニメがどの配信サービスで観られるか、一覧でひと目で分かるサイトが欲しいと思って作りました。
-                配信情報はAnnictのデータをサーバー側でリアルタイムに取得しており、サイト側で推測データを埋めることはしていません。
               </p>
             </section>
 
@@ -125,7 +124,7 @@ export default function AboutPage() {
               <h2 className="detail-heading">データについて</h2>
               <p className="detail-text">
                 配信情報は<a href="https://annict.com/" target="_blank" rel="noopener noreferrer">Annict</a>
-                （コミュニティ更新ベース）から取得しています。網羅率は100%ではなく、新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
+                （コミュニティ更新ベース）からサーバー側でリアルタイムに取得しており、サイト側で推測データを埋めることはしていません。網羅率は100%ではなく、新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
                 作品のあらすじ・見どころ等は、公式サイト等の一次情報を確認しながら人力で追記しています。
               </p>
             </section>
