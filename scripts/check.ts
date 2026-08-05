@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { classifyChannel, toAnimeItem } from "../lib/services.ts";
 import { PROGRAMS_QUERY, PROGRAMS_QUERY_LIST } from "../lib/annict.ts";
 import type { AnnictWork } from "../lib/types.ts";
-import { toSingleHashtagText, SLOTS, anchorToSlotDate, slotForNow, jstParts } from "./lib/build-digest.js";
+import { toSingleHashtagText, SLOTS, anchorToSlotDate, slotForNow, dueSlots, jstParts } from "./lib/build-digest.js";
 
 const samples: Array<[string, string]> = [
   // [入力チャンネル名, 期待する分類]
