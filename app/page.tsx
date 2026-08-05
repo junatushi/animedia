@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import SeasonExplorer from "@/components/SeasonExplorer";
+import TopPageExplorer from "@/components/TopPageExplorer";
 import { getSeasonData } from "@/lib/getSeasonData";
 import { currentSeasonKey } from "@/lib/resolveSeasonParams";
 import { siteUrl } from "@/lib/siteUrl";
@@ -42,8 +42,11 @@ export default async function Page() {
   }
 
   return (
+    // TopPageExplorer が useSearchParams() を呼ぶため、トップページはこの Suspense 境界の
+    // 内側がクライアント描画になる（ディープリンク ?year=&season= の解決に必要）。
+    // SEOの受け皿である /season/** と /anime/** はサーバー描画のままなので影響しない。
     <Suspense fallback={<div className="wrap" />}>
-      <SeasonExplorer initialData={data} />
+      <TopPageExplorer initialData={data} />
     </Suspense>
   );
 }
