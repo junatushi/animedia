@@ -441,8 +441,8 @@ let slotNg = 0;
   );
 
   const expectedShape: Record<string, { fromHour: number; toHour: number; kinds: string[] }> = {
-    morning: { fromHour: 9, toHour: 11, kinds: ["top5"] },
-    noon: { fromHour: 12, toHour: 14, kinds: ["spotlight"] },
+    morning: { fromHour: 9, toHour: 10, kinds: ["top5"] },
+    noon: { fromHour: 11, toHour: 12, kinds: ["spotlight"] },
     evening: { fromHour: 18, toHour: 21, kinds: ["airing"] },
   };
   for (const key of Object.keys(expectedShape)) {
@@ -522,9 +522,11 @@ let slotNg = 0;
   }
   checkSlotForNow(8, null);
   checkSlotForNow(9, "morning");
-  checkSlotForNow(11, "morning");
+  checkSlotForNow(10, "morning");
+  checkSlotForNow(11, "noon");
   checkSlotForNow(12, "noon");
-  checkSlotForNow(14, "noon");
+  checkSlotForNow(13, null);
+  checkSlotForNow(14, null);
   checkSlotForNow(15, null);
   checkSlotForNow(16, null);
   checkSlotForNow(17, null);
@@ -580,7 +582,8 @@ let slotNg = 0;
   checkDueSlots(0, []);
   checkDueSlots(8, []);
   checkDueSlots(9, ["morning"]);
-  checkDueSlots(11, ["morning"]);
+  checkDueSlots(10, ["morning"]);
+  checkDueSlots(11, ["morning", "noon"]);
   checkDueSlots(12, ["morning", "noon"]);
   checkDueSlots(14, ["morning", "noon"]);
   checkDueSlots(16, ["morning", "noon"]);
