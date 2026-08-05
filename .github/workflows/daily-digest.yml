@@ -63,6 +63,10 @@ on:
         description: "投稿せず「今日はもう投稿した」印だけ残す（手で投稿した日の二重投稿を防ぐ）"
         type: boolean
         default: false
+      dry_run:
+        description: "本文を表示するだけで投稿しない（動作確認用。まずこれで試す）"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -170,15 +174,36 @@ jobs:
             exit 0
           fi
 
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            # 【2026-08-05追加】本文を出すだけで投稿しない。
+            # これが無かった頃は、ワークフローの動作確認をしようとすると
+            # 手動実行（下のMANUAL分岐）しか手段が無く、それは時間帯もキャッシュも
+            # 無視して本番アカウントへ実際に投稿してしまう。実際、2026-08-05に
+            # 動作確認のための手動実行を41分あいだを空けて2回行った結果、
+            # ほぼ同じ本文がBluesky・Mastodon・Threadsそれぞれに2回ずつ投稿された。
+            # 「壊れていないか確かめる」ために毎回フォロワーへ連投するしかない状態
+            # だったので、投稿しない確認手段を用意する。
+            {
+              echo "slot=$IN_WINDOW"
+              echo "go=false"
+              echo "mastodon_slot=$IN_WINDOW"
+              echo "mastodon_go=false"
+            } >> "$GITHUB_OUTPUT"
+            echo "dry_run: 枠 $IN_WINDOW の本文を表示するだけで、投稿はしません（$now）"
+            exit 0
+          fi
+
           if [ "$MANUAL" = "true" ]; then
-            # 手動実行はBluesky/Threads/Mastodonとも同じ指定でそのまま投げる（動作確認用）
+            # 手動実行はBluesky/Threads/Mastodonとも同じ指定でそのまま投げる
+            # （臨時投稿用）。時間帯もキャッシュも無視して**実際に投稿する**ので、
+            # 動作確認をしたいだけなら dry_run を使うこと。
             {
               echo "slot=$IN_WINDOW"
               echo "go=true"
               echo "mastodon_slot=$IN_WINDOW"
               echo "mastodon_go=true"
             } >> "$GITHUB_OUTPUT"
-            echo "手動実行: 枠 $IN_WINDOW として投稿します（$now）"
+            echo "手動実行: 枠 $IN_WINDOW として実際に投稿します（$now）"
             exit 0
           fi
 
@@ -225,11 +250,22 @@ jobs:
           fi
 
       - uses: actions/setup-node@v4
-        if: ${{ steps.gate.outputs.go == 'true' || steps.gate.outputs.mastodon_go == 'true' }}
+        if: ${{ steps.gate.outputs.go == 'true' || steps.gate.outputs.mastodon_go == 'true' || inputs.dry_run }}
         with:
           node-version: 20
       - run: npm ci
-        if: ${{ steps.gate.outputs.go == 'true' || steps.gate.outputs.mastodon_go == 'true' }}
+        if: ${{ steps.gate.outputs.go == 'true' || steps.gate.outputs.mastodon_go == 'true' || inputs.dry_run }}
+
+      # 【dry_run】実際に投稿する各SNSのステップはすべて go=false でスキップされる。
+      # ここで「投稿されるはずだった本文」だけを実行ログに出す。スクリーンショットは
+      # 撮らないのでChromiumのインストールも要らない（下のstepはdry_runでは走らない）。
+      - name: 投稿される本文を表示するだけ（dry_run）
+        if: ${{ inputs.dry_run }}
+        env:
+          DIGEST_SLOT: ${{ steps.gate.outputs.slot }}
+        run: |
+          echo "=== 枠: $DIGEST_SLOT として投稿されるはずの本文 ==="
+          node scripts/print-digest.js
 
       - name: スクリーンショット撮影用にChromiumをインストール
         if: ${{ steps.gate.outputs.go == 'true' || steps.gate.outputs.mastodon_go == 'true' }}
