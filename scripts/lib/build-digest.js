@@ -35,17 +35,37 @@ function jstParts(now) {
 }
 
 // ── 投稿の時間帯枠（2026-08-05導入）────────────────────────────────────
-// 1日分の投稿を一度に連投せず、内容の種類ごとに時間をずらして出す。
-//   9時台  … 注目作TOP5（top5）
-//   12時台 … 【どこで見れる？】のスポットライト（spotlight）
-//   20時台 … その曜日の放送・配信（airing）
-// daily-digest.yml が枠ごとに3回起動し、DIGEST_SLOT でどの枠かを渡す。
-// 未設定（または "all"）のときは従来どおり全部返す＝手動実行・動作確認用。
+// 1日分の投稿を一度に連投せず、内容の種類ごとに時間帯を分けて出す。
+//   9〜11時  … 注目作TOP5（top5）
+//   12〜14時 … 【どこで見れる？】のスポットライト（spotlight）
+//   18〜21時 … その曜日の放送・配信（airing）
+//
+// 【なぜ「時刻」ではなく「時間帯」なのか】GitHub Actions の schedule は予定通りに
+// 発火しない。旧構成（0 12 * * * ＝21:00 JST）の実測では遅延が2.1〜6.4時間（中央値
+// 約5時間）あり、cronに何時と書いても投稿時刻はまったく守れなかった。
+// そこで「予定時刻に起動して投稿する」のをやめ、**1時間おきに起動して、いまが
+// どの枠の時間帯かを自分で判定し、その枠がまだ未投稿ならそこで投稿する**方式にした
+// （daily-digest.yml）。遅延しても、次の起動が時間帯の中に入れば投稿できる。
+// 二重投稿は「枠＋JST日付」をキーにしたGitHub Actionsのキャッシュで防ぐ。
+//
+// daily-digest.yml は起動のたびに scripts/current-slot.js を呼んで枠を決め、
+// DIGEST_SLOT として渡す。未設定（または "all"）なら従来どおり全部返す＝手動実行用。
+// 時間帯の定義はこのファイルだけが持つ（ワークフロー側に時刻を書かない）。
 const SLOTS = {
-  morning: { hour: 9, kinds: ["top5"] },
-  noon: { hour: 12, kinds: ["spotlight"] },
-  evening: { hour: 20, kinds: ["airing"] },
+  morning: { fromHour: 9, toHour: 11, kinds: ["top5"] },
+  noon: { fromHour: 12, toHour: 14, kinds: ["spotlight"] },
+  evening: { fromHour: 18, toHour: 21, kinds: ["airing"] },
 };
+
+// いまのJST時刻がどの枠の時間帯かを返す（どれにも入らなければ null）。
+// daily-digest.yml が1時間おきの起動のたびにこれを呼び、null なら何もせず終わる。
+function slotForNow(now = new Date()) {
+  const jstHour = new Date(now.getTime() + 9 * 60 * 60 * 1000).getUTCHours();
+  const found = Object.entries(SLOTS).find(
+    ([, s]) => jstHour >= s.fromHour && jstHour <= s.toHour
+  );
+  return found ? found[0] : null;
+}
 
 // 【重要・2026-08-05導入】GitHub Actions の schedule は予定より数時間遅れて発火する
 // （このリポジトリの実測で最大6.4時間）。従来の cron は 12:00 UTC = 21:00 JST で、
@@ -261,7 +281,7 @@ function buildSpotlight(data, year, label, todayStr) {
 async function buildDigest(now = new Date()) {
   // どの時間帯枠の実行か（DIGEST_SLOT）。未設定/"all" なら枠で絞らず全部返す。
   const slot = SLOTS[process.env.DIGEST_SLOT] || null;
-  const { year, month, day, weekday } = jstParts(anchorToSlotDate(now, slot?.hour));
+  const { year, month, day, weekday } = jstParts(anchorToSlotDate(now, slot?.fromHour));
   const { key: season, label } = currentSeasonByMonth(month);
   const todayStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
@@ -407,5 +427,6 @@ module.exports = {
   shortTitle,
   // 時間帯枠（2026-08-05導入）。ワークフローの cron とテストから参照する。
   SLOTS,
+  slotForNow,
   anchorToSlotDate,
 };
