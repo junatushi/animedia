@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { classifyChannel, toAnimeItem } from "../lib/services.ts";
 import { PROGRAMS_QUERY, PROGRAMS_QUERY_LIST } from "../lib/annict.ts";
 import type { AnnictWork } from "../lib/types.ts";
-import { toSingleHashtagText } from "./lib/build-digest.js";
+import { toSingleHashtagText, SLOTS, anchorToSlotDate, jstParts } from "./lib/build-digest.js";
 
 const samples: Array<[string, string]> = [
   // [入力チャンネル名, 期待する分類]
@@ -335,5 +335,158 @@ let badgeNg = 0;
 }
 console.log(`結果（配信バッジの遷移先）: ${badgeNg === 0 ? 1 : 0} 件OK / ${badgeNg} 件NG`);
 
-if (ng > 0 || scheduleNg > 0 || bdNg > 0 || queryNg > 0 || extraNg > 0 || tagNg > 0 || badgeNg > 0)
+// ── 日付アンカー（anchorToSlotDate）の回帰テスト（2026-08-05導入）──
+// GitHub Actionsのscheduleは予定より数時間遅れて発火する（実測最大6.4時間）。旧cron
+// （1日1回・21:00 JST枠）はJST日付が変わるまで3時間しか余裕が無く、遅延した実行が
+// 翌JST日にずれ込んだ結果、2回の実行が同じJST日付を見て本文が完全一致した
+// （実例: Issue #31 は8/4 03:27 JST発火、#32は8/4 23:05 JST発火、どちらも同じ内容）。
+// 「いまのJST時刻が枠の予定時刻より前なら、日付をまたいで遅延した実行＝前日の枠」という
+// 判定（anchorToSlotDate）がこれを防ぐ核心なので、退行させないよう固定する。
+let anchorOk = 0;
+let anchorNg = 0;
+// 引数はJST基準の年月日時分。Date.UTCで組んでから9時間分引き、UTC内部表現のDateにする
+// （jstParts/anchorToSlotDateは常にUTC内部表現のDateを受け取りJSTへ変換する前提のため）。
+function jstDate(y: number, mo: number, d: number, h: number, mi: number): Date {
+  return new Date(Date.UTC(y, mo - 1, d, h, mi) - 9 * 60 * 60 * 1000);
+}
+function jstDateStr(d: Date): string {
+  const { year, month, day } = jstParts(d);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+// シフトが起きないこと（=時刻そのものが変わらないこと）を固定する版。
+function checkAnchorNoShift(name: string, now: Date, slotHour: number | null | undefined) {
+  const shifted = anchorToSlotDate(now, slotHour);
+  const pass = shifted.getTime() === now.getTime();
+  if (pass) anchorOk++; else anchorNg++;
+  console.log(
+    `${pass ? "✓" : "✗"}  ${name.padEnd(46)} → シフト${pass ? "なし" : "あり"}（期待: シフトなし）`
+  );
+}
+// シフト後のJST日付を固定する版。
+function checkAnchorDate(name: string, now: Date, slotHour: number | null | undefined, expectDate: string) {
+  const shifted = anchorToSlotDate(now, slotHour);
+  const got = jstDateStr(shifted);
+  const pass = got === expectDate;
+  if (pass) anchorOk++; else anchorNg++;
+  console.log(
+    `${pass ? "✓" : "✗"}  ${name.padEnd(46)} → ${got}` + (pass ? "" : `  (期待: ${expectDate})`)
+  );
+}
+// evening枠(hour=20): 予定時刻(20時)より前にJST日付が変わっていなければシフトしない。
+checkAnchorNoShift("evening枠・8/6 23:00 JST実行はシフトしない", jstDate(2026, 8, 6, 23, 0), 20);
+// evening枠(hour=20): 日付をまたいで遅延（8/7 00:30着火）→前日8/6の枠と判定し直す。
+checkAnchorDate("evening枠・8/7 00:30 JST実行は8/6に戻る", jstDate(2026, 8, 7, 0, 30), 20, "2026-08-06");
+// morning枠(hour=9): 予定通りの時刻ならシフトしない。
+checkAnchorNoShift("morning枠・8/6 09:05 JST実行はシフトしない", jstDate(2026, 8, 6, 9, 5), 9);
+// morning枠(hour=9): 日付をまたいで遅延（8/7 02:00着火）→前日8/6の枠と判定し直す。
+checkAnchorDate("morning枠・8/7 02:00 JST実行は8/6に戻る", jstDate(2026, 8, 7, 2, 0), 9, "2026-08-06");
+// slotHourが無い（手動実行等）ときは何もしない。
+checkAnchorNoShift("slotHourがnullならシフトしない", jstDate(2026, 8, 6, 3, 0), null);
+checkAnchorNoShift("slotHourがundefinedならシフトしない", jstDate(2026, 8, 6, 3, 0), undefined);
+// 実際に起きた事故の再現（旧構成=1日1回21:00 JST枠、hour=21相当）。
+// Issue #31 は8/3 18:26 JST着火相当のUTC、#32は8/4 14:04 JST着火相当のUTC
+//（CLAUDE.mdの経緯記述をUTCのまま採用: 8/3 18:26 UTC発火 / 8/4 14:04 UTC発火）。
+// アンカー無し（旧実装）だとどちらも同じJST日付8/4に丸まってしまい重複投稿の原因になるが、
+// アンカーありなら「#31は前日21:00枠の遅延=8/3」「#32は当日21:00枠=8/4」と正しく別日になる。
+{
+  const run31 = new Date("2026-08-03T18:26:00Z");
+  const run32 = new Date("2026-08-04T14:04:00Z");
+  const unanchored31 = jstDateStr(run31);
+  const unanchored32 = jstDateStr(run32);
+  const anchored31 = jstDateStr(anchorToSlotDate(run31, 21));
+  const anchored32 = jstDateStr(anchorToSlotDate(run32, 21));
+  const pass =
+    unanchored31 === "2026-08-04" &&
+    unanchored32 === "2026-08-04" && // ← ここが事故の原因（アンカー無しだと2回とも8/4に見える）
+    anchored31 === "2026-08-03" &&
+    anchored32 === "2026-08-04" &&
+    anchored31 !== anchored32; // ← アンカーありなら別日になる（これが直った状態）
+  if (pass) anchorOk++; else anchorNg++;
+  console.log(
+    `${pass ? "✓" : "✗"}  ${"事故の再現（Issue #31/#32・アンカーで別日になる）".padEnd(46)} → ` +
+      `アンカー無し=[${unanchored31},${unanchored32}] アンカー有り=[${anchored31},${anchored32}]` +
+      (pass ? "" : "  (期待: アンカー無しは両方8/4、アンカー有りは8/3と8/4に分かれる)")
+  );
+}
+console.log(`結果（日付アンカー）: ${anchorOk} 件OK / ${anchorNg} 件NG`);
+
+// ── 時間帯枠（SLOTS）の回帰テスト（2026-08-05導入）──
+// cronの時刻とbuild-digest.jsのSLOTS.hourがズレると、上のanchorToSlotDateの「前日の枠か
+// どうか」の判定そのものが壊れる（.github/workflows/daily-digest.ymlのコメント参照）。
+// また、投稿の種類（kind）がどの枠のkindsにも含まれていないと、その投稿は永久にどの
+// DIGEST_SLOTでも出力されなくなる（黙って消える）。両方を機械的に固定する。
+let slotNg = 0;
+{
+  const slotNames = Object.keys(SLOTS).sort();
+  const pass1 = JSON.stringify(slotNames) === JSON.stringify(["evening", "morning", "noon"]);
+  if (!pass1) slotNg++;
+  console.log(
+    `${pass1 ? "✓" : "✗"}  ${"SLOTSの枠は3つ（morning/noon/evening）".padEnd(40)} → ${JSON.stringify(slotNames)}` +
+      (pass1 ? "" : `  (期待: ["evening","morning","noon"])`)
+  );
+
+  const expectedShape: Record<string, { hour: number; kinds: string[] }> = {
+    morning: { hour: 9, kinds: ["top5"] },
+    noon: { hour: 12, kinds: ["spotlight"] },
+    evening: { hour: 20, kinds: ["airing"] },
+  };
+  for (const key of Object.keys(expectedShape)) {
+    const got = SLOTS[key];
+    const exp = expectedShape[key];
+    const pass = !!got && got.hour === exp.hour && JSON.stringify(got.kinds) === JSON.stringify(exp.kinds);
+    if (!pass) slotNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${`SLOTS.${key}`.padEnd(40)} → hour=${got?.hour} kinds=${JSON.stringify(got?.kinds)}` +
+        (pass ? "" : `  (期待: hour=${exp.hour} kinds=${JSON.stringify(exp.kinds)})`)
+    );
+  }
+
+  // build-digest.js が実際に生成しうる kind をソースから機械的に拾い、SLOTSの
+  // kindsの合計と過不足なく一致することを固定する（「配信バッジの遷移先」検査と同じ
+  // 「ソースを読んで機械的に照合する」やり方に倣う）。
+  const digestSrc = readFileSync(new URL("./lib/build-digest.js", import.meta.url), "utf8");
+  const producedKinds = [...new Set([...digestSrc.matchAll(/kind:\s*"([^"]+)"/g)].map((m) => m[1]))].sort();
+  const slotKinds = [...new Set(Object.values(SLOTS).flatMap((s: { kinds: string[] }) => s.kinds))].sort();
+  const pass2 = JSON.stringify(producedKinds) === JSON.stringify(slotKinds);
+  if (!pass2) slotNg++;
+  console.log(
+    `${pass2 ? "✓" : "✗"}  ${"SLOTSのkindsがbuild-digest.jsの生成kindを過不足なく覆う".padEnd(40)} → 生成=${JSON.stringify(producedKinds)} SLOTS=${JSON.stringify(slotKinds)}` +
+      (pass2 ? "" : "  (期待: 一致。どこにも出ないkindがあると投稿が黙って消える)")
+  );
+
+  // .github/workflows/daily-digest.yml のcron 3本（UTC）が、SLOTSのhour（JST）と
+  // 整合していることを固定する。cronだけ動かしてSLOTSを直し忘れると、
+  // anchorToSlotDateの「前日の枠か」判定が壊れる（ワークフロー側のコメント参照）。
+  // 【2026-08-05・分の仕様変更】毎時0分の混雑を避けるためcronの「分」はズラしてよい値
+  // （例: "7 0 * * *"）。検査の本質は「cronの『時』とSLOTSのhourがズレていないこと」
+  // なので、分（先頭の\d+）は捕捉せず読み捨て、時（2つ目の\d+）だけを見る。
+  const ymlSrc = readFileSync(new URL("../.github/workflows/daily-digest.yml", import.meta.url), "utf8");
+  const cronHoursUtc = [...ymlSrc.matchAll(/cron:\s*"\d+\s+(\d+)\s+\*\s+\*\s+\*"/g)].map((m) => Number(m[1]));
+  const cronHoursJst = cronHoursUtc.map((h) => (h + 9) % 24);
+  const slotHours = (Object.values(SLOTS) as { hour: number; kinds: string[] }[]).map((s) => s.hour);
+  // 並び順（yml上の記載順とSLOTSのキー挿入順）には依存させず、「時の集合」同士を比較する。
+  // こうすることで、cronがどれかの枠と1対1で過不足なく対応していること
+  // （＝どの枠にも対応しないcronが無い・対応するcronが無い枠が無い）を、順序に関係なく検出する。
+  const pass3 =
+    cronHoursJst.length === slotHours.length &&
+    JSON.stringify([...cronHoursJst].sort((a, b) => a - b)) === JSON.stringify([...slotHours].sort((a, b) => a - b));
+  if (!pass3) slotNg++;
+  console.log(
+    `${pass3 ? "✓" : "✗"}  ${"daily-digest.ymlのcron(UTC・時のみ)がSLOTS.hour(JST)と1対1対応".padEnd(40)} → cron(UTC時)=${JSON.stringify(cronHoursUtc)} → JST=${JSON.stringify(cronHoursJst)} SLOTS.hour=${JSON.stringify(slotHours)}` +
+      (pass3 ? "" : "  (期待: cronのJST時刻の集合とSLOTS.hourの集合が過不足なく一致)")
+  );
+}
+console.log(`結果（時間帯枠SLOTS）: ${slotNg === 0 ? 1 : 0} 件OK / ${slotNg} 件NG`);
+
+if (
+  ng > 0 ||
+  scheduleNg > 0 ||
+  bdNg > 0 ||
+  queryNg > 0 ||
+  extraNg > 0 ||
+  tagNg > 0 ||
+  badgeNg > 0 ||
+  anchorNg > 0 ||
+  slotNg > 0
+)
   process.exit(1);

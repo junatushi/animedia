@@ -1,9 +1,27 @@
 name: 毎日ダイジェスト（Bluesky/Mastodon/Threads自動投稿＋Xの下書きIssue）
 
-# 毎日 21:00 JST（12:00 UTC）に自動実行。手動実行（workflow_dispatch）も可能。
+# 【2026-08-05変更】1日1回まとめて連投していたのを、内容の種類ごとに3つの時間帯に分けた。
+#   09時台（00:07 UTC）… 注目作TOP5（日曜のみ。平日は放送作品があるので出ない）
+#   12時台（03:13 UTC）… 【どこで見れる？】スポットライト（毎日）
+#   20時台（11:23 UTC）… その曜日に放送・配信のある今期アニメ（放送がある日のみ）
+# なお schedule は混雑で遅延するため、実際の投稿はこれより後になることがある
+# （分をずらしているのはその緩和。時台がズレるほどの遅延でも投稿内容の日付は
+# 下記の判定で固定されるので、内容が翌日にズレることはない）。
+# どの枠かは DIGEST_SLOT（morning/noon/evening）で scripts/lib/build-digest.js に渡し、
+# その枠に該当する投稿だけを組み立てる。該当が無い枠は投稿0件で正常終了する。
+#
+# 【重要】cronの時刻を変えるときは build-digest.js の SLOTS の hour も必ず揃えること。
+# schedule は予定より数時間遅れて発火する（実測で最大6.4時間）ため、build-digest.js は
+# 「いまのJST時刻が枠の予定時刻より前なら日付をまたいだ遅延実行＝前日の枠」と判定して
+# 投稿内容の日付を決めている。cronとhourがズレるとこの判定が壊れる。
+# 旧構成（21:00 JST の1回）は日付が変わるまで3時間しか余裕が無く、遅延で翌日にずれ込んで
+# 2日続けて同じ内容を投稿する事故を起こした（詳細は docs/operations.md の⑦-9）。
+#
+# 手動実行（workflow_dispatch）では slot を選べる。既定の all は枠で絞らず1日分を全部出す。
 # 投稿内容は曜日で出し分ける（scripts/lib/build-digest.js）:
 #   日曜=今期の注目作TOP5＋その日の放送/配信があれば曜日紹介（最大2投稿）
 #   月〜土=その曜日に放送・配信のある今期アニメ。
+#   これに加えて毎日スポットライト（【どこで見れる？】）が1本。
 # Bluesky/Mastodon/Threadsは投稿APIが無料のため自動投稿する。Xは有料化されたため
 # 自動投稿はせず、コピペ用の下書きをGitHub Issueとして起票するだけにする。
 # 投稿にはサイト実画面のスクリーンショット（カレンダー表示の該当曜日 / 「今期の注目作
@@ -13,8 +31,19 @@ name: 毎日ダイジェスト（Bluesky/Mastodon/Threads自動投稿＋Xの下�
 # （2026-07-27導入）。
 on:
   schedule:
-    - cron: "0 12 * * *"
+    # 毎時0分はスケジュール実行が最も混雑して遅延しやすいので、分をずらしてある
+    # （時台は9時台/12時台/20時台のまま）。分だけ変えても枠の判定には影響しない
+    # （build-digest.js の SLOTS が見るのは「時」だけ）。
+    - cron: "7 0 * * *"    # 09:07 JST … 注目作TOP5（morning）
+    - cron: "13 3 * * *"   # 12:13 JST … スポットライト（noon）
+    - cron: "23 11 * * *"  # 20:23 JST … その曜日の放送・配信（evening）
   workflow_dispatch:
+    inputs:
+      slot:
+        description: "投稿する時間帯枠（all=1日分をまとめて出す。動作確認用）"
+        type: choice
+        options: [all, morning, noon, evening]
+        default: all
 
 permissions:
   contents: read
@@ -33,46 +62,71 @@ jobs:
       - name: スクリーンショット撮影用にChromiumをインストール
         run: npx playwright install --with-deps chromium
 
-      - name: ダイジェスト本文を生成
+      # どの時間帯枠の実行かを、発火したcronから決める（github.event.schedule）。
+      # 手動実行のときは入力の slot を使う（既定 all）。
+      - name: 時間帯枠を決める
+        id: slot
+        run: |
+          case "${{ github.event.schedule }}" in
+            "7 0 * * *")   slot=morning ;;
+            "13 3 * * *")  slot=noon ;;
+            "23 11 * * *") slot=evening ;;
+            *)             slot="${{ inputs.slot || 'all' }}" ;;
+          esac
+          echo "slot=$slot" >> "$GITHUB_OUTPUT"
+          echo "この実行の時間帯枠: $slot"
+
+      # Xの下書きは手動投稿用なので枠で分けず、1日分をまとめて1つのIssueにする。
+      # 起票は朝の枠（1日の最初の実行）だけ。DIGEST_SLOT を渡さないので全投稿が入る。
+      - name: Xの下書き本文を生成（朝の枠のみ・1日分をまとめて）
         id: digest
+        if: ${{ steps.slot.outputs.slot == 'morning' || steps.slot.outputs.slot == 'all' }}
         run: node scripts/print-digest.js > digest.txt
 
       # 各SNS投稿は「できたものだけ出す」方式で互いに独立させる。どれか1つが失敗しても
       # 後続のSNSがスキップされないよう、全ステップに if: !cancelled() を付ける
+      # （上のXの下書き生成は朝の枠でしか走らないので、その結果には依存させない。
+      # 各post-*.jsは自前でbuildPost()を呼ぶため、本文生成が壊れていれば自分で失敗する）
       # （2026-08-05修正。以前はこのガードがXの下書き起票にしか付いておらず、たとえば
       # Blueskyが落ちるとMastodon・Threadsが丸ごとスキップされる状態だった）。
       # 失敗したステップ自体はfailureのまま残し、最後の通知ステップで拾う。
       - name: Blueskyへ自動投稿（無料・Secrets未設定ならスキップ）
         id: bluesky
-        if: ${{ !cancelled() && steps.digest.outcome == 'success' }}
+        if: ${{ !cancelled() }}
         run: node scripts/post-bluesky.js
         env:
           BLUESKY_IDENTIFIER: ${{ secrets.BLUESKY_IDENTIFIER }}
           BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+          DIGEST_SLOT: ${{ steps.slot.outputs.slot }}
 
       - name: Mastodonへ自動投稿（無料・Secrets未設定ならスキップ）
         id: mastodon
-        if: ${{ !cancelled() && steps.digest.outcome == 'success' }}
+        if: ${{ !cancelled() }}
         run: node scripts/post-mastodon.js
         env:
           MASTODON_INSTANCE_URL: ${{ secrets.MASTODON_INSTANCE_URL }}
           MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+          DIGEST_SLOT: ${{ steps.slot.outputs.slot }}
 
       - name: Threadsへ自動投稿（無料・Secrets未設定ならスキップ）
         id: threads
-        if: ${{ !cancelled() && steps.digest.outcome == 'success' }}
+        if: ${{ !cancelled() }}
         run: node scripts/post-threads.js
         env:
           THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          DIGEST_SLOT: ${{ steps.slot.outputs.slot }}
 
       - name: Xの下書きをGitHub Issueとして起票（手動投稿用）
         # 本文（digest.txt）の生成自体が失敗したときは中身が無いので起票しない。2026-07-24追加。
+        # 朝の枠以外では上の生成ステップがskippedなので、ここも走らない（1日1件のまま）。
         if: ${{ !cancelled() && steps.digest.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
+          # 日付はJSTで採る。以前はランナーのUTCで採っていたため、本文（JST基準）と
+          # タイトルの日付が1日ズレることがあった（実例: Issue #31 はタイトル8/3・本文【火曜】=8/4）。
           gh issue create \
-            --title "Xへの投稿下書き ($(date +%Y-%m-%d))" \
+            --title "Xへの投稿下書き ($(TZ=Asia/Tokyo date +%Y-%m-%d))" \
             --body-file digest.txt
 
       # 【再発防止・2026-08-05追加】どのSNSが落ちたかをIssueにして気づけるようにする。
@@ -88,16 +142,17 @@ jobs:
           BLUESKY_OUTCOME: ${{ steps.bluesky.outcome }}
           MASTODON_OUTCOME: ${{ steps.mastodon.outcome }}
           THREADS_OUTCOME: ${{ steps.threads.outcome }}
+          SLOT: ${{ steps.slot.outputs.slot }}
           # 同じ内容のIssueが毎日積み上がらないよう、既に開いている失敗Issueがあれば
           # そちらにコメントを足すだけにする。
           TITLE: "SNS自動投稿が失敗しています"
         run: |
           body=$(cat <<EOF
-          $(date +%Y-%m-%d) の自動投稿で失敗したものがあります。
+          $(TZ=Asia/Tokyo date +%Y-%m-%d) の自動投稿（時間帯枠: \`${SLOT}\`）で失敗したものがあります。
 
           | ステップ | 結果 |
           |---|---|
-          | 本文生成 | \`${DIGEST_OUTCOME}\` |
+          | Xの下書き生成 | \`${DIGEST_OUTCOME}\` |
           | Bluesky | \`${BLUESKY_OUTCOME}\` |
           | Mastodon | \`${MASTODON_OUTCOME}\` |
           | Threads | \`${THREADS_OUTCOME}\` |

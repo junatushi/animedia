@@ -1,6 +1,8 @@
 // SNS投稿下書きを組み立てる共通ロジック。曜日によって内容を出し分ける（毎日投稿ローテーション）。
 //   日曜: 今期の注目作TOP5 ＋ その日に放送/配信があれば曜日紹介（2投稿になりうる）
 //   月〜土: その曜日に放送/配信のある今期アニメ（broadcastWeekdayで抽出）
+// さらに毎日「スポットライト（【どこで見れる？】）」が1本加わる。
+// 1日分をまとめて連投せず、内容の種類ごとに時間をずらして出す（DIGEST_SLOT。下の SLOTS 参照）。
 // デプロイ済みの本番サイトのAPI（/api/season）を叩くだけなので、
 // ANNICT_TOKENの複製やAnnictへの直接アクセスは不要。
 // DIGEST_SITE_URL を設定すると差し替えられる（ローカルの開発サーバーに向けた動作確認用）。
@@ -30,6 +32,34 @@ function jstParts(now) {
     day: jst.getUTCDate(),
     weekday: jst.getUTCDay(), // 0=日 〜 6=土（JST基準）
   };
+}
+
+// ── 投稿の時間帯枠（2026-08-05導入）────────────────────────────────────
+// 1日分の投稿を一度に連投せず、内容の種類ごとに時間をずらして出す。
+//   9時台  … 注目作TOP5（top5）
+//   12時台 … 【どこで見れる？】のスポットライト（spotlight）
+//   20時台 … その曜日の放送・配信（airing）
+// daily-digest.yml が枠ごとに3回起動し、DIGEST_SLOT でどの枠かを渡す。
+// 未設定（または "all"）のときは従来どおり全部返す＝手動実行・動作確認用。
+const SLOTS = {
+  morning: { hour: 9, kinds: ["top5"] },
+  noon: { hour: 12, kinds: ["spotlight"] },
+  evening: { hour: 20, kinds: ["airing"] },
+};
+
+// 【重要・2026-08-05導入】GitHub Actions の schedule は予定より数時間遅れて発火する
+// （このリポジトリの実測で最大6.4時間）。従来の cron は 12:00 UTC = 21:00 JST で、
+// JST の日付が変わるまで3時間しか余裕が無かったため、遅延した実行が翌日にずれ込み
+// **2日続けて同じJST日付の内容を投稿する**事故が起きた（2026-08-04。Issue #31 が
+// 8/4 03:27 JST に、#32 が 8/4 23:05 JST に発火し、どちらも【火曜】＋同じスポット
+// ライト作品で本文が完全に一致した）。
+// 実行が予定より「早く」始まることはないので、いまのJST時刻がその枠の予定時刻より
+// 前なら、それは日付をまたいで遅延した実行＝前日の枠だと確定できる。
+// 枠が分からないとき（手動実行など）は何もしない。
+function anchorToSlotDate(now, slotHour) {
+  if (slotHour == null) return now;
+  const jstHour = new Date(now.getTime() + 9 * 60 * 60 * 1000).getUTCHours();
+  return jstHour < slotHour ? new Date(now.getTime() - 24 * 60 * 60 * 1000) : now;
 }
 
 function truncate(text, max) {
@@ -103,7 +133,7 @@ function buildTop5(data, year, label, url) {
     url,
     `#${year}年${label}アニメ`,
   ];
-  return { text: truncate(lines.join("\n"), MAX_LEN), screenshot: rankingScreenshot(url), image: rankingImage() };
+  return { kind: "top5", text: truncate(lines.join("\n"), MAX_LEN), screenshot: rankingScreenshot(url), image: rankingImage() };
 }
 
 // 月〜土: その曜日に放送/配信のある今期アニメ。注目度順に、字数上限まで詰める。
@@ -219,17 +249,19 @@ function buildSpotlight(data, year, label, todayStr) {
     // （通常の投稿文＝季節タグのみは元々260字に収まる想定のため、この段階で切り詰める
     // 必要はまず発生しない）。
     if ([...withWorkTag].length <= MAX_LEN) {
-      return { text: withWorkTag, screenshot: null, image: workImage };
+      return { kind: "spotlight", text: withWorkTag, screenshot: null, image: workImage };
     }
   }
-  return { text: truncate(buildLines(seasonTag).join("\n"), MAX_LEN), screenshot: null, image: workImage };
+  return { kind: "spotlight", text: truncate(buildLines(seasonTag).join("\n"), MAX_LEN), screenshot: null, image: workImage };
 }
 
 // 月〜土は1投稿（曜日紹介。放送作品が無ければTOP5にフォールバック）。
 // 日曜は「TOP5」＋「その日の放送/配信があれば曜日紹介」の最大2投稿にする
 // （2026-07-14: 日曜もアニメ紹介をする方針に変更）。
 async function buildDigest(now = new Date()) {
-  const { year, month, day, weekday } = jstParts(now);
+  // どの時間帯枠の実行か（DIGEST_SLOT）。未設定/"all" なら枠で絞らず全部返す。
+  const slot = SLOTS[process.env.DIGEST_SLOT] || null;
+  const { year, month, day, weekday } = jstParts(anchorToSlotDate(now, slot?.hour));
   const { key: season, label } = currentSeasonByMonth(month);
   const todayStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
@@ -243,6 +275,7 @@ async function buildDigest(now = new Date()) {
   const airingText = buildTodayAiring(data, weekday, year, label, url, todayStr);
   const airingPost = airingText
     ? {
+        kind: "airing",
         text: airingText,
         screenshot: calendarScreenshot(url, WEEKDAY_LABEL[weekday]),
         image: airingImage(WEEKDAY_LABEL[weekday]),
@@ -258,7 +291,10 @@ async function buildDigest(now = new Date()) {
   const spotlightPost = buildSpotlight(data, year, label, todayStr);
   if (spotlightPost) posts.push(spotlightPost);
 
-  return { posts, year, season, label, count: data.count, weekday };
+  // 時間帯枠で絞る（2026-08-05導入）。その枠に出す内容が無い日は空配列になり、
+  // 各post-*.jsは「投稿0件」として何もせず正常終了する。
+  // 例: 月〜土は放送作品があるので morning(top5) が空、日曜は3枠とも埋まる。
+  return { posts: slot ? posts.filter((p) => slot.kinds.includes(p.kind)) : posts, year, season, label, count: data.count, weekday, todayStr };
 }
 
 // 新シーズン開始の告知文。season-announce.yml が各クール初日に呼ぶ。
@@ -369,4 +405,7 @@ module.exports = {
   jstParts,
   currentSeasonByMonth,
   shortTitle,
+  // 時間帯枠（2026-08-05導入）。ワークフローの cron とテストから参照する。
+  SLOTS,
+  anchorToSlotDate,
 };
