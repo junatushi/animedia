@@ -18,8 +18,11 @@
 //       … 今日すでに開始時刻を迎えた枠。時間帯を過ぎていても未投稿なら遅れて投げる
 //         （GitHubの間引きで時間帯を丸ごと逃す日が約6日に1日あるため。詳細は
 //          build-digest.js の dueSlots のコメント）
+//   due_mastodon=true|false
+//       … Mastodonだけは時間帯で分けず1日1回21時台にまとめて投稿する（2026-08-05に
+//         従来運用へ戻した）。21時を過ぎていればtrue（未投稿ならそのまま投げる）
 //   date=YYYY-MM-DD … JSTの日付。二重投稿を防ぐキャッシュキーに使う
-const { slotForNow, dueSlots, SLOTS, jstParts } = require("./lib/build-digest");
+const { slotForNow, dueSlots, isMastodonBatchDue, SLOTS, jstParts } = require("./lib/build-digest");
 
 const now = new Date();
 const { year, month, day } = jstParts(now);
@@ -30,6 +33,7 @@ const lines = [`slot=${slotForNow(now) ?? "none"}`];
 for (const key of Object.keys(SLOTS)) {
   lines.push(`due_${key}=${due.has(key)}`);
 }
+lines.push(`due_mastodon=${isMastodonBatchDue(now)}`);
 lines.push(`date=${date}`);
 
 process.stdout.write(lines.join("\n") + "\n");

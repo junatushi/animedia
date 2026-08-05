@@ -4,7 +4,17 @@ import { fileURLToPath } from "node:url";
 import { classifyChannel, toAnimeItem } from "../lib/services.ts";
 import { PROGRAMS_QUERY, PROGRAMS_QUERY_LIST } from "../lib/annict.ts";
 import type { AnnictWork } from "../lib/types.ts";
-import { toSingleHashtagText, SLOTS, anchorToSlotDate, slotForNow, dueSlots, jstParts } from "./lib/build-digest.js";
+import {
+  toSingleHashtagText,
+  SLOTS,
+  BATCH_SLOTS,
+  slotConfig,
+  isMastodonBatchDue,
+  anchorToSlotDate,
+  slotForNow,
+  dueSlots,
+  jstParts,
+} from "./lib/build-digest.js";
 
 const samples: Array<[string, string]> = [
   // [入力チャンネル名, 期待する分類]
@@ -453,6 +463,13 @@ let slotNg = 0;
   // 各枠が fromHour<=toHour であり、かつ枠同士の時間帯が重なっていないこと。重なると
   // slotForNow の結果が Object.entries の定義順（＝オブジェクトのキー挿入順）に依存して
   // 不安定になる（「どちらの枠として判定されるか」がコードの見た目上わからなくなる）。
+  // 【BATCH_SLOTSはこの重なり検査に含めない】この検査は SLOTS（Bluesky/Threads用。
+  // slotForNow/dueSlotsがObject.entries順で「中にいる/開始済みの」枠を1つ選ぶ）だけが
+  // 対象。BATCH_SLOTS.mastodon（21〜23時）は SLOTS.evening（18〜21時）と意図的に重なる
+  // （Mastodonは時間帯で内容を絞らず1日1回まとめて出すだけなので、他の枠と重なっても
+  // 「どちらとして判定されるか」が問題にならない。isMastodonBatchDueもslotForNow/
+  // dueSlotsとは別の独立した判定関数）。BATCH_SLOTSをここに混ぜると、意図した重なりが
+  // NG判定されてしまう。
   const slotEntries = Object.entries(SLOTS) as [string, { fromHour: number; toHour: number }][];
   const rangeOk = slotEntries.every(([, s]) => s.fromHour <= s.toHour);
   let overlapOk = true;
@@ -645,6 +662,90 @@ let slotNg = 0;
         [...ymlKeys].sort()
       )} 出力=${JSON.stringify([...emittedKeys].sort())}` +
         (pass5 ? "" : `  (期待: yml参照キーが全部出力に含まれる。不足: ${JSON.stringify(missing)})`)
+    );
+  }
+
+  // ── Mastodonのまとめ投稿枠（BATCH_SLOTS）の回帰テスト（2026-08-05追加。利用者の指定で
+  // Mastodonだけ従来運用＝1日1回・21時台にその日の分をまとめて投稿、に戻した）──
+  // BATCH_SLOTS は SLOTS と別物で「内容を絞る枠」ではなく「まとめて出す時刻」を表す。
+  // kinds を持たないことが仕様そのもの（kinds が付くと slotConfig().kinds で絞り込みが
+  // 働いてしまい、「その日の全投稿をまとめて出す」でなくなる）。キーが mastodon の1つ
+  // だけであることも合わせて固定する。
+  {
+    const batchNames = Object.keys(BATCH_SLOTS).sort();
+    const pass1 = JSON.stringify(batchNames) === JSON.stringify(["mastodon"]);
+    if (!pass1) slotNg++;
+    console.log(
+      `${pass1 ? "✓" : "✗"}  ${"BATCH_SLOTSの枠はmastodonの1つだけ".padEnd(40)} → ${JSON.stringify(batchNames)}` +
+        (pass1 ? "" : `  (期待: ["mastodon"])`)
+    );
+
+    const got = (BATCH_SLOTS as Record<string, { fromHour: number; toHour: number }>).mastodon;
+    const hasKinds = !!got && "kinds" in got;
+    const pass2 = !!got && got.fromHour === 21 && got.toHour === 23 && !hasKinds;
+    if (!pass2) slotNg++;
+    console.log(
+      `${pass2 ? "✓" : "✗"}  ${"BATCH_SLOTS.mastodon".padEnd(40)} → fromHour=${got?.fromHour} toHour=${got?.toHour} kinds付き=${hasKinds}` +
+        (pass2 ? "" : `  (期待: fromHour=21 toHour=23・kindsを持たない＝絞り込みをしない)`)
+    );
+  }
+
+  // ── slotConfig の解決順の回帰テスト（2026-08-05追加）──
+  // DIGEST_SLOT の値から設定を引く際、SLOTS（Bluesky/Threads用の時間帯枠）→
+  // BATCH_SLOTS（Mastodon用のまとめ枠）の順で見て、どちらにも無ければ null
+  // （絞り込みも日付固定もしない＝"all"や未設定＝手動実行用）を固定する。
+  {
+    function checkSlotConfig(name: string, arg: string | undefined, expect: unknown) {
+      const got = slotConfig(arg as string);
+      const pass = got === expect;
+      if (!pass) slotNg++;
+      console.log(
+        `${pass ? "✓" : "✗"}  ${`slotConfig(${JSON.stringify(arg)})`.padEnd(40)} → ${JSON.stringify(got)}` +
+          (pass ? "" : `  (期待: ${JSON.stringify(expect)})`)
+      );
+    }
+    checkSlotConfig("evening→SLOTS.evening", "evening", SLOTS.evening);
+    checkSlotConfig(
+      "mastodon→BATCH_SLOTS.mastodon",
+      "mastodon",
+      (BATCH_SLOTS as Record<string, unknown>).mastodon
+    );
+    checkSlotConfig("all→null", "all", null);
+    checkSlotConfig("undefined→null", undefined, null);
+  }
+
+  // ── isMastodonBatchDue の境界の回帰テスト（2026-08-05追加）──
+  // JST時刻が21時（BATCH_SLOTS.mastodon.fromHour）以降ならtrue。dueSlotsと同じ
+  // 「開始時刻を迎えたら、その日のうちは遅れてでも投げる」考え方。
+  {
+    function checkMastodonDue(hour: number, expect: boolean) {
+      const now = jstDate(2026, 8, 6, hour, 30);
+      const got = isMastodonBatchDue(now);
+      const pass = got === expect;
+      if (!pass) slotNg++;
+      console.log(
+        `${pass ? "✓" : "✗"}  ${`isMastodonBatchDue(JST ${String(hour).padStart(2, "0")}時台)`.padEnd(40)} → ${got}` +
+          (pass ? "" : `  (期待: ${expect})`)
+      );
+    }
+    checkMastodonDue(20, false);
+    checkMastodonDue(21, true);
+    checkMastodonDue(23, true);
+    checkMastodonDue(0, false);
+    checkMastodonDue(9, false);
+  }
+
+  // ── SLOTS と BATCH_SLOTS のキーが衝突しないことの回帰テスト（2026-08-05追加）──
+  // 同じ名前のキーが両方にあると、slotConfig の `SLOTS[name] || BATCH_SLOTS[name]`
+  // という解決順のせいで「常にSLOTS側が勝つ」という挙動になり、BATCH_SLOTS側の設定
+  // （kindsを持たない＝まとめ投稿）に意図通り切り替わらなくなる。
+  {
+    const collide = Object.keys(SLOTS).filter((k) => k in BATCH_SLOTS);
+    const pass = collide.length === 0;
+    if (!pass) slotNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"SLOTSとBATCH_SLOTSのキーが衝突しない".padEnd(40)} → 衝突${collide.length}件` +
+        (pass ? "" : `  (期待: 0件。衝突: ${JSON.stringify(collide)})`)
     );
   }
 }

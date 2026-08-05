@@ -5,6 +5,10 @@ name: 毎日ダイジェスト（Bluesky/Mastodon/Threads自動投稿＋Xの下�
 #   12〜14時 JST … 【どこで見れる？】スポットライト（毎日）
 #   18〜21時 JST … その曜日に放送・配信のある今期アニメ（放送がある日のみ）
 #
+# ただし【Mastodonだけは従来どおり】1日1回・21時台にその日の分をまとめて投稿する
+# （利用者の指定で元の運用に戻した）。時間帯で分けるのはBluesky/Threadsだけ。
+# Mastodonは専用のキャッシュキー（posted-mastodon-<JST日付>）で1日1回を担保する。
+#
 # 【なぜ「予定時刻に1回」ではなく「1時間おきに様子を見る」なのか】
 # GitHub Actions の schedule は予定通りに発火しない。旧構成（0 12 * * * ＝21:00 JST）の
 # 実測では遅延が2.1〜6.4時間・中央値約5時間あり、cronに何時と書いても投稿時刻はまったく
@@ -54,6 +58,10 @@ on:
         type: choice
         options: [all, morning, noon, evening]
         default: all
+      mark_only:
+        description: "投稿せず「今日はもう投稿した」印だけ残す（手で投稿した日の二重投稿を防ぐ）"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -83,6 +91,7 @@ jobs:
               echo "due_morning=false"
               echo "due_noon=false"
               echo "due_evening=false"
+              echo "due_mastodon=false"
               echo "date=$(TZ=Asia/Tokyo date +%F)"
               echo "manual=true"
             } | tee -a "$GITHUB_OUTPUT"
@@ -118,6 +127,15 @@ jobs:
           key: posted-evening-${{ steps.when.outputs.date }}
           lookup-only: true
 
+      - name: Mastodonのまとめ投稿を今日すでにしたか確認
+        id: posted_mastodon
+        if: ${{ steps.when.outputs.due_mastodon == 'true' }}
+        uses: actions/cache/restore@v4
+        with:
+          path: .posted-mastodon
+          key: posted-mastodon-${{ steps.when.outputs.date }}
+          lookup-only: true
+
       # どの枠を投げるかを1つだけ決める。
       #   第一希望: いま時間帯の「中」にいる枠（＝狙った時間帯に出せる）
       #   次点    : 時間帯を過ぎたのに未投稿の枠を、古い順に1つ（＝遅れ投稿）
@@ -131,17 +149,47 @@ jobs:
           DUE_MORNING: ${{ steps.when.outputs.due_morning }}
           DUE_NOON: ${{ steps.when.outputs.due_noon }}
           DUE_EVENING: ${{ steps.when.outputs.due_evening }}
+          DUE_MASTODON: ${{ steps.when.outputs.due_mastodon }}
           HIT_MORNING: ${{ steps.posted_morning.outputs.cache-hit }}
           HIT_NOON: ${{ steps.posted_noon.outputs.cache-hit }}
           HIT_EVENING: ${{ steps.posted_evening.outputs.cache-hit }}
+          HIT_MASTODON: ${{ steps.posted_mastodon.outputs.cache-hit }}
         run: |
           now="JST $(TZ=Asia/Tokyo date +%H:%M)"
 
+          if [ "${{ inputs.mark_only }}" = "true" ]; then
+            # 投稿はせず、下の「印だけ残す」ステップに任せる
+            {
+              echo "slot=none"
+              echo "go=false"
+              echo "mastodon_slot=none"
+              echo "mastodon_go=false"
+            } >> "$GITHUB_OUTPUT"
+            echo "mark_only: 投稿はせず、今日（${{ steps.when.outputs.date }}）の分を投稿済みとして印だけ残します"
+            exit 0
+          fi
+
           if [ "$MANUAL" = "true" ]; then
-            echo "slot=$IN_WINDOW" >> "$GITHUB_OUTPUT"
-            echo "go=true" >> "$GITHUB_OUTPUT"
+            # 手動実行はBluesky/Threads/Mastodonとも同じ指定でそのまま投げる（動作確認用）
+            {
+              echo "slot=$IN_WINDOW"
+              echo "go=true"
+              echo "mastodon_slot=$IN_WINDOW"
+              echo "mastodon_go=true"
+            } >> "$GITHUB_OUTPUT"
             echo "手動実行: 枠 $IN_WINDOW として投稿します（$now）"
             exit 0
+          fi
+
+          # Mastodonは時間帯で分けず、21時を過ぎていて未投稿ならその日の分をまとめて投げる
+          # （2026-08-05に従来運用へ戻した）。Bluesky/Threadsの枠選びとは独立に判定する。
+          echo "mastodon_slot=mastodon" >> "$GITHUB_OUTPUT"
+          if [ "$DUE_MASTODON" = "true" ] && [ "$HIT_MASTODON" != "true" ]; then
+            echo "mastodon_go=true" >> "$GITHUB_OUTPUT"
+            echo "Mastodon: 今日の分をまとめて投稿します（$now）"
+          else
+            echo "mastodon_go=false" >> "$GITHUB_OUTPUT"
+            echo "Mastodon: 投稿しません（21時前、または今日は投稿済み）"
           fi
 
           unposted() {  # $1=枠名 → 開始済みかつ未投稿なら0
@@ -176,14 +224,14 @@ jobs:
           fi
 
       - uses: actions/setup-node@v4
-        if: ${{ steps.gate.outputs.go == 'true' }}
+        if: ${{ steps.gate.outputs.go == 'true' || steps.gate.outputs.mastodon_go == 'true' }}
         with:
           node-version: 20
       - run: npm ci
-        if: ${{ steps.gate.outputs.go == 'true' }}
+        if: ${{ steps.gate.outputs.go == 'true' || steps.gate.outputs.mastodon_go == 'true' }}
 
       - name: スクリーンショット撮影用にChromiumをインストール
-        if: ${{ steps.gate.outputs.go == 'true' }}
+        if: ${{ steps.gate.outputs.go == 'true' || steps.gate.outputs.mastodon_go == 'true' }}
         run: npx playwright install --with-deps chromium
 
       # Xの下書きは手動投稿用なので枠で分けず、1日分をまとめて1つのIssueにする。
@@ -209,14 +257,16 @@ jobs:
           BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
           DIGEST_SLOT: ${{ steps.gate.outputs.slot }}
 
-      - name: Mastodonへ自動投稿（無料・Secrets未設定ならスキップ）
+      # Mastodonだけは時間帯で分けず、1日1回21時台にその日の分をまとめて投げる
+      # （2026-08-05に従来運用へ戻した）。Bluesky/Threadsの枠とは独立に判定している。
+      - name: Mastodonへ自動投稿（1日1回・21時台にまとめて／Secrets未設定ならスキップ）
         id: mastodon
-        if: ${{ !cancelled() && steps.gate.outputs.go == 'true' }}
+        if: ${{ !cancelled() && steps.gate.outputs.mastodon_go == 'true' }}
         run: node scripts/post-mastodon.js
         env:
           MASTODON_INSTANCE_URL: ${{ secrets.MASTODON_INSTANCE_URL }}
           MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
-          DIGEST_SLOT: ${{ steps.gate.outputs.slot }}
+          DIGEST_SLOT: ${{ steps.gate.outputs.mastodon_slot }}
 
       - name: Threadsへ自動投稿（無料・Secrets未設定ならスキップ）
         id: threads
@@ -226,18 +276,56 @@ jobs:
           THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
           DIGEST_SLOT: ${{ steps.gate.outputs.slot }}
 
+      # 【mark_only】手で投稿した日などに、投稿せず「今日はもう投げた」印だけを残す。
+      # 全部の枠＋Mastodonに印を付けるので、その日はもう自動投稿されない。
+      - name: 今日の分を投稿済みとして印だけ残す（mark_only）
+        if: ${{ inputs.mark_only }}
+        run: date -u +%FT%TZ | tee .posted .posted-mastodon
+      - uses: actions/cache/save@v4
+        if: ${{ inputs.mark_only }}
+        with:
+          path: .posted
+          key: posted-morning-${{ steps.when.outputs.date }}
+      - uses: actions/cache/save@v4
+        if: ${{ inputs.mark_only }}
+        with:
+          path: .posted
+          key: posted-noon-${{ steps.when.outputs.date }}
+      - uses: actions/cache/save@v4
+        if: ${{ inputs.mark_only }}
+        with:
+          path: .posted
+          key: posted-evening-${{ steps.when.outputs.date }}
+      - uses: actions/cache/save@v4
+        if: ${{ inputs.mark_only }}
+        with:
+          path: .posted-mastodon
+          key: posted-mastodon-${{ steps.when.outputs.date }}
+
       # 「この枠は今日もう投げた」印を残す。1つでも投稿できた回だけ保存するので、
       # 全滅した回は印が残らず、同じ時間帯の次の起動が自動で再試行になる。
-      - name: 投稿済みの印を残す（同じ枠の二重投稿を防ぐ）
+      # Bluesky/Threads（時間帯の枠）とMastodon（1日1回のまとめ）は別々の印にする。
+      # 片方だけ失敗した日に、もう片方の再試行まで止めてしまわないため。
+      - name: 投稿済みの印を残す（Bluesky/Threadsの枠）
         id: mark
         if: ${{ !cancelled() && steps.gate.outputs.go == 'true' && steps.gate.outputs.slot != 'all'
-          && (steps.bluesky.outcome == 'success' || steps.mastodon.outcome == 'success' || steps.threads.outcome == 'success') }}
+          && (steps.bluesky.outcome == 'success' || steps.threads.outcome == 'success') }}
         run: date -u +%FT%TZ > .posted
       - uses: actions/cache/save@v4
         if: ${{ !cancelled() && steps.mark.outcome == 'success' }}
         with:
           path: .posted
           key: posted-${{ steps.gate.outputs.slot }}-${{ steps.when.outputs.date }}
+
+      - name: 投稿済みの印を残す（Mastodonのまとめ投稿）
+        id: mark_mastodon
+        if: ${{ !cancelled() && steps.mastodon.outcome == 'success' && steps.gate.outputs.mastodon_slot == 'mastodon' }}
+        run: date -u +%FT%TZ > .posted-mastodon
+      - uses: actions/cache/save@v4
+        if: ${{ !cancelled() && steps.mark_mastodon.outcome == 'success' }}
+        with:
+          path: .posted-mastodon
+          key: posted-mastodon-${{ steps.when.outputs.date }}
 
       - name: Xの下書きをGitHub Issueとして起票（手動投稿用）
         # 本文（digest.txt）の生成自体が失敗したときは中身が無いので起票しない。2026-07-24追加。

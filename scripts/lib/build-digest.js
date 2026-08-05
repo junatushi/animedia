@@ -57,6 +57,22 @@ const SLOTS = {
   evening: { fromHour: 18, toHour: 21, kinds: ["airing"] },
 };
 
+// 【Mastodonだけ従来方式・2026-08-05】Mastodonは時間帯で分けず、**1日1回21時台に
+// その日の分をまとめて**投稿する（利用者の指定で従来の運用に戻した）。
+// SLOTS と分けてあるのは、こちらは「内容を絞る枠」ではなく「まとめて出す時刻」だから。
+// kinds を持たない＝絞り込みをしない（その日の全投稿を出す）。
+// 時間帯の考え方（開始時刻＝fromHour で基準日を固定する／その日のうちなら遅れても出す）は
+// SLOTS と同じものを使うので、21時台を逃しても日付が変わるまでは投稿できる。
+const BATCH_SLOTS = {
+  mastodon: { fromHour: 21, toHour: 23 },
+};
+
+// DIGEST_SLOT の値から設定を引く。SLOTS（Bluesky/Threads用）→ BATCH_SLOTS（Mastodon用）の順。
+// どちらでもない（未設定・"all"・手動実行の指定など）なら null ＝ 絞り込みも日付固定もしない。
+function slotConfig(name) {
+  return SLOTS[name] || BATCH_SLOTS[name] || null;
+}
+
 function jstHourOf(now) {
   return new Date(now.getTime() + 9 * 60 * 60 * 1000).getUTCHours();
 }
@@ -69,6 +85,12 @@ function slotForNow(now = new Date()) {
     ([, s]) => jstHour >= s.fromHour && jstHour <= s.toHour
   );
   return found ? found[0] : null;
+}
+
+// Mastodonのまとめ投稿（21時台）の開始時刻を迎えているか。SLOTS の dueSlots と同じ考え方で、
+// 21時台を逃してもJSTの同じ日のうちなら遅れて投げてよい、という判定に使う。
+function isMastodonBatchDue(now = new Date()) {
+  return jstHourOf(now) >= BATCH_SLOTS.mastodon.fromHour;
 }
 
 // 【遅れ投稿・2026-08-05追加】その日すでに開始時刻を迎えた枠を、時系列順に返す。
@@ -302,7 +324,7 @@ function buildSpotlight(data, year, label, todayStr) {
 // （2026-07-14: 日曜もアニメ紹介をする方針に変更）。
 async function buildDigest(now = new Date()) {
   // どの時間帯枠の実行か（DIGEST_SLOT）。未設定/"all" なら枠で絞らず全部返す。
-  const slot = SLOTS[process.env.DIGEST_SLOT] || null;
+  const slot = slotConfig(process.env.DIGEST_SLOT);
   const { year, month, day, weekday } = jstParts(anchorToSlotDate(now, slot?.fromHour));
   const { key: season, label } = currentSeasonByMonth(month);
   const todayStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -336,7 +358,17 @@ async function buildDigest(now = new Date()) {
   // 時間帯枠で絞る（2026-08-05導入）。その枠に出す内容が無い日は空配列になり、
   // 各post-*.jsは「投稿0件」として何もせず正常終了する。
   // 例: 月〜土は放送作品があるので morning(top5) が空、日曜は3枠とも埋まる。
-  return { posts: slot ? posts.filter((p) => slot.kinds.includes(p.kind)) : posts, year, season, label, count: data.count, weekday, todayStr };
+  // kinds を持つ枠（SLOTS）だけ内容を絞る。Mastodonのまとめ投稿（BATCH_SLOTS）は
+  // kinds を持たないので、その日の全投稿がそのまま出る。
+  return {
+    posts: slot?.kinds ? posts.filter((p) => slot.kinds.includes(p.kind)) : posts,
+    year,
+    season,
+    label,
+    count: data.count,
+    weekday,
+    todayStr,
+  };
 }
 
 // 新シーズン開始の告知文。season-announce.yml が各クール初日に呼ぶ。
@@ -449,7 +481,10 @@ module.exports = {
   shortTitle,
   // 時間帯枠（2026-08-05導入）。ワークフローの cron とテストから参照する。
   SLOTS,
+  BATCH_SLOTS,
+  slotConfig,
   slotForNow,
   dueSlots,
+  isMastodonBatchDue,
   anchorToSlotDate,
 };
