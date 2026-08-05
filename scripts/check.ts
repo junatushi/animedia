@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { classifyChannel, toAnimeItem } from "../lib/services.ts";
 import { PROGRAMS_QUERY, PROGRAMS_QUERY_LIST } from "../lib/annict.ts";
 import type { AnnictWork } from "../lib/types.ts";
@@ -540,6 +542,111 @@ let slotNg = 0;
     `${pass4 ? "✓" : "✗"}  ${"daily-digest.ymlがscripts/current-slot.jsで枠判定している".padEnd(40)} → ${pass4}` +
       (pass4 ? "" : "  (期待: node scripts/current-slot.js の呼び出しがある。枠判定を自前で書き直さない)")
   );
+
+  // ── dueSlots（遅れ投稿）の回帰テスト（2026-08-05導入）──
+  // GitHub Actionsのscheduleの間引き（実測: 本来1,046回中30回しか起動しない・起動間隔の
+  // 中央値2.5時間・最大13時間）により、1時間おきに起動を頼んでも時間帯枠を丸ごと逃す日が
+  // 約6日に1日ある。dueSlots(now) は「その日すでに開始時刻(fromHour)を迎えた枠」を
+  // 時系列順（fromHourの昇順）で返し、daily-digest.yml が遅れ投稿の候補として使う。
+  // 境界がズレると「取りこぼしても遅れて出る」が効かなくなる、または早すぎる時刻で
+  // 未開始の枠を投げてしまう（内容がまだ無い/不自然）ので固定する。
+  function checkDueSlots(hour: number, expect: string[]) {
+    const now = jstDate(2026, 8, 6, hour, 30);
+    const got = dueSlots(now);
+    const pass = JSON.stringify(got) === JSON.stringify(expect);
+    if (!pass) slotNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${`dueSlots(JST ${String(hour).padStart(2, "0")}時台)`.padEnd(40)} → ${JSON.stringify(got)}` +
+        (pass ? "" : `  (期待: ${JSON.stringify(expect)})`)
+    );
+  }
+  checkDueSlots(0, []);
+  checkDueSlots(8, []);
+  checkDueSlots(9, ["morning"]);
+  checkDueSlots(11, ["morning"]);
+  checkDueSlots(12, ["morning", "noon"]);
+  checkDueSlots(14, ["morning", "noon"]);
+  checkDueSlots(16, ["morning", "noon"]);
+  checkDueSlots(18, ["morning", "noon", "evening"]);
+  checkDueSlots(21, ["morning", "noon", "evening"]);
+  checkDueSlots(23, ["morning", "noon", "evening"]);
+
+  // dueSlotsは必ずfromHourの昇順で返すこと。daily-digest.ymlは返り順で先頭から
+  // 「古い枠から」拾って遅れ投稿するため、順序が崩れると新しい枠を先に投げてしまい、
+  // 古い（より取りこぼしが長引いている）枠がいつまでも後回しになる。
+  // 値そのものの一致（上のcheckDueSlots）とは別に、0〜23時全てで「返ってきた配列の
+  // fromHourが単調非減少か」を機械的に確認する（SLOTSの定義順が変わっても効くように、
+  // 期待値をハードコードせずSLOTSから逆算する）。
+  let dueOrderNg = 0;
+  for (let h = 0; h < 24; h++) {
+    const got = dueSlots(jstDate(2026, 8, 6, h, 30));
+    const hours = got.map((k) => (SLOTS as Record<string, { fromHour: number }>)[k].fromHour);
+    const sorted = [...hours].sort((a, b) => a - b);
+    if (JSON.stringify(hours) !== JSON.stringify(sorted)) dueOrderNg++;
+  }
+  if (dueOrderNg > 0) slotNg++;
+  console.log(
+    `${dueOrderNg === 0 ? "✓" : "✗"}  ${"dueSlotsは常にfromHour昇順で返す（0〜23時全時刻）".padEnd(40)} → 違反${dueOrderNg}件` +
+      (dueOrderNg === 0 ? "" : "  (期待: 0件。遅れ投稿は古い枠から拾う設計のため順序が壊れると投稿順がおかしくなる)")
+  );
+
+  // slotForNow(いま時間帯の「中」にいる枠)が非nullなら、その枠は必ずdueSlots(その枠の
+  // 開始時刻をもう過ぎている枠)にも含まれること。時間帯の中にいる＝開始時刻は当然過ぎて
+  // いるはずなので、これが崩れるのは実装のバグ（片方だけいじって境界がズレた等）を示す。
+  // 0〜23時の全時刻で確認する。
+  let consistencyNg = 0;
+  for (let h = 0; h < 24; h++) {
+    const now = jstDate(2026, 8, 6, h, 30);
+    const inWindow = slotForNow(now);
+    if (inWindow != null && !dueSlots(now).includes(inWindow)) consistencyNg++;
+  }
+  if (consistencyNg > 0) slotNg++;
+  console.log(
+    `${consistencyNg === 0 ? "✓" : "✗"}  ${"slotForNowが非nullならdueSlotsにも含まれる（0〜23時全時刻）".padEnd(40)} → 違反${consistencyNg}件` +
+      (consistencyNg === 0 ? "" : "  (期待: 0件。時間帯の中にいる枠は開始時刻を過ぎているはず)")
+  );
+
+  // ── current-slot.jsの出力キーがdaily-digest.ymlの参照キーを全部満たすことの回帰テスト
+  // （2026-08-05導入）──
+  // 【なぜこれを固定するのか】枠を1つ増やす／リネームするような変更で current-slot.js 側
+  // だけ due_<枠名> の出力を足し忘れると、daily-digest.yml の steps.when.outputs.due_<枠名>
+  // は常に空文字列（＝falsy）として扱われ、「その枠は遅れ投稿の対象にならない」という
+  // 気づきにくい壊れ方をする（YAML側はエラーにならず黙って動く）。ymlが実際に参照している
+  // steps.when.outputs.<キー> を機械的に拾い、current-slot.js のソースがそのキーを出力する
+  // コードを持っているかを突き合わせる。
+  {
+    const ymlKeys = new Set([...ymlSrc.matchAll(/steps\.when\.outputs\.(\w+)/g)].map((m) => m[1]));
+    // manual は「いまがどの枠の時間帯かを判定」ステップのrun:ブロックがecho "manual=..."で
+    // 自分で出しているキーで、current-slot.jsの出力ではない（手動実行=workflow_dispatchの
+    // 分岐でYAML側が直接足している）。よってcurrent-slot.js側に無くて構わないため対象から除外する。
+    ymlKeys.delete("manual");
+
+    // ソースを正規表現で読むのではなく、current-slot.js を**実際に実行して**出力キーを
+    // 数える。ソースの見た目（テンプレートの有無）だけで判定すると、テンプレートは
+    // 残したままループの対象を減らす、といった変更を見逃す（実際に見逃した）。
+    // ネットワークには出ず、SLOTSを読んで時刻を見るだけのスクリプトなので実行して安全。
+    const csOut = execFileSync(
+      process.execPath,
+      [fileURLToPath(new URL("./current-slot.js", import.meta.url))],
+      { encoding: "utf8" }
+    );
+    const emittedKeys = new Set(
+      csOut
+        .split("\n")
+        .filter((line) => line.includes("="))
+        .map((line) => line.split("=")[0].trim())
+    );
+
+    const missing = [...ymlKeys].filter((k) => !emittedKeys.has(k));
+    const pass5 = missing.length === 0;
+    if (!pass5) slotNg++;
+    console.log(
+      `${pass5 ? "✓" : "✗"}  ${"current-slot.jsがdaily-digest.ymlの参照キーを全部出力（manual除く）".padEnd(40)} → yml参照=${JSON.stringify(
+        [...ymlKeys].sort()
+      )} 出力=${JSON.stringify([...emittedKeys].sort())}` +
+        (pass5 ? "" : `  (期待: yml参照キーが全部出力に含まれる。不足: ${JSON.stringify(missing)})`)
+    );
+  }
 }
 console.log(`結果（時間帯枠SLOTS）: ${slotNg === 0 ? 1 : 0} 件OK / ${slotNg} 件NG`);
 
