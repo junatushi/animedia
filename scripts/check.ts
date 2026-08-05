@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { classifyChannel, toAnimeItem } from "../lib/services.ts";
 import { PROGRAMS_QUERY, PROGRAMS_QUERY_LIST } from "../lib/annict.ts";
 import type { AnnictWork } from "../lib/types.ts";
-import { toSingleHashtagText, SLOTS, anchorToSlotDate, jstParts } from "./lib/build-digest.js";
+import { toSingleHashtagText, SLOTS, anchorToSlotDate, slotForNow, jstParts } from "./lib/build-digest.js";
 
 const samples: Array<[string, string]> = [
   // [入力チャンネル名, 期待する分類]
@@ -410,11 +410,14 @@ checkAnchorNoShift("slotHourがundefinedならシフトしない", jstDate(2026,
 }
 console.log(`結果（日付アンカー）: ${anchorOk} 件OK / ${anchorNg} 件NG`);
 
-// ── 時間帯枠（SLOTS）の回帰テスト（2026-08-05導入）──
-// cronの時刻とbuild-digest.jsのSLOTS.hourがズレると、上のanchorToSlotDateの「前日の枠か
-// どうか」の判定そのものが壊れる（.github/workflows/daily-digest.ymlのコメント参照）。
-// また、投稿の種類（kind）がどの枠のkindsにも含まれていないと、その投稿は永久にどの
-// DIGEST_SLOTでも出力されなくなる（黙って消える）。両方を機械的に固定する。
+// ── 時間帯枠（SLOTS）の回帰テスト（2026-08-05導入。同日中に「予定時刻ちょうどに1回
+// 起動」方式から「1時間おきに起動していまがどの枠の時間帯かを自分で判定する」方式へ
+// 設計変更）──
+// GitHub Actionsのscheduleは予定通りに発火しない（実測遅延2.1〜6.4時間・中央値約5時間）
+// ため、「cronに20時と書けば20時台に投稿される」という前提そのものをやめた。SLOTSは
+// hourではなくfromHour/toHourの時間帯を持ち、slotForNow(now)がJST時刻からその枠を返す。
+// 投稿の種類（kind）がどの枠のkindsにも含まれていないと、その投稿は永久にどの
+// DIGEST_SLOTでも出力されなくなる（黙って消える）ため、それは引き続き機械的に固定する。
 let slotNg = 0;
 {
   const slotNames = Object.keys(SLOTS).sort();
@@ -425,21 +428,53 @@ let slotNg = 0;
       (pass1 ? "" : `  (期待: ["evening","morning","noon"])`)
   );
 
-  const expectedShape: Record<string, { hour: number; kinds: string[] }> = {
-    morning: { hour: 9, kinds: ["top5"] },
-    noon: { hour: 12, kinds: ["spotlight"] },
-    evening: { hour: 20, kinds: ["airing"] },
+  const expectedShape: Record<string, { fromHour: number; toHour: number; kinds: string[] }> = {
+    morning: { fromHour: 9, toHour: 11, kinds: ["top5"] },
+    noon: { fromHour: 12, toHour: 14, kinds: ["spotlight"] },
+    evening: { fromHour: 18, toHour: 21, kinds: ["airing"] },
   };
   for (const key of Object.keys(expectedShape)) {
     const got = SLOTS[key];
     const exp = expectedShape[key];
-    const pass = !!got && got.hour === exp.hour && JSON.stringify(got.kinds) === JSON.stringify(exp.kinds);
+    const pass =
+      !!got &&
+      got.fromHour === exp.fromHour &&
+      got.toHour === exp.toHour &&
+      JSON.stringify(got.kinds) === JSON.stringify(exp.kinds);
     if (!pass) slotNg++;
     console.log(
-      `${pass ? "✓" : "✗"}  ${`SLOTS.${key}`.padEnd(40)} → hour=${got?.hour} kinds=${JSON.stringify(got?.kinds)}` +
-        (pass ? "" : `  (期待: hour=${exp.hour} kinds=${JSON.stringify(exp.kinds)})`)
+      `${pass ? "✓" : "✗"}  ${`SLOTS.${key}`.padEnd(40)} → fromHour=${got?.fromHour} toHour=${got?.toHour} kinds=${JSON.stringify(got?.kinds)}` +
+        (pass ? "" : `  (期待: fromHour=${exp.fromHour} toHour=${exp.toHour} kinds=${JSON.stringify(exp.kinds)})`)
     );
   }
+
+  // 各枠が fromHour<=toHour であり、かつ枠同士の時間帯が重なっていないこと。重なると
+  // slotForNow の結果が Object.entries の定義順（＝オブジェクトのキー挿入順）に依存して
+  // 不安定になる（「どちらの枠として判定されるか」がコードの見た目上わからなくなる）。
+  const slotEntries = Object.entries(SLOTS) as [string, { fromHour: number; toHour: number }][];
+  const rangeOk = slotEntries.every(([, s]) => s.fromHour <= s.toHour);
+  let overlapOk = true;
+  const overlaps: string[] = [];
+  for (let i = 0; i < slotEntries.length; i++) {
+    for (let j = i + 1; j < slotEntries.length; j++) {
+      const [nameA, a] = slotEntries[i];
+      const [nameB, b] = slotEntries[j];
+      if (a.fromHour <= b.toHour && b.fromHour <= a.toHour) {
+        overlapOk = false;
+        overlaps.push(`${nameA}×${nameB}`);
+      }
+    }
+  }
+  const pass1b = rangeOk && overlapOk;
+  if (!pass1b) slotNg++;
+  console.log(
+    `${pass1b ? "✓" : "✗"}  ${"各枠がfromHour<=toHourかつ枠同士が重ならない".padEnd(40)} → ${JSON.stringify(
+      Object.fromEntries(slotEntries.map(([k, s]) => [k, [s.fromHour, s.toHour]]))
+    )}` +
+      (pass1b
+        ? ""
+        : `  (期待: 全枠fromHour<=toHour・重なりなし${overlaps.length ? ` / 重なり: ${overlaps.join(",")}` : ""})`)
+  );
 
   // build-digest.js が実際に生成しうる kind をソースから機械的に拾い、SLOTSの
   // kindsの合計と過不足なく一致することを固定する（「配信バッジの遷移先」検査と同じ
@@ -454,26 +489,56 @@ let slotNg = 0;
       (pass2 ? "" : "  (期待: 一致。どこにも出ないkindがあると投稿が黙って消える)")
   );
 
-  // .github/workflows/daily-digest.yml のcron 3本（UTC）が、SLOTSのhour（JST）と
-  // 整合していることを固定する。cronだけ動かしてSLOTSを直し忘れると、
-  // anchorToSlotDateの「前日の枠か」判定が壊れる（ワークフロー側のコメント参照）。
-  // 【2026-08-05・分の仕様変更】毎時0分の混雑を避けるためcronの「分」はズラしてよい値
-  // （例: "7 0 * * *"）。検査の本質は「cronの『時』とSLOTSのhourがズレていないこと」
-  // なので、分（先頭の\d+）は捕捉せず読み捨て、時（2つ目の\d+）だけを見る。
+  // slotForNow の境界の挙動を固定する（今回の設計変更の肝）。JSTの各時刻帯を与えて
+  // 期待する枠を返すことを確認する（分は境界と紛れないよう30分を使う）。
+  function checkSlotForNow(hour: number, expect: string | null) {
+    const now = jstDate(2026, 8, 6, hour, 30);
+    const got = slotForNow(now);
+    const pass = got === expect;
+    if (!pass) slotNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${`slotForNow(JST ${String(hour).padStart(2, "0")}時台)`.padEnd(40)} → ${JSON.stringify(got)}` +
+        (pass ? "" : `  (期待: ${JSON.stringify(expect)})`)
+    );
+  }
+  checkSlotForNow(8, null);
+  checkSlotForNow(9, "morning");
+  checkSlotForNow(11, "morning");
+  checkSlotForNow(12, "noon");
+  checkSlotForNow(14, "noon");
+  checkSlotForNow(15, null);
+  checkSlotForNow(16, null);
+  checkSlotForNow(17, null);
+  checkSlotForNow(18, "evening");
+  checkSlotForNow(21, "evening");
+  checkSlotForNow(22, null);
+  checkSlotForNow(0, null);
+
+  // .github/workflows/daily-digest.yml に投稿時刻がハードコードされていないことを固定する。
+  // 【なぜこれを固定するのか】時間帯の定義（SLOTS）は build-digest.js だけが持つ設計に
+  // なっている（daily-digest.ymlは起動のたびにscripts/current-slot.js経由でSLOTSに聞く
+  // だけで、YAML自身は時刻を持たない）。もしYAML側に時刻付きのcron（例: "0 20 * * *"）や
+  // 独自の枠判定ロジックが書き足されると、build-digest.jsのSLOTSと2箇所目の「時間帯の
+  // 定義」が生まれ、どちらかだけ直したときにズレる（旧設計＝cronの時刻とSLOTS.hourの
+  // 整合検査で防いでいたのと同じ種類の事故）。cronの形とcurrent-slot.jsの呼び出しを
+  // 機械的に固定することで、この逆戻りを検出する。
   const ymlSrc = readFileSync(new URL("../.github/workflows/daily-digest.yml", import.meta.url), "utf8");
-  const cronHoursUtc = [...ymlSrc.matchAll(/cron:\s*"\d+\s+(\d+)\s+\*\s+\*\s+\*"/g)].map((m) => Number(m[1]));
-  const cronHoursJst = cronHoursUtc.map((h) => (h + 9) % 24);
-  const slotHours = (Object.values(SLOTS) as { hour: number; kinds: string[] }[]).map((s) => s.hour);
-  // 並び順（yml上の記載順とSLOTSのキー挿入順）には依存させず、「時の集合」同士を比較する。
-  // こうすることで、cronがどれかの枠と1対1で過不足なく対応していること
-  // （＝どの枠にも対応しないcronが無い・対応するcronが無い枠が無い）を、順序に関係なく検出する。
-  const pass3 =
-    cronHoursJst.length === slotHours.length &&
-    JSON.stringify([...cronHoursJst].sort((a, b) => a - b)) === JSON.stringify([...slotHours].sort((a, b) => a - b));
+  const cronLines = [...ymlSrc.matchAll(/cron:\s*"([^"]+)"/g)].map((m) => m[1]);
+  // 5フィールド中、時以降（hour/day/month/weekday）が全てワイルドカード＝「毎時」起動。
+  // 分（先頭の\d+）だけは混雑回避でずらしてよい値なので固定しない。
+  const hourlyPattern = /^\d+\s+\*\s+\*\s+\*\s+\*$/;
+  const pass3 = cronLines.length === 1 && hourlyPattern.test(cronLines[0]);
   if (!pass3) slotNg++;
   console.log(
-    `${pass3 ? "✓" : "✗"}  ${"daily-digest.ymlのcron(UTC・時のみ)がSLOTS.hour(JST)と1対1対応".padEnd(40)} → cron(UTC時)=${JSON.stringify(cronHoursUtc)} → JST=${JSON.stringify(cronHoursJst)} SLOTS.hour=${JSON.stringify(slotHours)}` +
-      (pass3 ? "" : "  (期待: cronのJST時刻の集合とSLOTS.hourの集合が過不足なく一致)")
+    `${pass3 ? "✓" : "✗"}  ${"daily-digest.ymlのcronは1本だけ・毎時起動（時刻を持たない）".padEnd(40)} → cron=${JSON.stringify(cronLines)}` +
+      (pass3 ? "" : `  (期待: cronが1本だけ・"<分> * * * *"の形。時の位置が*でないcronはNG)`)
+  );
+
+  const pass4 = /node\s+scripts\/current-slot\.js/.test(ymlSrc);
+  if (!pass4) slotNg++;
+  console.log(
+    `${pass4 ? "✓" : "✗"}  ${"daily-digest.ymlがscripts/current-slot.jsで枠判定している".padEnd(40)} → ${pass4}` +
+      (pass4 ? "" : "  (期待: node scripts/current-slot.js の呼び出しがある。枠判定を自前で書き直さない)")
   );
 }
 console.log(`結果（時間帯枠SLOTS）: ${slotNg === 0 ? 1 : 0} 件OK / ${slotNg} 件NG`);

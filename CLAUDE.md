@@ -52,10 +52,13 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 
 ## 運用（定期作業）
 - 定期点検・SNS投稿のサイクルは `docs/operations.md` にまとめてある（新クール開始時と2〜3週間後の点検＋告知）。
-- SNS自動投稿（Bluesky/Mastodon/Threads）は**1日3枠**に分けて出す（2026-08-05〜）:
-  09時台＝注目作TOP5、12時台＝【どこで見れる？】スポットライト、20時台＝その曜日の放送・配信。
-  枠は`scripts/lib/build-digest.js`の`SLOTS`と`daily-digest.yml`のcronの**両方**で定義しており、
-  片方だけ変えると投稿日の判定が壊れる（`node scripts/check.ts`が整合を検査する）。詳細は
+- SNS自動投稿（Bluesky/Mastodon/Threads）は**1日3枠の時間帯**に分けて出す（2026-08-05〜）:
+  9〜11時＝注目作TOP5、12〜14時＝【どこで見れる？】スポットライト、18〜21時＝その曜日の放送・配信。
+  GitHub Actionsのscheduleは数時間遅れるため「予定時刻に1回起動」では時刻を守れない。
+  そこで**1時間おきに起動し、いまがどの時間帯かを自分で判定して未投稿ならそこで投稿する**
+  方式にしている（二重投稿はキャッシュで防止／全滅時は次の起動が自動リトライ）。
+  時間帯の定義は`scripts/lib/build-digest.js`の`SLOTS`**だけ**が持ち、ワークフローのYAMLには
+  時刻を書かない（`node scripts/check.ts`がハードコードの逆戻りを検査する）。詳細は
   `docs/operations.md`の⑦-9。
 - Xへの投稿は**ブラウザから手動**（2026-07-05〜）。X APIが2026年2月に無料枠廃止・従量課金制（投稿1件$0.015、リンク付き$0.20）になったため、API自動投稿（`.github/workflows/post-to-x.yml`）は保留中でGitHub Secrets未登録。文案は `docs/sns-templates.md`。詳細は `docs/operations.md`。
 - Xアカウント成長（フォロワー獲得）は**週次X成長キット**（`x-growth.yml`が毎週月曜20:00 JSTに起票するGitHub Issue）で運用。投稿ドラフト4本＋見込み客への検索クエリ/リプ下書き＋週次チェックを自動生成し、投稿・リプ・フォローは手動で行う（自動投稿・自動フォロー・スクレイピングはしない）。生成は `scripts/lib/build-growth-kit.js`。考え方は `docs/x-growth-playbook.md`、運用は `docs/operations.md`の⑫。
@@ -169,9 +172,13 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   JSTの日付に依存する定期処理を書くときは、①JSTの日付が変わるまで十分な余裕がある時刻に
   cronを置く、②「実行は予定より早くは始まらない」性質を使い、いまのJST時刻が予定時刻より
   前なら日付をまたいだ遅延実行＝前日の枠、と判定して基準日を固定する
-  （`scripts/lib/build-digest.js`の`anchorToSlotDate`）、③cronの時刻と、コード側が持つ
-  予定時刻（`SLOTS`の`hour`）を**必ず両方揃える**（`node scripts/check.ts`に整合検査あり）。
-  経緯は`docs/operations.md`の⑦-9。
+  （`scripts/lib/build-digest.js`の`anchorToSlotDate`）、③**時刻の定義をコード側1箇所に
+  まとめ、cronは「毎時起動」にしてYAMLに時刻を書かない**（両方に書くとズレたときに
+  気づけない。`node scripts/check.ts`に検査あり）。
+  そもそも**「何時に投稿する」をcronで実現しようとしない**こと。実測遅延は2.1〜6.4時間・
+  中央値約5時間あり、cronの時刻はまったく当てにならない。狙った時間帯に出したいなら、
+  1時間おきに起動して「いまがその時間帯か」をコード側で判定する
+  （`slotForNow`）。経緯は`docs/operations.md`の⑦-9。
 - **【基本ルール】外部SNS APIに投げる処理は「一時的な失敗」を前提に書く（2026-08-05導入）**:
   Threads自動投稿が2週間で4回、`Media Not Found`（コンテナがまだ見えていないだけの一時的な
   エラー）で丸ごと落ちていた。外部APIを叩くスクリプトを書く/直すときは、①一時的なエラー
