@@ -20,19 +20,33 @@ async function main() {
   const agent = new BskyAgent({ service: "https://bsky.social" });
   await agent.login({ identifier, password });
 
+  // 投稿は1件ずつ独立させる。1本目が落ちても2本目は投げ、最後にまとめて報告する
+  // （2026-08-05追加。Threadsで「1本目の失敗＝その日は全滅」の事故が起きたため、
+  // 同じ形をしている3スクリプトを揃えた。経緯は docs/operations.md の⑦-8）。
+  const failures = [];
+
   for (const post of posts) {
-    let embed;
-    if (post.screenshot) {
-      try {
-        const png = await captureScreenshot(post.screenshot.url, post.screenshot.selector);
-        const uploaded = await agent.uploadBlob(png, { encoding: "image/png" });
-        embed = { $type: "app.bsky.embed.images", images: [{ image: uploaded.data.blob, alt: "アニメ視聴ガイドの画面" }] };
-      } catch (err) {
-        console.error("スクリーンショットの添付に失敗しました（画像なしで投稿を続行します）:", err);
+    try {
+      let embed;
+      if (post.screenshot) {
+        try {
+          const png = await captureScreenshot(post.screenshot.url, post.screenshot.selector);
+          const uploaded = await agent.uploadBlob(png, { encoding: "image/png" });
+          embed = { $type: "app.bsky.embed.images", images: [{ image: uploaded.data.blob, alt: "アニメ視聴ガイドの画面" }] };
+        } catch (err) {
+          console.error("スクリーンショットの添付に失敗しました（画像なしで投稿を続行します）:", err);
+        }
       }
+      const res = await agent.post({ text: post.text, createdAt: new Date().toISOString(), ...(embed ? { embed } : {}) });
+      console.log("Blueskyに投稿しました:", res.uri);
+    } catch (err) {
+      failures.push(err);
+      console.error(`Blueskyの1件が投稿できませんでした（残りは続行します）: ${err.message}`);
     }
-    const res = await agent.post({ text: post.text, createdAt: new Date().toISOString(), ...(embed ? { embed } : {}) });
-    console.log("Blueskyに投稿しました:", res.uri);
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`Bluesky投稿に失敗しました（${posts.length}件中${failures.length}件）。詳細は上のログを参照。`);
   }
 }
 

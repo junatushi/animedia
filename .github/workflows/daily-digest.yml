@@ -8,8 +8,9 @@ name: 毎日ダイジェスト（Bluesky/Mastodon/Threads自動投稿＋Xの下�
 # 自動投稿はせず、コピペ用の下書きをGitHub Issueとして起票するだけにする。
 # 投稿にはサイト実画面のスクリーンショット（カレンダー表示の該当曜日 / 「今期の注目作
 # TOP5」パネル）を添付する。Playwrightのヘッドレスブラウザで本番サイトを直接開いて撮る
-# （新規デザインの画像は作らない。2026-07-14導入）。Threadsは画像添付非対応（公開URL
-# 必須のため）でテキストのみ投稿する。
+# （新規デザインの画像は作らない。2026-07-14導入）。Threadsだけはバイナリ添付ができず
+# 公開URLが必須なので、サイト側の画像エンドポイント（/api/sns-image）のURLを渡す
+# （2026-07-27導入）。
 on:
   schedule:
     - cron: "0 12 * * *"
@@ -36,28 +37,36 @@ jobs:
         id: digest
         run: node scripts/print-digest.js > digest.txt
 
+      # 各SNS投稿は「できたものだけ出す」方式で互いに独立させる。どれか1つが失敗しても
+      # 後続のSNSがスキップされないよう、全ステップに if: !cancelled() を付ける
+      # （2026-08-05修正。以前はこのガードがXの下書き起票にしか付いておらず、たとえば
+      # Blueskyが落ちるとMastodon・Threadsが丸ごとスキップされる状態だった）。
+      # 失敗したステップ自体はfailureのまま残し、最後の通知ステップで拾う。
       - name: Blueskyへ自動投稿（無料・Secrets未設定ならスキップ）
+        id: bluesky
+        if: ${{ !cancelled() && steps.digest.outcome == 'success' }}
         run: node scripts/post-bluesky.js
         env:
           BLUESKY_IDENTIFIER: ${{ secrets.BLUESKY_IDENTIFIER }}
           BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
 
       - name: Mastodonへ自動投稿（無料・Secrets未設定ならスキップ）
+        id: mastodon
+        if: ${{ !cancelled() && steps.digest.outcome == 'success' }}
         run: node scripts/post-mastodon.js
         env:
           MASTODON_INSTANCE_URL: ${{ secrets.MASTODON_INSTANCE_URL }}
           MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
 
       - name: Threadsへ自動投稿（無料・Secrets未設定ならスキップ）
+        id: threads
+        if: ${{ !cancelled() && steps.digest.outcome == 'success' }}
         run: node scripts/post-threads.js
         env:
           THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
 
       - name: Xの下書きをGitHub Issueとして起票（手動投稿用）
-        # 各SNS投稿は「できたものだけ出す」方式で互いに独立させる。特にThreadsが失敗
-        # しても（2026-07-22〜の障害がこれ）Xの下書き起票まで巻き添えでスキップされない
-        # ようにする。ただし本文（digest.txt）の生成自体が失敗したときは中身が無いので
-        # 起票しない。2026-07-24追加。
+        # 本文（digest.txt）の生成自体が失敗したときは中身が無いので起票しない。2026-07-24追加。
         if: ${{ !cancelled() && steps.digest.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -65,3 +74,42 @@ jobs:
           gh issue create \
             --title "Xへの投稿下書き ($(date +%Y-%m-%d))" \
             --body-file digest.txt
+
+      # 【再発防止・2026-08-05追加】どのSNSが落ちたかをIssueにして気づけるようにする。
+      # 2026-07-22〜08-02にThreadsだけが約3割の日で0投稿になっていたが、失敗はActionsの
+      # 赤いマークとGitHubの既定メールにしか出ず、2週間気づけなかった。毎日Xの下書きIssueが
+      # 起票される運用なので、同じIssue一覧に「落ちた」も並べるのが一番目に入る。
+      - name: SNS投稿が失敗していたらIssueで知らせる
+        if: ${{ !cancelled() && (steps.bluesky.outcome == 'failure' || steps.mastodon.outcome == 'failure' || steps.threads.outcome == 'failure' || steps.digest.outcome == 'failure') }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DIGEST_OUTCOME: ${{ steps.digest.outcome }}
+          BLUESKY_OUTCOME: ${{ steps.bluesky.outcome }}
+          MASTODON_OUTCOME: ${{ steps.mastodon.outcome }}
+          THREADS_OUTCOME: ${{ steps.threads.outcome }}
+          # 同じ内容のIssueが毎日積み上がらないよう、既に開いている失敗Issueがあれば
+          # そちらにコメントを足すだけにする。
+          TITLE: "SNS自動投稿が失敗しています"
+        run: |
+          body=$(cat <<EOF
+          $(date +%Y-%m-%d) の自動投稿で失敗したものがあります。
+
+          | ステップ | 結果 |
+          |---|---|
+          | 本文生成 | \`${DIGEST_OUTCOME}\` |
+          | Bluesky | \`${BLUESKY_OUTCOME}\` |
+          | Mastodon | \`${MASTODON_OUTCOME}\` |
+          | Threads | \`${THREADS_OUTCOME}\` |
+
+          実行ログ: ${RUN_URL}
+
+          直ったらこのIssueを閉じてください（次に失敗したときは新しいIssueが立ちます）。
+          EOF
+          )
+          existing=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$TITLE" --body "$body"
+          fi
