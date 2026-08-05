@@ -441,7 +441,7 @@ let slotNg = 0;
   );
 
   const expectedShape: Record<string, { fromHour: number; toHour: number; kinds: string[] }> = {
-    morning: { fromHour: 9, toHour: 10, kinds: ["top5"] },
+    morning: { fromHour: 7, toHour: 10, kinds: ["top5"] },
     noon: { fromHour: 11, toHour: 12, kinds: ["spotlight"] },
     evening: { fromHour: 18, toHour: 21, kinds: ["airing"] },
   };
@@ -520,7 +520,9 @@ let slotNg = 0;
         (pass ? "" : `  (期待: ${JSON.stringify(expect)})`)
     );
   }
-  checkSlotForNow(8, null);
+  checkSlotForNow(6, null);
+  checkSlotForNow(7, "morning");
+  checkSlotForNow(8, "morning");
   checkSlotForNow(9, "morning");
   checkSlotForNow(10, "morning");
   checkSlotForNow(11, "noon");
@@ -580,7 +582,9 @@ let slotNg = 0;
     );
   }
   checkDueSlots(0, []);
-  checkDueSlots(8, []);
+  checkDueSlots(6, []);
+  checkDueSlots(7, ["morning"]);
+  checkDueSlots(8, ["morning"]);
   checkDueSlots(9, ["morning"]);
   checkDueSlots(10, ["morning"]);
   checkDueSlots(11, ["morning", "noon"]);
