@@ -758,7 +758,205 @@ let slotNg = 0;
 }
 console.log(`結果（時間帯枠SLOTS）: ${slotNg === 0 ? 1 : 0} 件OK / ${slotNg} 件NG`);
 
+// ─────────────────────────────────────────────
+// 過去クール索引（content/archive/index.json）がスナップショットと一致するかの検査
+// （2026-08-05追加）
+//
+// この索引は sitemap.xml に「過去クールのシーズンページ・作品ページ」を載せるための
+// 元データ。content/snapshots/ を追加・再生成したのに索引を作り直し忘れると、
+// 新しいクールが検索エンジンに知られないまま（あるいは消えた作品IDを送り続けたまま）に
+// なるが、画面上は何も壊れないので気づけない。ここで機械的に検出する。
+// ズレていたら `node scripts/build-archive-index.ts` を実行すれば直る。
+// ─────────────────────────────────────────────
+console.log("\n── 過去クール索引（sitemap用）──");
+let archiveNg = 0;
+{
+  const { buildArchiveIndex, readSnapshots } = await import("./build-archive-index.ts");
+  const expected = buildArchiveIndex(readSnapshots());
+  const actual = JSON.parse(
+    readFileSync(new URL("../content/archive/index.json", import.meta.url), "utf8")
+  );
+  const same = JSON.stringify(expected) === JSON.stringify(actual);
+  if (!same) archiveNg++;
+  const seasons = expected.seasons.length;
+  const works = expected.seasons.reduce((n, s) => n + s.workIds.length, 0);
+  console.log(
+    `${same ? "✓" : "✗"}  ${"index.jsonがcontent/snapshots/と一致".padEnd(40)} → ` +
+      `シーズン${seasons}件・作品${works}件` +
+      (same ? "" : "  (不一致: node scripts/build-archive-index.ts を実行してください)")
+  );
+
+  // 索引に載せるのは「配信サービスが1件以上ある作品」だけ、という収録方針の検査。
+  // 配信0件の作品ページは「配信情報なし」としか答えられない薄いページなので、
+  // 大量にsitemapへ送るとサイト全体の評価を下げうる（build-archive-index.ts 冒頭参照）。
+  const snapshots = readSnapshots();
+  let leaked = 0;
+  for (const { year, season, data } of snapshots) {
+    const entry = expected.seasons.find((s) => s.year === year && s.season === season);
+    if (!entry) continue;
+    const listed = new Set(entry.workIds);
+    for (const it of data.items) {
+      if (listed.has(it.id) && it.services.length === 0) leaked++;
+    }
+  }
+  const noLeak = leaked === 0;
+  if (!noLeak) archiveNg++;
+  console.log(
+    `${noLeak ? "✓" : "✗"}  ${"配信0件の作品をsitemapに載せていない".padEnd(40)} → 混入${leaked}件` +
+      (noLeak ? "" : "  (期待: 0件)")
+  );
+}
+console.log(`結果（過去クール索引）: ${archiveNg === 0 ? 2 : 0} 件OK / ${archiveNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// 作品ページ title の幅の検査（2026-08-05追加）
+//
+// 検索結果の日本語titleは概ね全角30〜33文字で切られる。2026-07-27に
+// 「検索語に近づける」ためtitleへ配信サービス名を入れたとき幅を見ていなかったため、
+// 2025年の実データ335作品で中央値47文字・99%が30文字超になり、入れたはずの
+// サービス名がほぼ全作品で表示前に切り捨てられていた。同じ後戻りを防ぐ。
+// ─────────────────────────────────────────────
+console.log("\n── 作品ページ title の幅 ──");
+let titleNg = 0;
+{
+  const { buildWorkTitle, displayWidth: width, TITLE_WIDTH_BUDGET: BUDGET } = await import(
+    "../lib/workTitle.ts"
+  );
+
+  // 作品名が短ければサービス名が入り、長ければ作品名だけになる（作品名は削らない）。
+  const cases: Array<[string, string[], (t: string) => boolean, string]> = [
+    [
+      "ダンダダン 第2期",
+      ["DMM TV", "dアニメ", "U-NEXT", "ABEMA", "Netflix"],
+      (t) => t.includes("DMM TV") && width(t) <= BUDGET,
+      "短い作品名にはサービス名が入る",
+    ],
+    [
+      "Re:ゼロから始める異世界生活 3rd season 反撃編",
+      ["dアニメ", "ABEMA", "U-NEXT"],
+      (t) => t.startsWith("Re:ゼロから始める異世界生活 3rd season 反撃編はどこで配信？"),
+      "長い作品名でも作品名は削られない",
+    ],
+    ["薬屋のひとりごと 第2期", [], (t) => t === "薬屋のひとりごと 第2期はどこで配信？", "配信0件でも成立する"],
+  ];
+  for (const [workTitle, services, ok, label] of cases) {
+    const t = buildWorkTitle(workTitle, services);
+    const pass = ok(t);
+    if (!pass) titleNg++;
+    console.log(`${pass ? "✓" : "✗"}  ${label.padEnd(34)} → ${t}（幅${width(t)}）`);
+  }
+
+  // 実データ（スナップショット全件）で、作品名自体が予算内に収まる作品は
+  // 必ずtitle全体も予算内に収まること。作品名だけで予算を超える作品は対象外
+  // （削れないため。その場合もサービス名は足さない＝base のままであることを見る）。
+  const { readSnapshots: readSnaps } = await import("./build-archive-index.ts");
+  const snaps = readSnaps();
+  let over = 0;
+  let checked = 0;
+  for (const { data } of snaps) {
+    for (const it of data.items) {
+      const shorts = it.services.map((s) => s.short);
+      const t = buildWorkTitle(it.title, shorts);
+      const base = `${it.title}はどこで配信？`;
+      checked++;
+      if (width(base) <= BUDGET) {
+        if (width(t) > BUDGET) over++;
+      } else if (t !== base) {
+        // 作品名だけで予算超過なのにサービス名まで足していたらNG。
+        over++;
+      }
+    }
+  }
+  const pass = over === 0;
+  if (!pass) titleNg++;
+  console.log(
+    `${pass ? "✓" : "✗"}  ${"実データ全件が幅の予算を守る".padEnd(34)} → ${checked}件中 超過${over}件` +
+      (pass ? "" : "  (期待: 0件)")
+  );
+}
+console.log(`結果（titleの幅）: ${titleNg === 0 ? 4 : 0} 件OK / ${titleNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// SNS投稿に貼るリンクの検査（2026-08-05追加）
+//
+// 投稿本文のリンクは `/?year=&season=` ではなく `/season/{year}/{season}` を指すこと。
+// トップページの canonical は "/" なので、クエリ付きトップを貼っても検索エンジンには
+// 「/」の重複URLとしか見えず、実際に順位を取らせたいシーズンページには何も渡らない。
+// スクリーンショットの撮影先だけは、撮影用クエリ（view=calendar / ranking=open）を
+// 解釈できるトップページのままでよい（/season/... は固定表示モードで読まない）。
+// ─────────────────────────────────────────────
+console.log("\n── SNS投稿のリンク先 ──");
+let linkNg = 0;
+{
+  const src = readFileSync(new URL("./lib/build-digest.js", import.meta.url), "utf8");
+  // 本文に使う共有URLは全て /season/ 形式であること。
+  const shareDecls = [...src.matchAll(/const (shareUrl|url) = `\$\{SITE_URL\}([^`]*)`/g)];
+  const bad = shareDecls.filter(([, , path]) => !path.startsWith("/season/"));
+  const pass = shareDecls.length > 0 && bad.length === 0;
+  if (!pass) linkNg++;
+  console.log(
+    `${pass ? "✓" : "✗"}  ${"本文のリンクはシーズンページを指す".padEnd(36)} → ${shareDecls.length}箇所中 違反${bad.length}件` +
+      (pass ? "" : `  (違反: ${JSON.stringify(bad.map((m) => m[2]))})`)
+  );
+
+  // 撮影用URLはクエリを付けられる形（トップ + ?）であること。
+  const shotOk = /const shotUrl = `\$\{SITE_URL\}\/\?year=/.test(src);
+  if (!shotOk) linkNg++;
+  console.log(
+    `${shotOk ? "✓" : "✗"}  ${"撮影用URLはクエリ付きトップのまま".padEnd(36)} → ${shotOk ? "OK" : "見つからない"}`
+  );
+}
+console.log(`結果（SNS投稿のリンク先）: ${linkNg === 0 ? 2 : 0} 件OK / ${linkNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// SSRの中身が空にならないことの検査（2026-08-05追加・重大度高）
+//
+// useSearchParams() を呼ぶクライアントコンポーネントがあると、Next.js 14 は静的生成
+// （ISR）されるページでその Suspense 境界を丸ごとクライアント描画へ退避させ、
+// サーバーHTMLには fallback しか出力しなくなる。
+// 実際、SeasonExplorer がこれを呼んでいたせいで /season/[year]/[season] の本番HTMLは
+// h1が0個・作品への<a href="/anime/..">が0個・可視テキスト0文字（中身はJSON-LDだけ、
+// 188KBのうち本文ゼロ）だった。「SEO用のSSRページ」が実際には空を返していたことになる。
+// 画面はクライアント描画で正常に見えるので、人間の目視では絶対に気づけない。
+// クエリの読み取りは TopPageExplorer（トップページ専用の薄いラッパー）に閉じ込める。
+// ─────────────────────────────────────────────
+console.log("\n── SSRの中身（useSearchParamsの巻き込み）──");
+let ssrNg = 0;
+{
+  // SeasonExplorer は /season/** と /anime/** のSSRに乗るので、ここで
+  // useSearchParams を呼んではいけない。
+  const explorer = readFileSync(new URL("../components/SeasonExplorer.tsx", import.meta.url), "utf8");
+  // コメント行（なぜ呼ばないのかの説明）に名前が出てくるのは正常なので、
+  // 実際の import 文だけを見る。
+  const importsIt = explorer
+    .split("\n")
+    .some((l) => /^\s*import\b/.test(l) && /useSearchParams/.test(l));
+  const clean = !importsIt;
+  if (!clean) ssrNg++;
+  console.log(
+    `${clean ? "✓" : "✗"}  ${"SeasonExplorerがuseSearchParamsを呼ばない".padEnd(40)} → ${clean ? "OK" : "呼んでいる"}` +
+      (clean ? "" : "  (SSRが空になります。TopPageExplorer側へ寄せてください)")
+  );
+
+  // シーズンページは SeasonExplorer を直接使うこと（TopPageExplorer を挟むと
+  // そちらが useSearchParams を呼ぶため、同じ理由でSSRが空になる）。
+  const seasonPage = readFileSync(
+    new URL("../app/season/[year]/[season]/page.tsx", import.meta.url),
+    "utf8"
+  );
+  const direct = !/TopPageExplorer/.test(seasonPage) && /SeasonExplorer/.test(seasonPage);
+  if (!direct) ssrNg++;
+  console.log(
+    `${direct ? "✓" : "✗"}  ${"シーズンページはSeasonExplorerを直接使う".padEnd(40)} → ${direct ? "OK" : "TopPageExplorer経由になっている"}`
+  );
+}
+console.log(`結果（SSRの中身）: ${ssrNg === 0 ? 2 : 0} 件OK / ${ssrNg} 件NG`);
+
 if (
+  archiveNg > 0 ||
+  titleNg > 0 ||
+  linkNg > 0 ||
+  ssrNg > 0 ||
   ng > 0 ||
   scheduleNg > 0 ||
   bdNg > 0 ||
