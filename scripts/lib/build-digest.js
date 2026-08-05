@@ -57,14 +57,36 @@ const SLOTS = {
   evening: { fromHour: 18, toHour: 21, kinds: ["airing"] },
 };
 
-// いまのJST時刻がどの枠の時間帯かを返す（どれにも入らなければ null）。
-// daily-digest.yml が1時間おきの起動のたびにこれを呼び、null なら何もせず終わる。
+function jstHourOf(now) {
+  return new Date(now.getTime() + 9 * 60 * 60 * 1000).getUTCHours();
+}
+
+// いまのJST時刻がどの枠の時間帯の「中」かを返す（どれにも入らなければ null）。
+// daily-digest.yml が1時間おきの起動のたびにこれを呼ぶ。
 function slotForNow(now = new Date()) {
-  const jstHour = new Date(now.getTime() + 9 * 60 * 60 * 1000).getUTCHours();
+  const jstHour = jstHourOf(now);
   const found = Object.entries(SLOTS).find(
     ([, s]) => jstHour >= s.fromHour && jstHour <= s.toHour
   );
   return found ? found[0] : null;
+}
+
+// 【遅れ投稿・2026-08-05追加】その日すでに開始時刻を迎えた枠を、時系列順に返す。
+// 時間帯を過ぎていても、まだ投稿できていない枠は**その日のうちなら**投げる、という
+// 取りこぼし対策に使う（daily-digest.yml が「投稿済みか」をキャッシュで見て判断する）。
+//
+// なぜ要るか: GitHub Actions は高負荷時に schedule を大量に間引く。このリポジトリの
+// 実測（warm-cache.yml の */5 指定）では本来1,046回のうち実際の起動は30回だけで、
+// 起動間隔の中央値2.5時間・最大13時間だった。1時間おきに起動を頼んでも、18〜21時の
+// 4時間枠を丸ごと逃す確率がおよそ16%（約6日に1日）ある。
+// 「狙った時間帯に出す」を第一希望としつつ、逃した日は遅れてでも出す方がよい、という
+// 判断（2026-08-05）。JSTの日付が変わったら諦める（内容が前日のものになるため）。
+function dueSlots(now = new Date()) {
+  const jstHour = jstHourOf(now);
+  return Object.entries(SLOTS)
+    .filter(([, s]) => jstHour >= s.fromHour)
+    .sort((a, b) => a[1].fromHour - b[1].fromHour)
+    .map(([key]) => key);
 }
 
 // 【重要・2026-08-05導入】GitHub Actions の schedule は予定より数時間遅れて発火する
@@ -428,5 +450,6 @@ module.exports = {
   // 時間帯枠（2026-08-05導入）。ワークフローの cron とテストから参照する。
   SLOTS,
   slotForNow,
+  dueSlots,
   anchorToSlotDate,
 };

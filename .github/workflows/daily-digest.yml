@@ -21,6 +21,13 @@ name: 毎日ダイジェスト（Bluesky/Mastodon/Threads自動投稿＋Xの下�
 # 次の起動はそのキャッシュが在ることで「この枠は今日もう投げた」と分かり、何もしない。
 # 逆に全滅した回はキャッシュを残さないので、同じ時間帯の次の起動が自動で再試行になる。
 #
+# 【遅れ投稿・2026-08-05追加】GitHubはscheduleを大量に間引く。実測（warm-cache.ymlの
+# */5指定）では本来1,046回に対し実際の起動は30回だけで、間隔の中央値2.5時間・最大13時間
+# だった。1時間おきに頼んでも18〜21時の4時間枠を丸ごと逃す日が約6日に1日ある。
+# そこで「時間帯の中にいる枠」を第一希望としつつ、**時間帯を過ぎても未投稿の枠は
+# その日のうちなら遅れて投げる**（22時以降になっても、投稿が消えるよりはよいという判断）。
+# JSTの日付が変わったら諦める（内容が前日のものになってしまうため）。
+#
 # 手動実行（workflow_dispatch）では slot を選べる。既定の all は時間帯もキャッシュも
 # 無視して1日分を全部出す（動作確認・臨時投稿用）。
 #
@@ -67,41 +74,105 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: いまがどの枠の時間帯かを判定
-        id: slot
+        id: when
         run: |
           if [ -n "${{ inputs.slot }}" ]; then
-            # 手動実行: 時間帯を無視して指定された枠を使う
-            echo "slot=${{ inputs.slot }}" >> "$GITHUB_OUTPUT"
-            echo "date=$(TZ=Asia/Tokyo date +%F)" >> "$GITHUB_OUTPUT"
-            echo "手動実行のため時間帯の判定をせず slot=${{ inputs.slot }} で投稿します"
+            # 手動実行: 時間帯も投稿済みかも無視して、指定された枠をそのまま使う
+            {
+              echo "slot=${{ inputs.slot }}"
+              echo "due_morning=false"
+              echo "due_noon=false"
+              echo "due_evening=false"
+              echo "date=$(TZ=Asia/Tokyo date +%F)"
+              echo "manual=true"
+            } | tee -a "$GITHUB_OUTPUT"
           else
             node scripts/current-slot.js | tee -a "$GITHUB_OUTPUT"
+            echo "manual=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # この枠を今日もう投げていないか確認する（lookup-onlyなので中身は取り出さない）。
-      - name: この枠を今日すでに投稿済みか確認
-        id: posted
-        if: ${{ steps.slot.outputs.slot != 'none' && steps.slot.outputs.slot != 'all' }}
+      # 開始時刻を迎えた枠それぞれについて、今日もう投げていないかを確認する
+      # （lookup-onlyなので中身は取り出さない）。
+      - name: morning枠を今日すでに投稿済みか確認
+        id: posted_morning
+        if: ${{ steps.when.outputs.due_morning == 'true' }}
         uses: actions/cache/restore@v4
         with:
           path: .posted
-          key: posted-${{ steps.slot.outputs.slot }}-${{ steps.slot.outputs.date }}
+          key: posted-morning-${{ steps.when.outputs.date }}
+          lookup-only: true
+      - name: noon枠を今日すでに投稿済みか確認
+        id: posted_noon
+        if: ${{ steps.when.outputs.due_noon == 'true' }}
+        uses: actions/cache/restore@v4
+        with:
+          path: .posted
+          key: posted-noon-${{ steps.when.outputs.date }}
+          lookup-only: true
+      - name: evening枠を今日すでに投稿済みか確認
+        id: posted_evening
+        if: ${{ steps.when.outputs.due_evening == 'true' }}
+        uses: actions/cache/restore@v4
+        with:
+          path: .posted
+          key: posted-evening-${{ steps.when.outputs.date }}
           lookup-only: true
 
-      - name: 投稿するかどうかを決める
+      # どの枠を投げるかを1つだけ決める。
+      #   第一希望: いま時間帯の「中」にいる枠（＝狙った時間帯に出せる）
+      #   次点    : 時間帯を過ぎたのに未投稿の枠を、古い順に1つ（＝遅れ投稿）
+      # 1回の起動で1枠だけにするのは、取りこぼしが重なった日に連投になるのを避けるため
+      # （残りは次の起動が拾う）。
+      - name: 投稿する枠を決める
         id: gate
+        env:
+          IN_WINDOW: ${{ steps.when.outputs.slot }}
+          MANUAL: ${{ steps.when.outputs.manual }}
+          DUE_MORNING: ${{ steps.when.outputs.due_morning }}
+          DUE_NOON: ${{ steps.when.outputs.due_noon }}
+          DUE_EVENING: ${{ steps.when.outputs.due_evening }}
+          HIT_MORNING: ${{ steps.posted_morning.outputs.cache-hit }}
+          HIT_NOON: ${{ steps.posted_noon.outputs.cache-hit }}
+          HIT_EVENING: ${{ steps.posted_evening.outputs.cache-hit }}
         run: |
-          slot="${{ steps.slot.outputs.slot }}"
-          hit="${{ steps.posted.outputs.cache-hit }}"
-          if [ "$slot" = "none" ]; then
+          now="JST $(TZ=Asia/Tokyo date +%H:%M)"
+
+          if [ "$MANUAL" = "true" ]; then
+            echo "slot=$IN_WINDOW" >> "$GITHUB_OUTPUT"
+            echo "go=true" >> "$GITHUB_OUTPUT"
+            echo "手動実行: 枠 $IN_WINDOW として投稿します（$now）"
+            exit 0
+          fi
+
+          unposted() {  # $1=枠名 → 開始済みかつ未投稿なら0
+            due=$(eval echo "\$DUE_$(echo "$1" | tr a-z A-Z)")
+            hit=$(eval echo "\$HIT_$(echo "$1" | tr a-z A-Z)")
+            [ "$due" = "true" ] && [ "$hit" != "true" ]
+          }
+
+          pick=""
+          reason=""
+          if [ "$IN_WINDOW" != "none" ] && unposted "$IN_WINDOW"; then
+            pick="$IN_WINDOW"
+            reason="時間帯の中"
+          else
+            for s in morning noon evening; do
+              if unposted "$s"; then
+                pick="$s"
+                reason="時間帯を過ぎた取りこぼしの遅れ投稿"
+                break
+              fi
+            done
+          fi
+
+          if [ -z "$pick" ]; then
             echo "go=false" >> "$GITHUB_OUTPUT"
-            echo "いまはどの投稿枠の時間帯でもないので何もしません（JST $(TZ=Asia/Tokyo date +%H:%M)）"
-          elif [ "$hit" = "true" ]; then
-            echo "go=false" >> "$GITHUB_OUTPUT"
-            echo "枠 $slot は今日（${{ steps.slot.outputs.date }}）すでに投稿済みなので何もしません"
+            echo "slot=none" >> "$GITHUB_OUTPUT"
+            echo "投稿すべき枠はありません（$now / 時間帯の中=$IN_WINDOW）。何もしません"
           else
             echo "go=true" >> "$GITHUB_OUTPUT"
-            echo "枠 $slot として投稿します（JST $(TZ=Asia/Tokyo date +%H:%M)）"
+            echo "slot=$pick" >> "$GITHUB_OUTPUT"
+            echo "枠 $pick として投稿します（$now / 理由: $reason）"
           fi
 
       - uses: actions/setup-node@v4
@@ -119,7 +190,7 @@ jobs:
       # 起票は朝の枠（1日の最初の枠）だけ。DIGEST_SLOT を渡さないので全投稿が入る。
       - name: Xの下書き本文を生成（朝の枠のみ・1日分をまとめて）
         id: digest
-        if: ${{ steps.gate.outputs.go == 'true' && (steps.slot.outputs.slot == 'morning' || steps.slot.outputs.slot == 'all') }}
+        if: ${{ steps.gate.outputs.go == 'true' && (steps.gate.outputs.slot == 'morning' || steps.gate.outputs.slot == 'all') }}
         run: node scripts/print-digest.js > digest.txt
 
       # 各SNS投稿は「できたものだけ出す」方式で互いに独立させる。どれか1つが失敗しても
@@ -136,7 +207,7 @@ jobs:
         env:
           BLUESKY_IDENTIFIER: ${{ secrets.BLUESKY_IDENTIFIER }}
           BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
-          DIGEST_SLOT: ${{ steps.slot.outputs.slot }}
+          DIGEST_SLOT: ${{ steps.gate.outputs.slot }}
 
       - name: Mastodonへ自動投稿（無料・Secrets未設定ならスキップ）
         id: mastodon
@@ -145,7 +216,7 @@ jobs:
         env:
           MASTODON_INSTANCE_URL: ${{ secrets.MASTODON_INSTANCE_URL }}
           MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
-          DIGEST_SLOT: ${{ steps.slot.outputs.slot }}
+          DIGEST_SLOT: ${{ steps.gate.outputs.slot }}
 
       - name: Threadsへ自動投稿（無料・Secrets未設定ならスキップ）
         id: threads
@@ -153,20 +224,20 @@ jobs:
         run: node scripts/post-threads.js
         env:
           THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
-          DIGEST_SLOT: ${{ steps.slot.outputs.slot }}
+          DIGEST_SLOT: ${{ steps.gate.outputs.slot }}
 
       # 「この枠は今日もう投げた」印を残す。1つでも投稿できた回だけ保存するので、
       # 全滅した回は印が残らず、同じ時間帯の次の起動が自動で再試行になる。
       - name: 投稿済みの印を残す（同じ枠の二重投稿を防ぐ）
         id: mark
-        if: ${{ !cancelled() && steps.gate.outputs.go == 'true' && steps.slot.outputs.slot != 'all'
+        if: ${{ !cancelled() && steps.gate.outputs.go == 'true' && steps.gate.outputs.slot != 'all'
           && (steps.bluesky.outcome == 'success' || steps.mastodon.outcome == 'success' || steps.threads.outcome == 'success') }}
         run: date -u +%FT%TZ > .posted
       - uses: actions/cache/save@v4
         if: ${{ !cancelled() && steps.mark.outcome == 'success' }}
         with:
           path: .posted
-          key: posted-${{ steps.slot.outputs.slot }}-${{ steps.slot.outputs.date }}
+          key: posted-${{ steps.gate.outputs.slot }}-${{ steps.when.outputs.date }}
 
       - name: Xの下書きをGitHub Issueとして起票（手動投稿用）
         # 本文（digest.txt）の生成自体が失敗したときは中身が無いので起票しない。2026-07-24追加。
@@ -194,7 +265,7 @@ jobs:
           BLUESKY_OUTCOME: ${{ steps.bluesky.outcome }}
           MASTODON_OUTCOME: ${{ steps.mastodon.outcome }}
           THREADS_OUTCOME: ${{ steps.threads.outcome }}
-          SLOT: ${{ steps.slot.outputs.slot }}
+          SLOT: ${{ steps.gate.outputs.slot }}
           # 同じ内容のIssueが毎日積み上がらないよう、既に開いている失敗Issueがあれば
           # そちらにコメントを足すだけにする。
           TITLE: "SNS自動投稿が失敗しています"
