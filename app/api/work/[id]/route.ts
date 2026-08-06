@@ -14,6 +14,7 @@
 import { NextResponse } from "next/server";
 import { getWorkData } from "@/lib/getWorkData";
 import { siteUrl } from "@/lib/siteUrl";
+import { airingStatus, jstToday } from "@/lib/workAvailability";
 
 export const revalidate = 900;
 
@@ -51,6 +52,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: "作品が見つかりません。" }, { status: 404, headers: CORS });
   }
 
+  const checkedAt = jstToday();
+
   return NextResponse.json(
     {
       id: item.id,
@@ -69,13 +72,23 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       broadcastStartDate: item.broadcastStartDate,
       broadcastWeekday: item.broadcastWeekday,
       broadcastTime: item.broadcastTime,
+      // "airing"（現在クール以降）か "finished"（放送が終わったクール）か。
+      // services は Annict の**番組表の記録**であって現在の配信可否の確認ではないため、
+      // "finished" の作品に「配信中」と書くと未確認の主張になる。二次利用する側が
+      // 同じ誤りを繰り返さずに済むよう、判定結果をそのまま公開する
+      // （判定ロジックは lib/workAvailability.ts）。
+      airingStatus: airingStatus(
+        item.broadcastStartDate ?? item.releaseDate?.date ?? null,
+        checkedAt
+      ),
       // データの出所。二次利用する側が出典を書けるように明示する。
       source: {
         provider: "Annict",
         providerUrl: "https://annict.com/",
         site: "アニメ視聴ガイド",
         siteUrl,
-        checkedAt: new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        // 「配信が確認された日」ではなく「Annictからデータを取得した日」。
+        checkedAt,
       },
     },
     {

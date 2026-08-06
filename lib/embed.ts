@@ -24,6 +24,7 @@
 // tsconfig.json の allowImportingTsExtensions と対。
 import { siteUrl } from "./siteUrl.ts";
 import { sortServicesForMetadata } from "./services.ts";
+import { airingStatus, availabilityLabel, jstToday } from "./workAvailability.ts";
 
 // 埋め込み経由の流入を Vercel Analytics のリファラ/クエリで見分けるための印。
 export const EMBED_REF = "embed";
@@ -45,6 +46,20 @@ export interface EmbedWork {
   services: EmbedService[];
   otherServices: string[];
   hasBroadcastData: boolean;
+  // 放送が終わったクールの作品に「配信中」と書かないための基準日
+  // （lib/workAvailability.ts）。ウィジェットは他人のブログの**過去作の感想記事**に
+  // 貼られる可能性が高く、そこで言い切ると貼った側の記事の信頼まで巻き添えにする。
+  broadcastStartDate: string | null;
+  // 劇場作品は programs が無く broadcastStartDate が null になるため、
+  // 人力補完の公開日（content/works/releaseDates.ts）をクール判定の基準に使う。
+  releaseDate?: { date: string } | null;
+}
+
+// ウィジェットの見出しラベル（「配信中のサービス」/「配信情報」）を決める。
+function workLabel(work: EmbedWork, today: string): string {
+  return availabilityLabel(
+    airingStatus(work.broadcastStartDate ?? work.releaseDate?.date ?? null, today)
+  );
 }
 
 // HTML本文・属性値の両方で安全に使えるようエスケープする。
@@ -94,10 +109,11 @@ export function embedServiceSummary(work: EmbedWork): string {
 //     行き先のリンクを入れない」方針とも整合。行き先はこのカード1つにつき1つだけ）
 // 背景色・文字色は明示する。貼り先がダークテーマでもライトテーマでも読めるようにするため、
 // メディアクエリの使えないインラインstyleでは「白地＋濃い文字」で固定する。
-export function buildEmbedSnippet(work: EmbedWork): string {
+export function buildEmbedSnippet(work: EmbedWork, today: string = jstToday()): string {
   const url = escapeHtml(embedWorkUrl(work.id));
   const title = escapeHtml(work.title);
   const summary = escapeHtml(embedServiceSummary(work));
+  const label = escapeHtml(workLabel(work, today));
   const card = [
     "display:block",
     "max-width:520px",
@@ -115,7 +131,7 @@ export function buildEmbedSnippet(work: EmbedWork): string {
   return [
     `<!-- アニメ視聴ガイド 配信先ウィジェット / ${siteUrl} -->`,
     `<a href="${url}" target="_blank" rel="noopener" style="${card}">`,
-    `<span style="display:block;font-size:11px;letter-spacing:.08em;color:#5b6472">配信中のサービス</span>`,
+    `<span style="display:block;font-size:11px;letter-spacing:.08em;color:#5b6472">${label}</span>`,
     `<span style="display:block;margin-top:4px;font-size:15px;font-weight:700">${title}</span>`,
     `<span style="display:block;margin-top:6px;font-size:13px;color:#2b3240">${summary}</span>`,
     `<span style="display:block;margin-top:10px;font-size:11px;color:#5b6472">アニメ視聴ガイドで最新の配信先を見る →</span>`,
@@ -143,6 +159,8 @@ export function buildEmbedIframeSnippet(work: EmbedWork): string {
 export function buildEmbedDocument(work: EmbedWork, checkedDate: string): string {
   const url = escapeHtml(embedWorkUrl(work.id));
   const title = escapeHtml(work.title);
+  // ラベルの判定基準日は、フッターに出す取得日（＝この文書を作った日）と揃える。
+  const label = escapeHtml(workLabel(work, checkedDate));
   // バッジもサマリ文と同じ優先度で並べる（よく指名されるサービスを先に見せる）。
   const badges = sortServicesForMetadata(work.services)
     .map(
@@ -190,7 +208,7 @@ a.w{display:block;padding:12px 14px;border:1px solid #d7dbe3;border-radius:10px;
 }
 </style></head><body>
 <a class="w" href="${url}" target="_blank" rel="noopener">
-<span class="k">配信中のサービス</span>
+<span class="k">${label}</span>
 <span class="t">${title}</span>
 <div class="row">${badges}${others}</div>
 ${empty}

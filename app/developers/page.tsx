@@ -127,6 +127,15 @@ export default function DevelopersPage() {
                 の場合は「TV放送の記録はあるが見放題配信は未登録」という意味です
                 （＝配信が無いと断定はできません）。
               </p>
+              <p className="detail-text">
+                <code>/api/work/{"{作品ID}"}</code> が返す <code>airingStatus</code> は{" "}
+                <code>airing</code>（現在クール以降）か <code>finished</code>
+                （放送が終わったクール）です。<code>services</code> は Annict
+                の「放送・配信された記録」であって現在の配信可否の確認ではないため、
+                <code>finished</code> の作品を「配信中」と書くと未確認の主張になります。
+                表示に使う際は言い切らず、各サービスでの確認を促す形にしてください
+                （本サイトの作品ページ・ウィジェットも同じ出し分けをしています）。
+              </p>
             </section>
 
             <section className="detail-section">

@@ -13,6 +13,13 @@ import {
 } from "../lib/embed.ts";
 import { siteUrl } from "../lib/siteUrl.ts";
 import {
+  airingStatus,
+  buildWatchAnswer,
+  buildWatchDescription,
+  availabilityLabel,
+  jstToday,
+} from "../lib/workAvailability.ts";
+import {
   toSingleHashtagText,
   SLOTS,
   BATCH_SLOTS,
@@ -1001,9 +1008,12 @@ let embedNg = 0;
     ],
     otherServices: ["どこかの配信"],
     hasBroadcastData: true,
+    // 現在クール（＝放送中）の作品として扱わせる。放送終了作品の出し分けは
+    // このあとの「放送終了作品に現在形で断定しない」節で検査する。
+    broadcastStartDate: "2026-07-05",
   };
 
-  const snippet = buildEmbedSnippet(sample);
+  const snippet = buildEmbedSnippet(sample, "2026-08-06");
   const iframe = buildEmbedIframeSnippet(sample);
   const doc = buildEmbedDocument(sample, "2026-08-06");
 
@@ -1036,7 +1046,7 @@ let embedNg = 0;
     title: '<img src=x onerror="alert(1)"> & "引用" が入る作品',
   };
   for (const [label, html] of [
-    ["HTMLスニペット", buildEmbedSnippet(nasty)],
+    ["HTMLスニペット", buildEmbedSnippet(nasty, "2026-08-06")],
     ["iframe本体のHTML", buildEmbedDocument(nasty, "2026-08-06")],
   ] as const) {
     // 生タグが出ていないこと＋エスケープ後の形が実際に入っていること、の両方を見る
@@ -1074,6 +1084,153 @@ let embedNg = 0;
   );
 }
 console.log(`結果（配信先ウィジェット）: ${embedNg === 0 ? "全件OK" : `${embedNg} 件NG`}`);
+
+// ─────────────────────────────────────────────
+// 放送終了作品に「いま配信中」と断定しない（2026-08-06追加）
+//
+// 2026-08-05に過去クール1,961ページを検索エンジンへ開放したが、作品ページは全作品に
+// 対して「『X』は dアニメストア・U-NEXT で視聴できます（{今日}時点）」と現在形で
+// 断定していた。Annictのprogramsは放送当時の番組表の記録であって現在の配信可否では
+// ないため、これは誰も確認していない主張だった（lib/workAvailability.ts の冒頭参照）。
+//
+// 「無いものを推測で埋めない」（CLAUDE.md）と同じ性質の問題なので、同じ強さで固定する。
+// 逆方向（「もう配信されていません」と断定する）も同じく未確認なので禁止する。
+// ─────────────────────────────────────────────
+console.log("\n── 放送終了作品の表現 ──");
+let availNg = 0;
+{
+  function availCheck(name: string, pass: boolean, detail: string) {
+    if (!pass) availNg++;
+    console.log(`${pass ? "✓" : "✗"}  ${name.padEnd(38)} → ${detail}`);
+  }
+
+  const today = "2026-08-06"; // 2026年夏クールの最中
+  const cases: Array<[string, string | null, string]> = [
+    ["同じクール（放送中）", "2026-07-05", "airing"],
+    ["同じクールの開始前", "2026-09-30", "airing"],
+    ["直前のクール（春）", "2026-04-10", "finished"],
+    ["前年", "2025-10-01", "finished"],
+    ["11年前", "2015-01-08", "finished"],
+    ["来年（放送予定）", "2027-01-05", "airing"],
+    ["基準日なし（未定）", null, "airing"],
+  ];
+  for (const [label, base, expected] of cases) {
+    const got = airingStatus(base, today);
+    availCheck(`${label}`, got === expected, `${got}（期待 ${expected}）`);
+  }
+
+  // クールの境界。2026-09-30は夏、2026-10-01は秋。秋になった瞬間、夏作品はfinishedへ。
+  availCheck(
+    "クールの境界で切り替わる",
+    airingStatus("2026-07-05", "2026-09-30") === "airing" &&
+      airingStatus("2026-07-05", "2026-10-01") === "finished",
+    "9/30=airing → 10/1=finished"
+  );
+
+  // 本命の検査: 放送終了作品の文面に現在形の断定が出ないこと。
+  // 「視聴できます」「配信中」は、確認していない現在の可否を言い切る表現。
+  const ASSERTIVE = ["視聴できます", "配信中", "配信しています", "見られます"];
+  const finishedAnswer = buildWatchAnswer({
+    title: "テスト作品",
+    serviceLabels: ["dアニメ", "U-NEXT"],
+    rentalNote: "",
+    checkedDate: today,
+    status: "finished",
+  });
+  const airingAnswer = buildWatchAnswer({
+    title: "テスト作品",
+    serviceLabels: ["dアニメ", "U-NEXT"],
+    rentalNote: "",
+    checkedDate: today,
+    status: "airing",
+  });
+  const hit = ASSERTIVE.filter((w) => finishedAnswer.includes(w));
+  availCheck(
+    "放送終了の回答文に現在形の断定が無い",
+    hit.length === 0,
+    hit.length === 0 ? "断定表現なし" : `検出: ${JSON.stringify(hit)}`
+  );
+  availCheck(
+    "放送中の回答文は従来どおり言い切る",
+    airingAnswer.includes("視聴できます"),
+    airingAnswer.includes("視聴できます") ? "「視聴できます」あり" : "表現が変わっている"
+  );
+  // 逆に「もう見られない」と断定するのも未確認なので禁止。
+  const NEGATIVE = ["配信は終了しました", "視聴できません", "配信されていません"];
+  const negHit = NEGATIVE.filter((w) => finishedAnswer.includes(w));
+  availCheck(
+    "放送終了の回答文が終了を断定しない",
+    negHit.length === 0,
+    negHit.length === 0 ? "断定なし" : `検出: ${JSON.stringify(negHit)}`
+  );
+  availCheck(
+    "放送終了の回答文が確認を促す",
+    finishedAnswer.includes("ご確認ください"),
+    finishedAnswer.includes("ご確認ください") ? "あり" : "無い（誘導先が無い）"
+  );
+
+  // 検索結果のスニペット（description）も同じ扱い。
+  const finishedDesc = buildWatchDescription({
+    title: "テスト作品",
+    descServices: "dアニメ・U-NEXT",
+    releaseLead: "",
+    status: "finished",
+  });
+  const descHit = ASSERTIVE.filter((w) => finishedDesc.includes(w));
+  availCheck(
+    "放送終了のdescriptionに断定が無い",
+    descHit.length === 0 && !finishedDesc.includes("配信している"),
+    descHit.length === 0 && !finishedDesc.includes("配信している")
+      ? "断定表現なし"
+      : `検出: ${JSON.stringify(descHit)}`
+  );
+
+  // ウィジェットのラベル。他人のブログの過去作記事に貼られたときに「配信中」と
+  // 言い切らない（貼った側の記事の信頼まで巻き添えにするため）。
+  availCheck(
+    "ウィジェットのラベルを出し分ける",
+    availabilityLabel("finished") === "配信情報" &&
+      availabilityLabel("airing") === "配信中のサービス",
+    `finished=${availabilityLabel("finished")} / airing=${availabilityLabel("airing")}`
+  );
+  const pastWork: EmbedWork = {
+    id: 1,
+    title: "むかしの作品",
+    services: [{ key: "d_anime", short: "dアニメ", name: "dアニメストア", color: "#ff7a00" }],
+    otherServices: [],
+    hasBroadcastData: true,
+    broadcastStartDate: "2015-01-08",
+  };
+  const pastSnippet = buildEmbedSnippet(pastWork, today);
+  const pastDoc = buildEmbedDocument(pastWork, today);
+  for (const [label, html] of [
+    ["HTMLスニペット", pastSnippet],
+    ["iframe本体のHTML", pastDoc],
+  ] as const) {
+    availCheck(
+      `過去作の${label}が「配信中」と書かない`,
+      !html.includes("配信中"),
+      html.includes("配信中") ? "「配信中」が出力されている" : "出ていない"
+    );
+  }
+
+  // 作品ページが判定ロジックを迂回して直書きしていないこと（実装レベルの担保）。
+  // ここを素通しにすると、page.tsx 側にコピーが増えて検査が効かなくなる。
+  const pageSrc = readFileSync(new URL("../app/anime/[id]/page.tsx", import.meta.url), "utf8");
+  availCheck(
+    "作品ページはworkAvailabilityを使う",
+    pageSrc.includes("buildWatchAnswer") && pageSrc.includes("airingStatus"),
+    pageSrc.includes("buildWatchAnswer") ? "import済み" : "直書きに戻っている"
+  );
+  // jstToday() が JST の日付を返すこと（UTCのままだと朝9時までズレる）。
+  const noonUtc = Date.UTC(2026, 7, 5, 20, 0, 0); // 2026-08-05 20:00 UTC = 08-06 05:00 JST
+  availCheck(
+    "jstTodayはJSTの日付を返す",
+    jstToday(noonUtc) === "2026-08-06",
+    `${jstToday(noonUtc)}（期待 2026-08-06）`
+  );
+}
+console.log(`結果（放送終了作品の表現）: ${availNg === 0 ? "全件OK" : `${availNg} 件NG`}`);
 
 // ─────────────────────────────────────────────
 // シーズンページのHTML量の見張り（2026-08-06追加）
@@ -1134,6 +1291,7 @@ if (
   badgeNg > 0 ||
   anchorNg > 0 ||
   slotNg > 0 ||
-  embedNg > 0
+  embedNg > 0 ||
+  availNg > 0
 )
   process.exit(1);
