@@ -1,0 +1,88 @@
+// ───────────────────────────────────────────────────────────────
+// 作品1件の配信情報を返す公開API。
+//   GET /api/work/{annictId}
+//
+// なぜ作るか（2026-08-06）:
+//   既存の公開窓口は /api/season（クール一括）と /api/search-index（検索用の軽量索引）
+//   だけで、「この作品はどこで配信されているか」を1件だけ引く手段が無かった。これは
+//   埋め込みウィジェットを自作したい人・Discordボット等を作りたい人が最初に欲しがる形で、
+//   外部で使われること自体が言及と被リンクの源になる（docs/operations.md ⑯）。
+//
+// 返す形は内部型（AnimeDetail）をそのまま出さず、外部に約束できる最小限に絞る。
+// 内部の都合（検索用の creditNames など）が外部の互換性を縛らないようにするため。
+// ───────────────────────────────────────────────────────────────
+import { NextResponse } from "next/server";
+import { getWorkData } from "@/lib/getWorkData";
+import { siteUrl } from "@/lib/siteUrl";
+
+export const revalidate = 900;
+
+// 第三者のサイト・スクリプトから直接叩けるようにする（公開データとしての宣言）。
+// 認証情報は載せないため Allow-Origin は * でよい。
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+};
+
+export function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS });
+}
+
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  const id = Number(params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return NextResponse.json(
+      { error: "作品ID（Annict の annictId）を整数で指定してください。" },
+      { status: 400, headers: CORS }
+    );
+  }
+
+  let item;
+  try {
+    item = await getWorkData(id);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "取得に失敗しました。";
+    return NextResponse.json(
+      { error: message },
+      { status: message.includes("ANNICT_TOKEN") ? 500 : 502, headers: CORS }
+    );
+  }
+  if (!item) {
+    return NextResponse.json({ error: "作品が見つかりません。" }, { status: 404, headers: CORS });
+  }
+
+  return NextResponse.json(
+    {
+      id: item.id,
+      title: item.title,
+      url: `${siteUrl}/anime/${item.id}`,
+      officialSiteUrl: item.officialSiteUrl,
+      media: item.media,
+      watchers: item.watchers,
+      // 見放題として判定できた国内配信サービス。key は lib/services.ts の正準キー。
+      services: item.services.map((s) => ({ key: s.key, name: s.name, short: s.short })),
+      // SERVICES に未登録のチャンネル名（＝「その他配信」）。名前のみ。
+      otherServices: item.otherServices,
+      // Annict に放送/配信の記録が1件でもあるか。services が空のとき
+      // 「データ自体が無い」のか「TV放送のみ」なのかを区別するのに使う。
+      hasBroadcastData: item.hasBroadcastData,
+      broadcastStartDate: item.broadcastStartDate,
+      broadcastWeekday: item.broadcastWeekday,
+      broadcastTime: item.broadcastTime,
+      // データの出所。二次利用する側が出典を書けるように明示する。
+      source: {
+        provider: "Annict",
+        providerUrl: "https://annict.com/",
+        site: "アニメ視聴ガイド",
+        siteUrl,
+        checkedAt: new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      },
+    },
+    {
+      headers: {
+        ...CORS,
+        "Cache-Control": "public, s-maxage=900, stale-while-revalidate=86400",
+      },
+    }
+  );
+}

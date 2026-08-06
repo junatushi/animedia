@@ -5,6 +5,14 @@ import { classifyChannel, toAnimeItem } from "../lib/services.ts";
 import { PROGRAMS_QUERY, PROGRAMS_QUERY_LIST } from "../lib/annict.ts";
 import type { AnnictWork } from "../lib/types.ts";
 import {
+  buildEmbedSnippet,
+  buildEmbedIframeSnippet,
+  buildEmbedDocument,
+  embedServiceSummary,
+  type EmbedWork,
+} from "../lib/embed.ts";
+import { siteUrl } from "../lib/siteUrl.ts";
+import {
   toSingleHashtagText,
   SLOTS,
   BATCH_SLOTS,
@@ -923,19 +931,28 @@ console.log(`結果（SNS投稿のリンク先）: ${linkNg === 0 ? 2 : 0} 件OK
 console.log("\n── SSRの中身（useSearchParamsの巻き込み）──");
 let ssrNg = 0;
 {
-  // SeasonExplorer は /season/** と /anime/** のSSRに乗るので、ここで
-  // useSearchParams を呼んではいけない。
-  const explorer = readFileSync(new URL("../components/SeasonExplorer.tsx", import.meta.url), "utf8");
-  // コメント行（なぜ呼ばないのかの説明）に名前が出てくるのは正常なので、
-  // 実際の import 文だけを見る。
-  const importsIt = explorer
-    .split("\n")
-    .some((l) => /^\s*import\b/.test(l) && /useSearchParams/.test(l));
-  const clean = !importsIt;
+  // クエリを読んでよいのは TopPageExplorer（トップページ専用の薄いラッパー）だけ。
+  // それ以外の components/ はすべて /season/** や /anime/** のSSRに乗りうるので、
+  // useSearchParams を呼んだ時点でそのページのサーバーHTMLが空になる。
+  // 2026-08-06にSeasonExplorer限定から全コンポーネントの検査へ広げた（新しく足した
+  // クライアントコンポーネントが同じ穴を空けても気づけるように）。
+  const ALLOWED_TO_READ_QUERY = new Set(["TopPageExplorer.tsx"]);
+  const componentsDir = new URL("../components/", import.meta.url);
+  const offenders = readdirSync(componentsDir)
+    .filter((f) => f.endsWith(".tsx") && !ALLOWED_TO_READ_QUERY.has(f))
+    .filter((f) => {
+      const src = readFileSync(new URL(f, componentsDir), "utf8");
+      // コメント行（なぜ呼ばないのかの説明）に名前が出てくるのは正常なので、
+      // 実際の import 文だけを見る。
+      return src.split("\n").some((l) => /^\s*import\b/.test(l) && /useSearchParams/.test(l));
+    });
+  const clean = offenders.length === 0;
   if (!clean) ssrNg++;
   console.log(
-    `${clean ? "✓" : "✗"}  ${"SeasonExplorerがuseSearchParamsを呼ばない".padEnd(40)} → ${clean ? "OK" : "呼んでいる"}` +
-      (clean ? "" : "  (SSRが空になります。TopPageExplorer側へ寄せてください)")
+    `${clean ? "✓" : "✗"}  ${"components/がuseSearchParamsを呼ばない".padEnd(40)} → ` +
+      (clean
+        ? `OK（${[...ALLOWED_TO_READ_QUERY].join("・")}のみ許可）`
+        : `${offenders.join("・")} が呼んでいる（SSRが空になります。TopPageExplorer側へ寄せてください）`)
   );
 
   // シーズンページは SeasonExplorer を直接使うこと（TopPageExplorer を挟むと
@@ -951,6 +968,112 @@ let ssrNg = 0;
   );
 }
 console.log(`結果（SSRの中身）: ${ssrNg === 0 ? 2 : 0} 件OK / ${ssrNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// 配信先ウィジェット（他サイトへの埋め込み）の不変条件（2026-08-06追加）
+//
+// 埋め込みは**他人のサイトの中で表示される**ため、事故の影響が自サイトに閉じない。
+// CLAUDE.mdの「配信バッジの遷移先」と同じ重大度で、以下を機械的に固定する:
+//   ① 埋め込みHTMLに入るリンクは自サイト（siteUrl）配下だけ。アフィリエイトリンクや
+//      配信サービスの公式サイトへのリンクを混ぜない（他人のブログに自分の広告リンクを
+//      埋めるのはステマ規制・ASP規約の両面で事故になり、貼る側の信頼も壊す）。
+//   ② <script> を含めない。他人のサイトで実行されるJSを配らない。
+//   ③ 作品名などの外部由来文字列は必ずエスケープする（HTMLが壊れる／注入される）。
+//   ④ 流入計測のための ?ref=embed が付く。
+// この検査を消したり、リンクを増やしたりしないこと。
+// ─────────────────────────────────────────────
+console.log("\n── 配信先ウィジェットの不変条件 ──");
+let embedNg = 0;
+{
+  function embedCheck(name: string, pass: boolean, detail: string) {
+    if (!pass) embedNg++;
+    console.log(`${pass ? "✓" : "✗"}  ${name.padEnd(38)} → ${detail}`);
+  }
+
+  const sample: EmbedWork = {
+    id: 14132,
+    title: "テスト作品",
+    services: [
+      { key: "d_anime", short: "dアニメ", name: "dアニメストア", color: "#ff7a00" },
+      { key: "abema", short: "ABEMA", name: "ABEMA", color: "#22c55e" },
+      { key: "unext", short: "U-NEXT", name: "U-NEXT", color: "#8b5cf6" },
+      { key: "netflix", short: "Netflix", name: "Netflix", color: "#e50914" },
+    ],
+    otherServices: ["どこかの配信"],
+    hasBroadcastData: true,
+  };
+
+  const snippet = buildEmbedSnippet(sample);
+  const iframe = buildEmbedIframeSnippet(sample);
+  const doc = buildEmbedDocument(sample, "2026-08-06");
+
+  // ① リンク先は自サイトだけ（href/src の両方を見る）。
+  for (const [label, html] of [
+    ["HTMLスニペット", snippet],
+    ["iframeスニペット", iframe],
+    ["iframe本体のHTML", doc],
+  ] as const) {
+    const urls = [...html.matchAll(/(?:href|src)="([^"]*)"/g)].map((m) => m[1]);
+    const outside = urls.filter((u) => !u.startsWith(siteUrl));
+    embedCheck(
+      `${label}のリンク先は自サイトのみ`,
+      urls.length > 0 && outside.length === 0,
+      outside.length === 0 ? `${urls.length}件すべて ${siteUrl} 配下` : `外部リンク混入: ${JSON.stringify(outside)}`
+    );
+    embedCheck(`${label}に<script>が無い`, !/<script/i.test(html), /<script/i.test(html) ? "検出" : "なし");
+  }
+
+  // ④ 流入計測の印。
+  embedCheck(
+    "スニペットのリンクに?ref=embedが付く",
+    snippet.includes("?ref=embed"),
+    snippet.includes("?ref=embed") ? "あり" : "無い（埋め込み経由の流入が測れない）"
+  );
+
+  // ③ エスケープ。作品名に記号が入ってもHTMLを壊さない/注入されない。
+  const nasty: EmbedWork = {
+    ...sample,
+    title: '<img src=x onerror="alert(1)"> & "引用" が入る作品',
+  };
+  for (const [label, html] of [
+    ["HTMLスニペット", buildEmbedSnippet(nasty)],
+    ["iframe本体のHTML", buildEmbedDocument(nasty, "2026-08-06")],
+  ] as const) {
+    // 生タグが出ていないこと＋エスケープ後の形が実際に入っていること、の両方を見る
+    // （onerror= のような文字列はエスケープ後も本文に残るので、それ自体は違反ではない）。
+    const rawTag = /<img\s/i.test(html);
+    const escaped = html.includes("&lt;img");
+    embedCheck(
+      `${label}は作品名をエスケープする`,
+      !rawTag && escaped,
+      rawTag ? "生タグが出力されている" : escaped ? "&lt; などに変換済み" : "エスケープ後の文字列が見つからない"
+    );
+  }
+
+  // 配信0件のときの出し分け（「データ自体が無い」と「TV放送のみ」を混同しない）。
+  const noSvcWithTv = embedServiceSummary({ ...sample, services: [], otherServices: [] });
+  const noSvcNoData = embedServiceSummary({
+    ...sample,
+    services: [],
+    otherServices: [],
+    hasBroadcastData: false,
+  });
+  embedCheck(
+    "配信0件はTV放送有無で文言を分ける",
+    noSvcWithTv !== noSvcNoData && noSvcWithTv.includes("TV放送"),
+    `${JSON.stringify(noSvcWithTv)} / ${JSON.stringify(noSvcNoData)}`
+  );
+
+  // lib/embed.ts がアフィリエイトのモジュールに依存していないこと（①の実装レベルの担保）。
+  const embedSrc = readFileSync(new URL("../lib/embed.ts", import.meta.url), "utf8");
+  const usesAffiliate = /affiliate/i.test(embedSrc.replace(/\/\/[^\n]*/g, ""));
+  embedCheck(
+    "lib/embed.tsはアフィリエイトを参照しない",
+    !usesAffiliate,
+    usesAffiliate ? "参照している（埋め込みに広告リンクを入れてはいけない）" : "参照なし"
+  );
+}
+console.log(`結果（配信先ウィジェット）: ${embedNg === 0 ? "全件OK" : `${embedNg} 件NG`}`);
 
 // ─────────────────────────────────────────────
 // シーズンページのHTML量の見張り（2026-08-06追加）
@@ -1010,6 +1133,7 @@ if (
   tagNg > 0 ||
   badgeNg > 0 ||
   anchorNg > 0 ||
-  slotNg > 0
+  slotNg > 0 ||
+  embedNg > 0
 )
   process.exit(1);

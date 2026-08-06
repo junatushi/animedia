@@ -42,7 +42,14 @@ export async function GET() {
     const entries = await fetchWorksIndex(seasons, token);
     return NextResponse.json(
       { count: entries.length, entries },
-      { headers: { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800" } }
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800",
+          // 公開データとして第三者からも叩けるようにする（2026-08-06。docs/operations.md ⑯）。
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+        },
+      }
     );
   } catch (e) {
     return NextResponse.json(

@@ -10,6 +10,12 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
+    // lib/ 内のモジュール同士を `./foo.ts` のように拡張子つきで import できるようにする
+    // （2026-08-06追加）。`node scripts/check.ts` は Node の型ストリッピングで .ts を
+    // 直接実行するため、値の import には拡張子が要る（型だけの import は消えるので不要）。
+    // これが無いと「check.ts から検査できるロジック」は他のモジュールを一切参照できず、
+    // siteUrl のような正準定数を複製することになってしまう。noEmit 前提の設定。
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,

@@ -11,6 +11,8 @@ import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import ServiceMarks from "@/components/ServiceMarks";
+import EmbedSnippet from "@/components/EmbedSnippet";
+import { buildEmbedSnippet, buildEmbedIframeSnippet } from "@/lib/embed";
 
 const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
 
@@ -592,6 +594,16 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
             </div>
           </article>
         )}
+        {/* 配信先ウィジェットの貼り付けコード（2026-08-06導入）。
+            被リンク・外部言及がゼロに近いことが順位（19.8位）のボトルネックという判断で、
+            「アニメ感想ブログが記事末に貼りたい情報」を1行で配れるようにした。
+            リンク先は自サイトの作品ページのみ（アフィリエイトリンクは入れない）。
+            生成は lib/embed.ts、検査は scripts/check.ts。詳細は docs/operations.md ⑯。 */}
+        <EmbedSnippet
+          title={item.title}
+          snippet={buildEmbedSnippet(item)}
+          iframeSnippet={buildEmbedIframeSnippet(item)}
+        />
       </div>
 
       <p className="footnote">
@@ -599,6 +611,8 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
         「その他配信」は未登録サービスの可能性があり、点線で表示しています。
         {" "}
+        <Link href="/developers">配信先ウィジェット・公開API</Link>
+        {" ・ "}
         <Link href="/about">運営者情報</Link>
         {" ・ "}
         <Link href="/privacy">プライバシーポリシー・広告掲載について</Link>
