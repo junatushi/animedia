@@ -15,6 +15,8 @@ import {
   dueSlots,
   jstParts,
 } from "./lib/build-digest.js";
+import { xPostUrl, xSearchUrl } from "./lib/x-intent.js";
+import { renderGrowthKit } from "./lib/build-growth-kit.js";
 
 const samples: Array<[string, string]> = [
   // [入力チャンネル名, 期待する分類]
@@ -913,8 +915,88 @@ let linkNg = 0;
   console.log(
     `${shotOk ? "✓" : "✗"}  ${"撮影用URLはクエリ付きトップのまま".padEnd(36)} → ${shotOk ? "OK" : "見つからない"}`
   );
+
+  // 【2026-08-06追加】週次X成長キット（build-growth-kit.js）も同じ規則で検査する。
+  // 2026-08-05に日次投稿（build-digest.js）のリンク先を /season/ 形式へ直したとき、
+  // この検査が build-digest.js しか見ていなかったため、週次キット側が
+  // `${SITE_URL}/?year=&season=` のまま残っていたのに緑で通っていた。
+  // 「SNS投稿のリンク先」という同じ不変条件を持つファイルは全部ここで見る。
+  const kit = readFileSync(new URL("./lib/build-growth-kit.js", import.meta.url), "utf8");
+  // 文字列リテラルの中（コメントの引用や説明文）ではなく、URL変数の宣言だけを見る。
+  const kitDecls = [...kit.matchAll(/const (seasonUrl|shareUrl|url) = `\$\{SITE_URL\}([^`]*)`/g)];
+  const kitBad = kitDecls.filter(([, , path]) => !path.startsWith("/season/"));
+  const kitPass = kitDecls.length > 0 && kitBad.length === 0;
+  if (!kitPass) linkNg++;
+  console.log(
+    `${kitPass ? "✓" : "✗"}  ${"週次X成長キットのリンクもシーズンページ".padEnd(36)} → ${kitDecls.length}箇所中 違反${kitBad.length}件` +
+      (kitPass ? "" : `  (違反: ${JSON.stringify(kitBad.map((m) => m[2]))})`)
+  );
 }
-console.log(`結果（SNS投稿のリンク先）: ${linkNg === 0 ? 2 : 0} 件OK / ${linkNg} 件NG`);
+console.log(`結果（SNS投稿のリンク先）: ${linkNg === 0 ? 3 : 0} 件OK / ${linkNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// Xの手動運用リンク（Web Intent）の検査（2026-08-06追加）
+//
+// Xへの投稿・リプは手動運用（X APIが2026年2月に有料化）で、週次成長キットの
+// GitHub Issueが下書きを配る。ところが実測では、日次の投稿下書きIssueは
+// 7/20〜7/30こそ毎日closeされていたのに7/31以降は7件が連続でopenのまま、
+// **週次成長キット（#22・#30）に至っては一度もcloseされずコメントも0**だった。
+// フォロワーを増やすのはキットの「リーチ（会話に入る）」の部分なので、そこが
+// 一度も回っていないことが「Xフォロワー0」の直接の原因にあたる。
+// 手数を減らすため、下書きの隣にタップ1回でXの投稿画面/検索結果が開くリンクを置いた。
+// このリンクが壊れる（エンコード漏れで # 以降が落ちる等）と静かに無効化されるので、
+// 組み立て関数を直接呼んで固定する。
+// ─────────────────────────────────────────────
+console.log("\n── Xの手動運用リンク（Web Intent）──");
+let xIntentNg = 0;
+{
+  // 本文に # と改行とURLを含む、実運用に近い入力。
+  const sample = "【テスト】1社だけ\n#今期アニメ\nhttps://example.com/a?b=c";
+  const postUrl = xPostUrl(sample);
+  // 期待: text= 以降は完全にエンコードされ、生の # / 改行 / & が残らないこと。
+  // （残ると # 以降がフラグメント扱いで丸ごと落ち、ハッシュタグとURLが消えた
+  //   本文がXの投稿画面に出る。目視では「なんとなく短い」だけなので気づきにくい）
+  const q = postUrl.slice(postUrl.indexOf("text=") + 5);
+  const rawOk = !/[#\n&]/.test(q);
+  const roundTripOk = decodeURIComponent(q) === sample;
+  const originOk = postUrl.startsWith("https://x.com/intent/post?text=");
+  const p1 = rawOk && roundTripOk && originOk;
+  if (!p1) xIntentNg++;
+  console.log(
+    `${p1 ? "✓" : "✗"}  ${"xPostUrlが本文を完全にエンコードする".padEnd(40)} → 生の#/改行/&なし=${rawOk} 復元一致=${roundTripOk} 宛先=${originOk}`
+  );
+
+  // 検索は「最新」タブ固定。困りごとは鮮度が命で、既定の「話題」タブだと
+  // 何日も前の投稿が出てリプライしても会話にならない。
+  const searchUrl = xSearchUrl('"どこで見れる" アニメ -filter:links');
+  const liveOk = searchUrl.endsWith("&f=live");
+  const searchEncOk = !/[ "]/.test(searchUrl.slice(searchUrl.indexOf("q=") + 2));
+  const p2 = liveOk && searchEncOk && searchUrl.startsWith("https://x.com/search?q=");
+  if (!p2) xIntentNg++;
+  console.log(
+    `${p2 ? "✓" : "✗"}  ${"xSearchUrlは最新タブ固定でエンコード済み".padEnd(40)} → f=live=${liveOk} 生の空白/引用符なし=${searchEncOk}`
+  );
+
+  // キットのIssue本文に、実際にワンタップのリンクが出ていること
+  // （組み立て関数だけ直っていて配線を忘れる、という壊れ方を防ぐ）。
+  const md = renderGrowthKit({
+    year: 2026,
+    label: "夏",
+    todayStr: "2026-08-06",
+    count: 1,
+    drafts: [{ label: "テスト", text: "本文\n#今期アニメ" }],
+    queries: ["今期アニメ どこで見れる"],
+    replies: ["テスト返信"],
+  });
+  const hasPost = md.includes("https://x.com/intent/post?text=");
+  const hasSearch = md.includes("https://x.com/search?q=");
+  const p3 = hasPost && hasSearch;
+  if (!p3) xIntentNg++;
+  console.log(
+    `${p3 ? "✓" : "✗"}  ${"キット本文にワンタップのリンクが出る".padEnd(40)} → 投稿=${hasPost} 検索=${hasSearch}`
+  );
+}
+console.log(`結果（Xの手動運用リンク）: ${xIntentNg === 0 ? 3 : 0} 件OK / ${xIntentNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // SSRの中身が空にならないことの検査（2026-08-05追加・重大度高）
@@ -1018,6 +1100,7 @@ if (
   tagNg > 0 ||
   badgeNg > 0 ||
   anchorNg > 0 ||
-  slotNg > 0
+  slotNg > 0 ||
+  xIntentNg > 0
 )
   process.exit(1);

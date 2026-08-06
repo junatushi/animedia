@@ -18,6 +18,7 @@ const {
   currentSeasonByMonth,
   shortTitle,
 } = require("./build-digest");
+const { xPostUrl, xSearchUrl } = require("./x-intent");
 
 // 「配信予定含む」を安全に表現するための放送開始判定。
 // broadcastStartDate が今日以前なら配信開始済み。未定(null)や未来は「予定」扱い。
@@ -192,7 +193,13 @@ async function buildGrowthKit(now = new Date()) {
   const data = await res.json();
   const items = data.items || [];
 
-  const seasonUrl = `${SITE_URL}/?year=${year}&season=${season}`;
+  // 【2026-08-06修正】以前は `${SITE_URL}/?year=&season=` というクエリ付きトップだった。
+  // トップページの canonical は "/" なので、検索エンジンから見ると単なる重複URLで、
+  // 順位を取らせたいシーズンページには何のシグナルも渡らない。2026-08-05に
+  // build-digest.js（日次投稿）側は /season/ 形式へ直したが、**この週次キット側は
+  // 直し漏れていた**（check.ts のリンク検査が build-digest.js しか見ていなかったため
+  // 気づけなかった。検査を build-growth-kit.js にも広げてある）。
+  const seasonUrl = `${SITE_URL}/season/${year}/${season}`;
   const exclusiveUrl = `${SITE_URL}/exclusive/${year}/${season}`;
   const rankingUrl = `${SITE_URL}/rankings/${year}/${season}`;
 
@@ -233,11 +240,16 @@ function renderGrowthKit(kit) {
   out.push("## 1. 今週の投稿ドラフト（コピペ用）");
   out.push("");
   out.push(
-    `今期は${count}作品。日次ダイジェスト（毎日21時の別Issue）とは切り口を変えた週次ネタです。反応が良かった1本は固定ポスト候補にしておくと、プロフィール訪問者のフォロー率が上がります。`
+    `今期は${count}作品。日次ダイジェスト（毎朝の枠で起票される別Issue）とは切り口を変えた週次ネタです。反応が良かった1本は固定ポスト候補にしておくと、プロフィール訪問者のフォロー率が上がります。`
   );
   out.push("");
+  // 下書きの直前に「タップ1回でXの投稿画面が本文入りで開く」リンクを置く。
+  // コードブロックも残す（PCでのコピペ運用と、Web Intentが将来壊れたときの保険）。
+  // 経緯は scripts/lib/x-intent.js のコメント参照。
   for (const d of drafts) {
     out.push(`### ${d.label}`);
+    out.push("");
+    out.push(`**[▶ このままXの投稿画面を開く](${xPostUrl(d.text)})**（本文は入った状態で開きます。投稿ボタンは自分で押してください）`);
     out.push("");
     out.push("```");
     out.push(d.text);
@@ -248,15 +260,17 @@ function renderGrowthKit(kit) {
   out.push("## 2. リーチ（見込み客に絡んでフォロワーを増やす）");
   out.push("");
   out.push(
-    "下の検索クエリを**Xの検索窓にコピペ**して、「配信どこ？」で困っている人や今期アニメの話をしている人を見つけ、リプ下書きを添えて自然に返します。いきなりURL直貼りはせず、まず会話→役立つ場面で1回だけ貼るのが定石です。"
+    "下のリンクをタップ（またはクエリをXの検索窓にコピペ）して、「配信どこ？」で困っている人や今期アニメの話をしている人を見つけ、リプ下書きを添えて自然に返します。いきなりURL直貼りはせず、まず会話→役立つ場面で1回だけ貼るのが定石です。"
   );
   out.push("");
-  out.push("**検索クエリ:**");
+  out.push("**検索クエリ**（リンクはXの検索結果を「最新」タブで開きます。困りごとは鮮度が命で、古い投稿に返しても会話になりません）:");
   out.push("");
   for (const q of queries) {
-    out.push("```");
-    out.push(q);
-    out.push("```");
+    out.push(`- [🔍 Xで検索する](${xSearchUrl(q)})`);
+    out.push("");
+    out.push("  ```");
+    out.push(`  ${q}`);
+    out.push("  ```");
   }
   out.push("");
   out.push("**リプ下書き（状況に合うものを選ぶ／投稿直前にサイトで最新の配信先を確認）:**");
@@ -281,9 +295,14 @@ function renderGrowthKit(kit) {
 
   out.push("## 4. 今週のチェック");
   out.push("");
-  out.push("- [ ] 上の投稿ドラフトから 2〜3本 投稿した");
-  out.push("- [ ] 検索クエリで見込み客に 3件以上 リプ/いいねした");
+  // 【並び順の根拠・2026-08-06】以前は投稿ドラフトが先頭だったが、実測では
+  // 7/20〜7/30に日次の投稿下書きIssueを毎日消化してもXフォロワーは0のままだった
+  // （docs/operations.md「実測サマリ」2026-07-26）。フォロワーを増やすのは
+  // 告知の連投ではなく会話への参加（docs/x-growth-playbook.md）なので、
+  // 効く順＝リーチを先頭に置く。
+  out.push("- [ ] **検索クエリで見込み客に 3件以上 リプ/いいねした**（← フォロワーが増えるのはここ。実測で、告知の連投だけではフォロワーは0のままだった）");
   out.push("- [ ] 今期アニメの話をしている関連アカウントを 2〜3件 フォロー/交流した");
+  out.push("- [ ] 上の投稿ドラフトから 2〜3本 投稿した");
   out.push("- [ ] 反応が良かった投稿を固定ポスト候補にメモした");
   out.push("");
   out.push(
