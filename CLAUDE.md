@@ -56,6 +56,11 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 
 ## 運用（定期作業）
 - 定期点検・SNS投稿のサイクルは `docs/operations.md` にまとめてある（新クール開始時と2〜3週間後の点検＋告知）。
+- **CI**（2026-08-06導入）: `.github/workflows/ci.yml` がPRとmainへのpushで
+  `tsc --noEmit` → `node scripts/check.ts` → `node scripts/check-threads.js` → `npm run build`
+  を回す。**Node 22 必須**（`check.ts`は`.ts`を直接実行＝型ストリッピング依存。他のワークフローの
+  Node 20 では動かない）。シークレット不要で外向き通信にも依存しないので、Annict障害で赤くならない。
+  詳細は`docs/operations.md`の⑭。
 - SNS自動投稿の**Bluesky/Threads**は**1日3枠の時間帯**に分けて出す（2026-08-05〜）:
   7〜10時＝注目作TOP5、11〜12時＝【どこで見れる？】スポットライト（昼休みの12時台に
   確実に届かせるため1時間手前から窓を開ける）、18〜21時＝その曜日の放送・配信。

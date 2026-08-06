@@ -1,0 +1,58 @@
+name: CI（型・検査・ビルド）
+
+# PRごとに「コミット前の定番チェック」（docs/handoff.md 末尾）を機械的に回す。
+#
+# なぜ要るか（2026-08-06導入）:
+#   このリポジトリの不変条件のうち重要なものは `scripts/check.ts` に検査として入っている
+#   （配信バッジの中に別リンクを入れない・SeasonExplorerが useSearchParams を import しない・
+#   titleが幅の予算に収まる・過去クール索引とスナップショットがズレていない、など）。
+#   ところがこれまで CI が1本も無く、検査を回すかどうかは作業者（人でも Claude でも）の
+#   裁量だった。実際 2026-08-05 に見つかった「SEO用のSSRページが空HTMLだった」問題は、
+#   検証手順が裁量に委ねられていたために2週間気づかれなかったものである。
+#   検査をプロンプトや手順書ではなく PR のゲートに置くことで、誰が・どのモデルが作業しても
+#   同じ不変条件が必ず効く状態にする。日次巡回（Routine）が出す PR もここを通る。
+#
+# ネットワーク・シークレットに依存しない:
+#   check.ts / check-threads.js はどちらも外向き通信をしない。`next build` は Annict への
+#   取得を試みるが、ANNICT_TOKEN が無ければ各ページが catch して initialData なしで
+#   ビルドを完走する（page.tsx 側で握っている）。したがって ANNICT_TOKEN を Secrets に
+#   登録しなくても CI は緑になり、Annict 側の障害で CI が赤くなることもない。
+#   逆に言うと、この CI はデータに依存する表示までは検証しない（型・不変条件・ビルド成否まで）。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# 同じブランチに続けて push したとき、古い実行は打ち切る。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 22 必須。`node scripts/check.ts` は拡張子 .ts をそのまま実行しており、
+      # これは Node 22.18+ の型ストリッピング（既定で有効）に依存している。
+      # 他のワークフローは Node 20 だが、20 では .ts を実行できず必ず落ちる。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: 型チェック
+        run: npx tsc --noEmit
+
+      - name: 不変条件の検査（配信判定・バッジのリンク先・title幅・SSRの中身・過去クール索引）
+        run: node scripts/check.ts
+
+      - name: Threads自動投稿の検査（APIスタブ。ネットワークには出ない）
+        run: node scripts/check-threads.js
+
+      - name: 本番ビルド
+        run: npm run build

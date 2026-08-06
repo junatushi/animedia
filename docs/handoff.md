@@ -113,3 +113,7 @@ pushはユーザーが手動で行う運用。未pushのコミットが残って
 `npx tsc --noEmit` → `node scripts/check.ts`（全件OK）→ `node scripts/check-threads.js`
 → サーバーを止める → `rm -rf .next && npm run build`
 → **SSRを触ったなら`npx next start`してHTMLをcurlで確認**（⑦-10）
+
+**2026-08-06から、上の1〜4はCI（`.github/workflows/ci.yml`）がPRで自動的に回す**
+（`docs/operations.md`の⑭）。手元で流す習慣は変えなくてよいが、仮に忘れてもマージ前に止まる。
+ただし**最後のcurl確認だけは自動化されていない**ので、SSRを触ったときは必ず手でやること。
