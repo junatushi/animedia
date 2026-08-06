@@ -21,6 +21,22 @@ pushはユーザーが手動で行う運用。未pushのコミットが残って
 これは「平均掲載順位19.8位」「SEOページ群は表示ゼロ」という7月の実測とも整合する。
 **次回の実測（下記）は、この修正の効果を見る回になる。**
 
+## 2026-08-06に分かったこと・打った手
+
+⑦-11でsitemapに追加した過去クール作品ページ1,961件が、`/anime/[id]`が年に関わらず
+常にAnnictへライブ取得（`fetchWorkById`）していたため、Annict不調時の巡回で
+「取得失敗→noindex」の分岐に落ちうる状態だった（`getSeasonData`は過去年を
+スナップショット即返しにしているのと対照的）。スナップショットは`credits`
+（声優のキャラ名対応・監督等）を持たない（実際にJSONを開いて確認済み）ため
+完全な代替はできないが、`lib/getWorkData.ts`に「ライブ取得が失敗し、かつ
+`content/archive/index.json`に載っている作品なら、スナップショットから
+`credits`だけ空の縮退版で返す」フォールバックを追加した。ローカル本番ビルドで
+`ANNICT_TOKEN`をダミー値にしてライブ取得を実際に失敗させ、`curl`で
+`index,follow`のまま配信バッジ付きでレンダリングされることを確認済み
+（詳細は`docs/operations.md`の⑦-12）。あわせて`app/service/[key]/[year]/[season]/page.tsx`
+にも他の`[year]/[season]`ページと同じ`revalidate`＋`generateStaticParams`を追加し
+ISR化した（従来は動的描画のみだった）。
+
 ## 現在の到達点
 
 - **機能面**: `docs/growth-ideas.md`の実装可能な項目はすべて完了。
