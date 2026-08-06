@@ -19,6 +19,10 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `node scripts/check-threads.js` … Threads自動投稿のテスト（2026-08-05導入）。APIのスタブを
   立てて`scripts/post-threads.js`を実際に動かし、コンテナの状態待ち・一時エラーの再試行・
   恒久エラーの即失敗を固定する。ネットワークには出ない。`post-threads.js`を触ったら必ず実行する
+- `node scripts/build-archive-index.ts` … 過去クール索引の再生成（2026-08-05導入）。
+  `content/snapshots/*.json`を読み、sitemapに載せる過去クール（シーズンページ＋配信1件以上の
+  作品ページ）の索引を`content/archive/index.json`に書く。ネットワーク不要。
+  **スナップショットを追加・再生成したら必ず実行する**（ズレは`node scripts/check.ts`が検出）
 - `node scripts/audit-coverage.ts [year] [season]` … 配信データ網羅率の点検（2026-07-12導入）。
   引数省略時は現在のクール。(a)TV放送データはあるが配信サービス0件の作品（注目度順。
   Annict側の登録待ちの疑い）、(b)「その他配信」に落ちた未知チャンネル名（`SERVICES`
@@ -52,6 +56,11 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 
 ## 運用（定期作業）
 - 定期点検・SNS投稿のサイクルは `docs/operations.md` にまとめてある（新クール開始時と2〜3週間後の点検＋告知）。
+- **CI**（2026-08-06導入）: `.github/workflows/ci.yml` がPRとmainへのpushで
+  `tsc --noEmit` → `node scripts/check.ts` → `node scripts/check-threads.js` → `npm run build`
+  を回す。**Node 22 必須**（`check.ts`は`.ts`を直接実行＝型ストリッピング依存。他のワークフローの
+  Node 20 では動かない）。シークレット不要で外向き通信にも依存しないので、Annict障害で赤くならない。
+  詳細は`docs/operations.md`の⑭。
 - SNS自動投稿の**Bluesky/Threads**は**1日3枠の時間帯**に分けて出す（2026-08-05〜）:
   7〜10時＝注目作TOP5、11〜12時＝【どこで見れる？】スポットライト（昼休みの12時台に
   確実に届かせるため1時間手前から窓を開ける）、18〜21時＝その曜日の放送・配信。
@@ -122,6 +131,18 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `app/api/sns-image/route.tsx` … SNS投稿に添付する公開PNG（2026-07-27導入）。`?kind=ranking` と `?kind=airing&day=月`。**Threadsは画像のバイナリ投稿に対応せず公開URL（`image_url`）しか受け付けない**ため、Playwrightのスクリーンショットを添付できない。その回避としてサイト自身が同等の画像を配信する。既存OG画像2本と同じ`runtime="edge"`（nodejs runtimeにすると`next/og`がWindowsのローカル開発機で必ず例外になり手元で検証できなくなる）。データはedgeで`fs`が使えないため`/api/season`から取る。Threads固有の注意点は`docs/threads-setup.md`の⑦
 - `content/sns/spotlight.js` … SNS投稿の「スポットライト枠」で日替わりに紹介する作品リスト（2026-07-27導入）。GSC・Vercel Analyticsの実測で需要が確認できた作品だけを載せ、推測で足さない。`hashtag`は作品名タグで、タイトルからの自動生成はせず手で書く（期数・記号を落とす。`☆`等はSNS側のタグ解析を壊すため使わない）。生成は`scripts/lib/build-digest.js`の`buildSpotlight`
 - `scripts/gen-thumbnails.js` + `public/works/{annictId}.jpg` + `content/works/imageIds.ts` … AI独断解釈サムネ。権利者の画像は使わず、Pollinations（無料・APIキー不要）でタイトルから連想した**本作品と無関係な創作イラスト**を事前生成し静的ファイルとして保存（表示コスト・キー・レート制限ゼロ）。カード左タイル・作品ページに表示し、必ず「本作品との関連性はありません」の注釈を添える。画像がある作品IDは`imageIds.ts`の`WORK_IMAGE_IDS`で判定。未生成の作品はモノグラムタイルにフォールバック
+- `lib/workTitle.ts` … 作品ページの`<title>`組み立て（2026-08-05導入）。検索結果で切り捨てられない
+  幅（`TITLE_WIDTH_BUDGET`）に収まる分だけ配信サービス名を入れる。`.tsx`だと
+  `node scripts/check.ts`からimportできない（NodeはJSXを解釈しない）ので素の`.ts`に置いてある
+- `components/TopPageExplorer.tsx` … トップページ（"/"）専用の薄いラッパー（2026-08-05導入）。
+  `useSearchParams()`を呼ぶのはここだけにして、`SeasonExplorer`本体をサーバー描画できる状態に
+  保つ（理由は作業ルールの「SSRページの中身が空になっていないか」参照）。**シーズンページから
+  これを経由してはいけない**（経由するとSSRが空に戻る）
+- `content/archive/index.json` + `scripts/build-archive-index.ts` … 過去クールの索引（2026-08-05導入）。
+  `content/snapshots/`から「配信サービスが1件以上ある作品」だけを抜いた軽い索引（14KB）で、
+  `app/sitemap.ts`が過去クールのシーズンページ・作品ページを載せるのに使う。
+  配信0件の作品は「配信情報なし」としか答えられない薄いページなので意図的に載せない
+  （実測: 過去8,957作品中、配信ありは1,961作品）
 - `app/api/season/route.ts` … `GET /api/season?year=2026&season=spring`（トップページのクライアント側フェッチ用）
 - `app/api/search-index/route.ts` … クール横断キーワード検索用の軽量インデックス（直近数年分の作品ID・タイトル・読み仮名・年・季節のみ。programs/castsは含めない）。日次キャッシュ（`revalidate=86400`）。検索欄で表示中クール以外の作品もヒットさせるのに使う
 - `app/page.tsx` … トップページ（サーバーコンポーネント。2026-07-21にISR化＝`revalidate=900`。
@@ -171,6 +192,29 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - **【基本ルール】バッジ上の「PR」表記は復活させない（2026-07-28確認）**: ステマ規制対応は
   バッジの`title`属性＋ページ下部の開示文（`.svc-disclosure`）で行う方針で確定している。
   事故が起きない限り「PRタグを付ける」提案はしない（2026-07-27に廃止済み。再提案も不要）。
+- **【基本ルール】SSRページの中身が空になっていないか、HTMLを取って確かめる（2026-08-05導入・重大度高）**:
+  `useSearchParams()`を呼ぶクライアントコンポーネントがあると、Next.js 14は静的生成（ISR）される
+  ページでそのSuspense境界を**丸ごとクライアント描画に退避**させ、サーバーHTMLには`fallback`しか
+  出力しない。`components/SeasonExplorer.tsx`がこれを呼んでいたため、SEOのために作った
+  `/season/[year]/[season]`の本番HTMLは**h1が0個・作品への`<a href="/anime/..">`が0個・
+  可視テキスト0文字**（中身はJSON-LDのみ）だった。ブラウザではクライアント描画で正常に
+  見えるので、**画面を見る限り絶対に気づけない**。
+  対策として、クエリを読むのはトップページ専用の薄いラッパー（`components/TopPageExplorer.tsx`）
+  だけにし、`SeasonExplorer`本体は`urlQuery`propで受け取る形にした。
+  SSR/ISRページを追加・変更したときは、**必ずビルドして`curl`でHTMLを取り、狙った見出し・
+  リンクが入っているかを数える**こと（ブラウザの表示は当てにならない）。
+  `node scripts/check.ts`に「SeasonExplorerが`useSearchParams`をimportしない」
+  「シーズンページは`SeasonExplorer`を直接使う」の検査を入れてあるので消さないこと。
+- **【基本ルール】検索結果のtitleは幅の予算内に収める（2026-08-05導入）**:
+  日本語の検索結果のtitleは概ね全角30〜33文字で打ち切られる。作品ページのtitleは
+  `lib/workTitle.ts`の`buildWorkTitle`が予算（`TITLE_WIDTH_BUDGET`）に収まる分だけ
+  配信サービス名を入れる。作品名は主キーワードなので予算を超えても削らない。
+  経緯: 2026-07-27に「検索語に近づける」ためサービス名をtitleへ入れたが幅を見ておらず、
+  実データ335作品で中央値47文字・99%が30文字超になり、**入れたはずのサービス名が
+  ほぼ全作品で表示前に切り捨てられていた**。配信社数が多い人気作ほど長くなるため、
+  いちばんCTRを取りたい作品ほど切られる逆相関にもなっていた。
+  作品ページは`title: { absolute: ... }`でレイアウトの`template`（`| アニメ視聴ガイド`）を
+  効かせない（ブランド名は全角11文字ぶん幅を食うのに検索語との関連性を持たないため）。
 - **【基本ルール】GitHub Actionsのscheduleは「予定通りに発火しない」前提で書く（2026-08-05導入）**:
   scheduleは予定より数時間遅れて発火する（このリポジトリの実測で最大6.4時間）。
   そのため**発火時刻（`new Date()`）をそのまま「今日」として使うと日付がズレる**。実際、

@@ -145,6 +145,10 @@ body {
     0 0 16px rgba(var(--halo-rgb), 0.9);
 }
 /* 「.」の代わりに、ゲームのカーソル/ロックオン照準を思わせる菱形マークを描く */
+/* シーズンページのh1（「2026年夏アニメ 配信情報一覧」）はブランド名より長いので、
+   同じ字数感で収まるよう一段小さくする（2026-08-05追加）。 */
+.brand-long { font-size: clamp(21px, 3.6vw, 30px); }
+
 .brand .dot {
   display: inline-block;
   width: 0.34em;
@@ -1489,8 +1493,55 @@ a.detail-cast-name:hover { text-decoration: underline; }
 }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
-.footnote {
+/* ── 作品ページの「関連作品」（同じクールの他作品）──────── */
+.related-works { list-style: none; margin: 0; padding: 0; }
+.related-work {
+  padding: 9px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.related-work:first-child { border-top: none; padding-top: 0; }
+.related-work-title {
+  display: block;
+  color: var(--accent-2); text-decoration: none;
+  font-size: 14px; font-weight: 700; line-height: 1.5;
+}
+.related-work-title:hover { text-decoration: underline; }
+.related-work-sub {
+  display: block; margin-top: 2px;
+  color: var(--muted-2); font-size: 12px; line-height: 1.6;
+}
+.related-works-more { margin: 12px 0 0; font-size: 13px; }
+.related-works-more a { color: var(--accent-2); text-decoration: none; }
+.related-works-more a:hover { text-decoration: underline; }
+/* スマホでは1行あたりのタップ領域を確保する（44px前後）。 */
+@media (max-width: 480px) {
+  .related-work { padding: 11px 0; }
+}
+
+/* ── 他クールへのアーカイブ導線（クロール可能な実リンク）──────── */
+/* 上部の年・季節の切替はクライアント状態を変える <button> で <a href> を持たない。
+   ここは検索エンジンが過去クールへ辿れるようにするための実リンク列（2026-08-05追加）。
+   利用者にとっても「前のクールを見返す」導線になる。 */
+.season-archive {
   margin-top: 44px; padding-top: 18px;
+  border-top: 1px solid var(--border-soft);
+}
+.season-archive-title {
+  margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--muted);
+}
+.season-archive-row {
+  margin: 0 0 6px;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+  font-size: 12px; line-height: 1.9;
+}
+.season-archive-label { color: var(--muted-2); }
+.season-archive-item a { color: var(--accent-2); text-decoration: none; }
+.season-archive-item a:hover { text-decoration: underline; }
+/* いま表示中のクールはリンクにせず、現在地として控えめに示す。 */
+.season-archive-item [aria-current="page"] { color: var(--muted-2); font-weight: 700; }
+
+.footnote {
+  margin-top: 28px; padding-top: 18px;
   border-top: 1px solid var(--border-soft);
   color: var(--muted-2); font-size: 12px; line-height: 1.7;
 }

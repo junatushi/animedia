@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { logEvent } from "@/lib/logEvent";
 import { textOn, splitRentalServices } from "@/lib/services";
@@ -216,6 +216,11 @@ export interface SeasonExplorerProps {
   initialYear?: number;
   initialSeason?: string;
   initialData?: SeasonResponse;
+  // URLのクエリ文字列（"year=2026&season=summer" のような形。先頭の "?" は不要）。
+  // トップページ（"/"）だけが TopPageExplorer 経由で渡す。
+  // ここで useSearchParams() を呼ばずに props で受けるのは、呼ぶと Next.js が
+  // このコンポーネントをサーバーで描画しなくなるため（下の実装コメント参照）。
+  urlQuery?: string;
 }
 
 // URLクエリ（?year=2026&season=summer）と年・シーズンの選択状態を同期する。
@@ -225,9 +230,20 @@ export default function SeasonExplorer({
   initialYear: fixedYear,
   initialSeason: fixedSeason,
   initialData,
+  urlQuery,
 }: SeasonExplorerProps) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+  // URLクエリは props で受け取る（自分では useSearchParams() を呼ばない。2026-08-05変更）。
+  //
+  // 経緯: このコンポーネントが useSearchParams() を呼んでいたため、Next.js 14 は
+  // 静的生成（ISR）されるページでこのSuspense境界を丸ごとクライアント描画に退避させ、
+  // **サーバーHTMLには fallback の <div class="wrap"> しか入っていなかった**。
+  // 実測（本番ビルドで /season/2024/summer を取得）: h1が0個、作品への
+  // <a href="/anime/..."> が0個、可視テキストが0文字で、中身はJSON-LDだけだった。
+  // 「SEO用のSSRページ」として作ったページ群が、実際には空のHTMLを返していたことになる。
+  // クエリを読むのは呼び出し側（TopPageExplorer）の責任にして、このコンポーネント自身は
+  // サーバーで描画できる状態に保つ。
+  const searchParams = new URLSearchParams(urlQuery ?? "");
   // サーバー側から年・シーズンを渡された（＝/season/.. ページ）場合は、
   // URLクエリへの同期やクエリからの読み取りをしない「固定表示」モードになる。
   const isFixed = fixedYear !== undefined && fixedSeason !== undefined;
@@ -605,13 +621,33 @@ export default function SeasonExplorer({
         <span className="eyebrow" aria-hidden="true">
           LINK START :: 今期アニメの配信データベースに接続完了
         </span>
+        {/* h1の出し分け（2026-08-05追加）。
+            /season/{year}/{season} は「2026年夏アニメ 配信情報一覧」という
+            ロングテール語をtitleに置いて流入を狙う設計なのに、h1は全ページ共通で
+            「アニメ視聴ガイド」のままだった。titleとh1が食い違うページは、Googleが
+            ページ内容（多くはh1）に合わせてtitleを書き換えることがあり、狙った語が
+            検索結果に出ないまま終わる。固定シーズンページのときだけ、h1をtitleと
+            同じ語にしてブランド名は隣のバッジに回す。
+            トップ（"/"）は指名検索の受け皿なのでブランドをh1のまま残す。 */}
         <div className="brandrow">
-          <h1 className="brand">
-            アニメ視聴ガイド<span className="dot" aria-hidden="true" />
-          </h1>
-          <span className="brand-season">
-            {year} {SEASON_LABEL[season]}クール
-          </span>
+          {isFixed ? (
+            <>
+              <h1 className="brand brand-long">
+                {year}年{SEASON_LABEL[season]}アニメ 配信情報一覧
+                <span className="dot" aria-hidden="true" />
+              </h1>
+              <span className="brand-season">アニメ視聴ガイド</span>
+            </>
+          ) : (
+            <>
+              <h1 className="brand">
+                アニメ視聴ガイド<span className="dot" aria-hidden="true" />
+              </h1>
+              <span className="brand-season">
+                {year} {SEASON_LABEL[season]}クール
+              </span>
+            </>
+          )}
         </div>
         <div className="meta">
           <span className="live">
@@ -1195,6 +1231,43 @@ export default function SeasonExplorer({
           ))}
         </ul>
       </details>
+
+      {/* 他クールへの「クロールできる」リンク（2026-08-05追加）。
+          画面上部の年・季節の切替は <button> でクライアント状態を変えるだけなので、
+          <a href> が1つも無く、検索エンジンは今期以外のクールへ辿れなかった。
+          その結果、実装としては存在し高速に開ける64クール・8,957作品のページが
+          まるごと不可視になっていた（sitemapも今期しか載せていなかった）。
+          ここで「同じ年の他の季節」＋「同じ季節の他の年」を実リンクで置くと、
+          どのシーズンページからでも2ホップで全クールに到達できる網になる。
+          各シーズンページはその年季の全作品を /anime/{id} へリンクしているので、
+          作品ページもこの網からまとめて辿れるようになる。 */}
+      <nav className="season-archive" aria-label="他のクールのアニメ配信情報">
+        <h2 className="season-archive-title">他のクールのアニメ配信情報</h2>
+        <p className="season-archive-row">
+          <span className="season-archive-label">{year}年:</span>
+          {SEASONS.map((s) => (
+            <span key={s.key} className="season-archive-item">
+              {s.key === season ? (
+                <span aria-current="page">{s.label}</span>
+              ) : (
+                <Link href={`/season/${year}/${s.key}`}>{s.label}</Link>
+              )}
+            </span>
+          ))}
+        </p>
+        <p className="season-archive-row">
+          <span className="season-archive-label">過去の{SEASON_LABEL[season]}アニメ:</span>
+          {years.map((y) => (
+            <span key={y} className="season-archive-item">
+              {y === year ? (
+                <span aria-current="page">{y}</span>
+              ) : (
+                <Link href={`/season/${y}/${season}`}>{y}</Link>
+              )}
+            </span>
+          ))}
+        </p>
+      </nav>
 
       <p className="footnote">
         データ元: Annict（コミュニティ更新ベース）。配信情報は網羅率100%ではなく、

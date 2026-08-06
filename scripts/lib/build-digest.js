@@ -195,7 +195,9 @@ function rankingImage() {
 }
 
 // 日曜: 今期の注目作TOP5（人数付き）
-function buildTop5(data, year, label, url) {
+// url = 本文に貼るリンク（シーズンページ）、shotUrl = スクリーンショットの撮影先
+// （撮影用クエリを解釈するトップページ）。既定では両方同じものを使う。
+function buildTop5(data, year, label, url, shotUrl = url) {
   const top5 = [...data.items].sort((a, b) => b.watchers - a.watchers).slice(0, 5);
   const lines = [
     `今週の「アニメ視聴ガイド」注目作TOP5（${year}年${label}アニメ）`,
@@ -205,7 +207,7 @@ function buildTop5(data, year, label, url) {
     url,
     `#${year}年${label}アニメ`,
   ];
-  return { kind: "top5", text: truncate(lines.join("\n"), MAX_LEN), screenshot: rankingScreenshot(url), image: rankingImage() };
+  return { kind: "top5", text: truncate(lines.join("\n"), MAX_LEN), screenshot: rankingScreenshot(shotUrl), image: rankingImage() };
 }
 
 // 月〜土: その曜日に放送/配信のある今期アニメ。注目度順に、字数上限まで詰める。
@@ -342,22 +344,31 @@ async function buildDigest(now = new Date()) {
     throw new Error(`サイトのAPI取得に失敗しました（${res.status}）`);
   }
   const data = await res.json();
-  const url = `${SITE_URL}/?year=${year}&season=${season}`;
+  // 投稿本文に載せるリンク（2026-08-05変更）。
+  // 以前は `/?year=&season=` を貼っていたが、トップページの canonical は "/" なので
+  // このURLは検索エンジンから見ると「/」の重複でしかなく、シーズンページには何の
+  // 手掛かりも渡らない。中身は同じなのだから、そのクール専用のSSRページ
+  // （/season/{year}/{season}。canonicalもそれ自身）を指す方がよい。
+  const shareUrl = `${SITE_URL}/season/${year}/${season}`;
+  // スクリーンショットの撮影先だけは従来どおりクエリ付きのトップを使う。
+  // view=calendar / ranking=open といった撮影用のクエリを読むのはトップ側だけで、
+  // /season/... は固定表示モードのためこれらを解釈しない。
+  const shotUrl = `${SITE_URL}/?year=${year}&season=${season}`;
 
-  const airingText = buildTodayAiring(data, weekday, year, label, url, todayStr);
+  const airingText = buildTodayAiring(data, weekday, year, label, shareUrl, todayStr);
   const airingPost = airingText
     ? {
         kind: "airing",
         text: airingText,
-        screenshot: calendarScreenshot(url, WEEKDAY_LABEL[weekday]),
+        screenshot: calendarScreenshot(shotUrl, WEEKDAY_LABEL[weekday]),
         image: airingImage(WEEKDAY_LABEL[weekday]),
       }
     : null;
 
   const posts =
     weekday === 0
-      ? [buildTop5(data, year, label, url), ...(airingPost ? [airingPost] : [])]
-      : [airingPost ?? buildTop5(data, year, label, url)];
+      ? [buildTop5(data, year, label, shareUrl, shotUrl), ...(airingPost ? [airingPost] : [])]
+      : [airingPost ?? buildTop5(data, year, label, shareUrl, shotUrl)];
 
   // スポットライト枠は曜日による出し分けをせず毎日追加する（候補が無ければ追加しない）。
   const spotlightPost = buildSpotlight(data, year, label, todayStr);
@@ -389,7 +400,9 @@ async function buildSeasonAnnounce(now = new Date()) {
     throw new Error(`サイトのAPI取得に失敗しました（${res.status}）`);
   }
   const data = await res.json();
-  const url = `${SITE_URL}/?year=${year}&season=${season}`;
+  // buildDigest と同じ理由でシーズンページを指す（トップの canonical は "/" のため、
+  // `/?year=&season=` を貼っても検索エンジンには重複URLとしか見えない）。
+  const url = `${SITE_URL}/season/${year}/${season}`;
 
   const lines = [
     `🎬 ${year}年${label}アニメ、始まりました！`,
@@ -460,7 +473,8 @@ async function buildPost(now = new Date()) {
     throw new Error(`サイトのAPI取得に失敗しました（${res.status}）`);
   }
   const data = await res.json();
-  const url = `${SITE_URL}/?year=${year}&season=${season}`;
+  // buildDigest と同じ理由でシーズンページを指す（上のコメント参照）。
+  const url = `${SITE_URL}/season/${year}/${season}`;
 
   if (kind === "coverage") {
     const text = buildCoverageReport(data, year, label, url);

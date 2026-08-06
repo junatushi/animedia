@@ -48,6 +48,14 @@ const jsonLd = {
       "@id": `${siteUrl}#org`,
       name: title,
       url: siteUrl,
+      // 検索結果・ナレッジパネルにサイトのロゴを出すために必要（最小112×112px）。
+      // app/apple-icon.tsx が生成する180×180のPNG（/apple-icon）を流用する。
+      logo: {
+        "@type": "ImageObject",
+        url: `${siteUrl}/apple-icon`,
+        width: 180,
+        height: 180,
+      },
       // 各SNSアカウントを紐付け、AI・検索エンジンに同一エンティティだと認識させる。
       sameAs: [
         "https://bsky.app/profile/animedia0705.bsky.social",
