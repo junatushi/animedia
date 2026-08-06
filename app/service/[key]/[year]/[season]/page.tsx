@@ -14,6 +14,24 @@ const SEASON_LABEL: Record<string, string> = {
   autumn: "秋",
 };
 
+// ISR（2026-08-06導入。app/season・app/exclusive・app/rankingsの各[year]/[season]ページと
+// 同じ理由・同じ値）。このページだけ revalidate も generateStaticParams も無く、
+// 動的セグメント[key]/[year]/[season]が毎リクエスト動的レンダリングのまま
+// （＝CDNエッジにキャッシュされない）になっていた。
+export const revalidate = 600;
+
+// season/exclusive/rankingsは[year]/[season]の2セグメントなので今年の4シーズンを
+// 列挙するだけで済むが、このページは[key]も動的セグメントに含むため、実在する
+// サービスkey（SERVICES）× 今年の4シーズンの組み合わせを列挙する（現状18サービス×4
+// ＝72件程度で、ビルド時に焼く数として現実的）。ここに無い組み合わせ（過去年や
+// 未知のkey）もdynamicParams（既定true）により初回オンデマンド生成→以後キャッシュされる。
+export function generateStaticParams() {
+  const year = String(new Date().getFullYear());
+  return SERVICES.flatMap((s) =>
+    ["winter", "spring", "summer", "autumn"].map((season) => ({ key: s.key, year, season }))
+  );
+}
+
 type Params = { key: string; year: string; season: string };
 
 function findService(key: string) {
