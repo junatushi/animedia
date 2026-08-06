@@ -72,7 +72,7 @@ async function loadFromSnapshot(id: number): Promise<AnimeDetail | null> {
 
 export async function getWorkData(id: number): Promise<AnimeDetail | null> {
   const token = process.env.ANNICT_TOKEN;
-  let liveFetchFailed = false;
+  let liveFetchError: unknown = null;
 
   if (token) {
     try {
@@ -84,7 +84,10 @@ export async function getWorkData(id: number): Promise<AnimeDetail | null> {
       // 一時的なAnnict障害・レート制限・トークン失効などで取得自体に失敗した。
       // 過去クールのスナップショットで救えるか下で試す。救えなければこのエラーを
       // 再送出し、従来通り呼び出し側（page.tsx）がエラー画面＋noindexにする。
-      liveFetchFailed = true;
+      // 【原因を握りつぶさない】ここで独自のErrorに差し替えると、レート制限なのか
+      // トークン失効なのかネットワーク断なのかがログから消える。元のエラーを保持して
+      // cause に付け直す（切り分けにかかる時間が段違いになる）。
+      liveFetchError = e;
     }
   }
 
@@ -94,8 +97,10 @@ export async function getWorkData(id: number): Promise<AnimeDetail | null> {
   if (!token) {
     throw new Error("ANNICT_TOKEN が未設定です。プロジェクト直下に .env.local を作り、トークンを設定してください。");
   }
-  if (liveFetchFailed) {
-    throw new Error("Annictからの取得に失敗しました（一時的な可能性があります）。");
+  if (liveFetchError) {
+    throw new Error("Annictからの取得に失敗しました（一時的な可能性があります）。", {
+      cause: liveFetchError,
+    });
   }
   // token はあり、Annictへの問い合わせも成功した上でこのidが存在しなかった。
   // スナップショットにも無いので本当に存在しない作品として404にする。
