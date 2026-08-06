@@ -25,6 +25,9 @@ const EVENT_LABELS: Record<string, string> = {
   filter_service: "配信サービスで絞り込み",
   filter_cast: "声優で絞り込み",
   change_season: "シーズン切り替え",
+  // フッターのフォロー導線（2026-08-06追加。components/FollowLinks.tsx）。
+  // Xのフォロワーを増やす手段のうち、サイト側で測れる唯一の数字なので必ず出す。
+  follow_click: "SNSフォロー導線をクリック",
   // 【2026-08-06追加】配信バッジのクリック。`components/ServiceMarks.tsx` が
   // 2026-07-19からずっと記録していたのに、このラベル表に載っていなかったため
   // ダッシュボードのどこにも出ていなかった（`events` は EVENT_LABELS のキーから
