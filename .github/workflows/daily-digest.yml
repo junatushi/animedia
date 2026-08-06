@@ -41,6 +41,9 @@ name: 毎日ダイジェスト（Bluesky/Mastodon/Threads自動投稿＋Xの下�
 #   日曜=今期の注目作TOP5＋その日の放送/配信があれば曜日紹介
 #   月〜土=その曜日に放送・配信のある今期アニメ（無ければTOP5にフォールバック）
 #   これに加えて毎日スポットライト（【どこで見れる？】）が1本。
+# 本文は**投稿先ごとに書き分ける**（2026-08-06導入）。各post-*.jsが自分の投稿先を
+# buildPost(now, "bluesky"|"mastodon"|"threads") で渡す。Mastodonは朝のまとめ枠なので
+# 「おはようございます／今日は○本」から入る。言い回しは週替わり（決定的。乱数は使わない）。
 # Bluesky/Mastodon/Threadsは投稿APIが無料のため自動投稿する。Xは有料化されたため
 # 自動投稿はせず、コピペ用の下書きをGitHub Issueとして起票するだけにする。
 # 投稿にはサイト実画面のスクリーンショット（カレンダー表示の該当曜日 / 「今期の注目作
@@ -268,8 +271,8 @@ jobs:
         env:
           DIGEST_SLOT: ${{ steps.gate.outputs.slot }}
         run: |
-          echo "=== 枠: $DIGEST_SLOT として投稿されるはずの本文 ==="
-          node scripts/print-digest.js
+          echo "=== 枠: $DIGEST_SLOT として投稿されるはずの本文（投稿先ごと） ==="
+          node scripts/print-digest.js --platform=all
 
       - name: スクリーンショット撮影用にChromiumをインストール
         if: ${{ steps.gate.outputs.go == 'true' || steps.gate.outputs.mastodon_go == 'true' }}

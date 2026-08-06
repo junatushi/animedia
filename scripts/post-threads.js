@@ -48,7 +48,9 @@
 // 2つ目以降の「#タグ」はリンクにならず地の文として残るため、toSingleHashtagText で
 // 末尾のタグ行を先頭1つに削ってから投稿する。
 //
-// レート制限は投稿250件/24h、本文上限は500字（既存のMAX_LEN=260で余裕を持って収まる）。
+// レート制限は投稿250件/24h、本文上限は500字（build-digest.js の PLATFORM_MAX_LEN で
+// Threadsは440字。2026-08-06に投稿先ごとの本文出し分けを入れた際、既定の260字から
+// 上げてある＝Bluesky/Xと同じ文面を配るのをやめ、Threads向けに書き分けるため）。
 const { buildPost, toSingleHashtagText } = require("./lib/build-digest");
 
 // THREADS_API_BASE はローカルのスタブサーバーに向けた動作確認用（build-digest.js の
@@ -162,7 +164,9 @@ async function main() {
   }
   const { id: userId } = await meRes.json();
 
-  const { posts } = await buildPost();
+  // 第2引数＝投稿先。Threads向けの本文で組み立てる（2026-08-06）。
+  // 末尾のタグを1つに削る toSingleHashtagText は従来どおり postOne 側で通す。
+  const { posts } = await buildPost(new Date(), "threads");
 
   // 投稿は1件ずつ独立させる。1本目が落ちても2本目は投げ、最後にまとめて報告する
   // （2026-08-05修正。従来は1本目の失敗でその日のThreads投稿が全滅していた）。
