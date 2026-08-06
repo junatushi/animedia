@@ -18,6 +18,25 @@ import {
 import { xPostUrl, xSearchUrl } from "./lib/x-intent.js";
 import { renderGrowthKit } from "./lib/build-growth-kit.js";
 
+
+// ディレクトリ配下の .ts/.tsx を再帰的に列挙する（行動ログの配線検査で使う）。
+function listSourceFiles(dir: URL): URL[] {
+  const out: URL[] = [];
+  for (const name of readdirSync(dir)) {
+    const child = new URL(name, dir);
+    let isDir = false;
+    try {
+      readdirSync(child);
+      isDir = true;
+    } catch {
+      isDir = false;
+    }
+    if (isDir) out.push(...listSourceFiles(new URL(`${name}/`, dir)));
+    else if (/\.tsx?$/.test(name)) out.push(child);
+  }
+  return out;
+}
+
 const samples: Array<[string, string]> = [
   // [入力チャンネル名, 期待する分類]
   ["dアニメストア", "service:d_anime"],
@@ -1043,6 +1062,73 @@ let ssrNg = 0;
 console.log(`結果（SSRの中身）: ${ssrNg === 0 ? 2 : 0} 件OK / ${ssrNg} 件NG`);
 
 // ─────────────────────────────────────────────
+// 行動ログの配線が途中で切れていないことの検査（2026-08-06追加）
+//
+// 【なぜ要るか】components/ServiceMarks.tsx は 2026-07-19 から affiliate_click /
+// official_link_click を記録していたのに、/admin/analytics の EVENT_LABELS に
+// 載っていなかったため **約3週間ぶん、どの画面にも表示されていなかった**
+// （ダッシュボードの表もグラフも EVENT_LABELS のキーから作られるので、
+// そこに無いイベントは存在しないのと同じになる）。記録は静かに成功し続けるので、
+// 画面を見ても記録漏れとの区別がつかない＝人間には気づけない壊れ方だった。
+//
+// 行動ログは3箇所の名前が揃って初めて機能する:
+//   1. 呼び出し側      … logEvent("名前", ...)
+//   2. サーバーの許可制 … app/api/track/route.ts の ALLOWED_EVENTS
+//   3. 表示            … app/admin/analytics/page.tsx の EVENT_LABELS
+// どこか1つが欠けると「送っているのに保存されない」「保存されているのに見えない」に
+// なる。dアニメストアの提携待ちの間はこの実測値が唯一の判断材料になるので、
+// ズレを機械的に止める。
+// ─────────────────────────────────────────────
+console.log("\n── 行動ログの配線（logEvent / ALLOWED_EVENTS / EVENT_LABELS）──");
+let trackNg = 0;
+{
+  const trackSrc = readFileSync(new URL("../app/api/track/route.ts", import.meta.url), "utf8");
+  const labelSrc = readFileSync(
+    new URL("../app/admin/analytics/page.tsx", import.meta.url),
+    "utf8"
+  );
+
+  // ALLOWED_EVENTS の Set リテラルから名前を拾う（コメント行は "..." を含まないので混ざらない）。
+  const allowedBlock = trackSrc.slice(
+    trackSrc.indexOf("ALLOWED_EVENTS = new Set(["),
+    trackSrc.indexOf("]);", trackSrc.indexOf("ALLOWED_EVENTS = new Set(["))
+  );
+  const allowed = new Set([...allowedBlock.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]));
+
+  // EVENT_LABELS のキー（`名前: "日本語"` の形）を拾う。
+  const labelBlock = labelSrc.slice(
+    labelSrc.indexOf("EVENT_LABELS: Record<string, string> = {"),
+    labelSrc.indexOf("};", labelSrc.indexOf("EVENT_LABELS: Record<string, string> = {"))
+  );
+  const labeled = new Set([...labelBlock.matchAll(/^\s*([a-z_]+):\s*"/gm)].map((m) => m[1]));
+
+  // 実際に logEvent(...) で送っている名前を全ソースから拾う。
+  const callers = new Set<string>();
+  for (const file of listSourceFiles(new URL("../components/", import.meta.url))) {
+    for (const m of readFileSync(file, "utf8").matchAll(/logEvent\(\s*"([a-z_]+)"/g)) {
+      callers.add(m[1]);
+    }
+  }
+
+  const notAllowed = [...callers].filter((e) => !allowed.has(e));
+  const p1 = notAllowed.length === 0 && callers.size > 0;
+  if (!p1) trackNg++;
+  console.log(
+    `${p1 ? "✓" : "✗"}  ${"送信している名前がALLOWED_EVENTSにある".padEnd(40)} → 送信${callers.size}種 / 未許可${notAllowed.length}件` +
+      (p1 ? "" : `  (サーバー側で捨てられます: ${JSON.stringify(notAllowed)})`)
+  );
+
+  const notLabeled = [...allowed].filter((e) => !labeled.has(e));
+  const p2 = notLabeled.length === 0 && allowed.size > 0;
+  if (!p2) trackNg++;
+  console.log(
+    `${p2 ? "✓" : "✗"}  ${"ALLOWED_EVENTSが全部ダッシュボードに出る".padEnd(40)} → 許可${allowed.size}種 / 未表示${notLabeled.length}件` +
+      (p2 ? "" : `  (記録されるのに画面に出ません: ${JSON.stringify(notLabeled)})`)
+  );
+}
+console.log(`結果（行動ログの配線）: ${trackNg === 0 ? 2 : 0} 件OK / ${trackNg} 件NG`);
+
+// ─────────────────────────────────────────────
 // シーズンページのHTML量の見張り（2026-08-06追加）
 //
 // 2026-08-05にSSRを直した結果、シーズンページのHTMLは「作品数に比例して増える」形に
@@ -1101,6 +1187,7 @@ if (
   badgeNg > 0 ||
   anchorNg > 0 ||
   slotNg > 0 ||
-  xIntentNg > 0
+  xIntentNg > 0 ||
+  trackNg > 0
 )
   process.exit(1);
