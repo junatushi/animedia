@@ -65,14 +65,21 @@ const SLOTS = {
   evening: { fromHour: 18, toHour: 21, kinds: ["airing"] },
 };
 
-// 【Mastodonだけ従来方式・2026-08-05】Mastodonは時間帯で分けず、**1日1回21時台に
-// その日の分をまとめて**投稿する（利用者の指定で従来の運用に戻した）。
+// 【Mastodonだけ従来方式・2026-08-05】Mastodonは時間帯で分けず、**1日1回・その日の分を
+// まとめて**投稿する（利用者の指定で従来の運用に戻した）。
 // SLOTS と分けてあるのは、こちらは「内容を絞る枠」ではなく「まとめて出す時刻」だから。
 // kinds を持たない＝絞り込みをしない（その日の全投稿を出す）。
 // 時間帯の考え方（開始時刻＝fromHour で基準日を固定する／その日のうちなら遅れても出す）は
-// SLOTS と同じものを使うので、21時台を逃しても日付が変わるまでは投稿できる。
+// SLOTS と同じものを使うので、時間帯を逃しても日付が変わるまでは投稿できる。
+//
+// 【2026-08-06変更】21〜23時台 → **5〜7時台**（利用者の指定）。朝いちばんに「今日は
+// 何が観られるか」を出す形になるので、内容（その日の放送・配信）とも噛み合う。
+// 副次的な利点として、JSTの日付が変わるまでの余裕が3時間から19時間に延びる。
+// GitHub Actions の schedule 遅延は実測で最大6.4時間あり、21時起点だと遅延がそのまま
+// 日付またぎ＝前日分の投稿になりうる位置だった（`anchorToSlotDate` で事故は防いでいるが、
+// その場合その日の投稿が丸ごと消える）。5時起点なら遅延しても同じJST日の中に収まる。
 const BATCH_SLOTS = {
-  mastodon: { fromHour: 21, toHour: 23 },
+  mastodon: { fromHour: 5, toHour: 7 },
 };
 
 // DIGEST_SLOT の値から設定を引く。SLOTS（Bluesky/Threads用）→ BATCH_SLOTS（Mastodon用）の順。
@@ -95,8 +102,8 @@ function slotForNow(now = new Date()) {
   return found ? found[0] : null;
 }
 
-// Mastodonのまとめ投稿（21時台）の開始時刻を迎えているか。SLOTS の dueSlots と同じ考え方で、
-// 21時台を逃してもJSTの同じ日のうちなら遅れて投げてよい、という判定に使う。
+// Mastodonのまとめ投稿（5〜7時台）の開始時刻を迎えているか。SLOTS の dueSlots と同じ考え方で、
+// 5〜7時台を逃してもJSTの同じ日のうちなら遅れて投げてよい、という判定に使う。
 function isMastodonBatchDue(now = new Date()) {
   return jstHourOf(now) >= BATCH_SLOTS.mastodon.fromHour;
 }
