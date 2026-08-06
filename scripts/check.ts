@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { classifyChannel, toAnimeItem } from "../lib/services.ts";
@@ -951,6 +951,51 @@ let ssrNg = 0;
   );
 }
 console.log(`結果（SSRの中身）: ${ssrNg === 0 ? 2 : 0} 件OK / ${ssrNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// シーズンページのHTML量の見張り（2026-08-06追加）
+//
+// 2026-08-05にSSRを直した結果、シーズンページのHTMLは「作品数に比例して増える」形に
+// なった（実測: 2024夏 = 158作品で raw 695KB / gzip 57.4KB。修正前は raw 188KB /
+// gzip 33.5KB だったが、そちらは本文が空でSEO上は無価値だったので比較対象にならない）。
+// 1作品あたり raw 約4.4KB / gzip 約363B。これは中身が増えたぶんの当然のコストで、
+// いま問題になる水準ではない（ISR＋CDNキャッシュに載るので配信は速い）。
+// ただし作品数が増え続ければいつかは重くなるので、**その「いつか」を人の記憶ではなく
+// ここで見張る**。超えたら仮想化・分割・初期表示件数の制限などを検討する。
+//
+// 落ちない（警告だけ）。作品数はAnnict側の登録数で決まり、こちらのPRの是非とは
+// 無関係なので、無関係な変更をブロックしてはいけない。日次巡回がこの警告を拾って
+// 日報に載せる（`docs/operations.md`の⑮）。
+// なお現在クールの件数はネットワーク無しでは分からないので、ここで見られるのは
+// スナップショット済みの過去クールだけ。現在クールは巡回が`/api/season`で見る。
+// ─────────────────────────────────────────────
+console.log("\n── シーズンページのHTML量 ──");
+{
+  const GZIP_BYTES_PER_WORK = 363; // 実測: 2024夏 158作品 / gzip 57,373B
+  const WARN_GZIP_BYTES = 100 * 1024; // ≒ 282作品
+  const WARN_COUNT = Math.floor(WARN_GZIP_BYTES / GZIP_BYTES_PER_WORK);
+
+  const dir = new URL("../content/snapshots/", import.meta.url);
+  const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+  let worst = { season: "", count: 0 };
+  for (const f of files) {
+    const snap = JSON.parse(readFileSync(new URL(f, dir), "utf8")) as {
+      season?: string;
+      items?: unknown[];
+    };
+    const count = snap.items?.length ?? 0;
+    if (count > worst.count) worst = { season: snap.season ?? f.replace(/\.json$/, ""), count };
+  }
+
+  const estGzipKb = ((worst.count * GZIP_BYTES_PER_WORK) / 1024).toFixed(1);
+  const over = worst.count >= WARN_COUNT;
+  console.log(
+    `${over ? "⚠" : "✓"}  ${`最大クール ${worst.season}（${worst.count}作品・gzip推定${estGzipKb}KB）`.padEnd(40)} → ` +
+      (over
+        ? `見直し時期です（目安${WARN_COUNT}作品 / gzip 100KB）。一覧の分割・初期表示件数の制限を検討してください`
+        : `OK（目安${WARN_COUNT}作品 / gzip 100KB まで）`)
+  );
+}
 
 if (
   archiveNg > 0 ||
