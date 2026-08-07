@@ -280,10 +280,12 @@ jobs:
 
       # Xの下書きは手動投稿用なので枠で分けず、1日分をまとめて1つのIssueにする。
       # 起票は朝の枠（1日の最初の枠）だけ。DIGEST_SLOT を渡さないので全投稿が入る。
+      # --issue を付けると、投稿ごとに「タップ1回でXの投稿画面が本文入りで開く」リンク付きの
+      # Markdownで出る（2026-08-07。週次X成長キットと同じ形。経緯は scripts/lib/x-intent.js）。
       - name: Xの下書き本文を生成（朝の枠のみ・1日分をまとめて）
         id: digest
         if: ${{ steps.gate.outputs.go == 'true' && (steps.gate.outputs.slot == 'morning' || steps.gate.outputs.slot == 'all') }}
-        run: node scripts/print-digest.js > digest.txt
+        run: node scripts/print-digest.js --issue > digest.txt
 
       # 各SNS投稿は「できたものだけ出す」方式で互いに独立させる。どれか1つが失敗しても
       # 後続のSNSがスキップされないよう、全ステップに !cancelled() を付ける

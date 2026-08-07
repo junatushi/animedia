@@ -5,6 +5,8 @@ import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import { SERVICES, splitRentalServices } from "@/lib/services";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import ServiceMarks from "@/components/ServiceMarks";
+import CalendarSubscribeLink from "@/components/CalendarSubscribeLink";
+import { currentSeasonKey } from "@/lib/resolveSeasonParams";
 
 import { siteUrl } from "@/lib/siteUrl";
 const SEASON_LABEL: Record<string, string> = {
@@ -74,23 +76,30 @@ export default async function ServicePage({ params }: { params: Params }) {
   if (!service || !isValidYear(year) || !isValidSeason(season)) notFound();
 
   const label = SEASON_LABEL[season];
-  let items: { id: number; title: string; watchers: number; rental: boolean }[] = [];
+  let items: { id: number; title: string; watchers: number; rental: boolean; exclusive: boolean }[] = [];
   let fetchError: string | null = null;
   try {
     const data = await getSeasonData(year, season);
     for (const it of data.items) {
       const hasService = it.services.some((s) => s.key === key);
       if (!hasService) continue;
-      const { rental } = splitRentalServices(it.services, RENTAL_SERVICES[it.id]);
+      const { streaming, rental } = splitRentalServices(it.services, RENTAL_SERVICES[it.id]);
       const isRentalOnly = rental.some((s) => s.key === key);
-      items.push({ id: it.id, title: it.title, watchers: it.watchers, rental: isRentalOnly });
+      // 「このサービスでしか見られない」＝見放題がちょうど1社で、それがこのサービス。
+      // 判定基準は app/exclusive/[year]/[season] と同じ（レンタル/都度課金は数えない）。
+      const exclusive = streaming.length === 1 && streaming[0].key === key;
+      items.push({ id: it.id, title: it.title, watchers: it.watchers, rental: isRentalOnly, exclusive });
     }
     items.sort((a, b) => b.watchers - a.watchers);
   } catch (e) {
     fetchError = e instanceof Error ? e.message : "取得に失敗しました。";
   }
+  const exclusiveItems = items.filter((it) => it.exclusive);
 
   const checkedDate = new Date().toISOString().slice(0, 10);
+  // /calendar.ics は常に「今期」を返す（year/season を受け取らない）ので、
+  // 購読の案内は今期のページでだけ出す。
+  const isCurrentSeason = currentSeasonKey() === `${year}-${season}`;
   const structuredLd = !fetchError
     ? [
         {
@@ -180,6 +189,36 @@ export default async function ServicePage({ params }: { params: Params }) {
               </section>
             )}
 
+            {/* ── {service}でしか見られない作品 ─────────────────────────────
+                このセクションを一覧より前に置くのは、利用者に「そのサービスに入るか」の
+                判断が発生するのが独占作品の場面だけだから（docs/growth-strategy-2026-08.md）。
+                dアニメが各クールの74〜82%をカバーする以上、複数社で配信されている作品は
+                「どこで見ても同じ」であって加入の理由にならない。 */}
+            {!fetchError && exclusiveItems.length > 0 && (
+              <section className="detail-section">
+                <h2 className="detail-heading">
+                  {service.name}でしか見られない作品（{exclusiveItems.length}作品）
+                </h2>
+                <p className="detail-text">
+                  {year}年{label}アニメのうち、見放題での配信が{service.name}
+                  だけの作品です（レンタル/都度課金での配信は数えていません）。
+                  他の見放題サービスでは配信が確認できていません。
+                </p>
+                <ul className="detail-list">
+                  {exclusiveItems.map((it) => (
+                    <li key={it.id}>
+                      <Link href={`/anime/${it.id}`}>{it.title}</Link>
+                    </li>
+                  ))}
+                </ul>
+                <p className="detail-text">
+                  <Link href={`/exclusive/${year}/${season}`}>
+                    {year}年{label}アニメの独占配信まとめ（全サービス）を見る
+                  </Link>
+                </p>
+              </section>
+            )}
+
             {!fetchError && items.length === 0 && (
               <section className="detail-section">
                 <p className="detail-text">
@@ -201,6 +240,29 @@ export default async function ServicePage({ params }: { params: Params }) {
                     </li>
                   ))}
                 </ul>
+              </section>
+            )}
+
+            {/* 「そのサービスの分だけ」のカレンダー購読（2026-08-07追加）。
+                /calendar.ics?service= は実装済みだったが、案内が /developers に
+                しか無く、利用者が見る画面のどこからも辿れなかった。
+
+                【今期に限る理由】/calendar.ics は year/season を受け取らず、
+                常に currentSeasonKey() の作品を返す。過去クールのページに置くと
+                「2020年冬の予定表」を期待した人に今期のカレンダーを渡すことになる
+                ので、今期のページでだけ出す。 */}
+            {!fetchError && items.length > 0 && isCurrentSeason && (
+              <section className="detail-section">
+                <h2 className="detail-heading">カレンダーで購読する</h2>
+                <p className="detail-text">
+                  {service.name}で見られる今期の放送・配信スケジュールを、お使いのカレンダー
+                  （Googleカレンダー等）に取り込めます。毎週の予定として自動で表示され、
+                  新しい話数の追加もカレンダー側で更新されます:{" "}
+                  <CalendarSubscribeLink
+                    serviceKey={service.key}
+                    label={`${service.name}の放送予定を購読する（.ics）`}
+                  />
+                </p>
               </section>
             )}
           </div>
