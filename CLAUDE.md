@@ -19,6 +19,11 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `node scripts/check-threads.js` … Threads自動投稿のテスト（2026-08-05導入）。APIのスタブを
   立てて`scripts/post-threads.js`を実際に動かし、コンテナの状態待ち・一時エラーの再試行・
   恒久エラーの即失敗を固定する。ネットワークには出ない。`post-threads.js`を触ったら必ず実行する
+- `bash scripts/verify-production.sh` … **本番**SSRの実地検査（2026-08-07導入）。公開URLを実際に
+  取ってHTMLを数える。`check.ts`はソースしか見ないため、ソースは正しいのに本番HTMLだけが空
+  （`docs/operations.md`の⑦-10）という壊れ方を検知できない。毎日GitHub Actions
+  （`.github/workflows/verify-production.yml`）が回すので**手で実行する必要は無い**。
+  外向き通信のある環境でのみ動く（本番ドメインが遮断された環境では実行できない＝それが自動化した理由）
 - `node scripts/build-archive-index.ts` … 過去クール索引の再生成（2026-08-05導入）。
   `content/snapshots/*.json`を読み、sitemapに載せる過去クール（シーズンページ＋配信1件以上の
   作品ページ）の索引を`content/archive/index.json`に書く。ネットワーク不要。
@@ -224,6 +229,10 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   リンクが入っているかを数える**こと（ブラウザの表示は当てにならない）。
   `node scripts/check.ts`に「SeasonExplorerが`useSearchParams`をimportしない」
   「シーズンページは`SeasonExplorer`を直接使う」の検査を入れてあるので消さないこと。
+  **本番HTMLの確認は自動化済み**（2026-08-07）。`scripts/verify-production.sh`を毎日
+  GitHub Actionsが回し、`<h1>`と作品リンクの件数を数える。この手順は3セッション連続で
+  持ち越された＝手順書に書くだけでは実行されないと分かったため機械に移した。
+  ローカルで確かめたいときも`bash scripts/verify-production.sh`が使える。
 - **【基本ルール】検索結果のtitleは幅の予算内に収める（2026-08-05導入）**:
   日本語の検索結果のtitleは概ね全角30〜33文字で打ち切られる。作品ページのtitleは
   `lib/workTitle.ts`の`buildWorkTitle`が予算（`TITLE_WIDTH_BUDGET`）に収まる分だけ

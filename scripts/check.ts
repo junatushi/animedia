@@ -1338,6 +1338,42 @@ let availNg = 0;
     jstToday(noonUtc) === "2026-08-06",
     `${jstToday(noonUtc)}（期待 2026-08-06）`
   );
+
+  // 本番の実地検査（scripts/verify-production.sh）が探す文言と、実際に出力される
+  // 文言のズレを防ぐ（2026-08-07追加）。
+  // shell 側は本番HTMLに対する grep なので、文言を書き換えると
+  //   ・「含むべき」検査 → 落ちる（気づける）
+  //   ・「含まぬべき」検査 → **黙って素通り**（＝検査が無力化する）
+  // という非対称がある。後者が怖いので、ここで文言の同期をPR時点で押さえる。
+  const verifySrc = readFileSync(new URL("./verify-production.sh", import.meta.url), "utf8");
+  const airingSample = buildWatchAnswer({
+    title: "X",
+    serviceLabels: ["dアニメストア"],
+    rentalNote: "",
+    checkedDate: "2026-08-06",
+    status: "airing",
+  });
+  const finishedSample = buildWatchAnswer({
+    title: "X",
+    serviceLabels: ["dアニメストア"],
+    rentalNote: "",
+    checkedDate: "2026-08-06",
+    status: "finished",
+  });
+  for (const [needle, sample, which] of [
+    ["で視聴できます", airingSample, "放送中"],
+    ["の配信情報があるのは", finishedSample, "放送終了"],
+  ] as const) {
+    availCheck(
+      `本番検査の文言と一致（${which}）`,
+      verifySrc.includes(needle) && sample.includes(needle),
+      verifySrc.includes(needle)
+        ? sample.includes(needle)
+          ? `「${needle}」で一致`
+          : `文言を変えたなら scripts/verify-production.sh も直す`
+        : `scripts/verify-production.sh に「${needle}」が無い`
+    );
+  }
 }
 console.log(`結果（放送終了作品の表現）: ${availNg === 0 ? "全件OK" : `${availNg} 件NG`}`);
 
