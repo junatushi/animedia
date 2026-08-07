@@ -36,6 +36,7 @@ import { xPostUrl, xSearchUrl } from "./lib/x-intent.js";
 // 日次の下書きIssueの本文組み立て（--issue）。require.main ガードがあるので
 // importしてもネットワークへは出ない。
 import printDigest from "./print-digest.js";
+import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
 import { renderGrowthKit } from "./lib/build-growth-kit.js";
 
 
@@ -856,6 +857,70 @@ let archiveNg = 0;
   );
 }
 console.log(`結果（過去クール索引）: ${archiveNg === 0 ? 2 : 0} 件OK / ${archiveNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// 声優の出演作索引（content/archive/people.json）の検査（2026-08-07追加）
+//
+// /person/[name]/[year]/[season] の「他のクールの出演作」の元データ。
+// 過去クール索引と同じで、スナップショットを更新したのに作り直し忘れると
+// 画面は壊れないまま中身だけ古くなる。
+// ズレていたら `node scripts/build-person-index.ts` を実行すれば直る。
+// ─────────────────────────────────────────────
+console.log("\n── 声優の出演作索引 ──");
+let peopleNg = 0;
+{
+  const { buildPersonIndex } = await import("./build-person-index.ts");
+  const { readSnapshots } = await import("./build-archive-index.ts");
+  const snapshots = readSnapshots();
+  const expected = buildPersonIndex(snapshots);
+  const actual = JSON.parse(
+    readFileSync(new URL("../content/archive/people.json", import.meta.url), "utf8")
+  ) as PersonIndex;
+
+  const same = JSON.stringify(expected) === JSON.stringify(actual.people);
+  if (!same) peopleNg++;
+  const total = Object.values(expected).reduce((n, w) => n + w.length, 0);
+  console.log(
+    `${same ? "✓" : "✗"}  ${"people.jsonがcontent/snapshots/と一致".padEnd(40)} → ` +
+      `${Object.keys(expected).length}人・出演${total}件` +
+      (same ? "" : "  (不一致: node scripts/build-person-index.ts を実行してください)")
+  );
+
+  // 収録方針: 配信情報が1件も無い作品は載せない（過去クール索引と同じ理由）。
+  // ここが崩れると、作品ページに飛んでも「配信情報なし」としか書いていない
+  // リンクを声優ページから大量に生やすことになる。
+  const noServices = new Set<string>();
+  for (const { data } of snapshots) {
+    for (const it of data.items) if (it.services.length === 0) noServices.add(it.id);
+  }
+  const leaked = Object.values(expected)
+    .flat()
+    .filter(([id]) => noServices.has(id)).length;
+  if (leaked > 0) peopleNg++;
+  console.log(
+    `${leaked === 0 ? "✓" : "✗"}  ${"配信0件の作品を載せていない".padEnd(40)} → 混入${leaked}件`
+  );
+
+  // 1作品しか無い人を載せない（クール別ページと中身が同じになるため）。
+  const thin = Object.entries(expected).filter(([, w]) => w.length < MIN_WORKS).length;
+  if (thin > 0) peopleNg++;
+  console.log(
+    `${thin === 0 ? "✓" : "✗"}  ${`出演${MIN_WORKS}作品未満の人を載せていない`.padEnd(40)} → ${thin}人`
+  );
+
+  // 表示側は「そのクールに出ていた分」を二重に出さない（クール別ページが既に出している）。
+  const sampleName = Object.keys(expected)[0];
+  const sample = expected[sampleName]?.[0];
+  const filtered = sample
+    ? otherSeasonWorks({ generatedAt: "", people: expected }, sampleName, sample[2], sample[3])
+    : [];
+  const excluded = sample ? !filtered.some(([id]) => id === sample[0]) : false;
+  if (!excluded) peopleNg++;
+  console.log(
+    `${excluded ? "✓" : "✗"}  ${"otherSeasonWorksが同一クールを除く".padEnd(40)} → ${sampleName ?? "(データなし)"}`
+  );
+}
+console.log(`結果（声優の出演作索引）: ${peopleNg === 0 ? 4 : 0} 件OK / ${peopleNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // 作品ページ title の幅の検査（2026-08-05追加）

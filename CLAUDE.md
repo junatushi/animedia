@@ -23,6 +23,10 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   `content/snapshots/*.json`を読み、sitemapに載せる過去クール（シーズンページ＋配信1件以上の
   作品ページ）の索引を`content/archive/index.json`に書く。ネットワーク不要。
   **スナップショットを追加・再生成したら必ず実行する**（ズレは`node scripts/check.ts`が検出）
+- `node scripts/build-person-index.ts` … 声優の出演作索引の再生成（2026-08-07導入）。
+  `content/snapshots/*.json`から「配信情報が1件以上ある作品」だけを抜き、声優名→出演作の
+  索引を`content/archive/people.json`に書く。ネットワーク不要。
+  **スナップショットを追加・再生成したら必ず実行する**（ズレは`node scripts/check.ts`が検出）
 - `node scripts/audit-coverage.ts [year] [season]` … 配信データ網羅率の点検（2026-07-12導入）。
   引数省略時は現在のクール。(a)TV放送データはあるが配信サービス0件の作品（注目度順。
   Annict側の登録待ちの疑い）、(b)「その他配信」に落ちた未知チャンネル名（`SERVICES`
@@ -152,6 +156,15 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   `app/sitemap.ts`が過去クールのシーズンページ・作品ページを載せるのに使う。
   配信0件の作品は「配信情報なし」としか答えられない薄いページなので意図的に載せない
   （実測: 過去8,957作品中、配信ありは1,961作品）
+- `lib/personIndex.ts` + `content/archive/people.json` + `scripts/build-person-index.ts` …
+  声優の出演作索引（2026-08-07導入）。`/person/[name]/[year]/[season]`が持つ
+  「他のクールの出演作」の元データ。**そのクールの出演作しか出せない**という制約を外す
+  ためのもので、Annictへの追加取得はゼロ（スナップショットの`castNames`から作る）。
+  収録は`content/archive/index.json`と同じ方針で**配信情報が1件以上ある作品だけ**、
+  かつ出演2作品以上の人だけ（787人・出演7,721件）。**載っているのは「そのクールの番組表に
+  配信の記録があった」事実であって、いま配信されているかではない**ので、表示側は
+  「配信情報がある」までに留める（`lib/workAvailability.ts`と同じ扱い）。
+  素の`.ts`なのは`scripts/check.ts`から検査するため
 - `lib/embed.ts` + `app/embed/anime/[id]/route.ts` + `components/EmbedSnippet.tsx` + `app/developers/page.tsx`
   … 配信先ウィジェット（2026-08-06導入）。他サイトに貼ってもらうための埋め込み。作品ページの
   「ブログ・サイトに貼る」からHTML/iframeの貼り付けコードをコピーできる。**被リンク獲得が目的**
