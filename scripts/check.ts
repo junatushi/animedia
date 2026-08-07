@@ -33,6 +33,9 @@ import {
   jstParts,
 } from "./lib/build-digest.js";
 import { xPostUrl, xSearchUrl } from "./lib/x-intent.js";
+// 日次の下書きIssueの本文組み立て（--issue）。require.main ガードがあるので
+// importしてもネットワークへは出ない。
+import printDigest from "./print-digest.js";
 import { renderGrowthKit } from "./lib/build-growth-kit.js";
 
 
@@ -1031,8 +1034,27 @@ let xIntentNg = 0;
   console.log(
     `${p3 ? "✓" : "✗"}  ${"キット本文にワンタップのリンクが出る".padEnd(40)} → 投稿=${hasPost} 検索=${hasSearch}`
   );
+
+  // 日次の下書きIssueにも同じリンクが入っていること（2026-08-07追加）。
+  // 週次キットにだけ入れて日次を忘れていた期間があり、**毎日やる側**の手数が
+  // 減らないままだった（日次のIssueは7/31以降7件が連続でopen）。
+  // ワークフローが --issue を落とすとベタ書きに戻り、静かに元の運用へ逆戻りする。
+  const digestYml = readFileSync(new URL("../.github/workflows/daily-digest.yml", import.meta.url), "utf8");
+  const ymlOk = /print-digest\.js\s+--issue/.test(digestYml);
+  // 本文は組み立て関数を直接呼んで確かめる（文字列grepだと書き換えに追随できない）。
+  // 本文に # と改行を含む、実運用に近い入力。
+  const issueMd = printDigest.renderIssue([{ kind: "top5", text: "【テスト】1話\n#今期アニメ" }]);
+  const mdOk =
+    issueMd.includes("https://x.com/intent/post?text=") &&
+    issueMd.includes("注目作TOP5") &&
+    issueMd.includes("【テスト】1話"); // コピー用のコードブロックも残っていること
+  const p4 = ymlOk && mdOk;
+  if (!p4) xIntentNg++;
+  console.log(
+    `${p4 ? "✓" : "✗"}  ${"日次の下書きIssueもワンタップで開く".padEnd(40)} → ワークフローが--issue=${ymlOk} 本文にリンクと下書き=${mdOk}`
+  );
 }
-console.log(`結果（Xの手動運用リンク）: ${xIntentNg === 0 ? 3 : 0} 件OK / ${xIntentNg} 件NG`);
+console.log(`結果（Xの手動運用リンク）: ${xIntentNg === 0 ? 4 : 0} 件OK / ${xIntentNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // SSRの中身が空にならないことの検査（2026-08-05追加・重大度高）
