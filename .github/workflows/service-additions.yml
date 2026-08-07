@@ -1,0 +1,29 @@
+name: 配信サービス追加の検知
+
+# 毎日1回 app/api/service-additions/run を叩き、今日のシーズンデータを
+# 保存済みの観測記録と突き合わせる。判定はサーバー側（route.ts と
+# lib/serviceAdditions.ts）で行い、ここは決まった頻度で1回リクエストを送るだけ。
+#
+# 【cronに時刻の意味を持たせていない】GitHub Actions のscheduleは予定通りに
+# 発火しない（このリポジトリの実測で最大6.4時間）。この処理は「その日1回走れば
+# よい」だけで、何時に走るかは結果に影響しない（JSTの日付はサーバー側で決める）。
+# 遅延で日をまたいだ場合は、その日の観測が1日ぶん飛ぶが、連続日数の判定は
+# 「途切れたらやり直し」なので誤検知にはならない（確定が遅れるだけ）。
+#
+# 【メールは送らない】ここで検知したものは通知に流さない。Annict側の編集の揺れが
+# 利用者への通知回数になるのを避けるため（docs/operations.md ⑱-13）。
+on:
+  schedule:
+    - cron: "0 20 * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: service-additions/run を実行
+        run: |
+          curl -s -X POST \
+            -H "x-cron-secret: ${{ secrets.NOTIFY_CRON_SECRET }}" \
+            -w "\nstatus=%{http_code} time=%{time_total}s\n" \
+            "https://animedia-khaki.vercel.app/api/service-additions/run"

@@ -182,6 +182,13 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   配信の記録があった」事実であって、いま配信されているかではない**ので、表示側は
   「配信情報がある」までに留める（`lib/workAvailability.ts`と同じ扱い）。
   素の`.ts`なのは`scripts/check.ts`から検査するため
+- `lib/serviceAdditions.ts` + `app/api/service-additions/**` … 「Annictに配信サービスが新しく
+  登録された」ことの検知（2026-08-07導入・**Supabaseのテーブル作成待ち**）。**メール通知には
+  繋がない**（既存の`/api/notify`は日付駆動で1日1通に収まるが、これは変更駆動でAnnict側の
+  編集回数がそのまま届く。2026-08-07・利用者の指摘）。揺れを届けないための4つの保証
+  （①消えたことは扱わない ②連続3日見えてから確定 ③報告済みの組は永久に再報告しない
+  ④初回は種まき）は`node scripts/check.ts`が全部テストする。文面は「配信開始」と断定せず
+  **「配信情報に◯◯が追加されました」**にすること。手順は`docs/service-additions-setup.md`
 - `lib/discord.ts` + `app/api/discord/route.ts` … Discordスラッシュコマンド `/anime`（2026-08-07導入）。
   **Interactions Endpoint方式**（常時起動のプロセスが要らない＝既存のVercelに相乗りでき、
   ホスティング費用ゼロ）。署名検証は**必ず生のリクエストボディ**で行う（JSONに直して戻すと失敗する）。

@@ -43,6 +43,8 @@ import { buildServicePlan } from "../lib/servicePlan.ts";
 // Discordスラッシュコマンド（2026-08-07追加）。
 import { generateKeyPairSync, sign as cryptoSign } from "node:crypto";
 import { verifyDiscordSignature, buildAnimeReply, messageResponse } from "../lib/discord.ts";
+// 配信サービス追加の検知（2026-08-07追加）。純粋関数のみ。
+import { applySightings } from "../lib/serviceAdditions.ts";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
 import { renderGrowthKit } from "./lib/build-growth-kit.js";
 
@@ -1719,6 +1721,101 @@ console.log("\n── シーズンページのHTML量 ──");
 }
 
 // ─────────────────────────────────────────────
+// 配信サービス追加の検知（2026-08-07追加）
+//
+// Annictはコミュニティ編集なので、登録ミスの取り消し・付け直しがそのまま
+// 「イベント」に見える。無防備に扱うと**上流の編集の揺れが利用者に届く**
+// （2026-08-07・利用者の指摘）。ここで機械的に見張るのは次の4点:
+//   1. 消えたことは扱わない
+//   2. 連続してN日見えてから確定（1日でも途切れたらやり直し）
+//   3. 一度報告した組は永久に再報告しない
+//   4. 初回は種まき（既存の全ペアを黙って報告済みにする）
+// ─────────────────────────────────────────────
+console.log("\n── 配信サービス追加の検知 ──");
+let addNg = 0;
+{
+  const pair = (workId: number, serviceKey: string) => ({
+    workId,
+    workTitle: `作品${workId}`,
+    serviceKey,
+    serviceShort: serviceKey,
+  });
+  const P = [pair(1, "d")];
+  const SEASON = "2026-summer";
+  const run = (
+    existing: Parameters<typeof applySightings>[0],
+    today: Parameters<typeof applySightings>[1],
+    date: string,
+    seed = false
+  ) => applySightings(existing, today, date, SEASON, seed);
+
+  // (4) 初回の種まきでは何も報告しない
+  const seeded = run([], P, "2026-08-01", true);
+  const seedOk = seeded.confirmed.length === 0 && seeded.upserts[0].reportedOn === "2026-08-01";
+  if (!seedOk) addNg++;
+  console.log(
+    `${seedOk ? "✓" : "✗"}  ${"初回は既存ぶんを黙って記録する".padEnd(40)} → ` +
+      (seedOk ? "報告0件" : `報告${seeded.confirmed.length}件（既存が全部「新規」に見えている）`)
+  );
+
+  // (2) 連続3日でだけ確定する
+  let state = run([], P, "2026-08-01").upserts;
+  const d1 = state[0].reportedOn === null;
+  state = run(state, P, "2026-08-02").upserts;
+  const d2 = state[0].reportedOn === null;
+  const third = run(state, P, "2026-08-03");
+  const d3 = third.confirmed.length === 1;
+  const streakOk = d1 && d2 && d3;
+  if (!streakOk) addNg++;
+  console.log(
+    `${streakOk ? "✓" : "✗"}  ${"連続3日見えてはじめて確定".padEnd(40)} → ` +
+      (streakOk ? "1日目・2日目は出さず3日目に1件" : `1日目=${!d1 ? "出た" : "OK"} / 3日目=${d3 ? "OK" : "出ない"}`)
+  );
+
+  // (2') 途中で消えたら連続日数はやり直し＝確定しない（登録と削除の繰り返し）
+  let churn = run([], P, "2026-08-01").upserts;
+  // 8-02 は見えない（＝upsertされない）。8-03 に復活。
+  const churn3 = run(churn, P, "2026-08-03");
+  const churn4 = run(churn3.upserts, P, "2026-08-04");
+  const churnOk = churn3.confirmed.length === 0 && churn4.confirmed.length === 0;
+  if (!churnOk) addNg++;
+  console.log(
+    `${churnOk ? "✓" : "✗"}  ${"付けて消してを繰り返す編集は出さない".padEnd(40)} → ` +
+      (churnOk ? "確定0件（連続が切れたのでやり直し）" : "確定してしまっている")
+  );
+
+  // (3) 一度報告したものは、消えて付け直されても二度と出さない
+  const reported = third.upserts;
+  let again = run(reported, P, "2026-08-10").upserts; // 大きく間が空いて復活
+  again = run(again, P, "2026-08-11").upserts;
+  const againRes = run(again, P, "2026-08-12");
+  const onceOk = againRes.confirmed.length === 0;
+  if (!onceOk) addNg++;
+  console.log(
+    `${onceOk ? "✓" : "✗"}  ${"報告済みの組は永久に再報告しない".padEnd(40)} → ` +
+      (onceOk ? "再報告なし" : "再報告されている（通知が繰り返される）")
+  );
+
+  // (1) 消えたサービスは行が消えず、報告もされない
+  const gone = run(third.upserts, [], "2026-08-04");
+  const goneOk = gone.upserts.length === 0 && gone.confirmed.length === 0;
+  if (!goneOk) addNg++;
+  console.log(
+    `${goneOk ? "✓" : "✗"}  ${"消えたことは扱わない".padEnd(40)} → ` +
+      (goneOk ? "書き換えも報告もしない" : "消えたことを扱ってしまっている")
+  );
+
+  // 同じ日に2回走っても二重に進まない（再実行・遅延で2回叩かれる場合）
+  const twice = run(run(state, P, "2026-08-03").upserts, P, "2026-08-03");
+  const idemOk = twice.confirmed.length === 0 && twice.upserts[0].streak === 3;
+  if (!idemOk) addNg++;
+  console.log(
+    `${idemOk ? "✓" : "✗"}  ${"同じ日に2回走っても二重に進まない".padEnd(40)} → ` +
+      (idemOk ? `連続${twice.upserts[0].streak}日のまま・再報告なし` : "二重に進んでいる")
+  );
+}
+
+// ─────────────────────────────────────────────
 // Discord スラッシュコマンド（2026-08-07追加）
 //
 // 見張るのは2点:
@@ -2009,6 +2106,7 @@ let prepNg = 0;
 }
 
 if (
+  addNg > 0 ||
   discordNg > 0 ||
   planNg > 0 ||
   orphanNg > 0 ||
