@@ -40,6 +40,9 @@ import printDigest from "./print-digest.js";
 import seasonPrep from "./lib/build-season-prep.js";
 // 視聴プランの集合被覆（2026-08-07追加）。純粋関数のみ。
 import { buildServicePlan } from "../lib/servicePlan.ts";
+// Discordスラッシュコマンド（2026-08-07追加）。
+import { generateKeyPairSync, sign as cryptoSign } from "node:crypto";
+import { verifyDiscordSignature, buildAnimeReply, messageResponse } from "../lib/discord.ts";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
 import { renderGrowthKit } from "./lib/build-growth-kit.js";
 
@@ -1716,6 +1719,91 @@ console.log("\n── シーズンページのHTML量 ──");
 }
 
 // ─────────────────────────────────────────────
+// Discord スラッシュコマンド（2026-08-07追加）
+//
+// 見張るのは2点:
+//   (1) 署名検証が本当に効くこと。Discord はエンドポイント登録時に**わざと壊れた署名**を
+//       送って401を返すか試すので、ここが緩むと登録できないだけでなく、
+//       誰でも偽のリクエストを投げられる穴になる。
+//   (2) 返信の文面が「放送終了作品に配信中と書かない」ルールを守ること
+//       （lib/workAvailability.ts と同じ制約。Discordの返信は他人のサーバーに残る）。
+// ─────────────────────────────────────────────
+console.log("\n── Discordスラッシュコマンド ──");
+let discordNg = 0;
+{
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  const pub = publicKey.export({ format: "der", type: "spki" }).subarray(12).toString("hex");
+  const ts = "1754500000";
+  const body = JSON.stringify({ type: 1 });
+  const sig = cryptoSign(null, Buffer.from(ts + body), privateKey).toString("hex");
+
+  const cases: { label: string; ok: boolean }[] = [
+    { label: "正しい署名は通る", ok: verifyDiscordSignature(pub, sig, ts, body) === true },
+    {
+      label: "壊れた署名は弾く",
+      ok: verifyDiscordSignature(pub, "ab".repeat(64), ts, body) === false,
+    },
+    {
+      label: "ボディを差し替えたら弾く",
+      ok: verifyDiscordSignature(pub, sig, ts, JSON.stringify({ type: 2 })) === false,
+    },
+    {
+      label: "タイムスタンプを差し替えたら弾く",
+      ok: verifyDiscordSignature(pub, sig, "1754500001", body) === false,
+    },
+    { label: "公開鍵が不正なら弾く", ok: verifyDiscordSignature("zz", sig, ts, body) === false },
+  ];
+  for (const c of cases) {
+    if (!c.ok) discordNg++;
+    console.log(`${c.ok ? "✓" : "✗"}  ${c.label.padEnd(40)} → ${c.ok ? "OK" : "検証が期待どおりでない"}`);
+  }
+
+  // 放送終了作品の返信に、現在形の断定とサービス名の羅列が無いこと。
+  const finished = buildAnimeReply("テスト", {
+    id: 1,
+    title: "テスト作品",
+    serviceNames: ["dアニメ", "ABEMA"],
+    year: 2020,
+    season: "winter",
+    finished: true,
+  });
+  const noAssert = !/配信されています|視聴できます|配信中/.test(finished);
+  const noList = !finished.includes("dアニメ") && !finished.includes("ABEMA");
+  if (!noAssert) discordNg++;
+  if (!noList) discordNg++;
+  console.log(
+    `${noAssert ? "✓" : "✗"}  ${"放送終了作品に断定を書かない".padEnd(40)} → ${noAssert ? "断定なし" : "断定が入っている"}`
+  );
+  console.log(
+    `${noList ? "✓" : "✗"}  ${"放送終了作品にサービス名を並べない".padEnd(40)} → ${noList ? "並べていない" : "並べてしまっている"}`
+  );
+
+  // 放送中の作品は従来どおり言い切ってよい。
+  const airing = buildAnimeReply("テスト", {
+    id: 2,
+    title: "テスト作品",
+    serviceNames: ["dアニメ"],
+    year: 2026,
+    season: "summer",
+    finished: false,
+  });
+  const airOk = airing.includes("配信されています") && airing.includes("dアニメ");
+  if (!airOk) discordNg++;
+  console.log(
+    `${airOk ? "✓" : "✗"}  ${"放送中の作品は言い切る".padEnd(40)} → ${airOk ? "サービス名あり" : "文面が変わっている"}`
+  );
+
+  // 返信が誰かにメンションを飛ばさないこと（他人のサーバーで動くため）。
+  const msg = messageResponse("テスト");
+  const noMention = Array.isArray(msg.data.allowed_mentions?.parse) &&
+    msg.data.allowed_mentions.parse.length === 0;
+  if (!noMention) discordNg++;
+  console.log(
+    `${noMention ? "✓" : "✗"}  ${"返信でメンションを飛ばさない".padEnd(40)} → ${noMention ? "allowed_mentions は空" : "メンションが許可されている"}`
+  );
+}
+
+// ─────────────────────────────────────────────
 // 視聴プランの計算（2026-08-07追加）
 //
 // 「お気に入りに入れた作品を全部見るには、どのサービスに入れば足りるか」を出す
@@ -1921,6 +2009,7 @@ let prepNg = 0;
 }
 
 if (
+  discordNg > 0 ||
   planNg > 0 ||
   orphanNg > 0 ||
   prepNg > 0 ||
