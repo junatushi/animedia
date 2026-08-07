@@ -6,7 +6,7 @@ import SeasonExplorer from "@/components/SeasonExplorer";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import { buildSeasonSummary, buildSeasonSummaryText } from "@/lib/seasonSummary";
 import { fitPageTitle } from "@/lib/workTitle";
-import { airingStatus, jstToday } from "@/lib/workAvailability";
+import { airingStatus, jstToday, structuredDateModified } from "@/lib/workAvailability";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import type { SeasonResponse } from "@/lib/types";
 
@@ -108,7 +108,7 @@ export default async function SeasonPage({ params }: { params: Params }) {
           "@type": "ItemList",
           name: `${year}年${label}アニメ 配信情報一覧`,
           numberOfItems: data.items.length,
-          dateModified: checkedDate,
+          dateModified: structuredDateModified(seasonStatus, checkedDate),
           itemListElement: data.items.map((it, i) => ({
             "@type": "ListItem",
             position: i + 1,

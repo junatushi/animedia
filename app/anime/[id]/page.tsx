@@ -12,6 +12,7 @@ import {
   buildWatchAnswer,
   buildWatchDescription,
   availabilityLabel,
+  structuredDateModified,
 } from "@/lib/workAvailability";
 import { buildDataFaq, buildServiceRows } from "@/lib/workFaq";
 import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
@@ -230,7 +231,10 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   // 作品にだけ入る。
   const release = item.releaseDate ?? null;
 
-  workLd.dateModified = checkedDate;
+  // 放送が終わった作品はデータが動かないので「今日更新」と申告しない
+  // （lib/workAvailability.ts の structuredDateModified 参照）。
+  const modified = structuredDateModified(status, checkedDate);
+  if (modified) workLd.dateModified = modified;
   if (release) {
     // schema.org の Movie/TVSeries が持つ公開日。生成AI・検索エンジンに
     // 「いつ公開か」を機械可読な形で渡す。

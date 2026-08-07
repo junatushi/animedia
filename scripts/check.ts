@@ -1265,6 +1265,37 @@ let availNg = 0;
     console.log(`${pass ? "✓" : "✗"}  ${name.padEnd(38)} → ${detail}`);
   }
 
+  // 構造化データの dateModified（2026-08-07追加）。
+  // 過去クールのページはスナップショット由来で中身が動かないので「今日更新」と
+  // 申告しない。app/sitemap.ts の lastmod で直したのと同じ規律。
+  const { structuredDateModified } = await import("../lib/workAvailability.ts");
+  availCheck(
+    "放送終了はdateModifiedを出さない",
+    structuredDateModified("finished", "2026-08-07") === undefined,
+    String(structuredDateModified("finished", "2026-08-07"))
+  );
+  availCheck(
+    "放送中はdateModifiedを出す",
+    structuredDateModified("airing", "2026-08-07") === "2026-08-07",
+    String(structuredDateModified("airing", "2026-08-07"))
+  );
+  // ページ側が生の checkedDate を直接入れていないこと（直書きすると検査をすり抜ける）。
+  for (const rel of [
+    "../app/season/[year]/[season]/page.tsx",
+    "../app/rankings/[year]/[season]/page.tsx",
+    "../app/exclusive/[year]/[season]/page.tsx",
+    "../app/service/[key]/[year]/[season]/page.tsx",
+    "../app/person/[name]/[year]/[season]/page.tsx",
+  ]) {
+    const src = readFileSync(new URL(rel, import.meta.url), "utf8");
+    const raw = src.includes("dateModified: checkedDate");
+    availCheck(
+      `${rel.split("/")[2]}がdateModifiedを直書きしない`,
+      !raw,
+      raw ? "checkedDateを直接入れている" : "structuredDateModified経由"
+    );
+  }
+
   const today = "2026-08-06"; // 2026年夏クールの最中
   const cases: Array<[string, string | null, string]> = [
     ["同じクール（放送中）", "2026-07-05", "airing"],

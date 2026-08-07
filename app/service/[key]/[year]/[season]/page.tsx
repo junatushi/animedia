@@ -10,7 +10,7 @@ import ServiceMarks from "@/components/ServiceMarks";
 import { siteUrl } from "@/lib/siteUrl";
 import { fitPageTitle } from "@/lib/workTitle";
 import { buildServiceSeasonStats, buildServiceSummaryText } from "@/lib/seasonSummary";
-import { airingStatus, jstToday } from "@/lib/workAvailability";
+import { airingStatus, jstToday, structuredDateModified } from "@/lib/workAvailability";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -124,7 +124,7 @@ export default async function ServicePage({ params }: { params: Params }) {
           "@type": "ItemList",
           name: `${year}年${label}アニメ ${service.name}で見れる作品一覧`,
           numberOfItems: items.length,
-          dateModified: checkedDate,
+          dateModified: structuredDateModified(seasonStatus, checkedDate),
           itemListElement: items.map((it, i) => ({
             "@type": "ListItem",
             position: i + 1,

@@ -8,6 +8,7 @@ import type { AnimeItem, ServiceTag } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
 import { fitPageTitle } from "@/lib/workTitle";
+import { airingStatus, jstToday, structuredDateModified } from "@/lib/workAvailability";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -90,6 +91,14 @@ export default async function ExclusivePage({ params }: { params: Params }) {
   const totalCount = groups.reduce((sum, g) => sum + g.items.length, 0);
   const checkedDate = new Date().toISOString().slice(0, 10);
 
+  // 放送が終わったクールのページはスナップショット由来で内容が動かないため、
+  // dateModified を「今日」と申告しない（lib/workAvailability.ts 参照）。
+  const seasonMonth = { winter: 1, spring: 4, summer: 7, autumn: 10 }[season] ?? 1;
+  const seasonStatus = airingStatus(
+    `${year}-${String(seasonMonth).padStart(2, "0")}-01`,
+    jstToday()
+  );
+
   const structuredLd = !fetchError
     ? [
         {
@@ -97,7 +106,7 @@ export default async function ExclusivePage({ params }: { params: Params }) {
           "@type": "ItemList",
           name: `${year}年${label}アニメ 独占配信まとめ`,
           numberOfItems: totalCount,
-          dateModified: checkedDate,
+          dateModified: structuredDateModified(seasonStatus, checkedDate),
           itemListElement: groups.flatMap((g) =>
             g.items.map((it, i) => ({
               "@type": "ListItem",

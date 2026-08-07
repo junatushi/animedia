@@ -100,3 +100,29 @@ export function buildWatchDescription(params: {
 export function availabilityLabel(status: AiringStatus): string {
   return status === "finished" ? "配信情報" : "配信中のサービス";
 }
+
+// ───────────────────────────────────────────────────────────────
+// 構造化データの dateModified（2026-08-07追加）
+//
+// dateModified は「内容が実際に変わった日」でなければならない。ところがこのサイトは
+// 全ページで「今日」を無条件に入れていた。過去クールのページは
+// content/snapshots/ の確定データ由来で**中身が1文字も動かない**ので、
+// 毎日「今日更新した」と申告するのは事実ではない。
+//
+// これは app/sitemap.ts の lastmod で直したのと同じ問題。Googleは日付シグナルを
+// 「一貫して正確なときだけ使う」ので、嘘の日付は本当に毎日変わる今期ページの
+// 鮮度まで巻き添えにする。しかもAI検索では鮮度の重み順が
+// 「dateModified ＞ 画面上の更新日 ＞ 公開日」で最も重いシグナルなので、
+// ここを汚すと損が大きい。
+//
+// スナップショットは生成日を持っていないため、正確な日付を出す手段が無い。
+// **正確に出せないなら申告しない**（undefined を返すと JSON.stringify が
+// フィールドごと落とす）。放送中・これからのクールは実際に毎日再取得していて
+// 内容も動きうるので、従来どおり取得日を出す。
+// ───────────────────────────────────────────────────────────────
+export function structuredDateModified(
+  status: AiringStatus,
+  fetchedDate: string
+): string | undefined {
+  return status === "finished" ? undefined : fetchedDate;
+}

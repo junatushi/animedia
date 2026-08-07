@@ -8,6 +8,7 @@ import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import type { AnimeItem, ServiceTag } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
+import { airingStatus, jstToday, structuredDateModified } from "@/lib/workAvailability";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -113,6 +114,14 @@ export default async function RankingsPage({ params }: { params: Params }) {
   }
 
   const checkedDate = new Date().toISOString().slice(0, 10);
+
+  // 放送が終わったクールのページはスナップショット由来で内容が動かないため、
+  // dateModified を「今日」と申告しない（lib/workAvailability.ts 参照）。
+  const seasonMonth = { winter: 1, spring: 4, summer: 7, autumn: 10 }[season] ?? 1;
+  const seasonStatus = airingStatus(
+    `${year}-${String(seasonMonth).padStart(2, "0")}-01`,
+    jstToday()
+  );
   const maxCoverage = Math.max(1, ...coverage.map((c) => c.count));
 
   const structuredLd = !fetchError
@@ -122,7 +131,7 @@ export default async function RankingsPage({ params }: { params: Params }) {
           "@type": "ItemList",
           name: `${year}年${label}アニメ 先行配信ランキング`,
           numberOfItems: earliest.length,
-          dateModified: checkedDate,
+          dateModified: structuredDateModified(seasonStatus, checkedDate),
           itemListElement: earliest.map((it, i) => ({
             "@type": "ListItem",
             position: i + 1,
