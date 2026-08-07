@@ -18,7 +18,15 @@
 4. **GitHub Actionsの変更**（Claude作業）
    - `.github/workflows/warm-cache.yml` の `BASE` と `.github/workflows/notify-run.yml` の
      URLを新ドメインに変更（これらは `lib/siteUrl.ts` を参照できないため個別更新）。
-5. **外部サービスの更新**（ユーザー作業）
+5. **ドキュメント内のURL更新**（Claude作業）
+   - `docs/`には人が読んで**そのままコピーして使う**URLがベタ書きされている
+     （`outreach-widget-pitch.md`の案内文、`leads-*.md`の返信下書き、`sns-templates.md`等）。
+     `lib/siteUrl.ts`を参照できないので個別に置き換える。
+   - 洗い出し: `grep -rn "animedia-khaki.vercel.app" docs/ .github/`
+   - 過去ログ（`leads-<日付>.md`のような日付つきの記録）は当時の記録として残してよいが、
+     **これから送る文面（`outreach-widget-pitch.md`）は必ず直す**。古いURLのまま送ると
+     リダイレクト頼みになり、相手に貼ってもらったリンクも旧ドメインを指す。
+6. **外部サービスの更新**（ユーザー作業）
    - **Google Search Console**: 新ドメインのプロパティを追加・所有権確認 →
      旧プロパティで「アドレス変更」を実行 → 新プロパティにsitemapを送信。
    - **Bing Webmaster Tools**: 同様にサイト追加。
@@ -28,7 +36,7 @@
    - **Resend**: 送信ドメインを独自ドメインに変更するとメール到達率も上がる（任意・推奨）。
    - X・Bluesky・MastodonのプロフィールURL、Wikidata登録を更新。
    - ASP登録サイトURL・各アフィリエイト提携のサイト情報を新ドメインに更新。
-6. **確認**
+7. **確認**
    - 旧URL→新URLのリダイレクト、Googleログイン、通知メールのリンク、
      `/*sitemap.xml` `robots.txt` `llms.txt` の内容を目視確認。
    - `npm run build` と `node scripts/check.ts` が通ること。

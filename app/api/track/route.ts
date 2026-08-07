@@ -19,6 +19,9 @@ const ALLOWED_EVENTS = new Set([
   "change_season",
   "affiliate_click",
   "official_link_click",
+  // 配信先ウィジェットの貼り付けコードがコピーされた（2026-08-06追加）。
+  // 被リンク施策の実測用: コピー数 と、埋め込み経由の流入（?ref=embed）を突き合わせる。
+  "embed_copy",
   // フッターのフォロー導線（2026-08-06追加。components/FollowLinks.tsx）
   "follow_click",
 ]);

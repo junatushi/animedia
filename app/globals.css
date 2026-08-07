@@ -1400,6 +1400,29 @@ body {
   line-height: 1.6;
   color: var(--ink);
 }
+/* コード片（/developers の貼り付け例・APIの呼び出し例）。横に長いので単独でスクロールさせる。 */
+.detail-code {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--ink);
+}
+.detail-body code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.18);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+[data-theme="light"] .detail-code,
+[data-theme="light"] .detail-body code { background: rgba(0, 0, 0, 0.05); }
+
 /* 声優一覧は人数が多いので2〜3列グリッドで縦を抑える。 */
 .detail-cast-grid {
   list-style: none;
@@ -1516,6 +1539,61 @@ a.detail-cast-name:hover { text-decoration: underline; }
 /* スマホでは1行あたりのタップ領域を確保する（44px前後）。 */
 @media (max-width: 480px) {
   .related-work { padding: 11px 0; }
+}
+
+/* ── 配信先ウィジェットの貼り付け欄（2026-08-06導入）─────────── */
+/* 検索意図（＝配信先の答え）を押し下げないよう <details> で閉じて置く。
+   実装は components/EmbedSnippet.tsx、スニペット生成は lib/embed.ts。 */
+.embed-share {
+  margin-top: 22px;
+  border: 1px dashed var(--border-soft);
+  border-radius: 12px;
+  background: var(--card-bg, transparent);
+}
+.embed-share > summary {
+  padding: 12px 14px;
+  cursor: pointer;
+  font-size: 13px; font-weight: 700; color: var(--muted);
+  list-style: none;
+}
+.embed-share > summary::-webkit-details-marker { display: none; }
+.embed-share > summary::before { content: "＋ "; color: var(--accent-2); }
+.embed-share[open] > summary::before { content: "− "; }
+.embed-share > summary:hover { color: var(--ink); }
+.embed-share-body { padding: 0 14px 14px; }
+.embed-share-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+.embed-share-tabs button {
+  padding: 6px 12px;
+  border: 1px solid var(--border-soft); border-radius: 999px;
+  background: transparent; color: var(--muted-2);
+  font-size: 12px; cursor: pointer;
+}
+.embed-share-tabs button.is-on {
+  border-color: var(--accent-2); color: var(--accent-2); font-weight: 700;
+}
+.embed-share-note { margin: 0 0 8px; font-size: 12px; line-height: 1.7; color: var(--muted-2); }
+.embed-share-code {
+  width: 100%; resize: vertical;
+  padding: 10px; border: 1px solid var(--border-soft); border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18); color: var(--ink);
+  font-family: var(--mono); font-size: 11px; line-height: 1.6;
+}
+.embed-share-actions {
+  margin-top: 8px; display: flex; align-items: center; gap: 14px;
+  font-size: 12px;
+}
+.embed-share-copy {
+  padding: 8px 18px;
+  border: 1px solid var(--accent-2); border-radius: 999px;
+  background: transparent; color: var(--accent-2);
+  font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.embed-share-actions a { color: var(--muted-2); text-decoration: underline; }
+[data-theme="light"] .embed-share-code { background: rgba(0, 0, 0, 0.04); }
+/* スマホでもタブ・コピーが押しやすい高さを確保する（44px前後）。 */
+@media (max-width: 480px) {
+  .embed-share-tabs button { padding: 10px 14px; }
+  .embed-share-copy { padding: 11px 22px; }
 }
 
 /* ── 他クールへのアーカイブ導線（クロール可能な実リンク）──────── */

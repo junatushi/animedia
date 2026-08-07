@@ -1296,6 +1296,8 @@ export default function SeasonExplorer({
         {" ・ "}
         <Link href={`/rankings/${year}/${season}`}>配信サービス勢力図・ランキング</Link>
         {" ・ "}
+        <Link href="/developers">配信先ウィジェット・公開API</Link>
+        {" ・ "}
         <Link href="/about">運営者情報</Link>
         {" ・ "}
         <Link href="/privacy">プライバシーポリシー・広告掲載について</Link>

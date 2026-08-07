@@ -6,12 +6,21 @@ import { getSeasonData } from "@/lib/getSeasonData";
 import { splitRentalServices, getServiceKana, sortServicesForMetadata } from "@/lib/services";
 import { buildWorkTitle } from "@/lib/workTitle";
 import { seasonKeyForMonth, SEASON_LABEL } from "@/lib/resolveSeasonParams";
+import {
+  airingStatus,
+  jstToday,
+  buildWatchAnswer,
+  buildWatchDescription,
+  availabilityLabel,
+} from "@/lib/workAvailability";
 import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
 import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import FollowLinks from "@/components/FollowLinks";
 import ServiceMarks from "@/components/ServiceMarks";
+import EmbedSnippet from "@/components/EmbedSnippet";
+import { buildEmbedSnippet, buildEmbedIframeSnippet } from "@/lib/embed";
 
 const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
 
@@ -98,8 +107,11 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   // description の先頭に出す。「{作品名} 公開日」は劇場作品で最も検索される問いで、
   // 配信の有無だけを書いた説明文よりスニペットが検索意図に一致する。
   const releaseLead = item.releaseDate ? `${formatJpDate(item.releaseDate.date)}劇場公開。` : "";
+  // 放送が終わったクールの作品に「配信している」と現在形で書かない（lib/workAvailability.ts）。
+  // Annictのデータは放送当時の番組表であって、いま配信中である確認ではない。
+  const status = airingStatus(item.broadcastStartDate ?? item.releaseDate?.date ?? null, jstToday());
   const description = serviceShorts.length
-    ? `${releaseLead}「${item.title}」を見放題で配信している動画配信サービスは ${descServices}。どのサービスで見られるかをアニメ視聴ガイドが最新データで一覧にしています。`
+    ? buildWatchDescription({ title: item.title, descServices, releaseLead, status })
     : `${releaseLead}「${item.title}」の配信サービスは現時点で確認できていません。判明し次第このページに反映します。今期アニメの配信状況はアニメ視聴ガイドで確認できます。`;
   const url = `${siteUrl}/anime/${id}`;
 
@@ -164,10 +176,22 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
     }),
     ...item.otherServices,
   ];
+  // 配信情報はAnnictからライブ取得（revalidateの範囲）なので、取得日を鮮度シグナルとして出す。
+  // JSTの日付にする（toISOString()はUTCのため、JSTの朝9時までは前日の日付になってしまう）。
+  const checkedDate = jstToday();
+  // 放送が終わったクールの作品は「いま配信中」と断定しない（lib/workAvailability.ts の
+  // 冒頭コメント参照）。Annictのprogramsは放送当時の番組表であって、現在の配信可否の
+  // 確認ではないため、過去作に現在形を使うと未確認の主張になる。
+  const status = airingStatus(
+    item.broadcastStartDate ?? item.releaseDate?.date ?? null,
+    checkedDate
+  );
   const jsonLdDescription =
     content?.synopsis ||
     (serviceNames.length > 0
-      ? `「${item.title}」は ${serviceNames.join("・")} で配信中。`
+      ? status === "finished"
+        ? `「${item.title}」の配信情報（${serviceNames.join("・")}）。${checkedDate}時点のAnnictデータ。`
+        : `「${item.title}」は ${serviceNames.join("・")} で配信中。`
       : `「${item.title}」の配信状況をアニメ視聴ガイドで確認できます。`);
   const workLd: Record<string, unknown> = {
     "@context": "https://schema.org",
@@ -205,9 +229,6 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   // 作品にだけ入る。
   const release = item.releaseDate ?? null;
 
-  // 配信情報はAnnictからライブ取得（revalidateの範囲）なので、確認日を鮮度シグナルとして出す。
-  // JSTの日付にする（toISOString()はUTCのため、JSTの朝9時までは前日の日付になってしまう）。
-  const checkedDate = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   workLd.dateModified = checkedDate;
   if (release) {
     // schema.org の Movie/TVSeries が持つ公開日。生成AI・検索エンジンに
@@ -307,7 +328,13 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
       : "";
   const watchAnswer =
     serviceNames.length > 0
-      ? `「${item.title}」は ${serviceLabels.join("・")} で視聴できます（${checkedDate}時点）。${rentalNote}配信状況は変わることがあるため、視聴前に各サービスの最新情報もご確認ください。`
+      ? buildWatchAnswer({
+          title: item.title,
+          serviceLabels,
+          rentalNote,
+          checkedDate,
+          status,
+        })
       : rentalServices.length > 0
         ? `「${item.title}」は見放題配信は現時点で確認できませんが、${rentalNote}（${checkedDate}時点）`
         : // 劇場公開日が判明している作品は「配信が無い」だけで終わらせず、公開前／公開済みの
@@ -432,7 +459,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                 公式サイト ↗
               </a>
             )}
-            <p className="detail-updated">配信情報の確認日: {checkedDate}（Annictより自動取得）</p>
+            {/* 「確認日」だと「その日に配信されていることを確認した」と読めてしまうが、
+                実際はAnnictからデータを取得した日でしかない（配信の現在の可否は誰も
+                確認していない）。放送中の作品でも同じ誤解を招くので、全作品で
+                「取得日」と書く。 */}
+            <p className="detail-updated">配信情報の取得日: {checkedDate}（Annictより自動取得）</p>
             {manualSources.length > 0 && (
               <p className="svc-manual-note">
                 出典:{" "}
@@ -593,6 +624,16 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
             </div>
           </article>
         )}
+        {/* 配信先ウィジェットの貼り付けコード（2026-08-06導入）。
+            被リンク・外部言及がゼロに近いことが順位（19.8位）のボトルネックという判断で、
+            「アニメ感想ブログが記事末に貼りたい情報」を1行で配れるようにした。
+            リンク先は自サイトの作品ページのみ（アフィリエイトリンクは入れない）。
+            生成は lib/embed.ts、検査は scripts/check.ts。詳細は docs/operations.md ⑯。 */}
+        <EmbedSnippet
+          title={item.title}
+          snippet={buildEmbedSnippet(item)}
+          iframeSnippet={buildEmbedIframeSnippet(item)}
+        />
       </div>
 
       <FollowLinks />
@@ -602,6 +643,8 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
         「その他配信」は未登録サービスの可能性があり、点線で表示しています。
         {" "}
+        <Link href="/developers">配信先ウィジェット・公開API</Link>
+        {" ・ "}
         <Link href="/about">運営者情報</Link>
         {" ・ "}
         <Link href="/privacy">プライバシーポリシー・広告掲載について</Link>

@@ -35,6 +35,11 @@ const EVENT_LABELS: Record<string, string> = {
   // アフィリエイトの提携先を決める判断材料そのものなので必ず出す。
   affiliate_click: "広告リンクをクリック（提携済み）",
   official_link_click: "公式サイトへ（未提携）",
+  // 配信先ウィジェットの貼り付けコードがコピーされた（2026-08-06追加。
+  // components/EmbedSnippet.tsx）。被リンク施策（docs/operations.md ⑯）の
+  // 効果測定の起点で、コピー数と ?ref=embed の流入を突き合わせて
+  // 「貼られていないのか／貼られたが押されないのか」を切り分ける。
+  embed_copy: "埋め込みコードをコピー",
 };
 
 function countBy(rows: EventRow[], since: Date | null): Record<string, number> {

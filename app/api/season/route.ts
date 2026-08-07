@@ -29,6 +29,10 @@ export async function GET(req: Request) {
     return NextResponse.json(body, {
       headers: {
         "Cache-Control": "public, s-maxage=600, stale-while-revalidate=86400",
+        // 公開データとして第三者のサイト・スクリプトからも直接叩けるようにする
+        // （2026-08-06。認証情報を載せないため * でよい。docs/operations.md ⑯）。
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
       },
     });
   } catch (e) {
