@@ -876,10 +876,13 @@ let titleNg = 0;
       "短い作品名にはサービス名が入る",
     ],
     [
+      // 作品名だけで予算を超える作品は、接尾辞を「はどこで配信？」から「の配信」に
+      // 短縮する（2026-08-07）。作品名は主キーワードなので削らないが、極端に長い
+      // titleはGoogleに書き換えられるため、足せない飾りは削って全体を縮める。
       "Re:ゼロから始める異世界生活 3rd season 反撃編",
       ["dアニメ", "ABEMA", "U-NEXT"],
-      (t) => t.startsWith("Re:ゼロから始める異世界生活 3rd season 反撃編はどこで配信？"),
-      "長い作品名でも作品名は削られない",
+      (t) => t === "Re:ゼロから始める異世界生活 3rd season 反撃編の配信",
+      "長い作品名は作品名を削らず接尾辞を縮める",
     ],
     ["薬屋のひとりごと 第2期", [], (t) => t === "薬屋のひとりごと 第2期はどこで配信？", "配信0件でも成立する"],
   ];
@@ -890,9 +893,14 @@ let titleNg = 0;
     console.log(`${pass ? "✓" : "✗"}  ${label.padEnd(34)} → ${t}（幅${width(t)}）`);
   }
 
-  // 実データ（スナップショット全件）で、作品名自体が予算内に収まる作品は
-  // 必ずtitle全体も予算内に収まること。作品名だけで予算を超える作品は対象外
-  // （削れないため。その場合もサービス名は足さない＝base のままであることを見る）。
+  // 実データ（スナップショット全件）で、titleの組み立てが3段階に正しく落ちること。
+  //   ① 「{作品名}はどこで配信？」が予算内 → そのまま（＋入るだけサービス名）
+  //   ② ①が入らないが「{作品名}の配信」なら入る → 短い接尾辞に落とす
+  //   ③ 作品名だけで予算を超える           → 作品名のみ（飾りは付けない）
+  // 作品名は主キーワードなので、③でも削らない（＝予算超過が残るのは③だけ）。
+  //
+  // 2026-08-07の実測では③が421件（4.7%）。ここが増えるのは作品名が長くなったとき
+  // だけなので、超過そのものではなく「①②に落とせるのに落としていない」を検出する。
   const { readSnapshots: readSnaps } = await import("./build-archive-index.ts");
   const snaps = readSnaps();
   let over = 0;
@@ -902,11 +910,14 @@ let titleNg = 0;
       const shorts = it.services.map((s) => s.short);
       const t = buildWorkTitle(it.title, shorts);
       const base = `${it.title}はどこで配信？`;
+      const shortForm = `${it.title}の配信`;
       checked++;
       if (width(base) <= BUDGET) {
         if (width(t) > BUDGET) over++;
-      } else if (t !== base) {
-        // 作品名だけで予算超過なのにサービス名まで足していたらNG。
+      } else if (width(shortForm) <= BUDGET) {
+        if (t !== shortForm) over++;
+      } else if (t !== it.title) {
+        // 作品名だけで予算超過。飾りを足していたらNG（長いtitleは書き換えられる）。
         over++;
       }
     }
@@ -1425,6 +1436,126 @@ console.log(`結果（行動ログの配線）: ${trackNg === 0 ? 2 : 0} 件OK /
 // なお現在クールの件数はネットワーク無しでは分からないので、ここで見られるのは
 // スナップショット済みの過去クールだけ。現在クールは巡回が`/api/season`で見る。
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// 実データ由来のQ&A・配信サービス表・クール要約（2026-08-07追加）
+//
+// これらは「AIに引用されるための形」を狙って足したもの（表・Q&A・数値）。
+// 狙いと同時に守らなければならないのが、このリポジトリの既存ルール:
+//   - 放送が終わったクールに「いま配信中」と書かない
+//   - データが無いものを推測で埋めない（＝作れない質問は作らない）
+// 文面を変えたときにこの2点が崩れていないかを機械的に見る。
+// ─────────────────────────────────────────────
+console.log("\n── 実データ由来のQ&A・表・要約 ──");
+let faqNg = 0;
+{
+  function faqCheck(name: string, pass: boolean, detail: string) {
+    if (!pass) faqNg++;
+    console.log(`${pass ? "✓" : "✗"}  ${name.padEnd(38)} → ${detail}`);
+  }
+
+  const { buildDataFaq, buildServiceRows } = await import("../lib/workFaq.ts");
+  const { buildSeasonSummary, buildSeasonSummaryText } = await import("../lib/seasonSummary.ts");
+
+  const base = {
+    title: "テスト作品",
+    streamingNames: ["dアニメストア", "U-NEXT"],
+    rentalNames: [],
+    otherServices: [],
+    broadcastStartDate: "2026-07-05",
+    broadcastWeekday: 0,
+    broadcastTime: "23:00",
+    castNames: ["声優A", "声優B"],
+    director: "監督A",
+    productionCompany: "制作A",
+    originalCreators: ["原作A"],
+  };
+
+  // 放送終了作品のQ&Aに現在形の断定を持ち込まない（lib/workAvailability.ts と同じ規律）。
+  const finished = buildDataFaq({ ...base, status: "finished" });
+  const finishedText = finished.map((f) => f.answer).join("");
+  faqCheck(
+    "放送終了のQ&Aが「配信中」と断定しない",
+    !/で配信中|視聴できます/.test(finishedText),
+    /で配信中|視聴できます/.test(finishedText) ? "断定表現あり" : "断定表現なし"
+  );
+  faqCheck(
+    "放送終了のQ&Aが確認を促す",
+    finishedText.includes("ご確認ください"),
+    finishedText.includes("ご確認ください") ? "あり" : "無い"
+  );
+
+  // データが無ければ質問そのものを作らない（「不明です」で水増ししない）。
+  const empty = buildDataFaq({
+    ...base,
+    streamingNames: [],
+    rentalNames: [],
+    broadcastStartDate: null,
+    broadcastWeekday: null,
+    broadcastTime: null,
+    castNames: [],
+    director: null,
+    productionCompany: null,
+    originalCreators: [],
+    status: "airing",
+  });
+  faqCheck(
+    "データが無ければ質問を作らない",
+    empty.length === 0,
+    `${empty.length}問（期待: 0問）`
+  );
+
+  // 曜日・時刻は放送開始日とセットのときだけ出す（放送開始1週間前ルールと同じ理由）。
+  const noStart = buildDataFaq({ ...base, broadcastStartDate: null, status: "airing" });
+  const hasWeekday = noStart.some((f) => f.question.includes("何曜日"));
+  faqCheck(
+    "放送開始日が無ければ曜日・時刻を出さない",
+    !hasWeekday,
+    hasWeekday ? "出している" : "出していない"
+  );
+
+  // 配信サービスの表にリンクを入れない（バッジの遷移先ルールを二重リンクで壊さない）。
+  const rows = buildServiceRows({
+    streaming: [{ name: "dアニメストア" }, { name: "Netflix", manualSourceUrl: "https://x.test" }],
+    rental: [{ name: "Prime Video" }],
+    otherServices: ["謎チャンネル"],
+  });
+  const rowsJson = JSON.stringify(rows);
+  faqCheck(
+    "配信サービスの表がURLを持たない",
+    !/https?:\/\//.test(rowsJson),
+    /https?:\/\//.test(rowsJson) ? "URLが混ざっている" : "URLなし"
+  );
+  faqCheck(
+    "人力確認のサービスは出所を出し分ける",
+    rows.some((r) => r.source === "公式サイト等で確認") && rows.some((r) => r.source === "Annict"),
+    rows.map((r) => `${r.name}=${r.source}`).join(" / ")
+  );
+
+  // クール要約も、放送終了クールでは現在形で断定しない。
+  const { readSnapshots: readSnaps2 } = await import("./build-archive-index.ts");
+  const someSeason = readSnaps2().find((s) => s.data.items.length > 20);
+  if (someSeason) {
+    const summary = buildSeasonSummary(someSeason.data.items, () => undefined);
+    const text = buildSeasonSummaryText({
+      year: someSeason.year,
+      label: "夏",
+      summary,
+      status: "finished",
+    });
+    faqCheck(
+      "過去クールの要約が現在形で断定しない",
+      !text.includes("配信されているのは"),
+      text.includes("配信されているのは") ? "断定表現あり" : "断定表現なし"
+    );
+    faqCheck(
+      "要約が実データの数字を含む",
+      /\d+作品/.test(text) && /\d+%/.test(text),
+      text.slice(0, 44) + "…"
+    );
+  }
+}
+console.log(`結果（Q&A・表・要約）: ${faqNg === 0 ? "全件OK" : `${faqNg} 件NG`}`);
+
 console.log("\n── シーズンページのHTML量 ──");
 {
   const GZIP_BYTES_PER_WORK = 363; // 実測: 2024夏 158作品 / gzip 57,373B
@@ -1470,6 +1601,7 @@ if (
   embedNg > 0 ||
   availNg > 0 ||
   xIntentNg > 0 ||
+  faqNg > 0 ||
   trackNg > 0
 )
   process.exit(1);

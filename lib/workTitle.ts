@@ -4,9 +4,22 @@
 // `node scripts/check.ts` から import できない（NodeはJSXを解釈しない）。
 // 幅の予算は回帰テストで守りたいロジックなので、素の .ts に置いて両方から使う。
 
-// 検索結果に出るtitleの幅の目安（全角換算）。日本語の検索結果は概ね全角30〜33文字で
-// 打ち切られる。半角は全角の約半分の幅なので0.5として数える。
-export const TITLE_WIDTH_BUDGET = 32;
+// 検索結果に出るtitleの幅の目安（全角換算）。半角は全角の約半分の幅なので0.5として数える。
+//
+// 32 → 29 に引き下げた（2026-08-07）。根拠:
+//   - 表示領域は約600px。全角のみならPCで全角28〜32文字、スマホで全角26〜33文字が目安で、
+//     切れるかどうかは文字数ではなくピクセル幅で決まる（Technogram「タイトルタグの文字数」2026）
+//   - title要素とh1要素は全角29文字以内に収めるのが安全ライン（Web担当者Forum 2025-10-24）
+// 32のままだと、過去8クール648作品の実測で64.5%が29文字超・44.4%が30文字超になっていた
+// （＝末尾に置いたサービス名が機種によっては見えない）。安全側の29に寄せる。
+export const TITLE_WIDTH_BUDGET = 29;
+
+// 作品名だけで予算を超える作品（実測8.2%。最長84文字）用の短い接尾辞。
+// 「はどこで配信？」は全角7文字ぶん幅を食う。極端に長いtitleはGoogleが
+// 高い確率で書き換える（suzukikenichi.com「タイトルの書き換えを防ぐ10の方法」）ため、
+// もともと予算を超えている作品では主キーワード「配信」だけを最小の幅で残す。
+const LONG_TITLE_SUFFIX = "の配信";
+const SUFFIX = "はどこで配信？";
 
 export function displayWidth(s: string): number {
   let w = 0;
@@ -27,8 +40,22 @@ export function displayWidth(s: string): number {
 //
 // 作品名は主キーワードなので、予算を超えても削らない（削ると検索語と一致しなくなる）。
 // その場合はサービス名を足さず「{作品名}はどこで配信？」だけにする。
+//
+// 作品名だけで予算を使い切っている作品（実測8.2%）は、接尾辞を「はどこで配信？」から
+// 「の配信」に短縮する。どちらにせよサービス名は入らないので、せめて全体の長さを縮めて
+// Googleに書き換えられる確率を下げる（極端に長いtitleは書き換えの主因）。
 export function buildWorkTitle(workTitle: string, serviceShorts: string[]): string {
-  const base = `${workTitle}はどこで配信？`;
+  const nameWidth = displayWidth(workTitle);
+  if (nameWidth + displayWidth(SUFFIX) > TITLE_WIDTH_BUDGET) {
+    // 短い接尾辞でも予算を超えるなら、作品名だけにする。
+    // 「の配信」は3文字とはいえ飾りなので、予算を超えてまで足す価値はない
+    // （長いtitleほどGoogleに書き換えられる）。作品名は主キーワードなので削らない。
+    return nameWidth + displayWidth(LONG_TITLE_SUFFIX) > TITLE_WIDTH_BUDGET
+      ? workTitle
+      : `${workTitle}${LONG_TITLE_SUFFIX}`;
+  }
+
+  const base = `${workTitle}${SUFFIX}`;
   let remaining = TITLE_WIDTH_BUDGET - displayWidth(base);
   if (serviceShorts.length === 0 || remaining <= 0) return base;
 

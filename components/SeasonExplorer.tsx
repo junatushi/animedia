@@ -152,14 +152,35 @@ function MonoLabel({ title }: { title: string }) {
   );
 }
 
+// ファーストビューに入りうるカードの枚数。ここまでのサムネは lazy にしない。
+//
+// 理由（2026-08-07）: 一覧の全サムネに loading="lazy" が付いていたが、
+// ファーストビューの画像（＝LCPの候補）を遅延読み込みにすると、ブラウザが
+// レイアウト確定まで取得を始めないぶんLCPが遅れる（Googleのマーティン・スプリット氏は
+// 500ms超の遅延要因になると説明している）。LCPは Core Web Vitals の3指標のひとつで
+// 2.5秒未満が「良好」の基準。
+// 逆に全部を eager にすると回線を食い合って遅くなるので、最初の数枚だけにする。
+const EAGER_THUMB_COUNT = 4;
+
 // カードの左タイル。AI独断解釈サムネがあればそれを、無ければモノグラムタイルを出す。
 // AI画像には「AI創作」タグと、注釈をtitle属性で添える（本作品と無関係である旨）。
-function WorkTile({ id, title }: { id: number; title: string }) {
+function WorkTile({ id, title, eager }: { id: number; title: string; eager?: boolean }) {
   if (WORK_IMAGE_IDS.has(id)) {
     return (
       <div className="thumb thumb-ai" title={AI_IMAGE_NOTE}>
+        {/* 画像は 640×360 で生成している（scripts/gen-thumbnails.js）。
+            width/height を明示すると、読み込み前でも高さが確保されて
+            レイアウトのずれ（CLS）が出ない。 */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`/works/${id}.jpg`} alt="" loading="lazy" className="thumb-ai-img" />
+        <img
+          src={`/works/${id}.jpg`}
+          alt=""
+          width={640}
+          height={360}
+          loading={eager ? "eager" : "lazy"}
+          fetchPriority={eager ? "high" : undefined}
+          className="thumb-ai-img"
+        />
         <span className="thumb-ai-tag">AI創作</span>
       </div>
     );
@@ -237,6 +258,12 @@ export interface SeasonExplorerProps {
   // ここで useSearchParams() を呼ばずに props で受けるのは、呼ぶと Next.js が
   // このコンポーネントをサーバーで描画しなくなるため（下の実装コメント参照）。
   urlQuery?: string;
+  // そのクールの要約文（配信サービス別のカバー本数・独占本数）。
+  // /season/[year]/[season] だけが渡す（lib/seasonSummary.ts で組み立てる）。
+  // シーズンページは h1 のあとがいきなり絞り込みUIと作品リストで文章が1文も無く、
+  // 64クールぶんのページが機械から見て区別しにくかった。ここに実データ由来の
+  // 数字を1〜2文置くことで、そのクール固有の内容を持たせる。
+  summaryText?: string;
 }
 
 // URLクエリ（?year=2026&season=summer）と年・シーズンの選択状態を同期する。
@@ -247,6 +274,7 @@ export default function SeasonExplorer({
   initialSeason: fixedSeason,
   initialData,
   urlQuery,
+  summaryText,
 }: SeasonExplorerProps) {
   const pathname = usePathname();
   // URLクエリは props で受け取る（自分では useSearchParams() を呼ばない。2026-08-05変更）。
@@ -682,6 +710,11 @@ export default function SeasonExplorer({
       </header>
 
       <main id="main-content" tabIndex={-1}>
+      {/* そのクールの要約（2026-08-07追加）。実データから算出した数字だけを置く。
+          h1 の直後・絞り込みUIより前に出すのは、検索結果や生成AIの回答に
+          引用されるのは冒頭の可視テキストだからで、利用者にとっても
+          「このクールはどのサービスに入れば足りるのか」の答えが先に来る。 */}
+      {summaryText && <p className="season-summary">{summaryText}</p>}
       <div className="controls">
         <div className="control-line">
           <div className="segmented" role="group" aria-label="シーズン">
@@ -1056,7 +1089,7 @@ export default function SeasonExplorer({
       {viewMode === "grid" && !loading && !error && data && filtered.length > 0 && (
         <>
           <div className="grid">
-          {filtered.map((it) => (
+          {filtered.map((it, cardIndex) => (
             <article key={it.id} className="card">
               <span className="slash" aria-hidden="true" />
               {/* 上部バー：放送タイミング（左）＋クール（右）。 */}
@@ -1075,7 +1108,7 @@ export default function SeasonExplorer({
                 <div className="card-thumb-col">
                   {/* 権利者の画像は使わない。AI独断解釈サムネ（本作品と無関係な創作）が
                       あればそれを、無ければモノグラムタイルを出す。 */}
-                  <WorkTile id={it.id} title={it.title} />
+                  <WorkTile id={it.id} title={it.title} eager={cardIndex < EAGER_THUMB_COUNT} />
                   <div className="card-actions">
                     <button
                       type="button"

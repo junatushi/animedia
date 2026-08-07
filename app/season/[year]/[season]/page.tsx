@@ -4,6 +4,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import SeasonExplorer from "@/components/SeasonExplorer";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
+import { buildSeasonSummary, buildSeasonSummaryText } from "@/lib/seasonSummary";
+import { airingStatus, jstToday } from "@/lib/workAvailability";
+import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import type { SeasonResponse } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
@@ -78,6 +81,25 @@ export default async function SeasonPage({ params }: { params: Params }) {
   // 併せてパンくず（Home → シーズン）と確認日（dateModified）も宣言する。
   const label = SEASON_LABEL[season];
   const checkedDate = new Date().toISOString().slice(0, 10);
+
+  // そのクールの要約（2026-08-07追加）。配信サービス別のカバー本数・独占本数を
+  // 実データから算出して1〜2文にする（lib/seasonSummary.ts の冒頭コメント参照）。
+  // 放送が終わったクールでは現在形で断定しないよう、クールの開始月から
+  // airingStatus を求めて渡す。
+  const seasonMonth = { winter: 1, spring: 4, summer: 7, autumn: 10 }[season] ?? 1;
+  const seasonStatus = airingStatus(
+    `${year}-${String(seasonMonth).padStart(2, "0")}-01`,
+    jstToday()
+  );
+  const summaryText = data
+    ? buildSeasonSummaryText({
+        year,
+        label,
+        summary: buildSeasonSummary(data.items, (id) => RENTAL_SERVICES[id]),
+        status: seasonStatus,
+      })
+    : undefined;
+
   const structuredLd = data
     ? [
         {
@@ -114,7 +136,12 @@ export default async function SeasonPage({ params }: { params: Params }) {
         />
       )}
       <Suspense fallback={<div className="wrap" />}>
-        <SeasonExplorer initialYear={Number(year)} initialSeason={season} initialData={data} />
+        <SeasonExplorer
+          initialYear={Number(year)}
+          initialSeason={season}
+          initialData={data}
+          summaryText={summaryText}
+        />
       </Suspense>
     </>
   );

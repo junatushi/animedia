@@ -1,0 +1,53 @@
+name: 日次SEO点検（オンサイトSEOの定点観測Issue）
+
+# 毎日 8:00 JST 目安（23:00 UTC）に自動実行。手動実行（workflow_dispatch）も可能。
+#
+# `node scripts/seo-audit.ts --markdown` の結果を1つのGitHub Issueとして起票する。
+# 出すのは「実データに対する数字」と「今日の1手」で、判断と実行は人（またはClaude）が行う。
+#
+# なぜ日次か:
+#   SEOの施策は入れた直後は正しくても、作品名が長くなる・新クールが始まる・
+#   データが増える、といった理由で黙って劣化する。実際このリポジトリでは
+#   「titleにサービス名を入れたが幅を見ておらず、実データの99%で表示前に
+#   切り捨てられていた」という事故が起きている（画面を見ても気づけない種類の劣化）。
+#   毎日おなじ物差しで測って、変化に気づける状態にしておく。
+#
+# 時刻について:
+#   GitHub Actions の schedule は予定通りに発火しない（このリポジトリの実測で最大6.4時間遅れ）。
+#   この処理は「その日のうちに1回出ればよい」だけで時刻に意味が無いため、
+#   遅延対策（毎時起動＋時間帯判定）は入れていない。SNS投稿系（build-digest.js の SLOTS）
+#   のように時刻が意味を持つ処理とは事情が違う。
+#
+# シークレット不要・外向き通信なし（スナップショットとリポジトリ内の定数だけを読む）ので、
+# Annict障害では落ちない。
+on:
+  schedule:
+    - cron: "0 23 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  seo-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # scripts/seo-audit.ts は .ts を直接実行する（型ストリッピング依存）ため
+          # Node 22 が要る。ci.yml と同じ理由・同じバージョン。
+          node-version: 22
+
+      - name: 点検結果を生成
+        run: node scripts/seo-audit.ts --markdown > seo-audit.md
+
+      - name: 点検結果をGitHub Issueとして起票
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "SEO定点観測 ($(TZ=Asia/Tokyo date +%Y-%m-%d))" \
+            --body-file seo-audit.md

@@ -1474,6 +1474,44 @@ a.detail-cast-name:hover { text-decoration: underline; }
 .detail-release strong { font-weight: 700; }
 .detail-release a { color: var(--accent-2); }
 
+/* 配信サービスの一覧表（2026-08-07追加）。バッジと同じ情報を、見放題／レンタルの別と
+   データの出所つきで表にしたもの。狭い画面でも横に溢れないよう、はみ出す場合だけ
+   表自身がスクロールする（ページ本体は横スクロールさせない）。
+   この表にリンクは入れない（配信サービスへのリンクはバッジ側が担う）。 */
+.detail-service-table {
+  width: 100%;
+  margin: 14px 0 0;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.6;
+  display: block;
+  overflow-x: auto;
+}
+.detail-service-table th,
+.detail-service-table td {
+  padding: 6px 10px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-soft);
+}
+.detail-service-table thead th {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+.detail-service-table tbody th {
+  font-weight: 700;
+  color: var(--ink);
+}
+.detail-service-table tbody td {
+  color: var(--muted);
+}
+.detail-service-table tbody tr:last-child th,
+.detail-service-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
 /* 配信情報の確認日（鮮度シグナル）。 */
 .detail-updated {
   margin: 14px 0 0;
@@ -1600,6 +1638,15 @@ a.detail-cast-name:hover { text-decoration: underline; }
 /* 上部の年・季節の切替はクライアント状態を変える <button> で <a href> を持たない。
    ここは検索エンジンが過去クールへ辿れるようにするための実リンク列（2026-08-05追加）。
    利用者にとっても「前のクールを見返す」導線になる。 */
+/* クールの要約文（2026-08-07追加）。h1 の直後・絞り込みUIより前に出る、
+   そのクール固有の実データ由来の1〜2文。 */
+.season-summary {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+
 .season-archive {
   margin-top: 44px; padding-top: 18px;
   border-top: 1px solid var(--border-soft);

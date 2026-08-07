@@ -13,6 +13,7 @@ import {
   buildWatchDescription,
   availabilityLabel,
 } from "@/lib/workAvailability";
+import { buildDataFaq, buildServiceRows } from "@/lib/workFaq";
 import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
 import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
@@ -343,6 +344,39 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
           release
           ? `「${item.title}」は${formatJpDate(release.date)}${release.date > checkedDate ? "に劇場公開予定です" : "に劇場公開された作品です"}。配信サービスは現時点でAnnictに登録がなく確認できません（${checkedDate}時点）。判明し次第このページに反映されます。`
           : `「${item.title}」の配信サービスは現時点でAnnictに登録がなく確認できません（${checkedDate}時点）。判明し次第このページに反映されます。`;
+  // 配信サービスの一覧表（2026-08-07追加）。バッジは機械にとって「リンクの並び」で
+  // しかなく、見放題／レンタルの別もデータの出所も読み取れない。同じ情報を表としても
+  // 置くと抽出率が大きく変わる（表81% 対 平文23%）。表にリンクは入れない（lib/workFaq.ts）。
+  const serviceRows = buildServiceRows({
+    streaming: streamingServices,
+    rental: rentalServices,
+    otherServices: item.otherServices,
+  });
+
+  // 実データだけから作れるQ&A（配信サービス数・独占かどうか・放送開始日・曜日時刻・
+  // 声優・制作）。人力の content/works/{id}.json と違い全作品で作れる。
+  // 質問数が増えるほどAI検索での引用率が上がる一方、中身の無い水増しは評価されないため、
+  // データが無い質問は生成しない（lib/workFaq.ts の方針コメント参照）。
+  const dataFaq = buildDataFaq({
+    title: item.title,
+    streamingNames: streamingServices.map((s) => s.name),
+    rentalNames: rentalServices.map((s) => s.name),
+    otherServices: item.otherServices,
+    broadcastStartDate: item.broadcastStartDate,
+    broadcastWeekday: item.broadcastWeekday,
+    broadcastTime: item.broadcastTime,
+    castNames: credits.casts.map((c) => c.personName),
+    director: credits.director,
+    productionCompany: credits.productionCompany,
+    originalCreators: credits.originalCreators,
+    status,
+  });
+
+  // 可視テキストとして出すQ&Aの全体。実データ由来 → 人力の補足Q&A の順。
+  // 「どこで配信？」はページ冒頭で既に見出し＋回答文として出しているので、
+  // ここには重ねない（同じ問いを2回書いても情報利得はゼロ）。
+  const visibleFaq = [...dataFaq, ...(content?.faq ?? [])];
+
   // 「どこで配信？」に加えて、content/works/{id}.json に人力で用意したQ&A
   // （「2期から見ても大丈夫？」「どの順番で見る？」等）も同じFAQPageに載せる。
   // 配信先だけでなく視聴前の判断材料まで1ページで揃うと、検索結果からの離脱が減る。
@@ -370,7 +404,10 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
             },
           ]
         : []),
-      ...(content?.faq ?? []).map((f) => ({
+      // 実データ由来のQ&A＋人力の補足Q&A。可視テキスト（下の「よくある質問」）と
+      // 同じ内容だけを載せる（可視テキストに無いものを構造化データに入れない
+      // ＝ Spammy structured markup の手動対策対象になる）。
+      ...visibleFaq.map((f) => ({
         "@type": "Question",
         name: f.question,
         acceptedAnswer: { "@type": "Answer", text: f.answer },
@@ -463,6 +500,34 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                 実際はAnnictからデータを取得した日でしかない（配信の現在の可否は誰も
                 確認していない）。放送中の作品でも同じ誤解を招くので、全作品で
                 「取得日」と書く。 */}
+            {/* バッジと同じ内容を表としても置く（2026-08-07追加）。
+                見放題／レンタル／未分類の別と、データの出所（Annict由来か人力確認か）は
+                バッジだけでは読み取れない情報で、利用者にも機械にも表のほうが速い。
+                **この表にリンクは入れない**（配信サービスへのリンクはバッジが担う。
+                lib/workFaq.ts の方針コメントとCLAUDE.mdのバッジ遷移先ルール参照）。 */}
+            {serviceRows.length > 0 && (
+              <table className="detail-service-table">
+                <caption className="sr-only">
+                  「{item.title}」の配信サービスと視聴方法の一覧
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">配信サービス</th>
+                    <th scope="col">視聴方法</th>
+                    <th scope="col">データの出所</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {serviceRows.map((r) => (
+                    <tr key={`${r.name}-${r.plan}`}>
+                      <th scope="row">{r.name}</th>
+                      <td>{r.plan}</td>
+                      <td>{r.source}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
             <p className="detail-updated">配信情報の取得日: {checkedDate}（Annictより自動取得）</p>
             {manualSources.length > 0 && (
               <p className="svc-manual-note">
@@ -511,19 +576,6 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                       ))}
                     </ul>
                   </section>
-                  {content.faq && content.faq.length > 0 && (
-                    <section className="detail-section">
-                      <h2 className="detail-heading">よくある質問</h2>
-                      <div className="detail-faq">
-                        {content.faq.map((f, i) => (
-                          <div key={i}>
-                            <h3 className="detail-faq-q">{f.question}</h3>
-                            <p className="detail-text">{f.answer}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                  )}
                 </>
               )}
 
@@ -584,6 +636,33 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                   </a>
                 </p>
               )}
+            </div>
+          </article>
+        )}
+
+        {/* よくある質問（2026-08-07に全作品へ拡大）。
+            以前は content/works/{id}.json に人力で書いた作品（数件）にしか出ていなかったが、
+            Q&A形式は同じ内容の文章よりAI検索での可視性が高く（+45%）、質問が10件以上ある
+            ページは引用可能性が大きく上がる（+156%）という実測がある。
+            そこで実データから作れる分（配信サービス数・独占かどうか・放送開始日・曜日時刻・
+            声優・制作）を lib/workFaq.ts で機械的に組み立て、人力の補足Q&Aがあれば
+            そのあとに続ける。データが無い質問は生成しない（水増しはしない）。
+            FAQPageのリッチリザルト表示は2026-05-07に終了しているので、これは
+            構造化データのためではなく可視テキストとしての施策。 */}
+        {visibleFaq.length > 0 && (
+          <article className="card">
+            <div className="card-body detail-body">
+              <section className="detail-section">
+                <h2 className="detail-heading">よくある質問</h2>
+                <div className="detail-faq">
+                  {visibleFaq.map((f, i) => (
+                    <div key={i}>
+                      <h3 className="detail-faq-q">{f.question}</h3>
+                      <p className="detail-text">{f.answer}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
             </div>
           </article>
         )}
