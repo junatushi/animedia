@@ -16,7 +16,9 @@ async function main() {
     return;
   }
 
-  const { posts } = await buildPost();
+  // 第2引数＝投稿先。Bluesky向けの本文（時間帯枠に合わせた短い導入・300字上限に収まる
+  // 260字）で組み立てる。3SNSが同一本文だった状態の解消（2026-08-06）。
+  const { posts } = await buildPost(new Date(), "bluesky");
   const agent = new BskyAgent({ service: "https://bsky.social" });
   await agent.login({ identifier, password });
 

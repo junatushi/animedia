@@ -1618,6 +1618,21 @@ a.detail-cast-name:hover { text-decoration: underline; }
 /* いま表示中のクールはリンクにせず、現在地として控えめに示す。 */
 .season-archive-item [aria-current="page"] { color: var(--muted-2); font-weight: 700; }
 
+/* ── SNSフォロー導線（2026-08-06導入）────────
+   フッターの注記の直前に1行だけ置く。バナー・モーダルにはしない
+   （配信情報を調べに来た人の邪魔をしてまで獲るものではない）。
+   注記より少しだけ目立たせるが、本文より弱いままにする。 */
+.follow-links {
+  margin-top: 28px; padding-top: 18px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--muted); font-size: 13px; line-height: 1.8;
+}
+.follow-links a { font-weight: 600; }
+/* 直後の .footnote と罫線が二重にならないようにする */
+.follow-links + .footnote {
+  margin-top: 10px; padding-top: 0; border-top: none;
+}
+
 .footnote {
   margin-top: 28px; padding-top: 18px;
   border-top: 1px solid var(--border-soft);

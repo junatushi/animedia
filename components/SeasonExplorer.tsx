@@ -10,6 +10,7 @@ import ThemeToggle from "./ThemeToggle";
 import AuthWidget from "./AuthWidget";
 import { useAuth } from "./AuthProvider";
 import { useLoginGatedWorkSet } from "./useLoginGatedWorkSet";
+import FollowLinks from "@/components/FollowLinks";
 import ScrollTopButton from "./ScrollTopButton";
 import ServiceMarks from "./ServiceMarks";
 import type { AnimeItem, SeasonResponse, ServiceTag, SearchIndexEntry } from "@/lib/types";
@@ -176,8 +177,23 @@ function brandMark(short: string): string {
 }
 
 // X（旧Twitter）の投稿画面を、本文とURLをプリセットして開く共通処理。
+//
+// 【via を付ける理由・2026-08-06追加】via を付けると投稿画面の本文末尾に
+// 「via @animedia0705」が入る。共有した人のフォロワーにアカウント名が出るので、
+// **利用者の共有がそのままアカウントの露出になる**。
+// これまでは共有されてもサイトのURLが流れるだけで、Xアカウントには何も返って
+// いなかった（3週間・約70投稿でフォロワー0という実測に対し、こちらは
+// 「こちらから話しかけずに露出を増やす」数少ない手段）。
+// 押し付けにはならない: 本文は投稿前に人が編集できるので、不要なら消せる。
+//
+// エンドポイントも twitter.com/intent/tweet（旧）から x.com/intent/post（現行）に
+// 更新した。旧URLはリダイレクトで動くが、リダイレクトを1回挟むぶんスマホの
+// アプリ起動に失敗しやすい。
+const X_SCREEN_NAME = "animedia0705";
 function openXIntent(text: string, url: string) {
-  const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+  const intent =
+    `https://x.com/intent/post?text=${encodeURIComponent(text)}` +
+    `&url=${encodeURIComponent(url)}&via=${encodeURIComponent(X_SCREEN_NAME)}`;
   window.open(intent, "_blank", "noopener,noreferrer,width=600,height=480");
 }
 
@@ -1268,6 +1284,8 @@ export default function SeasonExplorer({
           ))}
         </p>
       </nav>
+
+      <FollowLinks />
 
       <p className="footnote">
         データ元: Annict（コミュニティ更新ベース）。配信情報は網羅率100%ではなく、

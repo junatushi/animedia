@@ -53,7 +53,9 @@ async function main() {
     return;
   }
 
-  const { posts } = await buildPost();
+  // 第2引数＝投稿先。Mastodonは5〜7時台にその日の分をまとめて出す枠なので、
+  // 「おはようございます／今日は○本」と1日の全体像から入る本文になる（2026-08-06）。
+  const { posts } = await buildPost(new Date(), "mastodon");
 
   // 投稿は1件ずつ独立させる。1本目が落ちても2本目は投げ、最後にまとめて報告する
   // （2026-08-05追加。Threadsで「1本目の失敗＝その日は全滅」の事故が起きたため、

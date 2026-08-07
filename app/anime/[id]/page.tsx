@@ -17,6 +17,7 @@ import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
 import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
+import FollowLinks from "@/components/FollowLinks";
 import ServiceMarks from "@/components/ServiceMarks";
 import EmbedSnippet from "@/components/EmbedSnippet";
 import { buildEmbedSnippet, buildEmbedIframeSnippet } from "@/lib/embed";
@@ -634,6 +635,8 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
           iframeSnippet={buildEmbedIframeSnippet(item)}
         />
       </div>
+
+      <FollowLinks />
 
       <p className="footnote">
         データ元: Annict（コミュニティ更新ベース）。配信情報は網羅率100%ではなく、

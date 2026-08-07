@@ -14,6 +14,31 @@ const SEASON_LABEL: Record<string, string> = {
   autumn: "秋",
 };
 
+// ISR（2026-08-06導入。app/season・app/exclusive・app/rankingsの各[year]/[season]ページと
+// 同じ理由・同じ値）。このページだけ revalidate も generateStaticParams も無く、
+// 動的セグメント[key]/[year]/[season]が毎リクエスト動的レンダリングのまま
+// （＝CDNエッジにキャッシュされない）になっていた。
+export const revalidate = 600;
+
+// generateStaticParams は**空配列**を返す（app/anime/[id]/page.tsx と同じ形）。
+// これが無いと revalidate を書いてもルートが prerender-manifest に載らず動的のままだが、
+// 空配列でも載る＝ISRは効く。ビルド時には1件も焼かず、アクセスされた組み合わせから
+// 順にISRキャッシュに乗る。
+//
+// 【なぜ列挙しないか】このページの本体は getSeasonData を呼ぶため、列挙した
+// 組み合わせのぶんだけ**ビルド時にAnnict GraphQLへの外部APIコールが走る**。
+// SERVICES(18) × 4シーズン ＝ 72件を列挙すると、ビルドの成否が外部APIの
+// 応答性・レート制限に依存するようになる。焼く価値（このページはまだ流入が無い）に
+// 対して割に合わないので、app/anime/[id]/page.tsx と同じく空配列にしておく。
+//
+// 注記: 2026-08-07にPR #41のVercelビルド失敗の原因としてここを疑って空配列に
+// したが、**それは誤りだった**（真因は app/anime/[id]/opengraph-image.tsx が
+// edge runtimeでスナップショットを取り込んでいたこと。lib/getWorkDataLive.ts 参照）。
+// 変更自体は上記の理由で妥当なので残してある。
+export function generateStaticParams() {
+  return [];
+}
+
 type Params = { key: string; year: string; season: string };
 
 function findService(key: string) {

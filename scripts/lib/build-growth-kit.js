@@ -18,6 +18,7 @@ const {
   currentSeasonByMonth,
   shortTitle,
 } = require("./build-digest");
+const { xPostUrl, xSearchUrl } = require("./x-intent");
 
 // 「配信予定含む」を安全に表現するための放送開始判定。
 // broadcastStartDate が今日以前なら配信開始済み。未定(null)や未来は「予定」扱い。
@@ -179,6 +180,25 @@ function replyDrafts(items, year, label, seasonUrl, todayStr) {
   return drafts;
 }
 
+// 固定ポスト（プロフィールにピン留めする1投稿）の下書き。
+// 【なぜ要るか・2026-08-06】他ユーザーへのリプライ・絡みをしない方針にしたため、
+// フォロワーを増やす経路は「表示を増やす」か「表示された人が押す率を上げる」の2つに絞られる。
+// 後者で最も効くのが固定ポストで、投稿を見た人はフォロー前にほぼ必ずプロフィールを見る。
+// 日次・週次の下書きと違って**一度貼れば当分やり直し不要**なので、毎週同じ内容でよい。
+// 内容は実データの本数だけを使い、作品の評価は書かない（CLAUDE.mdの「創作しない」方針）。
+function draftPinned(year, label, count, seasonUrl) {
+  const lines = [
+    "「このアニメ、どこで配信されてる？」を調べるサイトを作っています。",
+    "",
+    `・${year}年${label}アニメ${count}作品の配信サービスを一覧で確認できます`,
+    "・曜日別のカレンダー表示、作品名・声優名での検索に対応",
+    "・配信情報は毎日自動で最新に更新",
+    "",
+    seasonUrl,
+  ];
+  return truncate(lines.join("\n"), MAX_LEN);
+}
+
 // --- 全体の組み立て ---
 async function buildGrowthKit(now = new Date()) {
   const { year, month, day } = jstParts(now);
@@ -192,7 +212,13 @@ async function buildGrowthKit(now = new Date()) {
   const data = await res.json();
   const items = data.items || [];
 
-  const seasonUrl = `${SITE_URL}/?year=${year}&season=${season}`;
+  // 【2026-08-06修正】以前は `${SITE_URL}/?year=&season=` というクエリ付きトップだった。
+  // トップページの canonical は "/" なので、検索エンジンから見ると単なる重複URLで、
+  // 順位を取らせたいシーズンページには何のシグナルも渡らない。2026-08-05に
+  // build-digest.js（日次投稿）側は /season/ 形式へ直したが、**この週次キット側は
+  // 直し漏れていた**（check.ts のリンク検査が build-digest.js しか見ていなかったため
+  // 気づけなかった。検査を build-growth-kit.js にも広げてある）。
+  const seasonUrl = `${SITE_URL}/season/${year}/${season}`;
   const exclusiveUrl = `${SITE_URL}/exclusive/${year}/${season}`;
   const rankingUrl = `${SITE_URL}/rankings/${year}/${season}`;
 
@@ -210,6 +236,7 @@ async function buildGrowthKit(now = new Date()) {
     todayStr,
     count: data.count,
     drafts,
+    pinnedDraft: draftPinned(year, label, data.count, seasonUrl),
     queries: searchQueries(items, year, label),
     replies: replyDrafts(items, year, label, seasonUrl, todayStr),
   };
@@ -217,27 +244,32 @@ async function buildGrowthKit(now = new Date()) {
 
 // Issue本文（Markdown）に整形する。
 function renderGrowthKit(kit) {
-  const { year, label, todayStr, count, drafts, queries, replies } = kit;
+  const { year, label, todayStr, count, drafts, queries, replies, pinnedDraft } = kit;
   const out = [];
   out.push(`# 今週のX成長アクション（${year}年${label}アニメ / ${todayStr}〜）`);
   out.push("");
   out.push(
-    "週1で自動起票されるチェックリストです。**投稿・リプ・フォローはすべて手動**（Xを自分で開いて操作）で行います。上から順にこなすだけでOK。"
+    "週1で自動起票されるチェックリストです。**投稿はすべて手動**（Xを自分で開いて操作）で行います。上から順にこなすだけでOK。最初の週は「2. まず数字を見る」と「3. プロフィールの点検」を先に済ませてください。"
   );
   out.push("");
   out.push(
-    "> やらないこと: 自動フォロー/フォロー解除・大量DM・スクレイピングはXのToS違反なので使いません。フォロワーは「役立つ情報の発信」と「自然な会話」で増やします。"
+    "> やらないこと: 自動フォロー/フォロー解除・大量DM・スクレイピングはXのToS違反なので使いません。**他ユーザーへのリプライ・絡みも行わない方針**（2026-08-06・利用者判断）。会話に頼らず「表示を増やす」「見た人が押す率を上げる」の2つでフォロワーを増やします。"
   );
   out.push("");
 
   out.push("## 1. 今週の投稿ドラフト（コピペ用）");
   out.push("");
   out.push(
-    `今期は${count}作品。日次ダイジェスト（毎日21時の別Issue）とは切り口を変えた週次ネタです。反応が良かった1本は固定ポスト候補にしておくと、プロフィール訪問者のフォロー率が上がります。`
+    `今期は${count}作品。日次ダイジェスト（毎朝の枠で起票される別Issue）とは切り口を変えた週次ネタです。`
   );
   out.push("");
+  // 下書きの直前に「タップ1回でXの投稿画面が本文入りで開く」リンクを置く。
+  // コードブロックも残す（PCでのコピペ運用と、Web Intentが将来壊れたときの保険）。
+  // 経緯は scripts/lib/x-intent.js のコメント参照。
   for (const d of drafts) {
     out.push(`### ${d.label}`);
+    out.push("");
+    out.push(`**[▶ このままXの投稿画面を開く](${xPostUrl(d.text)})**（本文は入った状態で開きます。投稿ボタンは自分で押してください）`);
     out.push("");
     out.push("```");
     out.push(d.text);
@@ -245,30 +277,68 @@ function renderGrowthKit(kit) {
     out.push("");
   }
 
-  out.push("## 2. リーチ（見込み客に絡んでフォロワーを増やす）");
+  // 【2026-08-06に構成を変更】以前はここが「リーチ（見込み客に絡む）」で、
+  // キットの主役だった。しかし利用者の判断で**他ユーザーへのリプライ・絡みは行わない**
+  // 方針になった（約70投稿して反応もフォローバックも無く、会話に入る運用は続けない）。
+  // 会話をしない前提でフォロワーを増やす手段は「見られる回数を増やす」か
+  // 「見た人が押す率を上げる」しかないので、そこに置き換える。
+  out.push("## 2. まず数字を見る（毎週これだけは記録する）");
   out.push("");
   out.push(
-    "下の検索クエリを**Xの検索窓にコピペ**して、「配信どこ？」で困っている人や今期アニメの話をしている人を見つけ、リプ下書きを添えて自然に返します。いきなりURL直貼りはせず、まず会話→役立つ場面で1回だけ貼るのが定石です。"
+    "リプライで会話を作らない方針なので、**伸びない原因が「見られていない」のか「見られているが押されない」のかを数字で切り分ける**ところから始めます。Xアナリティクス（`x.com/i/account_analytics`、スマホは投稿の「表示」の数字）を見て、下の3つをこのIssueにコメントで残してください。"
   );
   out.push("");
-  out.push("**検索クエリ:**");
+  out.push("| 見るもの | どこで | 意味 |");
+  out.push("|---|---|---|");
+  out.push("| 直近7日の**インプレッション合計** | Xアナリティクス | 0〜数十なら「そもそも表示されていない」。数百以上なら表示はされている |");
+  out.push("| **プロフィールへのアクセス数** | 同上 | 投稿→プロフィールまでは来ているか |");
+  out.push("| **フォロワー数** | プロフィール | 目標100人までの残り |");
   out.push("");
-  for (const q of queries) {
-    out.push("```");
-    out.push(q);
-    out.push("```");
-  }
+  out.push(
+    "**インプレッションがほぼ0なら**、投稿文をいくら磨いても意味がありません。原因は表示側（新規アカウントの評価・毎投稿に外部リンクが入っていること・タグの付けすぎ）にあるので、下の「4. 表示を増やす実験」を回します。"
+  );
   out.push("");
-  out.push("**リプ下書き（状況に合うものを選ぶ／投稿直前にサイトで最新の配信先を確認）:**");
-  out.push("");
-  for (const r of replies) {
-    out.push("```");
-    out.push(r);
-    out.push("```");
-  }
+  out.push(
+    "**インプレッションが出ているのにフォローが増えないなら**、原因はプロフィール側です。下の「3. プロフィールの点検」を先にやります。"
+  );
   out.push("");
 
-  out.push("## 3. 投稿時刻・ハッシュタグ");
+  out.push("## 3. プロフィールの点検（表示された人を逃さない）");
+  out.push("");
+  out.push(
+    "投稿を見た人は、フォローする前に必ずプロフィールを見ます。ここが整っていないと表示が増えてもフォローには変わりません。**一度やれば当分やり直し不要**なので、最初の週に済ませてください。"
+  );
+  out.push("");
+  out.push("- [ ] **固定ポスト**がある（このアカウントが何をくれるのかが1投稿で分かる。下に下書きあり）");
+  out.push("- [ ] プロフィール文に「今期アニメがどこで配信されているか」が入っている");
+  out.push("- [ ] アイコン・ヘッダー画像が既定のままになっていない");
+  out.push("- [ ] プロフィールのリンクがサイトに向いている");
+  out.push("");
+  out.push("**固定ポストの下書き**（1回貼って固定するだけ。毎週やり直す必要はありません）:");
+  out.push("");
+  out.push(`**[▶ このままXの投稿画面を開く](${xPostUrl(pinnedDraft)})**`);
+  out.push("");
+  out.push("```");
+  out.push(pinnedDraft);
+  out.push("```");
+  out.push("");
+
+  out.push("## 4. 表示を増やす実験（会話をしない前提での打ち手）");
+  out.push("");
+  out.push(
+    "Xは**外部リンクを含む投稿の表示を抑える**と広く言われています（公式の仕様として公開されているものではないため、断定はできません）。いまは全投稿の本文にサイトのURLが入っているので、ここが効いている可能性があります。**2週間だけ**次を試して、上の1のインプレッションが変わるか見てください。"
+  );
+  out.push("");
+  out.push("- [ ] 本文からURLを外して投稿し、**URLは自分の投稿への返信（リプライ）に貼る**");
+  out.push("- [ ] ハッシュタグを**1個だけ**にする（現在は2個。付けすぎは逆効果と言われています）");
+  out.push("- [ ] サイトの画面キャプチャを1枚添える（画像付きは表示が伸びやすい）");
+  out.push("");
+  out.push(
+    "2週間後、変化があった項目だけ残します。**変わらなければ元に戻してください**（手数が増えるだけなので）。"
+  );
+  out.push("");
+
+  out.push("## 5. 投稿時刻・ハッシュタグ");
   out.push("");
   out.push(
     "- **時刻**: 放送直後の実況が集まる 21:00〜24:00、または昼の 12:00〜13:00 が届きやすい。"
@@ -279,13 +349,32 @@ function renderGrowthKit(kit) {
   out.push("- **画像**: 投稿にサイトの実画面（カレンダー/TOP5パネル）のスクショを添えると伸びやすい（権利画像は使わない方針のまま）。");
   out.push("");
 
-  out.push("## 4. 今週のチェック");
+  out.push("## 7. 今週のチェック");
   out.push("");
+  // 【並び順の根拠・2026-08-06】以前は投稿ドラフトが先頭だったが、実測では
+  // 7/20〜7/30に日次の投稿下書きIssueを毎日消化してもXフォロワーは0のままだった
+  // （docs/operations.md「実測サマリ」2026-07-26）。フォロワーを増やすのは
+  // 告知の連投ではなく会話への参加（docs/x-growth-playbook.md）なので、
+  // 効く順＝リーチを先頭に置く。
+  out.push("- [ ] **今週のインプレッション・プロフィールアクセス・フォロワー数をこのIssueにコメントした**（← これが無いと何が効いたか永久に分からない）");
+  out.push("- [ ] プロフィールの点検（3）が済んでいる／固定ポストがある");
   out.push("- [ ] 上の投稿ドラフトから 2〜3本 投稿した");
-  out.push("- [ ] 検索クエリで見込み客に 3件以上 リプ/いいねした");
-  out.push("- [ ] 今期アニメの話をしている関連アカウントを 2〜3件 フォロー/交流した");
-  out.push("- [ ] 反応が良かった投稿を固定ポスト候補にメモした");
+  out.push("- [ ] 表示を増やす実験（4）を今週も同じ条件で続けた");
   out.push("");
+  // 【残してある理由】利用者の判断で他ユーザーへのリプライ・絡みは行わない方針だが、
+  // 「困っている人が実際にどう困っているか」を読むだけでも、投稿文や
+  // content/sns/spotlight.js の見直しの材料になる。接触は求めない書き方にしてある。
+  out.push("## 6. （任意）実際の困りごとを読む");
+  out.push("");
+  out.push(
+    "返信はしない方針なので、これは**リサーチ用**です。「どこで見れる？」で困っている人が実際にどんな書き方をしているかを眺めると、投稿文やスポットライトで取り上げる作品を選ぶ材料になります。やらなくても構いません。"
+  );
+  out.push("");
+  for (const q of queries) {
+    out.push(`- [🔍 Xで検索する](${xSearchUrl(q)})`);
+  }
+  out.push("");
+
   out.push(
     "運用の考え方の全体像は `docs/x-growth-playbook.md` を参照。"
   );

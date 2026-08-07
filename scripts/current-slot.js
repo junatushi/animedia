@@ -19,7 +19,7 @@
 //         （GitHubの間引きで時間帯を丸ごと逃す日が約6日に1日あるため。詳細は
 //          build-digest.js の dueSlots のコメント）
 //   due_mastodon=true|false
-//       … Mastodonだけは時間帯で分けず1日1回21時台にまとめて投稿する（2026-08-05に
+//       … Mastodonだけは時間帯で分けず1日1回・5〜7時台にまとめて投稿する（2026-08-05に
 //         従来運用へ戻した）。21時を過ぎていればtrue（未投稿ならそのまま投げる）
 //   date=YYYY-MM-DD … JSTの日付。二重投稿を防ぐキャッシュキーに使う
 const { slotForNow, dueSlots, isMastodonBatchDue, SLOTS, jstParts } = require("./lib/build-digest");
