@@ -27,6 +27,15 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   `content/snapshots/*.json`から「配信情報が1件以上ある作品」だけを抜き、声優名→出演作の
   索引を`content/archive/people.json`に書く。ネットワーク不要。
   **スナップショットを追加・再生成したら必ず実行する**（ズレは`node scripts/check.ts`が検出）
+- `node scripts/season-prep.js` … 次クール準備の「窓」判定（2026-08-07導入）。クール開始の
+  約1〜1.5ヶ月前（8/11/2/5月の下旬）ならIssue本文をstdoutに出し、窓の外なら**何も出さない**。
+  `.github/workflows/season-prep.yml`が毎日呼ぶ。窓の定義は`scripts/lib/build-season-prep.js`
+  **だけ**が持ち、YAMLに月日を書かない（`node scripts/check.ts`が検査する）。ネットワーク不要
+- `node scripts/build-studio-index.ts` … 制作会社・監督の索引（2026-08-07導入・**データは再生成待ち**）。
+  スナップショットの`roleCredits`から`content/archive/studios.json`を作る。いまのスナップショットは
+  旧形式で`roleCredits`を持たないため**空の索引になる**（落ちずに警告を出す）。実データを入れるには
+  `ANNICT_TOKEN`のある環境で`node scripts/snapshot-past-seasons.ts <年> <年> --force`から回す。
+  詳細は`docs/operations.md`の⑱-11
 - `node scripts/audit-coverage.ts [year] [season]` … 配信データ網羅率の点検（2026-07-12導入）。
   引数省略時は現在のクール。(a)TV放送データはあるが配信サービス0件の作品（注目度順。
   Annict側の登録待ちの疑い）、(b)「その他配信」に落ちた未知チャンネル名（`SERVICES`
@@ -93,6 +102,14 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   そこに書いてある。却下した施策（はてブ狙い・Wikipedia自リンク・Product Hunt等）も
   理由つきで載せてあるので、**再提案の前に読むこと**。出典URL付きの生データは
   `docs/research-2026-08/`。
+- **次クール準備の前倒し**（2026-08-07導入）: 検索需要はクール開始の約1ヶ月前から立ち上がり、
+  山は年に4回しか来ない。`.github/workflows/season-prep.yml`が8/11/2/5月の下旬にGitHub Issueで
+  チェックリスト（`audit-coverage`の点検→`extraServices.ts`の補完→`spotlight.js`の入れ替え→
+  年またぎ時のスナップショット生成）を出す。同じクールで二重起票しない。
+- **Annictへのデータ還元と再配布の相談**は `docs/annict-contribution.md`（2026-08-07導入）。
+  `audit-coverage.ts`が出す「配信0件の注目作」「未知チャンネル名」を一次情報で確認してAnnictへ
+  登録する手順と、作品データの再配布可否を尋ねる問い合わせ文面。**主目的はサイトの配信網羅率が
+  上がること**で、再配布の相談はその後。機械的な一括投稿はしない。
 - **アフィリエイト運用**（2026-07-18導入）: 提携・リンク登録・月次の報酬額更新（月1回・5分）は
   `docs/affiliate-setup.md`。報酬額を更新すれば採用リンク（最高報酬のASP）の切替は自動。
 - **自動運用のモデル構成**: 監督役＝セッションのメインモデル（現在はFable。定額プランの対象から
@@ -165,6 +182,12 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   配信の記録があった」事実であって、いま配信されているかではない**ので、表示側は
   「配信情報がある」までに留める（`lib/workAvailability.ts`と同じ扱い）。
   素の`.ts`なのは`scripts/check.ts`から検査するため
+- `lib/studioIndex.ts` + `content/archive/studios.json` + `scripts/build-studio-index.ts` …
+  制作会社・監督の横断索引（2026-08-07導入）。`lib/personIndex.ts`と同じ流儀・同じ収録方針
+  （配信情報が1件以上ある作品だけ・2作品以上の会社/監督だけ）で、表示側の表現の制約も同じ
+  （「配信情報がある」までに留める）。**スナップショットが`roleCredits`を持つまで索引は空**で、
+  ページ（`app/studio/...`）はまだ作っていない。`creditNames`から名前の見た目で
+  制作会社と人名を推測して分けることは**しない**（誤判定が嘘のページになるため）
 - `lib/embed.ts` + `app/embed/anime/[id]/route.ts` + `components/EmbedSnippet.tsx` + `app/developers/page.tsx`
   … 配信先ウィジェット（2026-08-06導入）。他サイトに貼ってもらうための埋め込み。作品ページの
   「ブログ・サイトに貼る」からHTML/iframeの貼り付けコードをコピーできる。**被リンク獲得が目的**
@@ -308,6 +331,14 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   「配信情報の取得日」は**Annictからデータを取った日**であって配信を確認した日ではないので、
   「確認日」と書かない。`node scripts/check.ts`の「放送終了作品の表現」節が機械的に
   検査しているので消さないこと。詳細は`docs/operations.md`の⑰。
+- **【基本ルール】sitemapに載せるページは、サイト内からも辿れるようにする（2026-08-07導入）**:
+  `/service/[key]/[year]/[season]`（サービス別ページ）は実装済みでsitemapにも載せていたのに、
+  **サイト内からのリンクが1本も無い孤立ページ**だった。上部のサービス絞り込みは`<button>`で
+  クライアント状態を変えるだけで`<a href>`を持たないため、**画面を見ている限り「リンクがある」と
+  錯覚する**（2026-08-05に他クールへのリンクで踏んだのと同じ穴）。加入判断＝アフィリエイトの
+  転換が起きる唯一の面が、人にもクローラーにも存在しないのと同じ状態になっていた。
+  新しいページ種別を追加してsitemapに載せるときは、**どの既存ページから実リンクを張るかを
+  同時に決める**こと。`node scripts/check.ts`の「孤立ページを作らない」節に検査があるので消さない。
 - 配信網羅率は Annict のコミュニティ更新依存で100%ではない。新作は配信欄が空になりうる。
   「配信情報なし」は仕様であり、勝手に推測データで埋めない。
 - `content/works/` のあらすじ・見どころ・出版社も同様に、公式サイト等の一次情報で確認できた

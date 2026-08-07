@@ -5,6 +5,8 @@ import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import { SERVICES, splitRentalServices } from "@/lib/services";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import ServiceMarks from "@/components/ServiceMarks";
+import CalendarSubscribeLink from "@/components/CalendarSubscribeLink";
+import { currentSeasonKey } from "@/lib/resolveSeasonParams";
 
 import { siteUrl } from "@/lib/siteUrl";
 const SEASON_LABEL: Record<string, string> = {
@@ -95,6 +97,9 @@ export default async function ServicePage({ params }: { params: Params }) {
   const exclusiveItems = items.filter((it) => it.exclusive);
 
   const checkedDate = new Date().toISOString().slice(0, 10);
+  // /calendar.ics は常に「今期」を返す（year/season を受け取らない）ので、
+  // 購読の案内は今期のページでだけ出す。
+  const isCurrentSeason = currentSeasonKey() === `${year}-${season}`;
   const structuredLd = !fetchError
     ? [
         {
@@ -235,6 +240,29 @@ export default async function ServicePage({ params }: { params: Params }) {
                     </li>
                   ))}
                 </ul>
+              </section>
+            )}
+
+            {/* 「そのサービスの分だけ」のカレンダー購読（2026-08-07追加）。
+                /calendar.ics?service= は実装済みだったが、案内が /developers に
+                しか無く、利用者が見る画面のどこからも辿れなかった。
+
+                【今期に限る理由】/calendar.ics は year/season を受け取らず、
+                常に currentSeasonKey() の作品を返す。過去クールのページに置くと
+                「2020年冬の予定表」を期待した人に今期のカレンダーを渡すことになる
+                ので、今期のページでだけ出す。 */}
+            {!fetchError && items.length > 0 && isCurrentSeason && (
+              <section className="detail-section">
+                <h2 className="detail-heading">カレンダーで購読する</h2>
+                <p className="detail-text">
+                  {service.name}で見られる今期の放送・配信スケジュールを、お使いのカレンダー
+                  （Googleカレンダー等）に取り込めます。毎週の予定として自動で表示され、
+                  新しい話数の追加もカレンダー側で更新されます:{" "}
+                  <CalendarSubscribeLink
+                    serviceKey={service.key}
+                    label={`${service.name}の放送予定を購読する（.ics）`}
+                  />
+                </p>
               </section>
             )}
           </div>

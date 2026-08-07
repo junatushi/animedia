@@ -21,9 +21,32 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fetchSeasonWorks } from "../lib/annict.ts";
-import { toAnimeItem } from "../lib/services.ts";
+import { toAnimeDetail } from "../lib/services.ts";
 import { EXTRA_SERVICES } from "../content/works/extraServices.ts";
-import type { SeasonResponse } from "../lib/types.ts";
+import type { SeasonResponse, AnimeItem } from "../lib/types.ts";
+import type { RoleCredits } from "../lib/studioIndex.ts";
+
+// スナップショットの各作品に、役割つきクレジット（監督・制作会社・原作者）を追加する
+// (2026-08-07導入)。
+//
+// なぜ必要か: 既存の creditNames は声優・制作会社・監督・原作者を役割の区別なく
+// フラットに並べた配列で、「カラー」（制作会社）と「鶴巻和哉」（監督）を機械的に
+// 区別する手段が無かった（名前の見た目からの推測はCLAUDE.mdで禁止）。
+// 一方 lib/services.ts の deriveCredits（toAnimeDetail が内部で呼ぶ）は Annict の
+// staffs（roleText付き）から役割つきで導出できている。判定ロジックをここで
+// 書き直さず、その結果をそのまま保存する。
+//
+// なぜ casts（声優×キャラ名の対応）は含めないか: 声優名自体は castNames に既にあり、
+// scripts/build-person-index.ts はキャラ名までは使わない。持たせても索引が使わない
+// データでスナップショットが太るだけなので、役割つきクレジットのうち
+// 制作会社・監督・原作者（RoleCredits）だけを追加する。
+//
+// 既存フィールド（creditNames/castNames 等）は content/archive/index.json /
+// content/archive/people.json が依存しているため変更しない（追加のみ）。
+type SnapshotItem = AnimeItem & { roleCredits: RoleCredits };
+interface SnapshotSeasonResponse extends Omit<SeasonResponse, "items"> {
+  items: SnapshotItem[];
+}
 
 const SEASONS = ["winter", "spring", "summer", "autumn"] as const;
 const SNAPSHOT_DIR = join(process.cwd(), "content", "snapshots");
@@ -42,13 +65,25 @@ function loadEnvLocal(): void {
   }
 }
 
-// lib/getSeasonData.ts の fetchAndBuild と同じ整形をする（next/cache に依存しない形で複製）。
-// ここを変えたら getSeasonData 側の整形も合わせること。
-async function buildSeason(year: string, season: string, token: string): Promise<SeasonResponse> {
+// lib/getSeasonData.ts の fetchAndBuild と、既存フィールド（AnimeItem部分）については
+// 同じ整形をする（next/cache に依存しない形で複製）。ここを変えたら getSeasonData 側の
+// 整形も合わせること。ただし roleCredits はスナップショット専用の追加フィールドで、
+// getSeasonData（今年のライブ取得）側は studios索引を必要としないため対応不要。
+async function buildSeason(year: string, season: string, token: string): Promise<SnapshotSeasonResponse> {
   const seasonStr = `${year}-${season}`;
   const works = await fetchSeasonWorks(seasonStr, token);
-  const items = works
-    .map((w) => toAnimeItem(w, EXTRA_SERVICES[w.annictId]))
+  const items: SnapshotItem[] = works
+    .map((w) => {
+      // toAnimeDetail は toAnimeItem を内部で呼ぶため、既存フィールドの値は
+      // toAnimeItem を直接呼んだ場合と変わらない（credits を追加で導出するだけ）。
+      const { credits, ...item } = toAnimeDetail(w, EXTRA_SERVICES[w.annictId]);
+      const roleCredits: RoleCredits = {
+        director: credits.director,
+        productionCompany: credits.productionCompany,
+        originalCreators: credits.originalCreators,
+      };
+      return { ...item, roleCredits };
+    })
     .sort((a, b) => b.watchers - a.watchers);
   return { season: seasonStr, count: items.length, items };
 }

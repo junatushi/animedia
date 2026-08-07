@@ -36,6 +36,8 @@ import { xPostUrl, xSearchUrl } from "./lib/x-intent.js";
 // 日次の下書きIssueの本文組み立て（--issue）。require.main ガードがあるので
 // importしてもネットワークへは出ない。
 import printDigest from "./print-digest.js";
+// 次クール準備の窓判定（2026-08-07追加）。純粋関数だけの、ネットワークに出ないモジュール。
+import seasonPrep from "./lib/build-season-prep.js";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
 import { renderGrowthKit } from "./lib/build-growth-kit.js";
 
@@ -1711,7 +1713,131 @@ console.log("\n── シーズンページのHTML量 ──");
   );
 }
 
+// ─────────────────────────────────────────────
+// 孤立ページを作らない（2026-08-07追加）
+//
+// 経緯: `/service/[key]/[year]/[season]`（サービス別ページ）は実装済みで sitemap にも
+// 載せていたのに、**サイト内からのリンクが1本も無かった**。人もクローラーも辿り着けず、
+// 「このサービスに入るべきか」という加入判断の面＝アフィリエイトの転換が起きる唯一の
+// 場面（docs/growth-strategy-2026-08.md の Tier3⑥）が事実上存在しないのと同じ状態に
+// なっていた。画面上部のサービス絞り込みは <button> でクライアント状態を変えるだけで
+// <a href> を持たないため、**画面を見ている限り「リンクがある」と錯覚する**。
+// 2026-08-05に他クールへのリンクで踏んだのと同じ穴。
+//
+// sitemapに載っているページには、サイト内のどこかから実リンクがあること。
+// ─────────────────────────────────────────────
+console.log("\n── 孤立ページを作らない（内部リンク）──");
+let orphanNg = 0;
+{
+  const cases: { file: string; needle: string; label: string }[] = [
+    {
+      file: "../components/SeasonExplorer.tsx",
+      needle: "/service/${",
+      label: "シーズン/トップ → サービス別ページ",
+    },
+    {
+      file: "../app/anime/[id]/page.tsx",
+      needle: "/service/${",
+      label: "作品ページ → サービス別ページ",
+    },
+  ];
+  for (const c of cases) {
+    const src = readFileSync(new URL(c.file, import.meta.url), "utf8");
+    const ok = src.includes(c.needle);
+    if (!ok) orphanNg++;
+    console.log(
+      `${ok ? "✓" : "✗"}  ${c.label.padEnd(40)} → ` +
+        (ok
+          ? "リンクあり"
+          : `${c.file} に \`${c.needle}\` が無い。sitemapに載せているページはサイト内からも辿れるようにすること`)
+    );
+  }
+
+  // サービス別ページの `.ics` 購読導線は「今期」に限ること。
+  // /calendar.ics は year/season を受け取らず常に currentSeasonKey() の作品を返すので、
+  // 過去クールのページに置くと「2020年冬の予定表」を期待した人に今期のカレンダーを渡す。
+  // この環境ではAnnictトークンが無く今期のページをSSRで確かめられないため、機械的に見張る。
+  const svc = readFileSync(
+    new URL("../app/service/[key]/[year]/[season]/page.tsx", import.meta.url),
+    "utf8"
+  );
+  const hasLink = svc.includes("CalendarSubscribeLink");
+  const gated = /isCurrentSeason\s*&&/.test(svc) && svc.includes("currentSeasonKey()");
+  const icsOk = hasLink && gated;
+  if (!icsOk) orphanNg++;
+  console.log(
+    `${icsOk ? "✓" : "✗"}  ${"サービス別の.ics導線は今期だけ".padEnd(40)} → ` +
+      (icsOk
+        ? "CalendarSubscribeLink を isCurrentSeason で出し分け"
+        : hasLink
+          ? "購読リンクが今期に限定されていない（/calendar.ics は常に今期を返す）"
+          : "購読リンクが無い")
+  );
+}
+
+// ─────────────────────────────────────────────
+// 次クール準備の窓（2026-08-07追加）
+//
+// 検索需要はクール開始の約1ヶ月前から立ち上がり、山は年に4回しか来ない。
+// その準備開始のきっかけを人の記憶に頼らず `.github/workflows/season-prep.yml` が
+// Issueで出す。ここで見張るのは2点:
+//   (1) 窓の定義が scripts/lib/build-season-prep.js だけにあること
+//       （YAMLにも月日を書くと、ズレたときに気づけない。SLOTSと同じ方針）
+//   (2) 4つの窓が意図した対象クールを返すこと。特に11月下旬の窓は**翌年**の冬クールで、
+//       ここを取り違えると1年ずれたIssueが出る
+// ─────────────────────────────────────────────
+console.log("\n── 次クール準備の窓 ──");
+let prepNg = 0;
+{
+  const { findPrepWindow } = seasonPrep;
+
+  // (1) YAMLに月日を書いていないか。cronは5フィールド（分 時 日 月 曜日）で、
+  //     日と月が両方 "*" であること＝「毎日起動するだけ」を確かめる。
+  const yml = readFileSync(
+    new URL("../.github/workflows/season-prep.yml", import.meta.url),
+    "utf8"
+  );
+  const crons = [...yml.matchAll(/cron:\s*"([^"]+)"/g)].map((m) => m[1]);
+  const cronOk =
+    crons.length > 0 &&
+    crons.every((c) => {
+      const f = c.trim().split(/\s+/);
+      return f.length === 5 && f[2] === "*" && f[3] === "*";
+    });
+  if (!cronOk) prepNg++;
+  console.log(
+    `${cronOk ? "✓" : "✗"}  ${"cronに月日を書いていない".padEnd(40)} → ` +
+      (cronOk
+        ? `毎日起動のみ（${crons.join(", ")}）`
+        : `season-prep.yml のcronに月日が入っている（${crons.join(", ")}）。窓の定義は scripts/lib/build-season-prep.js だけが持つこと`)
+  );
+
+  // (2) 4つの窓 ＋ 窓の外。JSTで判定されるので、UTCの15:00は翌日のJSTになる点に注意し、
+  //     JSTの正午に相当する 03:00Z で確かめる。
+  const at = (iso: string) => findPrepWindow(new Date(iso));
+  const expectations: { iso: string; want: string | null; label: string }[] = [
+    { iso: "2026-08-21T03:00:00Z", want: "2026-autumn", label: "8月下旬 → 今年の秋" },
+    { iso: "2026-11-25T03:00:00Z", want: "2027-winter", label: "11月下旬 → 翌年の冬" },
+    { iso: "2027-02-28T03:00:00Z", want: "2027-spring", label: "2月下旬 → 今年の春" },
+    { iso: "2026-05-21T03:00:00Z", want: "2026-summer", label: "5月下旬 → 今年の夏" },
+    { iso: "2026-08-20T03:00:00Z", want: null, label: "窓の直前（20日）は出さない" },
+    { iso: "2026-09-25T03:00:00Z", want: null, label: "窓の無い月は出さない" },
+  ];
+  for (const e of expectations) {
+    const w = at(e.iso);
+    const got = w ? `${w.targetYear}-${w.targetSeason}` : null;
+    const ok = got === e.want;
+    if (!ok) prepNg++;
+    console.log(
+      `${ok ? "✓" : "✗"}  ${e.label.padEnd(40)} → ` +
+        (ok ? (got ?? "窓の外") : `期待 ${e.want ?? "窓の外"} / 実際 ${got ?? "窓の外"}`)
+    );
+  }
+}
+
 if (
+  orphanNg > 0 ||
+  prepNg > 0 ||
   archiveNg > 0 ||
   titleNg > 0 ||
   linkNg > 0 ||

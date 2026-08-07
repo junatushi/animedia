@@ -1271,6 +1271,25 @@ export default function SeasonExplorer({
             </span>
           ))}
         </p>
+        {/* 配信サービス別ページへのリンク（2026-08-07追加）。
+            /service/[key]/[year]/[season] は実装済みで sitemap にも載せていたが、
+            **サイト内からのリンクが1本も無い孤立ページ**だった。
+            加入判断（＝アフィリエイトの転換が起きる唯一の場面）は「このサービスに
+            入るべきか」というサービス軸で起きるのに、その面へ人も
+            クローラーも辿り着けない状態になっていた。
+            上部の絞り込みチップは <button> でクライアント状態を変えるだけなので
+            <a href> が無く、他クールへのリンクを足したときと同じ穴（2026-08-05）。
+            並び順は serviceUsage（そのクールで見られる本数の多い順）に従う。 */}
+        {availableServices.length > 0 && (
+          <p className="season-archive-row">
+            <span className="season-archive-label">配信サービス別:</span>
+            {availableServices.map((s) => (
+              <span key={s.key} className="season-archive-item">
+                <Link href={`/service/${s.key}/${year}/${season}`}>{s.short}</Link>
+              </span>
+            ))}
+          </p>
+        )}
         <p className="season-archive-row">
           <span className="season-archive-label">過去の{SEASON_LABEL[season]}アニメ:</span>
           {years.map((y) => (
