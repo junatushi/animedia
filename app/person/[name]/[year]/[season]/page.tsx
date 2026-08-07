@@ -7,6 +7,7 @@ import { PERSON_FILMOGRAPHY } from "@/content/people/filmography";
 import type { AnimeItem } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
+import { fitPageTitle } from "@/lib/workTitle";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -45,7 +46,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const url = `${siteUrl}/person/${encodeURIComponent(name)}/${year}/${season}`;
 
   return {
-    title,
+    title: fitPageTitle(title),
     description,
     alternates: { canonical: url },
     openGraph: { title, description, url, type: "website" },

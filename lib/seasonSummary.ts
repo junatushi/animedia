@@ -109,3 +109,86 @@ export function buildSeasonSummaryText(params: {
     ? `${head}このうち見放題の配信データがあるのは${withStreaming}作品で、そのカバー本数は${ranked}でした。見放題が1社だけの独占配信は${exclusiveCount}作品です。数値は放送当時のAnnictデータに基づくもので、現在の配信状況は各サービスでご確認ください。`
     : `${head}このうち見放題で配信されているのは${withStreaming}作品で、そのカバー本数は${ranked}です。見放題が1社だけの独占配信は${exclusiveCount}作品あります。`;
 }
+
+// ───────────────────────────────────────────────────────────────
+// 配信サービス別ページ（/service/{key}/{year}/{season}）の要約（2026-08-07追加）
+//
+// なぜ要るか:
+//   このページは「dアニメストア 2026年夏アニメ」のようなロングテール検索の受け皿だが、
+//   本文は「〜で配信されている作品を人気順でまとめています」という、どのサービス・
+//   どのクールでも同じ定型文1つだけだった。サービス数×クール数ぶんのページが、
+//   機械から見るとタイトル以外ほぼ同一になる。
+//
+//   ハブ＆スポーク構造では「ハブページ自体に説明文を置き、単なるリンク集にしない」
+//   ことが効果の条件とされている。ここでも実データの数字を出す
+//   （統計の追加でAI検索での可視性が最大+40%）。
+// ───────────────────────────────────────────────────────────────
+
+export interface ServiceSeasonStats {
+  // そのクールの総作品数。
+  total: number;
+  // 見放題データがある作品数（カバー率の母数）。
+  withStreaming: number;
+  // このサービスが見放題で配信している作品数。
+  count: number;
+  // 見放題カバー本数での順位（1始まり）。データが無ければ 0。
+  rank: number;
+  // 見放題を出しているサービスの総数。
+  serviceCount: number;
+  // このサービスだけが見放題配信している作品数（独占）。
+  exclusiveCount: number;
+}
+
+export function buildServiceSeasonStats(
+  items: AnimeItem[],
+  rentalKeysFor: (id: number) => string[] | undefined,
+  serviceKey: string
+): ServiceSeasonStats {
+  const counts = new Map<string, number>();
+  let withStreaming = 0;
+  let exclusiveCount = 0;
+
+  for (const it of items) {
+    const { streaming } = splitRentalServices(it.services, rentalKeysFor(it.id));
+    if (streaming.length === 0) continue;
+    withStreaming++;
+    if (streaming.length === 1 && streaming[0].key === serviceKey) exclusiveCount++;
+    for (const s of streaming) counts.set(s.key, (counts.get(s.key) ?? 0) + 1);
+  }
+
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const idx = ranked.findIndex(([k]) => k === serviceKey);
+
+  return {
+    total: items.length,
+    withStreaming,
+    count: counts.get(serviceKey) ?? 0,
+    rank: idx >= 0 ? idx + 1 : 0,
+    serviceCount: ranked.length,
+    exclusiveCount,
+  };
+}
+
+export function buildServiceSummaryText(params: {
+  year: string | number;
+  label: string;
+  serviceName: string;
+  stats: ServiceSeasonStats;
+  status: AiringStatus;
+}): string {
+  const { year, label, serviceName, stats, status } = params;
+  const { total, withStreaming, count, rank, serviceCount, exclusiveCount } = stats;
+  if (total === 0 || count === 0) return "";
+
+  const share = withStreaming > 0 ? Math.floor((count / withStreaming) * 100) : 0;
+  const rankText = rank > 0 ? `配信サービス${serviceCount}社中${rank}位` : "";
+  const exclusiveText =
+    exclusiveCount > 0
+      ? `うち${exclusiveCount}作品は${serviceName}だけで見放題配信されている独占作品です。`
+      : "";
+
+  // 放送が終わったクールでは現在形で断定しない（このファイル冒頭の方針）。
+  return status === "finished"
+    ? `${year}年${label}アニメ全${total}作品のうち、${serviceName}での見放題配信データがあるのは${count}作品です。見放題データのある${withStreaming}作品に対するカバー率は${share}%で、${rankText}でした。${exclusiveText}数値は放送当時のAnnictデータに基づくもので、現在の配信状況は${serviceName}でご確認ください。`
+    : `${year}年${label}アニメ全${total}作品のうち、${serviceName}で見放題配信されているのは${count}作品です。見放題データのある${withStreaming}作品に対するカバー率は${share}%で、${rankText}です。${exclusiveText}`;
+}

@@ -1,6 +1,7 @@
-// 作品ページ（/anime/[id]）の <title> を組み立てる。
+// <title> の幅の管理。作品ページ（/anime/[id]）の組み立てと、
+// それ以外のページ種別に共通の「ブランド名を付けるかどうか」の判断を持つ。
 //
-// 独立したファイルにしている理由: app/anime/[id]/page.tsx は .tsx なので
+// 独立したファイルにしている理由: app/**/page.tsx は .tsx なので
 // `node scripts/check.ts` から import できない（NodeはJSXを解釈しない）。
 // 幅の予算は回帰テストで守りたいロジックなので、素の .ts に置いて両方から使う。
 
@@ -77,4 +78,38 @@ export function buildWorkTitle(workTitle: string, serviceShorts: string[]): stri
     return base + fitted.join("・") + restText;
   }
   return base + fitted.join("・");
+}
+
+// ───────────────────────────────────────────────────────────────
+// ブランド名（レイアウトの title.template）を付けるかどうかの判断（2026-08-07追加）
+//
+// app/layout.tsx は `template: "%s | アニメ視聴ガイド"` を持っており、
+// 作品ページ以外は全部これが付く。ところがブランド名は全角9.5文字ぶん幅を食うのに、
+// 「2026年夏アニメ ○○で見れる作品一覧」のようなロングテール検索に対する
+// 関連性を持たない（サイト名は検索結果でtitleとは別に表示される）。
+//
+// 実測（2026-08-07）: ブランド名込みだと
+//   - /rankings           … 全角32（予算29を超過）
+//   - /service（長い名前） … 全角34
+//   - /person（代表作あり）… 全角30.5
+// が予算超過していた。しかも /rankings は過去クールぶん68ページを
+// 検索エンジンに出したばかりのページ。
+//
+// 予算に収まるならブランド名を付ける（指名検索・ブランド認知に効く）。
+// 収まらないならブランド名を落とす、という単純な規則にして、
+// 各ページが自分で判断せずここに集約する。データが増えて名前が長くなっても
+// 勝手に追随する。
+// ───────────────────────────────────────────────────────────────
+
+// app/layout.tsx の title.template と同じ文字列。片方だけ変えると幅の計算が
+// ずれるので、scripts/check.ts が一致を検査している。
+export const BRAND_TITLE_SUFFIX = " | アニメ視聴ガイド";
+
+// Next.js の Metadata["title"] にそのまま渡せる形を返す。
+//   - 予算に収まる → 文字列（レイアウトの template が適用され、ブランド名が付く）
+//   - 収まらない   → { absolute } （template を効かせず、本文だけにする）
+export function fitPageTitle(body: string): string | { absolute: string } {
+  return displayWidth(body) + displayWidth(BRAND_TITLE_SUFFIX) <= TITLE_WIDTH_BUDGET
+    ? body
+    : { absolute: body };
 }

@@ -928,8 +928,49 @@ let titleNg = 0;
     `${pass ? "✓" : "✗"}  ${"実データ全件が幅の予算を守る".padEnd(34)} → ${checked}件中 超過${over}件` +
       (pass ? "" : "  (期待: 0件)")
   );
+
+  // ── 作品ページ以外の title（2026-08-07追加）──
+  //
+  // レイアウトの template（"%s | アニメ視聴ガイド"）が付くページ種別は、
+  // ブランド名のぶん全角9.5文字を余分に食う。実測ではランキング・サービス別・
+  // 声優別が予算超過していたため、fitPageTitle が超過分でブランド名を落とす。
+  // ここでは①定数がレイアウトと一致していること ②各ページ種別の実際のtitleが
+  // 予算に収まること、を見る。
+  const { fitPageTitle, BRAND_TITLE_SUFFIX } = await import("../lib/workTitle.ts");
+  const layoutSrc = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const templateMatch = layoutSrc.match(/template:\s*`%s \| \$\{title\}`/);
+  const layoutOk = Boolean(templateMatch) && BRAND_TITLE_SUFFIX === " | アニメ視聴ガイド";
+  if (!layoutOk) titleNg++;
+  console.log(
+    `${layoutOk ? "✓" : "✗"}  ${"ブランド接尾辞がレイアウトと一致".padEnd(34)} → ${
+      layoutOk ? `"${BRAND_TITLE_SUFFIX}"` : "layout.tsx の template と食い違っている"
+    }`
+  );
+
+  // 各ページ種別の代表的なtitle（実データで最長になりうるものを選ぶ）。
+  const pageTitles: Array<[string, string]> = [
+    ["シーズン", "2026年夏アニメ 配信情報一覧"],
+    ["ランキング", "2026年夏アニメ 配信サービス勢力図・ランキング"],
+    ["独占配信", "2026年夏アニメ 独占配信まとめ"],
+    ["サービス別（最長のサービス名）", "2026年夏アニメ Amazon Prime Videoで見れる作品一覧"],
+    ["声優別（代表作あり）", "早見沙織の代表作・2026年夏アニメ出演作一覧"],
+  ];
+  let pageOver = 0;
+  for (const [label, body] of pageTitles) {
+    const fitted = fitPageTitle(body);
+    // 文字列で返る＝レイアウトのtemplateが付く。オブジェクトで返る＝付かない。
+    const rendered = typeof fitted === "string" ? fitted + BRAND_TITLE_SUFFIX : fitted.absolute;
+    if (width(rendered) > BUDGET) pageOver++;
+  }
+  const pagePass = pageOver === 0;
+  if (!pagePass) titleNg++;
+  console.log(
+    `${pagePass ? "✓" : "✗"}  ${"作品ページ以外も幅の予算を守る".padEnd(34)} → ${
+      pageTitles.length
+    }種別中 超過${pageOver}件` + (pagePass ? "" : "  (期待: 0件)")
+  );
 }
-console.log(`結果（titleの幅）: ${titleNg === 0 ? 4 : 0} 件OK / ${titleNg} 件NG`);
+console.log(`結果（titleの幅）: ${titleNg === 0 ? 6 : 0} 件OK / ${titleNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // SNS投稿に貼るリンクの検査（2026-08-05追加）
@@ -1552,6 +1593,37 @@ let faqNg = 0;
       /\d+作品/.test(text) && /\d+%/.test(text),
       text.slice(0, 44) + "…"
     );
+
+    // 配信サービス別ページの要約も同じ規律で見る。
+    const { buildServiceSeasonStats, buildServiceSummaryText } = await import(
+      "../lib/seasonSummary.ts"
+    );
+    // そのクールで最も本数の多いサービスを選ぶ（0件だと要約が空になるため）。
+    const topKey = summary.topServices[0]
+      ? someSeason.data.items
+          .flatMap((it) => it.services)
+          .find((s) => s.name === summary.topServices[0].name)?.key
+      : undefined;
+    if (topKey) {
+      const stats = buildServiceSeasonStats(someSeason.data.items, () => undefined, topKey);
+      const svcFinished = buildServiceSummaryText({
+        year: someSeason.year,
+        label: "夏",
+        serviceName: summary.topServices[0].name,
+        stats,
+        status: "finished",
+      });
+      faqCheck(
+        "サービス別の要約が現在形で断定しない",
+        !svcFinished.includes("配信されているのは"),
+        svcFinished.includes("配信されているのは") ? "断定表現あり" : "断定表現なし"
+      );
+      faqCheck(
+        "サービス別の要約がカバー率と順位を含む",
+        /カバー率は\d+%/.test(svcFinished) && /\d+位/.test(svcFinished),
+        svcFinished.slice(0, 48) + "…"
+      );
+    }
   }
 }
 console.log(`結果（Q&A・表・要約）: ${faqNg === 0 ? "全件OK" : `${faqNg} 件NG`}`);

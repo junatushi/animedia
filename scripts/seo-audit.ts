@@ -17,7 +17,13 @@
 //   こちらは「赤ではないが悪化しているかもしれない傾向」を出す。だから
 //   exit code は原則0で、CIを止めない（止めるべきものは check.ts 側に置く）。
 import { readSnapshots } from "./build-archive-index.ts";
-import { buildWorkTitle, displayWidth, TITLE_WIDTH_BUDGET } from "../lib/workTitle.ts";
+import {
+  buildWorkTitle,
+  displayWidth,
+  fitPageTitle,
+  BRAND_TITLE_SUFFIX,
+  TITLE_WIDTH_BUDGET,
+} from "../lib/workTitle.ts";
 import { buildDataFaq } from "../lib/workFaq.ts";
 import { buildSeasonSummary, buildSeasonSummaryText } from "../lib/seasonSummary.ts";
 import { splitRentalServices } from "../lib/services.ts";
@@ -134,6 +140,35 @@ const snaps = readSnapshots();
   if (avoidableOver > 0) {
     findings.push(`**幅の予算を超えている作品が${avoidableOver}件ある**（詰め方の問題）`);
   }
+
+  // 作品ページ以外の title も同じ物差しで測る（2026-08-07追加）。
+  // レイアウトの template（"%s | アニメ視聴ガイド"）が付く種別は、ブランド名のぶん
+  // 全角9.5文字を余計に食う。fitPageTitle が超過分でブランド名を落とすので、
+  // 「落としてもなお超える」種別が出ていないかを見る（＝本文が長すぎる合図）。
+  const pageTitles: Array<[string, string]> = [
+    ["シーズン", "2026年夏アニメ 配信情報一覧"],
+    ["ランキング", "2026年夏アニメ 配信サービス勢力図・ランキング"],
+    ["独占配信", "2026年夏アニメ 独占配信まとめ"],
+    ["サービス別", "2026年夏アニメ Amazon Prime Videoで見れる作品一覧"],
+    ["声優別", "早見沙織の代表作・2026年夏アニメ出演作一覧"],
+  ];
+  const withBrand: string[] = [];
+  const overPages: string[] = [];
+  for (const [label, body] of pageTitles) {
+    const fitted = fitPageTitle(body);
+    const rendered = typeof fitted === "string" ? fitted + BRAND_TITLE_SUFFIX : fitted.absolute;
+    if (typeof fitted === "string") withBrand.push(label);
+    if (displayWidth(rendered) > TITLE_WIDTH_BUDGET) overPages.push(label);
+  }
+  metrics.push({
+    label: "ブランド名を付けられるページ種別",
+    value: `${withBrand.length}/${pageTitles.length}種別（${withBrand.join("・") || "なし"}）`,
+  });
+  metrics.push({
+    label: "ブランド名を落としてもなお予算超過の種別",
+    value: overPages.length === 0 ? "0種別" : overPages.join("・"),
+    gap: overPages.length > 0 ? "本文が長すぎる。titleの文言そのものを短くする" : undefined,
+  });
 }
 
 // ─────────────────────────────────────────────

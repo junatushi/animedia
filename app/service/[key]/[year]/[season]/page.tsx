@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import type { AnimeItem } from "@/lib/types";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import { SERVICES, splitRentalServices } from "@/lib/services";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import ServiceMarks from "@/components/ServiceMarks";
 
 import { siteUrl } from "@/lib/siteUrl";
+import { fitPageTitle } from "@/lib/workTitle";
+import { buildServiceSeasonStats, buildServiceSummaryText } from "@/lib/seasonSummary";
+import { airingStatus, jstToday } from "@/lib/workAvailability";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -56,7 +60,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const url = `${siteUrl}/service/${key}/${year}/${season}`;
 
   return {
-    title,
+    title: fitPageTitle(title),
     description,
     alternates: { canonical: url },
     openGraph: { title, description, url, type: "website" },
@@ -75,9 +79,12 @@ export default async function ServicePage({ params }: { params: Params }) {
 
   const label = SEASON_LABEL[season];
   let items: { id: number; title: string; watchers: number; rental: boolean }[] = [];
+  // そのクールの全作品（このサービスで絞る前）。カバー率・順位の集計に使う。
+  let seasonItems: AnimeItem[] = [];
   let fetchError: string | null = null;
   try {
     const data = await getSeasonData(year, season);
+    seasonItems = data.items;
     for (const it of data.items) {
       const hasService = it.services.some((s) => s.key === key);
       if (!hasService) continue;
@@ -91,6 +98,25 @@ export default async function ServicePage({ params }: { params: Params }) {
   }
 
   const checkedDate = new Date().toISOString().slice(0, 10);
+
+  // このサービスがそのクールをどれだけカバーしているかの要約（2026-08-07追加）。
+  // 定型文だけだとサービス数×クール数ぶんのページがタイトル以外ほぼ同一になるため、
+  // 実データの数字（本数・カバー率・順位・独占数）を出す（lib/seasonSummary.ts参照）。
+  const seasonMonth = { winter: 1, spring: 4, summer: 7, autumn: 10 }[season] ?? 1;
+  const seasonStatus = airingStatus(
+    `${year}-${String(seasonMonth).padStart(2, "0")}-01`,
+    jstToday()
+  );
+  const summaryText = seasonItems.length
+    ? buildServiceSummaryText({
+        year,
+        label,
+        serviceName: service.name,
+        stats: buildServiceSeasonStats(seasonItems, (id) => RENTAL_SERVICES[id], key),
+        status: seasonStatus,
+      })
+    : "";
+
   const structuredLd = !fetchError
     ? [
         {
@@ -161,6 +187,10 @@ export default async function ServicePage({ params }: { params: Params }) {
           <div className="card-body detail-body">
             <section className="detail-section">
               <h2 className="detail-heading">この一覧について</h2>
+              {/* 実データ由来の要約（2026-08-07追加）。本数・カバー率・順位・独占数を出す。
+                  これが無いと、サービス数×クール数ぶんのページがタイトル以外ほぼ同一の
+                  定型文になり、機械から見て区別が付かない。 */}
+              {summaryText && <p className="detail-text">{summaryText}</p>}
               <p className="detail-text">
                 {year}年{label}アニメのうち、{service.name}で配信されている作品を人気順（注目度順）でまとめています
                 （{checkedDate}時点）。配信情報は網羅率100%ではなく、新作は反映が遅れることがあります。

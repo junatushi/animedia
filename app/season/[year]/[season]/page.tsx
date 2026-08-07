@@ -5,6 +5,7 @@ import Link from "next/link";
 import SeasonExplorer from "@/components/SeasonExplorer";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import { buildSeasonSummary, buildSeasonSummaryText } from "@/lib/seasonSummary";
+import { fitPageTitle } from "@/lib/workTitle";
 import { airingStatus, jstToday } from "@/lib/workAvailability";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import type { SeasonResponse } from "@/lib/types";
@@ -50,7 +51,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const url = `${siteUrl}/season/${year}/${season}`;
 
   return {
-    title,
+    title: fitPageTitle(title),
     description,
     alternates: { canonical: url },
     openGraph: { title, description, url, type: "website" },

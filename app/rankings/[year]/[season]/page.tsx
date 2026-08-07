@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import { splitRentalServices } from "@/lib/services";
+import { fitPageTitle } from "@/lib/workTitle";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import type { AnimeItem, ServiceTag } from "@/lib/types";
 
@@ -81,7 +82,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const url = `${siteUrl}/rankings/${year}/${season}`;
 
   return {
-    title,
+    title: fitPageTitle(title),
     description,
     alternates: { canonical: url },
     openGraph: { title, description, url, type: "website" },
