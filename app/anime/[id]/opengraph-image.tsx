@@ -1,6 +1,12 @@
 import { ImageResponse } from "next/og";
 import { loadGoogleFont } from "@/lib/ogFont";
-import { getWorkData } from "@/lib/getWorkData";
+// ここは edge runtime なので **getWorkData ではなく getWorkDataLive** を使う。
+// getWorkData が持つ過去クールのスナップショット・フォールバックは動的importで
+// content/snapshots/*.json（64ファイル・5.1MB）を参照しており、edgeではそれが
+// 遅延ロードにならず関数へ丸ごとインライン化される（実測16KB→5,040KB）。
+// Vercel の Edge Function のサイズ上限を超えてデプロイが落ちる。詳細は
+// lib/getWorkDataLive.ts の冒頭。
+import { getWorkDataLive } from "@/lib/getWorkDataLive";
 
 // 作品ページを共有した時、その作品名・配信サービスが入ったカード画像を出す。
 export const runtime = "edge";
@@ -21,7 +27,7 @@ export default async function OpengraphImage({ params }: { params: { id: string 
   let serviceLine = "";
 
   try {
-    const item = Number.isInteger(id) ? await getWorkData(id) : null;
+    const item = Number.isInteger(id) ? await getWorkDataLive(id) : null;
     if (item) {
       title = item.title;
       serviceLine = item.services.map((s) => s.short).join(" / ");
