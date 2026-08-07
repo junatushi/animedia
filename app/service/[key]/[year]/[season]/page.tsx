@@ -20,16 +20,24 @@ const SEASON_LABEL: Record<string, string> = {
 // （＝CDNエッジにキャッシュされない）になっていた。
 export const revalidate = 600;
 
-// season/exclusive/rankingsは[year]/[season]の2セグメントなので今年の4シーズンを
-// 列挙するだけで済むが、このページは[key]も動的セグメントに含むため、実在する
-// サービスkey（SERVICES）× 今年の4シーズンの組み合わせを列挙する（現状18サービス×4
-// ＝72件程度で、ビルド時に焼く数として現実的）。ここに無い組み合わせ（過去年や
-// 未知のkey）もdynamicParams（既定true）により初回オンデマンド生成→以後キャッシュされる。
+// generateStaticParams は**空配列**を返す（app/anime/[id]/page.tsx と同じ形）。
+// これが無いと revalidate を書いてもルートが prerender-manifest に載らず動的のままだが、
+// 空配列でも載る＝ISRは効く。ビルド時には1件も焼かず、アクセスされた組み合わせから
+// 順にISRキャッシュに乗る。
+//
+// 【なぜ列挙しないか】2026-08-06にここで SERVICES(18) × 今年の4シーズン ＝ 72件を
+// 列挙したところ、**Vercelのビルドが失敗した**（PR #41 のプレビューデプロイ。
+// GitHub ActionsのCIは緑のまま）。このページの本体は getSeasonData を呼ぶため、
+// 列挙した組み合わせのぶんだけ**ビルド時にAnnict GraphQLへの外部APIコールが走る**。
+// つまりビルドの成否が外部APIの応答性・レート制限に依存するようになる。
+//
+// CIとVercelで結果が割れた理由もここにある。CIは ANNICT_TOKEN を持たない
+// （docs/operations.md ⑭「シークレット不要・外向き通信に依存しない」）ので
+// Annictを叩かずに素通りし、**トークンを持つVercelのビルドだけが落ちる**。
+// ビルド時にデータ取得を伴うプリレンダリングをこのリポジトリで足すときは、
+// 同じ罠を踏むので注意すること。
 export function generateStaticParams() {
-  const year = String(new Date().getFullYear());
-  return SERVICES.flatMap((s) =>
-    ["winter", "spring", "summer", "autumn"].map((season) => ({ key: s.key, year, season }))
-  );
+  return [];
 }
 
 type Params = { key: string; year: string; season: string };
