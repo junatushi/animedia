@@ -1070,6 +1070,38 @@ body {
   flex-direction: column;
   gap: 6px;
 }
+/* 視聴プラン（2026-08-07追加。lib/servicePlan.ts）。
+   お気に入りを全部見るのに必要な最小のサービス組み合わせを、候補ごとに1行で出す。 */
+.plan-panel {
+  padding: 10px 12px 12px;
+}
+.plan-combos {
+  list-style: none;
+  margin: 8px 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.plan-combo-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.plan-combo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
 .svc-compare-row {
   width: 100%;
   display: flex;

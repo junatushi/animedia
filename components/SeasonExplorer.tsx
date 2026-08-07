@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { logEvent } from "@/lib/logEvent";
 import { textOn, splitRentalServices } from "@/lib/services";
+import { buildServicePlan } from "@/lib/servicePlan";
 import { CHANGELOG } from "@/lib/changelog";
 import ThemeToggle from "./ThemeToggle";
 import AuthWidget from "./AuthWidget";
@@ -480,6 +481,28 @@ export default function SeasonExplorer({
     [serviceUsage],
   );
 
+  // 視聴プラン（lib/servicePlan.ts）。**開いたときにだけ**計算する。
+  // planOpen を依存に入れてあるので、閉じている間は buildServicePlan を1度も呼ばない
+  // （一覧・検索・絞り込みの操作で余計な計算を走らせないための門番）。
+  const [planOpen, setPlanOpen] = useState(false);
+  const plan = useMemo(() => {
+    if (!planOpen || !data) return null;
+    const picked = data.items
+      .filter((it) => favorites.has(it.id))
+      .map((it) => ({
+        id: it.id,
+        title: it.title,
+        // レンタル/都度課金は「契約すれば見られる」ではないので組み合わせに数えない
+        // （対応本数の集計 serviceUsage と同じ扱い）。
+        services: splitRentalServices(it.services, RENTAL_SERVICES[it.id]).streaming.map((s) => ({
+          key: s.key,
+          short: s.short,
+        })),
+      }));
+    if (picked.length === 0) return null;
+    return buildServicePlan(picked);
+  }, [planOpen, data, favorites]);
+
   // 今期に複数作品へ出演している声優を、出演数の多い順にチップ化する（試験実装）。
   // 1作品だけの声優は対象外にして、チップの数を絞る。
   const CAST_CHIP_MIN_COUNT = 2;
@@ -901,6 +924,83 @@ export default function SeasonExplorer({
             </ol>
           </details>
         )}
+
+      {/* 視聴プラン＝「お気に入りに入れた作品を全部見るには、どのサービスに入れば足りるか」。
+          （2026-08-07導入。lib/servicePlan.ts）
+
+          【一覧の表示速度を落とさないための約束】
+          ・カード1枚ごとにマークアップを足さない（作品数に比例してHTMLが膨らむため。
+            シーズンページのHTML量は scripts/check.ts が見張っている）。
+          ・計算は**この折りたたみを開いたときだけ**走らせる（planOpen で門番する）。
+            一覧の描画・検索・絞り込みの経路では1度も呼ばれない。
+          実測（scripts/check.ts の「視聴プランの計算」節）: 最大クール201作品でも1ms前後。 */}
+      {viewMode === "grid" && !loading && !error && data && favorites.size > 0 && (
+        <details
+          className="svc-compare fold-panel"
+          onToggle={(e) => {
+            const open = (e.currentTarget as HTMLDetailsElement).open;
+            setPlanOpen(open);
+            if (open) logEvent("plan_open");
+          }}
+        >
+          <summary className="fold-summary">
+            <h2 className="fold-summary-text">
+              お気に入り{favorites.size}本の視聴プラン
+            </h2>
+          </summary>
+          {planOpen && plan && (
+            <div className="plan-panel">
+              {plan.covered === 0 ? (
+                <p className="detail-text">
+                  お気に入りの作品に配信情報がまだ登録されていないため、組み合わせを出せません。
+                </p>
+              ) : (
+                <>
+                  <p className="detail-text">
+                    お気に入り{plan.selected}本のうち配信情報がある{plan.covered}本は、
+                    <strong>最小{plan.minCount}サービス</strong>で見られます。
+                  </p>
+                  {/* 【誤読を防ぐ】候補が複数あるとき、並んだサービスを「全部に入る必要がある」と
+                      読まれると逆の意味になる。候補どうしは**いずれか1つを選ぶもの**なので、
+                      見出しで明示し、各行にも「案1/案2」の番号を付ける。 */}
+                  {plan.combos.length > 1 && (
+                    <p className="detail-sub">
+                      次の{plan.combos.length}通りのうち、<strong>どれか1つ</strong>を選べば足ります
+                      {plan.minCount > 1 && `（1つの案の中のサービスは全部必要です）`}。
+                    </p>
+                  )}
+                  <ul className="plan-combos">
+                    {plan.combos.map((combo, i) => (
+                      <li key={i} className="plan-combo">
+                        {plan.combos.length > 1 && (
+                          <span className="plan-combo-label">案{i + 1}</span>
+                        )}
+                        <ServiceMarks
+                          services={combo.map(
+                            (c) => availableServices.find((s) => s.key === c.key) ?? null
+                          ).filter((s): s is ServiceTag => s !== null)}
+                          otherServices={[]}
+                          hideDisclosure
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                  {plan.uncovered.length > 0 && (
+                    <p className="detail-sub">
+                      配信情報が未登録のため組み合わせに含められなかった作品:{" "}
+                      {plan.uncovered.map((u) => u.title).join("・")}
+                    </p>
+                  )}
+                  <p className="detail-sub">
+                    Annictに配信の記録がある作品から計算しています。過去クールの作品は、
+                    いま配信されているとは限りません。契約前に各サービスでご確認ください。
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+        </details>
+      )}
 
       {/* 配信サービス横断の比較表。「このサービスだけで何本見れるか」を一目で見せる。
           注目作ランキングと同じく、絞り込みをしていない素の状態でだけ出す。既定は折りたたみ。

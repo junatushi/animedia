@@ -38,6 +38,8 @@ import { xPostUrl, xSearchUrl } from "./lib/x-intent.js";
 import printDigest from "./print-digest.js";
 // 次クール準備の窓判定（2026-08-07追加）。純粋関数だけの、ネットワークに出ないモジュール。
 import seasonPrep from "./lib/build-season-prep.js";
+// 視聴プランの集合被覆（2026-08-07追加）。純粋関数のみ。
+import { buildServicePlan } from "../lib/servicePlan.ts";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
 import { renderGrowthKit } from "./lib/build-growth-kit.js";
 
@@ -1714,6 +1716,89 @@ console.log("\n── シーズンページのHTML量 ──");
 }
 
 // ─────────────────────────────────────────────
+// 視聴プランの計算（2026-08-07追加）
+//
+// 「お気に入りに入れた作品を全部見るには、どのサービスに入れば足りるか」を出す
+// 集合被覆の厳密解（lib/servicePlan.ts）。見張るのは2点:
+//   (1) 正しさ … 最小のサービス数を本当に返すか（貪欲法だと1つ多い答えを返す形を含む）
+//   (2) 速さ  … 利用者の指定で「一覧表示が2秒以上かからないこと」が要件。
+//               計算は折りたたみを開いたときだけ走るが、それでも実データで上限を切る。
+// ─────────────────────────────────────────────
+console.log("\n── 視聴プランの計算 ──");
+let planNg = 0;
+{
+  const svc = (key: string) => ({ key, short: key });
+  const w = (id: number, ...keys: string[]) => ({
+    id,
+    title: `作品${id}`,
+    services: keys.map(svc),
+  });
+
+  // (1-a) 1社で足りるなら1社と答える
+  const a = buildServicePlan([w(1, "d"), w(2, "d", "abema"), w(3, "d")]);
+  const aOk = a.minCount === 1 && a.combos[0][0].key === "d";
+  if (!aOk) planNg++;
+  console.log(
+    `${aOk ? "✓" : "✗"}  ${"1社で足りるとき".padEnd(40)} → ` +
+      (aOk ? "最小1サービス" : `最小${a.minCount} / ${JSON.stringify(a.combos)}`)
+  );
+
+  // (1-b) 貪欲法が誤る形。d は3本を覆うので貪欲だと d を先に取り、そのあと x と y が
+  //       必要になって3社になる。正解は a2+b2 の2社。
+  const g = buildServicePlan([
+    w(1, "d", "a2"),
+    w(2, "d", "a2"),
+    w(3, "d", "b2"),
+    w(4, "a2"),
+    w(5, "b2"),
+    w(6, "b2"),
+  ]);
+  const gOk = g.minCount === 2;
+  if (!gOk) planNg++;
+  console.log(
+    `${gOk ? "✓" : "✗"}  ${"貪欲法では1社多くなる形".padEnd(40)} → ` +
+      (gOk ? "最小2サービス（厳密解）" : `最小${g.minCount}（厳密解なら2）`)
+  );
+
+  // (1-c) 配信情報が無い作品は組み合わせに含めず、別枠で返す
+  const u = buildServicePlan([w(1, "d"), w(2)]);
+  const uOk = u.minCount === 1 && u.uncovered.length === 1 && u.covered === 1;
+  if (!uOk) planNg++;
+  console.log(
+    `${uOk ? "✓" : "✗"}  ${"配信情報が無い作品は別枠".padEnd(40)} → ` +
+      (uOk ? "対象1本 / 別枠1本" : `対象${u.covered} / 別枠${u.uncovered.length}`)
+  );
+
+  // (2) 速さ。実データのうち最も重いクールで測る。お気に入りは普通10本前後なので
+  //     クール全作品はあり得ない上限だが、そこでも一瞬で終わることを確かめる。
+  const BUDGET_MS = 200; // 一覧表示の要件（2秒）に対して10倍の余裕を取った上限
+  const dir = new URL("../content/snapshots/", import.meta.url);
+  let worst = { season: "", n: 0, ms: 0 };
+  for (const f of readdirSync(dir).filter((x) => x.endsWith(".json"))) {
+    const snap = JSON.parse(readFileSync(new URL(f, dir), "utf8")) as {
+      items?: { id: number; title: string; services: { key: string; short: string }[] }[];
+    };
+    const works = (snap.items ?? []).map((it) => ({
+      id: it.id,
+      title: it.title,
+      services: it.services.map((s) => ({ key: s.key, short: s.short })),
+    }));
+    if (works.length === 0) continue;
+    const t0 = performance.now();
+    buildServicePlan(works);
+    const ms = performance.now() - t0;
+    if (ms > worst.ms) worst = { season: f.replace(/\.json$/, ""), n: works.length, ms };
+  }
+  const fast = worst.ms < BUDGET_MS;
+  if (!fast) planNg++;
+  console.log(
+    `${fast ? "✓" : "✗"}  ${"最大クールでも上限内で終わる".padEnd(40)} → ` +
+      `${worst.season}（${worst.n}作品）${worst.ms.toFixed(1)}ms` +
+      (fast ? `（上限${BUDGET_MS}ms）` : ` — 上限${BUDGET_MS}msを超えた`)
+  );
+}
+
+// ─────────────────────────────────────────────
 // 孤立ページを作らない（2026-08-07追加）
 //
 // 経緯: `/service/[key]/[year]/[season]`（サービス別ページ）は実装済みで sitemap にも
@@ -1836,6 +1921,7 @@ let prepNg = 0;
 }
 
 if (
+  planNg > 0 ||
   orphanNg > 0 ||
   prepNg > 0 ||
   archiveNg > 0 ||

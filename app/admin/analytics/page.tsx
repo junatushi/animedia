@@ -33,6 +33,9 @@ const EVENT_LABELS: Record<string, string> = {
   // 定着（Direct流入）の施策なので、follow_click と並べて比較する
   // （docs/growth-strategy-2026-08.md ／ docs/operations.md ⑱）。
   calendar_subscribe: "カレンダー購読をクリック",
+  // 視聴プラン（2026-08-07追加）。お気に入りを全部見るのに必要な最小のサービス
+  // 組み合わせを開いた回数。加入判断に最も近い操作。
+  plan_open: "視聴プランを開いた",
   // 【2026-08-06追加】配信バッジのクリック。`components/ServiceMarks.tsx` が
   // 2026-07-19からずっと記録していたのに、このラベル表に載っていなかったため
   // ダッシュボードのどこにも出ていなかった（`events` は EVENT_LABELS のキーから
