@@ -13,6 +13,7 @@ import {
 } from "../lib/embed.ts";
 import { siteUrl } from "../lib/siteUrl.ts";
 import { buildCalendar, CALENDAR_REF, type CalendarWork } from "../lib/calendar.ts";
+import { aggregateYear, usableYears, currentState, pct } from "../lib/streamingTrends.ts";
 import {
   airingStatus,
   buildWatchAnswer,
@@ -1302,6 +1303,67 @@ let icsNg = 0;
   );
 }
 console.log(`結果（カレンダー購読）: ${icsNg === 0 ? "全件OK" : `${icsNg} 件NG`}`);
+
+// ─────────────────────────────────────────────
+// 配信状況の集計を年次比較に使わない（2026-08-07追加）
+//
+// スナップショットは「作品に配信情報があるか」の収録率が年々上がっているだけでなく、
+// 「その作品の配信社が漏れなく記録されているか」も年々上がっている。後者は注目度上位
+// への絞り込みでは補正できない（U-NEXTの掲載率が2021年=0%→2023年=79%と出るのが実例。
+// U-NEXTが2021年にアニメを配信していなかったはずはない）。
+// サービスが記録漏れすると作品は実際より「独占」に見え、平均社数は少なく出るため、
+// 「独占が減った」「マルチ配信化した」は**収録改善だけでも同じ形になる**。
+// 外向けに使ってよいのは記録が濃い直近年の現状だけ、という線をここで固定する。
+// ─────────────────────────────────────────────
+console.log("\n── 配信集計の年次比較を禁じる ──");
+let trendNg = 0;
+{
+  function trendCheck(name: string, pass: boolean, detail: string) {
+    if (!pass) trendNg++;
+    console.log(`${pass ? "✓" : "✗"}  ${name.padEnd(38)} → ${detail}`);
+  }
+
+  const mk = (n: number, services: string[][]) =>
+    Array.from({ length: n }, (_, i) => ({
+      watchers: 1000 - i,
+      hasBroadcastData: true,
+      services: (services[i] ?? []).map((key) => ({ key })),
+    }));
+
+  // 収録が薄い年（配信情報が半分しか無い）は集計対象から落ちる。
+  const thin = aggregateYear("2019", [mk(4, [["a"], [], [], []])]);
+  const dense = aggregateYear("2025", [mk(4, [["a", "b"], ["a", "b"], ["a"], ["a", "b"]])]);
+  trendCheck(
+    "収録が薄い年はusableYearsが落とす",
+    usableYears([thin, dense]).length === 1 && usableYears([thin, dense])[0].year === "2025",
+    `${thin.year}=${pct(thin.coverage)} / ${dense.year}=${pct(dense.coverage)}`
+  );
+
+  // 外向けに出せるのは最新の使える年ひとつだけ（＝年次の差分APIを生やさない）。
+  const state = currentState([thin, dense]);
+  trendCheck("currentStateは最新の使える年を返す", state?.year === "2025", state?.year ?? "null");
+
+  // 集計の中身が壊れていないこと（独占＝サービス1社の割合）。
+  trendCheck(
+    "独占率はサービス1社の割合",
+    Math.abs(dense.exclusiveRate - 0.25) < 1e-9,
+    `${pct(dense.exclusiveRate)}（期待 25%）`
+  );
+  trendCheck(
+    "平均社数は配信情報がある作品での平均",
+    Math.abs(dense.avgServices - 1.75) < 1e-9,
+    `${dense.avgServices}（期待 1.75）`
+  );
+
+  // 年次の増減を出す関数が生えていないこと。生やすとこの節の意味が無くなる。
+  const trendsSrc = readFileSync(new URL("../lib/streamingTrends.ts", import.meta.url), "utf8");
+  trendCheck(
+    "年次差分を返す関数を持たない",
+    !/export function (delta|diff|trendOverYears|compareYears)/.test(trendsSrc),
+    "delta/diff/compareYears なし"
+  );
+}
+console.log(`結果（配信集計の年次比較）: ${trendNg === 0 ? "全件OK" : `${trendNg} 件NG`}`);
 
 // ─────────────────────────────────────────────
 // 放送終了作品に「いま配信中」と断定しない（2026-08-06追加）

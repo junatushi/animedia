@@ -28,6 +28,11 @@ const EVENT_LABELS: Record<string, string> = {
   // フッターのフォロー導線（2026-08-06追加。components/FollowLinks.tsx）。
   // Xのフォロワーを増やす手段のうち、サイト側で測れる唯一の数字なので必ず出す。
   follow_click: "SNSフォロー導線をクリック",
+  // カレンダー購読（2026-08-07追加。app/calendar.ics / components/FollowLinks.tsx）。
+  // フォローと違い、購読されるとこちらが投稿しなくても毎週相手のカレンダーに出る。
+  // 定着（Direct流入）の施策なので、follow_click と並べて比較する
+  // （docs/growth-strategy-2026-08.md ／ docs/operations.md ⑱）。
+  calendar_subscribe: "カレンダー購読をクリック",
   // 【2026-08-06追加】配信バッジのクリック。`components/ServiceMarks.tsx` が
   // 2026-07-19からずっと記録していたのに、このラベル表に載っていなかったため
   // ダッシュボードのどこにも出ていなかった（`events` は EVENT_LABELS のキーから

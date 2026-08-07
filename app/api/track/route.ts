@@ -24,6 +24,9 @@ const ALLOWED_EVENTS = new Set([
   "embed_copy",
   // フッターのフォロー導線（2026-08-06追加。components/FollowLinks.tsx）
   "follow_click",
+  // カレンダー購読リンクが押された（2026-08-07追加。app/calendar.ics）。
+  // 購読は一度されると継続的に接触できるので、フォローと並べて効果を見る。
+  "calendar_subscribe",
 ]);
 
 export async function POST(request: Request) {
