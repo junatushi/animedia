@@ -19,6 +19,8 @@ const ALLOWED_EVENTS = new Set([
   "change_season",
   "affiliate_click",
   "official_link_click",
+  // フッターのフォロー導線（2026-08-06追加。components/FollowLinks.tsx）
+  "follow_click",
 ]);
 
 export async function POST(request: Request) {

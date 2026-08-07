@@ -64,7 +64,9 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - SNS自動投稿の**Bluesky/Threads**は**1日3枠の時間帯**に分けて出す（2026-08-05〜）:
   7〜10時＝注目作TOP5、11〜12時＝【どこで見れる？】スポットライト（昼休みの12時台に
   確実に届かせるため1時間手前から窓を開ける）、18〜21時＝その曜日の放送・配信。
-  **Mastodonだけは従来どおり1日1回・21時台にその日の分をまとめて**投稿する（`BATCH_SLOTS`。
+  **Mastodonだけは1日1回・5〜7時台にその日の分をまとめて**投稿する（`BATCH_SLOTS`。
+  2026-08-06に21時台から朝へ変更＝利用者の指定。日付が変わるまでの余裕が3→19時間に延び、
+  scheduleの遅延で1日ぶん取りこぼす事故が起きにくくなる副次効果もある。
   `SLOTS`と違い`kinds`を持たない＝内容を絞らない）。
   GitHub Actionsのscheduleは数時間遅れるため「予定時刻に1回起動」では時刻を守れない。
   そこで**1時間おきに起動し、いまがどの時間帯かを自分で判定して未投稿ならそこで投稿する**
@@ -125,7 +127,7 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   ②作品ページの「劇場公開日」行（出典リンク＋確認日）、③JSON-LDの`datePublished`とFAQ「公開日はいつ？」、
   ④公開日からのクール逆算（劇場作品にもシーズンページへの内部リンクが出る）。公開日は延期されるため
   `confirmedDate`を必ず入れ、注目度の高い劇場作品から都度追加する（全作品は追わない）
-- `lib/getSeasonData.ts` / `lib/getWorkData.ts` … シーズン一覧・作品個別データの取得ロジック（API route と SSR ページの両方から共有）。`getSeasonData`は**今年**はライブ取得＋`unstable_cache`（15分=900s。cron遅延吸収のため2026-07-21に10分から延長）だが、**過去年**は`content/snapshots/{year}-{season}.json`があればそれを即返す（無ければライブ取得へフォールバック）。API窓口（`app/api/season/route.ts`）はさらに応答に`s-maxage=600, stale-while-revalidate=86400`を付けCDNエッジにもキャッシュする（2026-07-21）
+- `lib/getSeasonData.ts` / `lib/getWorkData.ts` … シーズン一覧・作品個別データの取得ロジック（API route と SSR ページの両方から共有）。`getSeasonData`は**今年**はライブ取得＋`unstable_cache`（15分=900s。cron遅延吸収のため2026-07-21に10分から延長）だが、**過去年**は`content/snapshots/{year}-{season}.json`があればそれを即返す（無ければライブ取得へフォールバック）。API窓口（`app/api/season/route.ts`）はさらに応答に`s-maxage=600, stale-while-revalidate=86400`を付けCDNエッジにもキャッシュする（2026-07-21）。`getWorkData`は年に関わらず常にAnnictへのライブ取得（`fetchWorkById`）を優先するが、それが失敗し、かつ対象作品が`content/archive/index.json`（配信1件以上の過去クール1,961件）に載っていれば、`content/snapshots/`から`credits`（声優のキャラ名対応・監督・製作会社・原作者。スナップショット生成時に作られておらず持っていない）だけ空にした縮退版`AnimeDetail`にフォールバックする（2026-08-06導入。詳細は`docs/operations.md`の⑦-12）。平常時（Annictが生きている間）は今まで通りフルの`credits`つきで返る。
 - `content/snapshots/{year}-{season}.json` + `scripts/snapshot-past-seasons.ts` … 過去年（放送終了済み）シーズンの確定データを固定した静的スナップショット（2026-07-15導入）。過去年をライブ取得＋Vercelデータキャッシュに頼っていた時期は、温めCron成功の翌日でもキャッシュ追い出しで初回5〜10秒コールドを踏んでいた（実測2024夏9.4s/2020冬5.1s）ため、放送済みで動かないデータをリポジトリ同梱JSONに固定し常時0.03秒程度にした。生成は`node scripts/snapshot-past-seasons.ts [fromYear] [toYear] [--force]`（省略で2010〜昨年・既存スキップ）。**年またぎ時は前年分を1回生成する**（例:2027年になったら`node scripts/snapshot-past-seasons.ts 2026 2026`）。詳細は`docs/operations.md`の⑦-4
 - `content/works/{annictId}.json` + `content/works/index.ts` … 作品個別ページの「あらすじ・見どころ・出版社」と、任意の`faq`（「2期から見ても大丈夫？」等のよくある質問。2026-07-27追加。可視テキストとFAQPage構造化データの両方に出る）。Annictに無いデータのため人力で追記する補足コンテンツ（`docs/operations.md`の「⑧作品詳細コンテンツの追記」参照）。`faq`は実測で需要が確認できた作品にだけ付ける（全作品分の維持は続かないため）。未整備の作品は単純に省略表示される
 - `app/api/sns-image/route.tsx` … SNS投稿に添付する公開PNG（2026-07-27導入）。`?kind=ranking` と `?kind=airing&day=月`。**Threadsは画像のバイナリ投稿に対応せず公開URL（`image_url`）しか受け付けない**ため、Playwrightのスクリーンショットを添付できない。その回避としてサイト自身が同等の画像を配信する。既存OG画像2本と同じ`runtime="edge"`（nodejs runtimeにすると`next/og`がWindowsのローカル開発機で必ず例外になり手元で検証できなくなる）。データはedgeで`fs`が使えないため`/api/season`から取る。Threads固有の注意点は`docs/threads-setup.md`の⑦

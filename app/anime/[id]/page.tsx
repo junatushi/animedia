@@ -10,6 +10,7 @@ import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
 import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
+import FollowLinks from "@/components/FollowLinks";
 import ServiceMarks from "@/components/ServiceMarks";
 
 const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
@@ -593,6 +594,8 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
           </article>
         )}
       </div>
+
+      <FollowLinks />
 
       <p className="footnote">
         データ元: Annict（コミュニティ更新ベース）。配信情報は網羅率100%ではなく、

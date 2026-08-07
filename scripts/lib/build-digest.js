@@ -16,6 +16,201 @@ const { SPOTLIGHT_WORKS } = require("../../content/sns/spotlight");
 const MAX_LEN = 260;
 const WEEKDAY_LABEL = ["日", "月", "火", "水", "木", "金", "土"];
 
+// ── 投稿先SNSごとの本文の出し分け（2026-08-06導入）──────────────────────────
+//
+// 【なぜ入れたか】3週間・約70投稿でフォロワーが3SNS合計4人だったときのレビュー結果
+// （docs/handoff.md「SNS運用について」）で、次の3点が構造的な問題として挙がった:
+//   (1) Bluesky / Mastodon / Threads が完全に同一の本文（Threadsのタグ数調整だけが差分）。
+//       同じ文面を3か所へ配るのは単なるクロスポストで、どのSNSでも「よそで見た」扱いになる。
+//   (2) 曜日固定の番組表なので、毎週ほぼ一字一句同じ投稿がリピーターのタイムラインに流れる。
+//   (3) 告知型100%で、返信・引用を誘発する要素が無い。会話が起きないのでリーチが伸びない。
+//
+// 出し分けの軸は2つだけにしてある:
+//   ・投稿先（platform）… Mastodonは5〜7時台に**その日の分をまとめて**出す枠（BATCH_SLOTS）
+//     なので「おはようございます／今日は○本」と1日の全体像から入る。Bluesky/Threadsは
+//     時間帯ごとに内容が絞られている（朝=注目作TOP5 / 昼=スポットライト / 夜=その曜日の
+//     放送・配信）ので、その時間帯に合う短い導入にする。
+//   ・週（weekIndex）… 同じ曜日・同じ作品でも週が変われば言い回しが変わる。
+//
+// 【乱数を使わない】Math.random() で毎回変えると、再実行やリトライのたびに本文が変わり
+// 「これは二重投稿か／dry_runで見た本文と同じものが出たか」を判別できなくなる。
+// GitHub Actions は間引き・遅れ投稿で同じ枠を複数回起動しうる（⑦-9）ので、
+// バリエーションの入力は **JSTの日付だけ** に固定する（同じ日なら何度実行しても同じ本文）。
+//
+// 【書いてよいこと】埋め込む変数は事実だけ（曜日・本数・年・季節・作品名・配信サービス名・
+// 注目人数）。作品の評価（面白い/つまらない/おすすめ）は書かない。このサイトの立場は
+// 「どこで観られるかの案内」であって作品批評ではない（CLAUDE.mdの「創作しない」方針）。
+const PLATFORMS = ["x", "bluesky", "mastodon", "threads"];
+
+// 未指定は "x"（＝Xの手動投稿用の下書き。print-digest.js の既定でもある）。
+// 綴り間違いは黙って既定に落とさず落とす。落ちれば動作確認で必ず気づけるが、
+// 黙って落とすと「なぜかBluesky向けの文面にならない」という気づけない不具合になる。
+function normalizePlatform(platform) {
+  if (platform == null || platform === "") return "x";
+  if (!PLATFORMS.includes(platform)) {
+    throw new Error(`未知の投稿先です: ${platform}（${PLATFORMS.join(" / ")} のいずれか）`);
+  }
+  return platform;
+}
+
+// 本文の上限。既定（x）は280字のXと300字のBlueskyの双方に安全に収まる260字。
+// Mastodon・Threadsは上限500字なので、朝のまとめ（Mastodon）で作品を多く載せられるよう
+// 余裕を持たせる。Blueskyは300字上限なので既定と同じ260字のまま。
+const PLATFORM_MAX_LEN = { x: MAX_LEN, bluesky: MAX_LEN, mastodon: 440, threads: 440 };
+function maxLenFor(platform) {
+  return PLATFORM_MAX_LEN[platform] || MAX_LEN;
+}
+
+// 1970-01-01からの経過日数。buildSpotlightの日替わりローテーションと同じ考え方。
+function daysSinceEpoch(todayStr) {
+  return Math.floor(Date.parse(`${todayStr}T00:00:00Z`) / 86400000);
+}
+// 通し週番号。曜日固定の投稿（毎週水曜の番組表など）でも週が変われば必ず別の値になるので、
+// 「毎週まったく同じ本文」を避けられる。日付の数字の和のような衝突しやすい値は使わない。
+function weekIndex(todayStr) {
+  return Math.floor(daysSinceEpoch(todayStr) / 7);
+}
+// 文字列から0〜996の決定的な値を作る。バリエーションの位相をずらすためだけに使う
+// （同じ週にBluesky・Threads・Mastodonが揃って同じ番号の言い回しを選ぶのを防ぐ）。
+function saltOf(key) {
+  let n = 0;
+  for (const ch of key) n = (n * 31 + ch.codePointAt(0)) % 997;
+  return n;
+}
+// platform 別の言い回し配列から、その週の1つを選ぶ。
+// 専用の配列を持たない platform は x（既定）にフォールバックする。
+function pickFor(table, platform, key, todayStr) {
+  const list = table[platform] || table.x;
+  return list[(weekIndex(todayStr) + saltOf(`${key}:${platform}`)) % list.length];
+}
+
+// その曜日の放送・配信（airing）の1行目。
+// x は従来の文面のまま1つだけ持つ（Xは人が手を入れて投稿する下書きで、
+// docs/sns-templates.md の見本との対応を崩したくないため）。
+const AIRING_LEAD = {
+  x: [(c) => `【${c.wl}曜】今日放送・配信の今期アニメ（${c.year}年${c.label}）`],
+  bluesky: [
+    (c) => `【${c.wl}曜】今日の放送・配信は${c.n}本です。`,
+    (c) => `【${c.wl}曜】今夜からの放送・配信、${c.n}本ぶんの配信先をまとめました。`,
+    (c) => `今日（${c.wl}曜）放送・配信がある今期アニメは${c.n}本。`,
+    (c) => `【${c.wl}曜】${c.year}年${c.label}アニメ、今日の放送・配信は${c.n}本です。`,
+  ],
+  threads: [
+    (c) => `${c.wl}曜のアニメ、今日は${c.n}本。どこで観られるかをまとめています。`,
+    (c) => `【${c.wl}曜】今日放送・配信があるのは${c.n}本です。`,
+    (c) => `今日は${c.wl}曜。放送・配信のある今期アニメ${c.n}本の配信先です。`,
+    (c) => `【${c.wl}曜】今日の${c.n}本、配信サービス別に一覧にしています。`,
+  ],
+  mastodon: [
+    (c) => `おはようございます。今日（${c.dateLabel}・${c.wl}）放送・配信がある今期アニメは${c.n}本です。`,
+    (c) => `おはようございます。${c.dateLabel}（${c.wl}曜）の放送・配信は${c.n}本。今日観られる分をまとめました。`,
+    (c) => `おはようございます。今日は${c.wl}曜、${c.year}年${c.label}アニメの放送・配信は${c.n}本です。`,
+    (c) => `おはようございます。${c.dateLabel}（${c.wl}曜）に放送・配信がある${c.n}本の配信先です。`,
+  ],
+};
+
+// 一覧の締め（カレンダー表示への誘導）。
+const CALENDAR_CTA = {
+  x: ["曜日別はカレンダー表示で。"],
+  bluesky: ["曜日別はカレンダー表示で。", "曜日ごとの一覧はカレンダー表示から。", "ほかの曜日もカレンダー表示で見られます。"],
+  threads: ["曜日別はカレンダー表示で。", "ほかの曜日はカレンダー表示から。", "曜日ごとの並びはカレンダー表示で。"],
+  mastodon: ["今週ぶんの並びはカレンダー表示で。", "曜日別はカレンダー表示で。", "ほかの曜日もカレンダー表示から見られます。"],
+};
+
+// 注目作TOP5（top5）の1行目。
+const TOP5_LEAD = {
+  x: [(c) => `今週の「アニメ視聴ガイド」注目作TOP5（${c.year}年${c.label}アニメ）`],
+  bluesky: [
+    (c) => `今週の注目作TOP5（${c.year}年${c.label}アニメ）`,
+    (c) => `【注目作TOP5】${c.year}年${c.label}アニメ、視聴者数の多い5作品です。`,
+    (c) => `${c.year}年${c.label}アニメの注目作TOP5。配信サービスはリンク先にまとめています。`,
+  ],
+  threads: [
+    (c) => `【注目作TOP5】${c.year}年${c.label}アニメ`,
+    (c) => `${c.year}年${c.label}アニメで視聴者数の多い5作品です。`,
+    (c) => `今週の注目作TOP5（${c.year}年${c.label}アニメ）。どこで観られるかも一覧に。`,
+  ],
+  mastodon: [
+    (c) => `おはようございます。今週の注目作TOP5（${c.year}年${c.label}アニメ）です。`,
+    (c) => `おはようございます。${c.year}年${c.label}アニメの注目作TOP5をお届けします。`,
+    (c) => `おはようございます。今週も${c.year}年${c.label}アニメの注目作TOP5から。`,
+  ],
+};
+
+// スポットライト（spotlight）の説明行。配信サービス名の行の直後に置く。
+const SPOTLIGHT_BODY = {
+  x: [() => "見放題で見られるサービスをまとめています。"],
+  bluesky: [
+    () => "見放題で見られるサービスをまとめています。",
+    () => "どのサービスで見放題になっているかを一覧にしています。",
+    () => "配信サービスの一覧はリンク先から。",
+  ],
+  threads: [
+    () => "見放題で観られるサービスを一覧にしています。",
+    () => "どこで見放題かはリンク先にまとめました。",
+    () => "配信サービスの一覧はこちらです。",
+  ],
+  mastodon: [
+    () => "見放題で見られるサービスをまとめています。",
+    () => "朝のうちに配信先だけまとめておきます。",
+    () => "どのサービスで見放題かをまとめています。",
+  ],
+};
+
+// 返信・引用を誘発する一文（2026-08-06導入）。
+// 作品の評価に踏み込む問い（面白い？つまらない？）は作らない。聞くのは
+// 「どこで観ているか」「何を追いかけているか」「配信情報の抜け」＝サイトの守備範囲の中だけ。
+const QUESTION = {
+  airing: [
+    "今日はどれから観ますか？",
+    "配信サービスが抜けている作品があれば教えてください。反映できるか確認します。",
+    "この曜日でいちばん楽しみにしている作品はどれですか？",
+  ],
+  spotlight: [
+    "ほかに「どこで見れる？」を調べたい作品があれば教えてください。",
+    "この作品、どのサービスで観ていますか？",
+  ],
+  top5: [
+    "今期、いちばん追いかけている作品はどれですか？",
+    "この5本以外で気になっている作品があれば教えてください。",
+  ],
+};
+
+// 問いかけを入れる頻度。毎投稿に入れると押しつけがましく、告知としての読みやすさも落ちる。
+// 種類ごとに「週に1〜2回」程度へ絞る。判定に使うのは曜日と通し週番号だけ＝決定的
+// （同じ日に何度実行しても同じ結果）。
+//   airing    … 水曜と土曜だけ（週2回）
+//   spotlight … 隔週（通し週番号が偶数の週だけ）
+//   top5      … 3週に1回
+//
+// due … その日に問いかけを入れるか。
+// seq … 「何回目の登場か」の通し番号。言い回しの回転にはこれを使う。
+//   【なぜ日付や週番号を直接使わないか】出す条件自体が週番号の余り（隔週・3週に1回）なので、
+//   日付や週番号で回すと登場日の間隔と言い回しの周期が噛み合ってしまい、位相が固定されて
+//   **毎回まったく同じ問いかけしか出ない**（実際、最初の実装で隔週スポットライトが
+//   4回連続で同じ文になった）。登場回数を数えれば必ず1つずつ順に回る。
+const QUESTION_RULE = {
+  airing: {
+    due: (w, weekday) => weekday === 3 || weekday === 6,
+    // 通し週番号は1970-01-01（木）起点なので、1週＝木〜水。つまり同じ週の中では
+    // 土曜が先・水曜が後に来る。この順で0,1と割り当てると登場回数の通し番号になる。
+    seq: (w, weekday) => w * 2 + (weekday === 3 ? 1 : 0),
+  },
+  spotlight: { due: (w) => w % 2 === 0, seq: (w) => Math.floor(w / 2) },
+  top5: { due: (w) => w % 3 === 0, seq: (w) => Math.floor(w / 3) },
+};
+
+// Xの下書き（x）には入れない。手動投稿で人が文面を整える前提のため。
+function questionFor(name, platform, todayStr, weekday) {
+  if (platform === "x") return null;
+  const list = QUESTION[name];
+  const rule = QUESTION_RULE[name];
+  if (!list || !rule) return null;
+  const w = weekIndex(todayStr);
+  if (!rule.due(w, weekday)) return null;
+  return list[(rule.seq(w, weekday) + saltOf(`${name}:${platform}`)) % list.length];
+}
+
 function currentSeasonByMonth(m) {
   if (m <= 3) return { key: "winter", label: "冬" };
   if (m <= 6) return { key: "spring", label: "春" };
@@ -65,14 +260,21 @@ const SLOTS = {
   evening: { fromHour: 18, toHour: 21, kinds: ["airing"] },
 };
 
-// 【Mastodonだけ従来方式・2026-08-05】Mastodonは時間帯で分けず、**1日1回21時台に
-// その日の分をまとめて**投稿する（利用者の指定で従来の運用に戻した）。
+// 【Mastodonだけ従来方式・2026-08-05】Mastodonは時間帯で分けず、**1日1回・その日の分を
+// まとめて**投稿する（利用者の指定で従来の運用に戻した）。
 // SLOTS と分けてあるのは、こちらは「内容を絞る枠」ではなく「まとめて出す時刻」だから。
 // kinds を持たない＝絞り込みをしない（その日の全投稿を出す）。
 // 時間帯の考え方（開始時刻＝fromHour で基準日を固定する／その日のうちなら遅れても出す）は
-// SLOTS と同じものを使うので、21時台を逃しても日付が変わるまでは投稿できる。
+// SLOTS と同じものを使うので、時間帯を逃しても日付が変わるまでは投稿できる。
+//
+// 【2026-08-06変更】21〜23時台 → **5〜7時台**（利用者の指定）。朝いちばんに「今日は
+// 何が観られるか」を出す形になるので、内容（その日の放送・配信）とも噛み合う。
+// 副次的な利点として、JSTの日付が変わるまでの余裕が3時間から19時間に延びる。
+// GitHub Actions の schedule 遅延は実測で最大6.4時間あり、21時起点だと遅延がそのまま
+// 日付またぎ＝前日分の投稿になりうる位置だった（`anchorToSlotDate` で事故は防いでいるが、
+// その場合その日の投稿が丸ごと消える）。5時起点なら遅延しても同じJST日の中に収まる。
 const BATCH_SLOTS = {
-  mastodon: { fromHour: 21, toHour: 23 },
+  mastodon: { fromHour: 5, toHour: 7 },
 };
 
 // DIGEST_SLOT の値から設定を引く。SLOTS（Bluesky/Threads用）→ BATCH_SLOTS（Mastodon用）の順。
@@ -95,8 +297,8 @@ function slotForNow(now = new Date()) {
   return found ? found[0] : null;
 }
 
-// Mastodonのまとめ投稿（21時台）の開始時刻を迎えているか。SLOTS の dueSlots と同じ考え方で、
-// 21時台を逃してもJSTの同じ日のうちなら遅れて投げてよい、という判定に使う。
+// Mastodonのまとめ投稿（5〜7時台）の開始時刻を迎えているか。SLOTS の dueSlots と同じ考え方で、
+// 5〜7時台を逃してもJSTの同じ日のうちなら遅れて投げてよい、という判定に使う。
 function isMastodonBatchDue(now = new Date()) {
   return jstHourOf(now) >= BATCH_SLOTS.mastodon.fromHour;
 }
@@ -197,17 +399,27 @@ function rankingImage() {
 // 日曜: 今期の注目作TOP5（人数付き）
 // url = 本文に貼るリンク（シーズンページ）、shotUrl = スクリーンショットの撮影先
 // （撮影用クエリを解釈するトップページ）。既定では両方同じものを使う。
-function buildTop5(data, year, label, url, shotUrl = url) {
+// todayStr/platform は1行目の言い回しと問いかけの出し分けに使う（2026-08-06追加）。
+function buildTop5(data, year, label, url, shotUrl = url, todayStr, platform = "x") {
   const top5 = [...data.items].sort((a, b) => b.watchers - a.watchers).slice(0, 5);
+  const lead = pickFor(TOP5_LEAD, platform, "top5", todayStr)({ year, label });
+  // TOP5は日曜（weekday=0）に出る枠なので曜日条件は持たせず、週番号だけで頻度を決める。
+  const question = questionFor("top5", platform, todayStr, 0);
   const lines = [
-    `今週の「アニメ視聴ガイド」注目作TOP5（${year}年${label}アニメ）`,
+    lead,
     "",
     ...top5.map((it, i) => `${i + 1}. ${shortTitle(it.title)}（${it.watchers.toLocaleString("ja-JP")}人が注目）`),
     "",
+    ...(question ? [question] : []),
     url,
     `#${year}年${label}アニメ`,
   ];
-  return { kind: "top5", text: truncate(lines.join("\n"), MAX_LEN), screenshot: rankingScreenshot(shotUrl), image: rankingImage() };
+  return {
+    kind: "top5",
+    text: truncate(lines.join("\n"), maxLenFor(platform)),
+    screenshot: rankingScreenshot(shotUrl),
+    image: rankingImage(),
+  };
 }
 
 // 月〜土: その曜日に放送/配信のある今期アニメ。注目度順に、字数上限まで詰める。
@@ -216,7 +428,7 @@ function buildTop5(data, year, label, url, shotUrl = url) {
 // 放送開始前の作品も曜日が一致するだけで拾ってしまう（実例: Re:ゼロ4期奪還編を
 // 8月開始前の水曜に「今日放送」と誤案内しかける）。実際に放送開始日を迎えている
 // 作品（broadcastStartDate <= 今日）だけに絞る。
-function buildTodayAiring(data, weekday, year, label, url, todayStr) {
+function buildTodayAiring(data, weekday, year, label, url, todayStr, platform = "x") {
   const today = data.items
     .filter((it) => it.broadcastWeekday === weekday)
     .filter((it) => !it.broadcastStartDate || it.broadcastStartDate <= todayStr)
@@ -224,26 +436,38 @@ function buildTodayAiring(data, weekday, year, label, url, todayStr) {
   if (today.length === 0) return null;
 
   const wl = WEEKDAY_LABEL[weekday];
-  const header = `【${wl}曜】今日放送・配信の今期アニメ（${year}年${label}）`;
+  const [, mm, dd] = todayStr.split("-");
+  // 1行目・締め・問いかけは投稿先と週で変える（2026-08-06導入。上のコピー表を参照）。
+  const header = pickFor(AIRING_LEAD, platform, "airing", todayStr)({
+    wl,
+    n: today.length,
+    year,
+    label,
+    dateLabel: `${Number(mm)}/${Number(dd)}`,
+  });
+  const cta = pickFor(CALENDAR_CTA, platform, "airing-cta", todayStr);
+  const question = questionFor("airing", platform, todayStr, weekday);
+  const questionLines = question ? [question] : [];
   const tag = `#${year}年${label}アニメ`;
+  const max = maxLenFor(platform);
 
   // タイトルを1本ずつ足していき、上限を超えない範囲で最大数を載せる。
   const picks = [];
   for (const it of today) {
     const line = it.broadcastTime ? `・${it.title}（${it.broadcastTime}〜）` : `・${it.title}`;
     const remain = today.length - (picks.length + 1);
-    const tail = remain > 0 ? `ほか${remain}作品。曜日別はカレンダー表示で。` : "曜日別はカレンダー表示で。";
-    const candidate = [header, "", ...picks, line, "", tail, url, tag].join("\n");
-    if ([...candidate].length > MAX_LEN) break;
+    const tail = remain > 0 ? `ほか${remain}作品。${cta}` : cta;
+    const candidate = [header, "", ...picks, line, "", tail, ...questionLines, url, tag].join("\n");
+    if ([...candidate].length > max) break;
     picks.push(line);
   }
   // 1本も入らない極端なケースはヘッダーだけでも出す（通常は起きない）。
   if (picks.length === 0) {
-    return truncate([header, "", url, tag].join("\n"), MAX_LEN);
+    return truncate([header, "", url, tag].join("\n"), max);
   }
   const remain = today.length - picks.length;
-  const tail = remain > 0 ? `ほか${remain}作品。曜日別はカレンダー表示で。` : "曜日別はカレンダー表示で。";
-  return truncate([header, "", ...picks, "", tail, url, tag].join("\n"), MAX_LEN);
+  const tail = remain > 0 ? `ほか${remain}作品。${cta}` : cta;
+  return truncate([header, "", ...picks, "", tail, ...questionLines, url, tag].join("\n"), max);
 }
 
 // スポットライト枠（2026-07-27導入）: GSC・Vercel Analyticsの実測で需要が確認できている
@@ -251,7 +475,7 @@ function buildTodayAiring(data, weekday, year, label, url, todayStr) {
 // 作品ページへ直接送客する。従来の「その曜日の放送作品」「TOP5」は一覧型で、実際にアクセスが
 // 来ている作品を個別に押し出す枠が無かったため追加。
 // 該当作品が無ければ null（呼び出し側でスキップ）。
-function buildSpotlight(data, year, label, todayStr) {
+function buildSpotlight(data, year, label, todayStr, platform = "x") {
   const itemById = new Map(data.items.map((it) => [it.id, it]));
 
   const candidates = SPOTLIGHT_WORKS
@@ -305,11 +529,17 @@ function buildSpotlight(data, year, label, todayStr) {
   // OGP画像（既存の app/anime/[id]/opengraph-image）をそのまま使う。専用の画像を
   // 作り足す必要がなく、リンク先と絵柄が一致する。
   const workImage = `${SITE_URL}/anime/${picked.id}/opengraph-image`;
+  // 説明行と問いかけは投稿先と週で変える（2026-08-06導入。上のコピー表を参照）。
+  const body = pickFor(SPOTLIGHT_BODY, platform, "spotlight", todayStr)();
+  // スポットライトは曜日で出し分けない枠なので、頻度の判定にも曜日は渡さない（週番号だけ）。
+  const question = questionFor("spotlight", platform, todayStr, 0);
+  const max = maxLenFor(platform);
   const buildLines = (tagLine) => [
     `【どこで見れる？】${picked.title}`,
     "",
     `${watchersLine}${serviceLine}`,
-    "見放題で見られるサービスをまとめています。",
+    body,
+    ...(question ? ["", question] : []),
     "",
     `${SITE_URL}/anime/${picked.id}`,
     tagLine,
@@ -317,22 +547,23 @@ function buildSpotlight(data, year, label, todayStr) {
 
   if (workTag) {
     const withWorkTag = buildLines(`${workTag} ${seasonTag}`).join("\n");
-    // 260字上限は必ず守る。ただし既存のtruncate()は末尾を「…」で機械的に切るため、
+    // 文字数上限は必ず守る。ただし既存のtruncate()は末尾を「…」で機械的に切るため、
     // ハッシュタグの途中で千切れると検索に引っかからなくなる。それを避けるため、
     // 超過時は先にtruncateへ流さず、作品名タグごと落として季節タグだけに戻す
-    // （通常の投稿文＝季節タグのみは元々260字に収まる想定のため、この段階で切り詰める
+    // （通常の投稿文＝季節タグのみは元々上限に収まる想定のため、この段階で切り詰める
     // 必要はまず発生しない）。
-    if ([...withWorkTag].length <= MAX_LEN) {
+    if ([...withWorkTag].length <= max) {
       return { kind: "spotlight", text: withWorkTag, screenshot: null, image: workImage };
     }
   }
-  return { kind: "spotlight", text: truncate(buildLines(seasonTag).join("\n"), MAX_LEN), screenshot: null, image: workImage };
+  return { kind: "spotlight", text: truncate(buildLines(seasonTag).join("\n"), max), screenshot: null, image: workImage };
 }
 
 // 月〜土は1投稿（曜日紹介。放送作品が無ければTOP5にフォールバック）。
 // 日曜は「TOP5」＋「その日の放送/配信があれば曜日紹介」の最大2投稿にする
 // （2026-07-14: 日曜もアニメ紹介をする方針に変更）。
-async function buildDigest(now = new Date()) {
+async function buildDigest(now = new Date(), rawPlatform) {
+  const platform = normalizePlatform(rawPlatform);
   // どの時間帯枠の実行か（DIGEST_SLOT）。未設定/"all" なら枠で絞らず全部返す。
   const slot = slotConfig(process.env.DIGEST_SLOT);
   const { year, month, day, weekday } = jstParts(anchorToSlotDate(now, slot?.fromHour));
@@ -355,7 +586,7 @@ async function buildDigest(now = new Date()) {
   // /season/... は固定表示モードのためこれらを解釈しない。
   const shotUrl = `${SITE_URL}/?year=${year}&season=${season}`;
 
-  const airingText = buildTodayAiring(data, weekday, year, label, shareUrl, todayStr);
+  const airingText = buildTodayAiring(data, weekday, year, label, shareUrl, todayStr, platform);
   const airingPost = airingText
     ? {
         kind: "airing",
@@ -365,13 +596,12 @@ async function buildDigest(now = new Date()) {
       }
     : null;
 
+  const top5Post = () => buildTop5(data, year, label, shareUrl, shotUrl, todayStr, platform);
   const posts =
-    weekday === 0
-      ? [buildTop5(data, year, label, shareUrl, shotUrl), ...(airingPost ? [airingPost] : [])]
-      : [airingPost ?? buildTop5(data, year, label, shareUrl, shotUrl)];
+    weekday === 0 ? [top5Post(), ...(airingPost ? [airingPost] : [])] : [airingPost ?? top5Post()];
 
   // スポットライト枠は曜日による出し分けをせず毎日追加する（候補が無ければ追加しない）。
-  const spotlightPost = buildSpotlight(data, year, label, todayStr);
+  const spotlightPost = buildSpotlight(data, year, label, todayStr, platform);
   if (spotlightPost) posts.push(spotlightPost);
 
   // 時間帯枠で絞る（2026-08-05導入）。その枠に出す内容が無い日は空配列になり、
@@ -387,11 +617,22 @@ async function buildDigest(now = new Date()) {
     count: data.count,
     weekday,
     todayStr,
+    platform,
   };
 }
 
 // 新シーズン開始の告知文。season-announce.yml が各クール初日に呼ぶ。
-async function buildSeasonAnnounce(now = new Date()) {
+// クールに1回しか出ないので週替わりのローテーションは持たせず、投稿先ごとの
+// 呼びかけ（Mastodonは朝のまとめ枠なので「おはようございます」から入る）だけ変える。
+const SEASON_ANNOUNCE_LEAD = {
+  x: (c) => `🎬 ${c.year}年${c.label}アニメ、始まりました！`,
+  bluesky: (c) => `🎬 ${c.year}年${c.label}アニメ、始まりました！`,
+  threads: (c) => `${c.year}年${c.label}アニメが始まりました。`,
+  mastodon: (c) => `おはようございます。${c.year}年${c.label}アニメが始まりました。`,
+};
+
+async function buildSeasonAnnounce(now = new Date(), rawPlatform) {
+  const platform = normalizePlatform(rawPlatform);
   const { year, month } = jstParts(now);
   const { key: season, label } = currentSeasonByMonth(month);
 
@@ -405,7 +646,7 @@ async function buildSeasonAnnounce(now = new Date()) {
   const url = `${SITE_URL}/season/${year}/${season}`;
 
   const lines = [
-    `🎬 ${year}年${label}アニメ、始まりました！`,
+    (SEASON_ANNOUNCE_LEAD[platform] || SEASON_ANNOUNCE_LEAD.x)({ year, label }),
     "",
     `今期${data.count}作品の配信状況を「アニメ視聴ガイド」でまとめています。どのアニメがどこで見られるか、サービス別に一覧でチェックできます。`,
     "",
@@ -413,11 +654,12 @@ async function buildSeasonAnnounce(now = new Date()) {
     `#${year}年${label}アニメ`,
   ];
   return {
-    posts: [{ text: truncate(lines.join("\n"), MAX_LEN), screenshot: null }],
+    posts: [{ text: truncate(lines.join("\n"), maxLenFor(platform)), screenshot: null }],
     year,
     season,
     label,
     count: data.count,
+    platform,
   };
 }
 
@@ -460,10 +702,15 @@ function buildFeatureAnnounce(featureName, featureDesc, year, label, url) {
 //   "season"          = 新シーズン開始の告知
 //   "coverage"        = 配信情報の充足率報告（件数は実データから自動算出）
 //   "feature"         = 新機能・修正の告知（FEATURE_NAME/FEATURE_DESC env が必要）
-async function buildPost(now = new Date()) {
+//
+// 第2引数 platform（2026-08-06追加）で投稿先SNSごとに本文を変える。
+// 各 post-*.js が自分の投稿先を渡す（post-bluesky.js → "bluesky" など）。
+// 省略時は "x"（Xの手動投稿用の下書き＝従来どおりの文面）。DIGEST_PLATFORM env でも指定でき、
+// これは print-digest.js やワークフローの dry_run から本文を確認するための入口。
+async function buildPost(now = new Date(), platform = process.env.DIGEST_PLATFORM) {
   const kind = process.env.POST_KIND || "digest";
-  if (kind === "season") return buildSeasonAnnounce(now);
-  if (kind === "digest") return buildDigest(now);
+  if (kind === "season") return buildSeasonAnnounce(now, platform);
+  if (kind === "digest") return buildDigest(now, platform);
 
   // coverage/feature は「今期の件数」という共通の実データが要るので、ここで一度だけ取得する。
   const { year, month } = jstParts(now);
@@ -497,6 +744,15 @@ module.exports = {
   toSingleHashtagText,
   MAX_LEN,
   SITE_URL,
+  // 投稿先ごとの本文生成（2026-08-06導入）。ネットワークに出ずに本文だけを
+  // 確かめられるよう、純粋関数のまま公開しておく（動作確認・回帰テスト用）。
+  PLATFORMS,
+  normalizePlatform,
+  maxLenFor,
+  weekIndex,
+  buildTop5,
+  buildTodayAiring,
+  buildSpotlight,
   // 週次X成長キット（build-growth-kit.js）から再利用する小ヘルパー。
   jstParts,
   currentSeasonByMonth,

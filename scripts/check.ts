@@ -15,6 +15,27 @@ import {
   dueSlots,
   jstParts,
 } from "./lib/build-digest.js";
+import { xPostUrl, xSearchUrl } from "./lib/x-intent.js";
+import { renderGrowthKit } from "./lib/build-growth-kit.js";
+
+
+// ディレクトリ配下の .ts/.tsx を再帰的に列挙する（行動ログの配線検査で使う）。
+function listSourceFiles(dir: URL): URL[] {
+  const out: URL[] = [];
+  for (const name of readdirSync(dir)) {
+    const child = new URL(name, dir);
+    let isDir = false;
+    try {
+      readdirSync(child);
+      isDir = true;
+    } catch {
+      isDir = false;
+    }
+    if (isDir) out.push(...listSourceFiles(new URL(`${name}/`, dir)));
+    else if (/\.tsx?$/.test(name)) out.push(child);
+  }
+  return out;
+}
 
 const samples: Array<[string, string]> = [
   // [入力チャンネル名, 期待する分類]
@@ -465,7 +486,7 @@ let slotNg = 0;
   // 不安定になる（「どちらの枠として判定されるか」がコードの見た目上わからなくなる）。
   // 【BATCH_SLOTSはこの重なり検査に含めない】この検査は SLOTS（Bluesky/Threads用。
   // slotForNow/dueSlotsがObject.entries順で「中にいる/開始済みの」枠を1つ選ぶ）だけが
-  // 対象。BATCH_SLOTS.mastodon（21〜23時）は SLOTS.evening（18〜21時）と意図的に重なる
+  // 対象。BATCH_SLOTS.mastodon（5〜7時）は SLOTS.morning（7〜10時）と意図的に重なる
   // （Mastodonは時間帯で内容を絞らず1日1回まとめて出すだけなので、他の枠と重なっても
   // 「どちらとして判定されるか」が問題にならない。isMastodonBatchDueもslotForNow/
   // dueSlotsとは別の独立した判定関数）。BATCH_SLOTSをここに混ぜると、意図した重なりが
@@ -673,7 +694,8 @@ let slotNg = 0;
   }
 
   // ── Mastodonのまとめ投稿枠（BATCH_SLOTS）の回帰テスト（2026-08-05追加。利用者の指定で
-  // Mastodonだけ従来運用＝1日1回・21時台にその日の分をまとめて投稿、に戻した）──
+  // Mastodonだけ従来運用＝1日1回・その日の分をまとめて投稿、に戻した。
+  // 2026-08-06に時間帯を21〜23時台から5〜7時台へ変更＝これも利用者の指定）──
   // BATCH_SLOTS は SLOTS と別物で「内容を絞る枠」ではなく「まとめて出す時刻」を表す。
   // kinds を持たないことが仕様そのもの（kinds が付くと slotConfig().kinds で絞り込みが
   // 働いてしまい、「その日の全投稿をまとめて出す」でなくなる）。キーが mastodon の1つ
@@ -689,11 +711,11 @@ let slotNg = 0;
 
     const got = (BATCH_SLOTS as Record<string, { fromHour: number; toHour: number }>).mastodon;
     const hasKinds = !!got && "kinds" in got;
-    const pass2 = !!got && got.fromHour === 21 && got.toHour === 23 && !hasKinds;
+    const pass2 = !!got && got.fromHour === 5 && got.toHour === 7 && !hasKinds;
     if (!pass2) slotNg++;
     console.log(
       `${pass2 ? "✓" : "✗"}  ${"BATCH_SLOTS.mastodon".padEnd(40)} → fromHour=${got?.fromHour} toHour=${got?.toHour} kinds付き=${hasKinds}` +
-        (pass2 ? "" : `  (期待: fromHour=21 toHour=23・kindsを持たない＝絞り込みをしない)`)
+        (pass2 ? "" : `  (期待: fromHour=5 toHour=7・kindsを持たない＝絞り込みをしない)`)
     );
   }
 
@@ -722,8 +744,13 @@ let slotNg = 0;
   }
 
   // ── isMastodonBatchDue の境界の回帰テスト（2026-08-05追加）──
-  // JST時刻が21時（BATCH_SLOTS.mastodon.fromHour）以降ならtrue。dueSlotsと同じ
+  // JST時刻が5時（BATCH_SLOTS.mastodon.fromHour）以降ならtrue。dueSlotsと同じ
   // 「開始時刻を迎えたら、その日のうちは遅れてでも投げる」考え方。
+  // 【5時起点にした副作用・2026-08-06】遅れ投稿を許す窓が3時間（21〜24時）から
+  // 19時間（5〜24時）に広がる。これは意図した挙動で、内容が「その日の放送・配信」
+  // ＝JST日付が変わらない限り古くならないため、消えるより遅れて出す方がよい。
+  // 深夜（0〜4時台）がfalseであることは、日付をまたいだ遅延実行を前日分として
+  // 投げ直してしまわないための境界なので必ず維持する。
   {
     function checkMastodonDue(hour: number, expect: boolean) {
       const now = jstDate(2026, 8, 6, hour, 30);
@@ -735,11 +762,13 @@ let slotNg = 0;
           (pass ? "" : `  (期待: ${expect})`)
       );
     }
-    checkMastodonDue(20, false);
-    checkMastodonDue(21, true);
+    checkMastodonDue(4, false);
+    checkMastodonDue(5, true);
+    checkMastodonDue(7, true);
+    checkMastodonDue(9, true); // 5〜7時台を逃した日の遅れ投稿（その日のうちなら出す）
     checkMastodonDue(23, true);
-    checkMastodonDue(0, false);
-    checkMastodonDue(9, false);
+    checkMastodonDue(0, false); // 日付をまたいだ遅延実行は前日分を投げ直さない
+    checkMastodonDue(3, false);
   }
 
   // ── SLOTS と BATCH_SLOTS のキーが衝突しないことの回帰テスト（2026-08-05追加）──
@@ -905,8 +934,88 @@ let linkNg = 0;
   console.log(
     `${shotOk ? "✓" : "✗"}  ${"撮影用URLはクエリ付きトップのまま".padEnd(36)} → ${shotOk ? "OK" : "見つからない"}`
   );
+
+  // 【2026-08-06追加】週次X成長キット（build-growth-kit.js）も同じ規則で検査する。
+  // 2026-08-05に日次投稿（build-digest.js）のリンク先を /season/ 形式へ直したとき、
+  // この検査が build-digest.js しか見ていなかったため、週次キット側が
+  // `${SITE_URL}/?year=&season=` のまま残っていたのに緑で通っていた。
+  // 「SNS投稿のリンク先」という同じ不変条件を持つファイルは全部ここで見る。
+  const kit = readFileSync(new URL("./lib/build-growth-kit.js", import.meta.url), "utf8");
+  // 文字列リテラルの中（コメントの引用や説明文）ではなく、URL変数の宣言だけを見る。
+  const kitDecls = [...kit.matchAll(/const (seasonUrl|shareUrl|url) = `\$\{SITE_URL\}([^`]*)`/g)];
+  const kitBad = kitDecls.filter(([, , path]) => !path.startsWith("/season/"));
+  const kitPass = kitDecls.length > 0 && kitBad.length === 0;
+  if (!kitPass) linkNg++;
+  console.log(
+    `${kitPass ? "✓" : "✗"}  ${"週次X成長キットのリンクもシーズンページ".padEnd(36)} → ${kitDecls.length}箇所中 違反${kitBad.length}件` +
+      (kitPass ? "" : `  (違反: ${JSON.stringify(kitBad.map((m) => m[2]))})`)
+  );
 }
-console.log(`結果（SNS投稿のリンク先）: ${linkNg === 0 ? 2 : 0} 件OK / ${linkNg} 件NG`);
+console.log(`結果（SNS投稿のリンク先）: ${linkNg === 0 ? 3 : 0} 件OK / ${linkNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// Xの手動運用リンク（Web Intent）の検査（2026-08-06追加）
+//
+// Xへの投稿・リプは手動運用（X APIが2026年2月に有料化）で、週次成長キットの
+// GitHub Issueが下書きを配る。ところが実測では、日次の投稿下書きIssueは
+// 7/20〜7/30こそ毎日closeされていたのに7/31以降は7件が連続でopenのまま、
+// **週次成長キット（#22・#30）に至っては一度もcloseされずコメントも0**だった。
+// フォロワーを増やすのはキットの「リーチ（会話に入る）」の部分なので、そこが
+// 一度も回っていないことが「Xフォロワー0」の直接の原因にあたる。
+// 手数を減らすため、下書きの隣にタップ1回でXの投稿画面/検索結果が開くリンクを置いた。
+// このリンクが壊れる（エンコード漏れで # 以降が落ちる等）と静かに無効化されるので、
+// 組み立て関数を直接呼んで固定する。
+// ─────────────────────────────────────────────
+console.log("\n── Xの手動運用リンク（Web Intent）──");
+let xIntentNg = 0;
+{
+  // 本文に # と改行とURLを含む、実運用に近い入力。
+  const sample = "【テスト】1社だけ\n#今期アニメ\nhttps://example.com/a?b=c";
+  const postUrl = xPostUrl(sample);
+  // 期待: text= 以降は完全にエンコードされ、生の # / 改行 / & が残らないこと。
+  // （残ると # 以降がフラグメント扱いで丸ごと落ち、ハッシュタグとURLが消えた
+  //   本文がXの投稿画面に出る。目視では「なんとなく短い」だけなので気づきにくい）
+  const q = postUrl.slice(postUrl.indexOf("text=") + 5);
+  const rawOk = !/[#\n&]/.test(q);
+  const roundTripOk = decodeURIComponent(q) === sample;
+  const originOk = postUrl.startsWith("https://x.com/intent/post?text=");
+  const p1 = rawOk && roundTripOk && originOk;
+  if (!p1) xIntentNg++;
+  console.log(
+    `${p1 ? "✓" : "✗"}  ${"xPostUrlが本文を完全にエンコードする".padEnd(40)} → 生の#/改行/&なし=${rawOk} 復元一致=${roundTripOk} 宛先=${originOk}`
+  );
+
+  // 検索は「最新」タブ固定。困りごとは鮮度が命で、既定の「話題」タブだと
+  // 何日も前の投稿が出てリプライしても会話にならない。
+  const searchUrl = xSearchUrl('"どこで見れる" アニメ -filter:links');
+  const liveOk = searchUrl.endsWith("&f=live");
+  const searchEncOk = !/[ "]/.test(searchUrl.slice(searchUrl.indexOf("q=") + 2));
+  const p2 = liveOk && searchEncOk && searchUrl.startsWith("https://x.com/search?q=");
+  if (!p2) xIntentNg++;
+  console.log(
+    `${p2 ? "✓" : "✗"}  ${"xSearchUrlは最新タブ固定でエンコード済み".padEnd(40)} → f=live=${liveOk} 生の空白/引用符なし=${searchEncOk}`
+  );
+
+  // キットのIssue本文に、実際にワンタップのリンクが出ていること
+  // （組み立て関数だけ直っていて配線を忘れる、という壊れ方を防ぐ）。
+  const md = renderGrowthKit({
+    year: 2026,
+    label: "夏",
+    todayStr: "2026-08-06",
+    count: 1,
+    drafts: [{ label: "テスト", text: "本文\n#今期アニメ" }],
+    queries: ["今期アニメ どこで見れる"],
+    replies: ["テスト返信"],
+  });
+  const hasPost = md.includes("https://x.com/intent/post?text=");
+  const hasSearch = md.includes("https://x.com/search?q=");
+  const p3 = hasPost && hasSearch;
+  if (!p3) xIntentNg++;
+  console.log(
+    `${p3 ? "✓" : "✗"}  ${"キット本文にワンタップのリンクが出る".padEnd(40)} → 投稿=${hasPost} 検索=${hasSearch}`
+  );
+}
+console.log(`結果（Xの手動運用リンク）: ${xIntentNg === 0 ? 3 : 0} 件OK / ${xIntentNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // SSRの中身が空にならないことの検査（2026-08-05追加・重大度高）
@@ -951,6 +1060,73 @@ let ssrNg = 0;
   );
 }
 console.log(`結果（SSRの中身）: ${ssrNg === 0 ? 2 : 0} 件OK / ${ssrNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// 行動ログの配線が途中で切れていないことの検査（2026-08-06追加）
+//
+// 【なぜ要るか】components/ServiceMarks.tsx は 2026-07-19 から affiliate_click /
+// official_link_click を記録していたのに、/admin/analytics の EVENT_LABELS に
+// 載っていなかったため **約3週間ぶん、どの画面にも表示されていなかった**
+// （ダッシュボードの表もグラフも EVENT_LABELS のキーから作られるので、
+// そこに無いイベントは存在しないのと同じになる）。記録は静かに成功し続けるので、
+// 画面を見ても記録漏れとの区別がつかない＝人間には気づけない壊れ方だった。
+//
+// 行動ログは3箇所の名前が揃って初めて機能する:
+//   1. 呼び出し側      … logEvent("名前", ...)
+//   2. サーバーの許可制 … app/api/track/route.ts の ALLOWED_EVENTS
+//   3. 表示            … app/admin/analytics/page.tsx の EVENT_LABELS
+// どこか1つが欠けると「送っているのに保存されない」「保存されているのに見えない」に
+// なる。dアニメストアの提携待ちの間はこの実測値が唯一の判断材料になるので、
+// ズレを機械的に止める。
+// ─────────────────────────────────────────────
+console.log("\n── 行動ログの配線（logEvent / ALLOWED_EVENTS / EVENT_LABELS）──");
+let trackNg = 0;
+{
+  const trackSrc = readFileSync(new URL("../app/api/track/route.ts", import.meta.url), "utf8");
+  const labelSrc = readFileSync(
+    new URL("../app/admin/analytics/page.tsx", import.meta.url),
+    "utf8"
+  );
+
+  // ALLOWED_EVENTS の Set リテラルから名前を拾う（コメント行は "..." を含まないので混ざらない）。
+  const allowedBlock = trackSrc.slice(
+    trackSrc.indexOf("ALLOWED_EVENTS = new Set(["),
+    trackSrc.indexOf("]);", trackSrc.indexOf("ALLOWED_EVENTS = new Set(["))
+  );
+  const allowed = new Set([...allowedBlock.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]));
+
+  // EVENT_LABELS のキー（`名前: "日本語"` の形）を拾う。
+  const labelBlock = labelSrc.slice(
+    labelSrc.indexOf("EVENT_LABELS: Record<string, string> = {"),
+    labelSrc.indexOf("};", labelSrc.indexOf("EVENT_LABELS: Record<string, string> = {"))
+  );
+  const labeled = new Set([...labelBlock.matchAll(/^\s*([a-z_]+):\s*"/gm)].map((m) => m[1]));
+
+  // 実際に logEvent(...) で送っている名前を全ソースから拾う。
+  const callers = new Set<string>();
+  for (const file of listSourceFiles(new URL("../components/", import.meta.url))) {
+    for (const m of readFileSync(file, "utf8").matchAll(/logEvent\(\s*"([a-z_]+)"/g)) {
+      callers.add(m[1]);
+    }
+  }
+
+  const notAllowed = [...callers].filter((e) => !allowed.has(e));
+  const p1 = notAllowed.length === 0 && callers.size > 0;
+  if (!p1) trackNg++;
+  console.log(
+    `${p1 ? "✓" : "✗"}  ${"送信している名前がALLOWED_EVENTSにある".padEnd(40)} → 送信${callers.size}種 / 未許可${notAllowed.length}件` +
+      (p1 ? "" : `  (サーバー側で捨てられます: ${JSON.stringify(notAllowed)})`)
+  );
+
+  const notLabeled = [...allowed].filter((e) => !labeled.has(e));
+  const p2 = notLabeled.length === 0 && allowed.size > 0;
+  if (!p2) trackNg++;
+  console.log(
+    `${p2 ? "✓" : "✗"}  ${"ALLOWED_EVENTSが全部ダッシュボードに出る".padEnd(40)} → 許可${allowed.size}種 / 未表示${notLabeled.length}件` +
+      (p2 ? "" : `  (記録されるのに画面に出ません: ${JSON.stringify(notLabeled)})`)
+  );
+}
+console.log(`結果（行動ログの配線）: ${trackNg === 0 ? 2 : 0} 件OK / ${trackNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // シーズンページのHTML量の見張り（2026-08-06追加）
@@ -1010,6 +1186,8 @@ if (
   tagNg > 0 ||
   badgeNg > 0 ||
   anchorNg > 0 ||
-  slotNg > 0
+  slotNg > 0 ||
+  xIntentNg > 0 ||
+  trackNg > 0
 )
   process.exit(1);

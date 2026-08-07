@@ -27,6 +27,41 @@ node scripts/print-digest.js feature "独占チップ" "配信サービスをAND
 
 ---
 
+## 0-2. 投稿先ごとの本文（2026-08-06導入）
+
+日次ダイジェスト（Bluesky / Mastodon / Threads の自動投稿）は、**投稿先ごとに本文が違う**。
+`--platform=` で実際に出る文面を確認できる（外向き通信は `/api/season` だけ。実投稿はしない）。
+
+```bash
+node scripts/print-digest.js --platform=all       # 4つの投稿先を並べて出す（見比べ用）
+node scripts/print-digest.js --platform=mastodon  # Mastodon（朝のまとめ枠）だけ
+node scripts/print-digest.js --platform=bluesky
+node scripts/print-digest.js --platform=threads
+node scripts/print-digest.js                      # 既定は x（下の1〜5のテンプレと同じ文体）
+```
+
+出し分けの中身:
+
+| 投稿先 | 枠 | 1行目の作り | 上限 |
+|---|---|---|---|
+| `x` | 手動投稿の下書き | **従来のまま**（このファイルの見本と一致させてある） | 260字 |
+| `bluesky` | 朝=TOP5 / 昼=スポットライト / 夜=その曜日の放送 | その時間帯に合う短い導入 | 260字 |
+| `threads` | 同上 | Bluesky とは別の言い回し | 440字 |
+| `mastodon` | **5〜7時台に1日分をまとめて** | 「おはようございます。今日（8/6・木）放送・配信がある今期アニメは8本です。」 | 440字 |
+
+- 言い回しは**週替わり**。同じ曜日でも週が変われば変わる。決めているのは**JSTの日付だけ**で
+  乱数は使わない（同じ日に何度実行しても同じ本文＝二重投稿の判別と事前確認ができる）。
+- **問いかけ**（「今日はどれから観ますか？」等）は毎回ではなく、
+  airing＝水曜と土曜／spotlight＝隔週／top5＝3週に1回だけ入る。Xの下書きには入れない。
+- **作品の評価（面白い/つまらない/おすすめ）は書かない。** サイトの立場は
+  「どこで観られるかの案内」。文面を足すときも、事実（配信サービス・本数・曜日・注目人数）
+  以外を入れないこと。
+- 文面そのものを増やしたい／変えたいときは `scripts/lib/build-digest.js` の
+  `AIRING_LEAD` / `TOP5_LEAD` / `SPOTLIGHT_BODY` / `CALENDAR_CTA` / `QUESTION` を編集する。
+  設計の理由と注意点は `docs/operations.md` の⑦-13。
+
+---
+
 ## 1. 新シーズン開始の告知
 
 **A. 端的**

@@ -6,8 +6,9 @@ name: 毎日ダイジェスト（Bluesky/Mastodon/Threads自動投稿＋Xの下�
 #                  届かせるため1時間手前から窓を開けてある）
 #   18〜21時 JST … その曜日に放送・配信のある今期アニメ（放送がある日のみ）
 #
-# ただし【Mastodonだけは従来どおり】1日1回・21時台にその日の分をまとめて投稿する
+# ただし【Mastodonだけは従来どおり】1日1回、その日の分をまとめて投稿する
 # （利用者の指定で元の運用に戻した）。時間帯で分けるのはBluesky/Threadsだけ。
+# Mastodonの時間帯は2026-08-06に21〜23時台から**5〜7時台**へ変更した（利用者の指定）。
 # Mastodonは専用のキャッシュキー（posted-mastodon-<JST日付>）で1日1回を担保する。
 #
 # 【なぜ「予定時刻に1回」ではなく「1時間おきに様子を見る」なのか】
@@ -40,6 +41,9 @@ name: 毎日ダイジェスト（Bluesky/Mastodon/Threads自動投稿＋Xの下�
 #   日曜=今期の注目作TOP5＋その日の放送/配信があれば曜日紹介
 #   月〜土=その曜日に放送・配信のある今期アニメ（無ければTOP5にフォールバック）
 #   これに加えて毎日スポットライト（【どこで見れる？】）が1本。
+# 本文は**投稿先ごとに書き分ける**（2026-08-06導入）。各post-*.jsが自分の投稿先を
+# buildPost(now, "bluesky"|"mastodon"|"threads") で渡す。Mastodonは朝のまとめ枠なので
+# 「おはようございます／今日は○本」から入る。言い回しは週替わり（決定的。乱数は使わない）。
 # Bluesky/Mastodon/Threadsは投稿APIが無料のため自動投稿する。Xは有料化されたため
 # 自動投稿はせず、コピペ用の下書きをGitHub Issueとして起票するだけにする。
 # 投稿にはサイト実画面のスクリーンショット（カレンダー表示の該当曜日 / 「今期の注目作
@@ -207,15 +211,18 @@ jobs:
             exit 0
           fi
 
-          # Mastodonは時間帯で分けず、21時を過ぎていて未投稿ならその日の分をまとめて投げる
-          # （2026-08-05に従来運用へ戻した）。Bluesky/Threadsの枠選びとは独立に判定する。
+          # Mastodonは時間帯で分けず、開始時刻（5時 JST）を過ぎていて未投稿なら
+          # その日の分をまとめて投げる（2026-08-05に従来運用へ戻し、2026-08-06に
+          # 時間帯を5〜7時台へ変更）。Bluesky/Threadsの枠選びとは独立に判定する。
+          # 時刻はここに書かない（build-digest.js の BATCH_SLOTS が唯一の定義で、
+          # scripts/current-slot.js が due_mastodon として渡してくる）。
           echo "mastodon_slot=mastodon" >> "$GITHUB_OUTPUT"
           if [ "$DUE_MASTODON" = "true" ] && [ "$HIT_MASTODON" != "true" ]; then
             echo "mastodon_go=true" >> "$GITHUB_OUTPUT"
             echo "Mastodon: 今日の分をまとめて投稿します（$now）"
           else
             echo "mastodon_go=false" >> "$GITHUB_OUTPUT"
-            echo "Mastodon: 投稿しません（21時前、または今日は投稿済み）"
+            echo "Mastodon: 投稿しません（開始時刻の前、または今日は投稿済み）"
           fi
 
           unposted() {  # $1=枠名 → 開始済みかつ未投稿なら0
@@ -264,8 +271,8 @@ jobs:
         env:
           DIGEST_SLOT: ${{ steps.gate.outputs.slot }}
         run: |
-          echo "=== 枠: $DIGEST_SLOT として投稿されるはずの本文 ==="
-          node scripts/print-digest.js
+          echo "=== 枠: $DIGEST_SLOT として投稿されるはずの本文（投稿先ごと） ==="
+          node scripts/print-digest.js --platform=all
 
       - name: スクリーンショット撮影用にChromiumをインストール
         if: ${{ steps.gate.outputs.go == 'true' || steps.gate.outputs.mastodon_go == 'true' }}
@@ -294,9 +301,9 @@ jobs:
           BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
           DIGEST_SLOT: ${{ steps.gate.outputs.slot }}
 
-      # Mastodonだけは時間帯で分けず、1日1回21時台にその日の分をまとめて投げる
+      # Mastodonだけは時間帯で分けず、1日1回・5〜7時台にその日の分をまとめて投げる
       # （2026-08-05に従来運用へ戻した）。Bluesky/Threadsの枠とは独立に判定している。
-      - name: Mastodonへ自動投稿（1日1回・21時台にまとめて／Secrets未設定ならスキップ）
+      - name: Mastodonへ自動投稿（1日1回・5〜7時台にまとめて／Secrets未設定ならスキップ）
         id: mastodon
         if: ${{ !cancelled() && steps.gate.outputs.mastodon_go == 'true' }}
         run: node scripts/post-mastodon.js
