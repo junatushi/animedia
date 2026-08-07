@@ -12,6 +12,7 @@
 // 内部の都合（検索用の creditNames など）が外部の互換性を縛らないようにするため。
 // ───────────────────────────────────────────────────────────────
 import { NextResponse } from "next/server";
+import { apiSource } from "@/lib/attribution";
 import { getWorkData } from "@/lib/getWorkData";
 import { siteUrl } from "@/lib/siteUrl";
 import { airingStatus, jstToday } from "@/lib/workAvailability";
@@ -82,14 +83,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         checkedAt
       ),
       // データの出所。二次利用する側が出典を書けるように明示する。
-      source: {
-        provider: "Annict",
-        providerUrl: "https://annict.com/",
-        site: "アニメ視聴ガイド",
-        siteUrl,
-        // 「配信が確認された日」ではなく「Annictからデータを取得した日」。
-        checkedAt,
-      },
+      // 定義は lib/attribution.ts に集約（/api/season とも同じ形にする）。
+      source: apiSource(checkedAt),
     },
     {
       headers: {

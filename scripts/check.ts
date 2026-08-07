@@ -12,6 +12,7 @@ import {
   type EmbedWork,
 } from "../lib/embed.ts";
 import { siteUrl } from "../lib/siteUrl.ts";
+import { buildCalendar, CALENDAR_REF, type CalendarWork } from "../lib/calendar.ts";
 import {
   airingStatus,
   buildWatchAnswer,
@@ -1193,6 +1194,114 @@ let embedNg = 0;
   );
 }
 console.log(`結果（配信先ウィジェット）: ${embedNg === 0 ? "全件OK" : `${embedNg} 件NG`}`);
+
+// ─────────────────────────────────────────────
+// カレンダー購読（.ics）の不変条件（2026-08-07追加）
+//
+// 【放送開始1週間前ルール】(CLAUDE.md) の派生。UIで曜日・時刻を出さないのは
+// 「今週の水曜22:30」と誤読させないためで、カレンダーは実日付を持つのでその誤読は
+// 起きない。ただし DTSTART を「次の水曜」から始めてしまうと、1話も配信されていない
+// 日に予定が入る＝同じ誤誘導になる。DTSTART は必ず broadcastStartDate に置き、
+// 放送開始日が分からない作品は**載せない**（推測で日付を作らない）。
+//
+// .ics は購読されたら相手のカレンダーに常駐する＝壊れた値の影響がこちらに見えない
+// ので、ウィジェットと同じ強さで固定しておく。
+// ─────────────────────────────────────────────
+console.log("\n── カレンダー購読（.ics）の不変条件 ──");
+let icsNg = 0;
+{
+  function icsCheck(name: string, pass: boolean, detail: string) {
+    if (!pass) icsNg++;
+    console.log(`${pass ? "✓" : "✗"}  ${name.padEnd(38)} → ${detail}`);
+  }
+
+  const works: CalendarWork[] = [
+    {
+      id: 100,
+      title: "放送開始日あり作品",
+      services: [{ key: "d_anime", short: "dアニメ" }],
+      otherServices: [],
+      broadcastStartDate: "2026-07-08",
+      broadcastTime: "22:30",
+    },
+    {
+      // 放送開始日が分からない作品。カレンダーに出してはいけない。
+      id: 101,
+      title: "放送開始日なし作品",
+      services: [{ key: "abema", short: "ABEMA" }],
+      otherServices: [],
+      broadcastStartDate: null,
+      broadcastTime: "22:30",
+    },
+    {
+      // 時刻だけ無い作品も、開始時刻を決められないので出さない。
+      id: 102,
+      title: "時刻なし作品",
+      services: [],
+      otherServices: [],
+      broadcastStartDate: "2026-07-08",
+      broadcastTime: null,
+    },
+  ];
+
+  const ics = buildCalendar(works, { seasonLabel: "2026年夏", now: new Date("2026-08-07T00:00:00Z") });
+
+  icsCheck(
+    "放送開始日が無い作品を載せない",
+    !ics.includes("放送開始日なし作品") && !ics.includes("時刻なし作品"),
+    ics.includes("放送開始日なし作品") || ics.includes("時刻なし作品") ? "混入" : "除外できている"
+  );
+
+  const uidCount = (ics.match(/^UID:/gm) ?? []).length;
+  icsCheck("載るのは開始日が判明した作品だけ", uidCount === 1, `VEVENT ${uidCount}件（期待 1件）`);
+
+  // JST 22:30 → UTC 13:30 同日。9時間の引き算がずれていないか。
+  icsCheck(
+    "DTSTARTがJST→UTCで正しい",
+    ics.includes("DTSTART:20260708T133000Z"),
+    ics.match(/DTSTART:[^\r\n]+/)?.[0] ?? "なし"
+  );
+
+  // 「26:30」のような24時以降表記が翌日に繰り上がるか（JST 26:30 = 翌日2:30 = UTC 前日17:30）。
+  const late = buildCalendar(
+    [{ ...works[0], broadcastTime: "26:30" }],
+    { seasonLabel: "2026年夏", now: new Date("2026-08-07T00:00:00Z") }
+  );
+  icsCheck(
+    "26:30表記が翌日に繰り上がる",
+    late.includes("DTSTART:20260708T173000Z"),
+    late.match(/DTSTART:[^\r\n]+/)?.[0] ?? "なし"
+  );
+
+  // 予定の中身から自サイトへ戻れること＋流入計測の印。
+  icsCheck("作品ページへのリンクに?ref=が付く", ics.includes(`?ref=${CALENDAR_REF}`), `ref=${CALENDAR_REF}`);
+
+  // RFC 5545 のテキストエスケープ。作品名にカンマ・セミコロンが入ると
+  // エスケープ漏れでプロパティが壊れ、購読側でイベントが消える。
+  const escaped = buildCalendar(
+    [{ ...works[0], title: "A,B;C" }],
+    { seasonLabel: "2026年夏", now: new Date("2026-08-07T00:00:00Z") }
+  );
+  icsCheck(
+    "作品名のカンマ・セミコロンをエスケープする",
+    escaped.includes("SUMMARY:A\\,B\\;C"),
+    escaped.match(/SUMMARY:[^\r\n]+/)?.[0] ?? "なし"
+  );
+
+  // 改行は CRLF でなければならない（RFC 5545）。LFだけだと一部クライアントが読まない。
+  icsCheck(
+    "改行がCRLF",
+    ics.includes("\r\n") && !/[^\r]\n/.test(ics),
+    ics.includes("\r\n") ? "CRLF" : "LFのみ"
+  );
+
+  icsCheck(
+    "VCALENDARが閉じている",
+    ics.startsWith("BEGIN:VCALENDAR") && ics.trimEnd().endsWith("END:VCALENDAR"),
+    "BEGIN/END"
+  );
+}
+console.log(`結果（カレンダー購読）: ${icsNg === 0 ? "全件OK" : `${icsNg} 件NG`}`);
 
 // ─────────────────────────────────────────────
 // 放送終了作品に「いま配信中」と断定しない（2026-08-06追加）

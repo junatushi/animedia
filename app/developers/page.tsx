@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { siteUrl } from "@/lib/siteUrl";
 import { EMBED_FRAME_HEIGHT } from "@/lib/embed";
+import { attributionHtml, attributionMarkdown, attributionText } from "@/lib/attribution";
 
 const title = "配信先ウィジェット・公開API";
 const description =
@@ -147,7 +148,8 @@ export default function DevelopersPage() {
                   <a href="https://annict.com/" target="_blank" rel="noopener noreferrer">
                     Annict
                   </a>
-                  を明記してください（ウィジェットには最初から入っています）。
+                  を明記してください（ウィジェットには最初から入っています）。そのまま貼れる形を
+                  下の「出典の書き方」に用意してあります。
                 </li>
                 <li>
                   APIは常識的な頻度でお願いします。クール全件のような大きなデータを繰り返し取得する用途では、
@@ -162,6 +164,40 @@ export default function DevelopersPage() {
                   ウィジェットは広告リンクを含みません。リンク先は本サイトの作品ページのみです。
                 </li>
               </ul>
+            </section>
+
+            {/* 出典の書き方（2026-08-07追加）。
+                「出典を明記してください」と書くだけでは書かれない。書きたくないのではなく、
+                自分で文面を組み立てる手間があると省かれるだけなので、コピーできる形を出す
+                （lib/attribution.ts の冒頭コメント／docs/growth-strategy-2026-08.md）。
+                リンクを義務化して被リンクを買う施策ではない点は上の利用条件のとおり。 */}
+            <section className="detail-section">
+              <h2 className="detail-heading">出典の書き方</h2>
+              <p className="detail-text">
+                記事やアプリに合うものをそのままお使いください。文面を変えても構いません。
+                APIのレスポンスにも同じ内容が <code>source</code> として入っています。
+              </p>
+              <p className="detail-text">HTML（ブログ記事の末尾など）</p>
+              <pre className="detail-code">{attributionHtml()}</pre>
+              <p className="detail-text">Markdown（GitHubのREADME・Zenn/Qiitaなど）</p>
+              <pre className="detail-code">{attributionMarkdown()}</pre>
+              <p className="detail-text">テキスト（アプリの「このアプリについて」など）</p>
+              <pre className="detail-code">{attributionText()}</pre>
+            </section>
+
+            <section className="detail-section">
+              <h2 className="detail-heading">配信スケジュールをカレンダーで購読する</h2>
+              <p className="detail-text">
+                今期の放送・配信スケジュールを iCalendar（.ics）で配信しています。Googleカレンダー・
+                Apple カレンダー等の「URLでカレンダーを追加」に次のURLを入れると、毎週の放送予定が
+                自分のカレンダーに並びます。放送開始日が判明している作品だけを載せています。
+              </p>
+              <pre className="detail-code">{`${siteUrl}/calendar.ics`}</pre>
+              <p className="detail-text">
+                <code>?service=</code> を付けると、そのサービスの見放題で見られる作品だけに絞れます
+                （キーは上のAPIが返す <code>services[].key</code> と同じ）。
+              </p>
+              <pre className="detail-code">{`${siteUrl}/calendar.ics?service=d_anime`}</pre>
             </section>
 
             <section className="detail-section">
