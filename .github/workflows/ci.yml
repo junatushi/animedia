@@ -54,5 +54,12 @@ jobs:
       - name: Threads自動投稿の検査（APIスタブ。ネットワークには出ない）
         run: node scripts/check-threads.js
 
+      # 本番SSRの実地検査（scripts/verify-production.sh）そのものが壊れていないかの検査。
+      # 本体は毎日 verify-production.yml が本番に対して回すが、シェルスクリプトは
+      # 「NGを出さなくなる」方向に壊れると毎日緑のまま無力化するので、ここで
+      # 「落ちるべきときに落ちる」ことをスタブ相手に固定する。ネットワークには出ない。
+      - name: 本番検査スクリプト自身の検査（スタブ。ネットワークには出ない）
+        run: node scripts/check-verify-production.js
+
       - name: 本番ビルド
         run: npm run build

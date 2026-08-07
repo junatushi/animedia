@@ -24,6 +24,10 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   （`docs/operations.md`の⑦-10）という壊れ方を検知できない。毎日GitHub Actions
   （`.github/workflows/verify-production.yml`）が回すので**手で実行する必要は無い**。
   外向き通信のある環境でのみ動く（本番ドメインが遮断された環境では実行できない＝それが自動化した理由）
+- `node scripts/check-verify-production.js` … 上のスクリプト自身の回帰テスト（2026-08-07導入）。
+  スタブの本番サーバーを立てて`verify-production.sh`を実際に動かし、**落ちるべきときに落ちる**
+  ことを固定する。シェルは「NGを出さなくなる」方向に壊れると毎日緑のまま無力化するため。
+  ネットワークには出ない。`verify-production.sh`を触ったら必ず実行する
 - `node scripts/build-archive-index.ts` … 過去クール索引の再生成（2026-08-05導入）。
   `content/snapshots/*.json`を読み、sitemapに載せる過去クール（シーズンページ＋配信1件以上の
   作品ページ）の索引を`content/archive/index.json`に書く。ネットワーク不要。
