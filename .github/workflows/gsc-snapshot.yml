@@ -1,0 +1,104 @@
+name: GSC検索パフォーマンスの日次取得
+
+# 【なぜ要るか・2026-08-10】
+# Search Console は画面もAPIもログインが要るため、セッション（Claude）からは実測値を
+# 読めない。代わりに GSC の通知メールを読む方法を試したが、全期間で5通しか無く、
+# 表示回数・CTR・平均掲載順位・クエリ別・ページ別は一切届かないと分かった
+# （docs/operations.md「実測サマリ」の2026-08-10の注記）。
+# そこで外向き通信ができる GitHub Actions から API を叩き、結果をリポジトリに置く。
+# 以後セッションは **コミット済みのJSONを読むだけ** でよくなる。
+#
+# 取得内容は scripts/fetch-gsc.js（YAMLに条件を書かない。ローカルからも
+# `GSC_SERVICE_ACCOUNT_JSON=... node scripts/fetch-gsc.js` でそのまま回せる）。
+# セットアップ手順は docs/gsc-setup.md。
+
+on:
+  schedule:
+    # 1日1回。GSCのデータは数日遅れて確定するので、時刻の精度は要らない
+    # （GitHub Actions の schedule は数時間遅れる前提＝CLAUDE.md の基本ルール）。
+    - cron: "40 21 * * *" # 06:40 JST 前後
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: gsc-snapshot
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 鍵が未登録の間は「静かにスキップ」する（watched/notify や Supabase 未設定時と
+      # 同じ設計思想）。ここで失敗させると、セットアップが済むまで毎日Issueが積み上がる。
+      - name: 鍵が登録されているか確認する
+        id: guard
+        env:
+          GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$GSC_SERVICE_ACCOUNT_JSON" ]; then
+            echo "GSC_SERVICE_ACCOUNT_JSON が未登録のためスキップします（docs/gsc-setup.md）。"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 検索パフォーマンスを取得する
+        id: fetch
+        if: steps.guard.outputs.configured == 'true'
+        env:
+          GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
+        run: node scripts/fetch-gsc.js
+
+      # 部分的にしか取れなかった場合（fetch-gsc.js は終了コード1で知らせる）でも、
+      # 取れた分は残したいので always() で回す。
+      - name: 取得結果をコミットする
+        if: always() && steps.guard.outputs.configured == 'true'
+        run: |
+          if [ -z "$(git status --porcelain content/analytics)" ]; then
+            echo "差分なし。コミットしません。"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add content/analytics
+          git commit -m "GSC検索パフォーマンスの取得（$(date -u +%Y-%m-%d)）"
+          git push
+
+      # 失敗をログの中だけで終わらせない（verify-production.yml と同じ考え方）。
+      - name: 失敗したらIssueに出す
+        if: failure() && steps.guard.outputs.configured == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = "GSC検索パフォーマンスの取得が失敗しました";
+            const { data: open } = await github.rest.issues.listForRepo({
+              ...context.repo, state: "open", labels: "gsc-snapshot", per_page: 10,
+            });
+            const body = [
+              `GSCからの日次取得が失敗しました。`,
+              ``,
+              `- ログ: ${url}`,
+              `- 取得内容: \`scripts/fetch-gsc.js\` / セットアップ: \`docs/gsc-setup.md\``,
+              ``,
+              `よくある原因:`,
+              `- サービスアカウントがGSCプロパティのユーザーから外れた（権限は手で消せてしまう）`,
+              `- \`GSC_SITE_URL\` とGSCのプロパティ表記が一致していない（URLプレフィックス型は末尾スラッシュが要る）`,
+              `- 鍵の有効期限切れ・失効`,
+              ``,
+              `一時的なエラー（429・5xx）は指数バックオフで再試行済みなので、ここまで来た失敗は恒久的なものの可能性が高いです。`,
+            ].join("\n");
+            if (open.length > 0) {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: open[0].number, body });
+            } else {
+              await github.rest.issues.create({ ...context.repo, title, body, labels: ["gsc-snapshot"] });
+            }

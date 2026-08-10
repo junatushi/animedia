@@ -45,6 +45,15 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   旧形式で`roleCredits`を持たないため**空の索引になる**（落ちずに警告を出す）。実データを入れるには
   `ANNICT_TOKEN`のある環境で`node scripts/snapshot-past-seasons.ts <年> <年> --force`から回す。
   詳細は`docs/operations.md`の⑱-11
+- `node scripts/check-gsc.js` … GSC取得スクリプトのテスト（2026-08-10導入）。APIのスタブを立てて
+  `scripts/fetch-gsc.js`を実際に動かし、一時エラーの再試行・恒久エラーの即失敗・1件失敗で残りを
+  巻き添えにしないこと・**書き出すJSONに鍵やトークンが混入しないこと**を固定する。
+  ネットワークには出ない。`fetch-gsc.js`を触ったら必ず実行する
+- `node scripts/fetch-gsc.js` … GSC検索パフォーマンスの取得（2026-08-10導入）。
+  `.github/workflows/gsc-snapshot.yml`が毎日呼び、`content/analytics/gsc/<日付>.json`に保存する。
+  **GSCはログインが要るためセッションからは読めない**（通知メールも節目と問題の検出しか届かない）
+  ので、外向き通信ができるGitHub Actions側で取ってリポジトリに置き、セッションは
+  コミット済みのJSONを読む。セットアップは`docs/gsc-setup.md`、要`GSC_SERVICE_ACCOUNT_JSON`
 - `node scripts/audit-coverage.ts [year] [season]` … 配信データ網羅率の点検（2026-07-12導入）。
   引数省略時は現在のクール。(a)TV放送データはあるが配信サービス0件の作品（注目度順。
   Annict側の登録待ちの疑い）、(b)「その他配信」に落ちた未知チャンネル名（`SERVICES`

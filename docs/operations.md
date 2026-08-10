@@ -1096,8 +1096,15 @@ Vercel Proに課金せず、既に導入済みのSupabase（無料枠のPostgres
 
 > **2026-08-10の「取得できず」について**: この日も外向き通信は全面遮断（`example.com`
 > すら403）で、GSC・Vercel Analytics・`/admin/analytics` はいずれもログインが要るため
-> セッションからは読めない。**これらは構造的にセッションからは取得できない**ので、
-> 毎回「取得できず」になる。数字が要るときは利用者が画面を見て伝える運用にする。
+> セッションからは読めない。**これらは構造的にセッションからは取得できない**。
+>
+> **→ GSCについては同日に自動取得の仕組みを入れた**（`scripts/fetch-gsc.js` ＋
+> `.github/workflows/gsc-snapshot.yml`）。外向き通信ができるGitHub Actions側で
+> Search Console APIを日次で叩き、`content/analytics/gsc/<日付>.json` に保存する。
+> **鍵（`GSC_SERVICE_ACCOUNT_JSON`）が登録されれば、次回以降この表の
+> 検索クリック・表示回数・平均掲載順位・CTRはコミット済みJSONから埋められる**
+> （クエリ別・ページ別の上位100件も付く）。手順は `docs/gsc-setup.md`。
+> Vercel Analytics と `/admin/analytics` は引き続き利用者が画面を見て伝える。
 >
 > 一方で「検索クリック10以上」は **Search Console からの通知メール**（`sc-noreply@google.com`、
 > 2026-08-04着信「過去 28 日間でクリック数が 10 クリックに到達しました」・基準日 8/2）から
