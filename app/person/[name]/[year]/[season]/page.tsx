@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import { PERSON_PAGE_MIN_APPEARANCES as MIN_APPEARANCES } from "@/lib/personPage";
 import { PERSON_FILMOGRAPHY } from "@/content/people/filmography";
+import { otherSeasonWorks, MAX_WORKS_SHOWN, type PersonIndex } from "@/lib/personIndex";
+import personIndexJson from "@/content/archive/people.json";
 import type { AnimeItem } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
@@ -76,6 +78,20 @@ export default async function PersonPage({ params }: { params: Params }) {
   if (!fetchError && works.length < MIN_APPEARANCES) notFound();
 
   const filmography = PERSON_FILMOGRAPHY[name];
+  // 他のクールの出演作（2026-08-07追加）。`content/archive/people.json` はスナップショット
+  // から作った静的な索引なので、Annictへの追加取得もフェッチも発生しない。
+  // このページはこれまで「そのクールの出演作」しか出せず、作品ページへの内部リンクも
+  // 同じクールに閉じていた。過去クールの作品ページ（sitemapに載せた1,961件）は
+  // シーズンページからしか辿れないので、ここから横断のリンクが増える意味もある。
+  // JSONのimportはタプルを `(string|number)[]` として推論するので、素直には
+  // PersonWork（4要素タプル）と噛み合わない。中身は生成スクリプトが作っており
+  // `node scripts/check.ts` が形も含めて検査しているので、ここは unknown 経由で通す。
+  const otherWorks = otherSeasonWorks(
+    personIndexJson as unknown as PersonIndex,
+    name,
+    Number(year),
+    season
+  ).slice(0, MAX_WORKS_SHOWN);
   const checkedDate = new Date().toISOString().slice(0, 10);
   const structuredLd = !fetchError
     ? [
@@ -184,6 +200,32 @@ export default async function PersonPage({ params }: { params: Params }) {
                     ))}
                   </ul>
                 </section>
+
+                {otherWorks.length > 0 && (
+                  <section className="detail-section">
+                    {/* 【表現の注意】ここに並ぶのは「そのクールの番組表に配信の記録があった」
+                        作品であって、いま配信されている保証は無い（Annictは配信終了を
+                        記録しない。CLAUDE.mdの基本ルール／lib/workAvailability.ts）。
+                        「配信中」「視聴できます」と書かないこと。 */}
+                    <h2 className="detail-heading">
+                      他のクールの出演作（配信情報がある作品・{otherWorks.length}作品）
+                    </h2>
+                    <ul className="detail-list">
+                      {otherWorks.map(([id, title, y, s]) => (
+                        <li key={id}>
+                          <Link href={`/anime/${id}`}>{title}</Link>{" "}
+                          <Link href={`/season/${y}/${s}`} className="detail-sub">
+                            {y}年{SEASON_LABEL[s]}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="detail-updated">
+                      過去クールの記録から、配信情報が登録されている作品だけを新しい順に出しています。
+                      現在も配信されているかは各サービスでご確認ください。
+                    </p>
+                  </section>
+                )}
               </>
             )}
           </div>

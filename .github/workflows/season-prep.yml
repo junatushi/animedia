@@ -1,0 +1,84 @@
+name: 次クール準備の前倒しチェックリスト（Issue自動起票）
+
+# 【背景】検索需要はクール開始の約1ヶ月前から立ち上がるが、これまで「前倒しで準備を
+# 始める」きっかけが運用に無かった。クール開始のおよそ1〜1.5ヶ月前（窓）に、準備の
+# チェックリストをGitHub Issueとして自動起票する。
+#
+# 【なぜ「毎日1回」起動で「窓の判定」をscript側に持たせるか】
+# GitHub Actionsのscheduleは予定通りに発火しない（このリポジトリの実測で最大6.4時間の
+# 遅れ）。「窓の初日にピンポイントで1回起動」する設計にすると、その1回が丸ごと
+# 落ちた/遅れた場合に窓自体を逃しかねない。そのため cron は「毎日1回」を表すだけにし、
+# 「いまが窓の中か」は毎日 scripts/lib/build-season-prep.js に判定させる（この方式なら
+# 多少発火が遅れても、窓が10日前後あるうちのどこかで必ず1回は判定に当たる）。
+# 月日の定義はYAMLに書かない（scripts/lib/build-season-prep.js の WINDOWS だけが持つ。
+# daily-digest.yml / season-prep.js が時刻・日付の定義を1箇所に集める方針と同じ）。
+#
+# 【重複起票の防止】窓は10日前後あり、その間は毎日この判定が「窓の中」を返すため、
+# 何も対策しなければ同じクールのIssueが積み上がる。scripts/season-prep.js が出す
+# タイトル（クール名を含む＝同じクールの間は同じ文字列になる）で既存Issueを
+# `gh issue list --state all` 検索し、見つかれば起票しない。state=all にしているのは、
+# 対応が終わってCloseされた後の日にも同じ窓の判定が続くため（openだけを見ると、
+# Close直後にまた起票してしまう）。この「タイトルで既存Issueを検索して二重起票を
+# 防ぐ」手法は daily-digest.yml の「SNS投稿が失敗していたらIssueで知らせる」ステップと
+# 同じやり方に揃えてある。x-growth.yml は週1回しか走らずタイトルに実行日の日付が
+# 入るため、そもそも同一タイトルが重複しない構造になっており明示的な重複起票対策を
+# 持たない（season-prepは毎日走り窓の間タイトルが変わらないため、この対策が必要）。
+on:
+  schedule:
+    - cron: "0 3 * * *" # 毎日1回起動するというだけの意味（時刻はJST正午ごろ）。月日はここに書かない
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  season-prep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 窓の中かどうかを判定し、中ならIssue本文を生成
+        id: gen
+        run: |
+          node scripts/season-prep.js > season-prep-output.txt
+          if [ -s season-prep-output.txt ]; then
+            echo "in_window=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "in_window=false" >> "$GITHUB_OUTPUT"
+            echo "いまは前倒し準備の窓の外なので何もしません"
+          fi
+
+      - name: タイトルと本文を分離
+        id: split
+        if: steps.gen.outputs.in_window == 'true'
+        run: |
+          title=$(head -n1 season-prep-output.txt | sed 's/^TITLE: //')
+          tail -n +3 season-prep-output.txt > season-prep-body.md
+          echo "title=$title" >> "$GITHUB_OUTPUT"
+
+      - name: 同じクールのIssueが既にあるか確認（重複起票の防止。open/closed問わず検索）
+        id: dup
+        if: steps.gen.outputs.in_window == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.split.outputs.title }}
+        run: |
+          existing=$(gh issue list --state all --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "既にIssue #$existing があるため起票しません: $TITLE"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 前倒し準備のチェックリストをIssueとして起票
+        if: steps.gen.outputs.in_window == 'true' && steps.dup.outputs.exists == 'false'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.split.outputs.title }}
+        run: |
+          gh issue create --title "$TITLE" --body-file season-prep-body.md

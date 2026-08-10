@@ -37,21 +37,38 @@ const LINKS = [
 
 export default function FollowLinks() {
   return (
-    <p className="follow-links">
-      新作の配信情報を毎日お知らせしています。フォローはこちら:{" "}
-      {LINKS.map((l, i) => (
-        <span key={l.key}>
-          {i > 0 && " ・ "}
-          <a
-            href={l.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => logEvent("follow_click", { network: l.key })}
-          >
-            {l.label}
-          </a>
-        </span>
-      ))}
-    </p>
+    <>
+      <p className="follow-links">
+        新作の配信情報を毎日お知らせしています。フォローはこちら:{" "}
+        {LINKS.map((l, i) => (
+          <span key={l.key}>
+            {i > 0 && " ・ "}
+            <a
+              href={l.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => logEvent("follow_click", { network: l.key })}
+            >
+              {l.label}
+            </a>
+          </span>
+        ))}
+      </p>
+      {/* カレンダー購読（2026-08-07追加。app/calendar.ics）。
+          SNSのフォローと違い、購読されたらこちらが何もしなくても毎週相手の
+          カレンダーに出る。調査した長命な類似サービス（しょぼいカレンダー・Annict・
+          AnimeSchedule・映画.com）が例外なく持っていた定着装置で、
+          本サイトには導線が /developers にしか無かった
+          （docs/growth-strategy-2026-08.md ／ docs/operations.md ⑱）。 */}
+      <p className="follow-links">
+        今期の放送スケジュールをカレンダーに取り込めます:{" "}
+        <a
+          href="/calendar.ics"
+          onClick={() => logEvent("calendar_subscribe", { scope: "all" })}
+        >
+          カレンダーで購読する（.ics）
+        </a>
+      </p>
+    </>
   );
 }

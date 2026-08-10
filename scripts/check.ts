@@ -12,6 +12,8 @@ import {
   type EmbedWork,
 } from "../lib/embed.ts";
 import { siteUrl } from "../lib/siteUrl.ts";
+import { buildCalendar, CALENDAR_REF, type CalendarWork } from "../lib/calendar.ts";
+import { aggregateYear, usableYears, currentState, pct } from "../lib/streamingTrends.ts";
 import {
   airingStatus,
   buildWatchAnswer,
@@ -31,6 +33,19 @@ import {
   jstParts,
 } from "./lib/build-digest.js";
 import { xPostUrl, xSearchUrl } from "./lib/x-intent.js";
+// 日次の下書きIssueの本文組み立て（--issue）。require.main ガードがあるので
+// importしてもネットワークへは出ない。
+import printDigest from "./print-digest.js";
+// 次クール準備の窓判定（2026-08-07追加）。純粋関数だけの、ネットワークに出ないモジュール。
+import seasonPrep from "./lib/build-season-prep.js";
+// 視聴プランの集合被覆（2026-08-07追加）。純粋関数のみ。
+import { buildServicePlan } from "../lib/servicePlan.ts";
+// Discordスラッシュコマンド（2026-08-07追加）。
+import { generateKeyPairSync, sign as cryptoSign } from "node:crypto";
+import { verifyDiscordSignature, buildAnimeReply, messageResponse } from "../lib/discord.ts";
+// 配信サービス追加の検知（2026-08-07追加）。純粋関数のみ。
+import { applySightings } from "../lib/serviceAdditions.ts";
+import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
 import { renderGrowthKit } from "./lib/build-growth-kit.js";
 
 
@@ -853,6 +868,70 @@ let archiveNg = 0;
 console.log(`結果（過去クール索引）: ${archiveNg === 0 ? 2 : 0} 件OK / ${archiveNg} 件NG`);
 
 // ─────────────────────────────────────────────
+// 声優の出演作索引（content/archive/people.json）の検査（2026-08-07追加）
+//
+// /person/[name]/[year]/[season] の「他のクールの出演作」の元データ。
+// 過去クール索引と同じで、スナップショットを更新したのに作り直し忘れると
+// 画面は壊れないまま中身だけ古くなる。
+// ズレていたら `node scripts/build-person-index.ts` を実行すれば直る。
+// ─────────────────────────────────────────────
+console.log("\n── 声優の出演作索引 ──");
+let peopleNg = 0;
+{
+  const { buildPersonIndex } = await import("./build-person-index.ts");
+  const { readSnapshots } = await import("./build-archive-index.ts");
+  const snapshots = readSnapshots();
+  const expected = buildPersonIndex(snapshots);
+  const actual = JSON.parse(
+    readFileSync(new URL("../content/archive/people.json", import.meta.url), "utf8")
+  ) as PersonIndex;
+
+  const same = JSON.stringify(expected) === JSON.stringify(actual.people);
+  if (!same) peopleNg++;
+  const total = Object.values(expected).reduce((n, w) => n + w.length, 0);
+  console.log(
+    `${same ? "✓" : "✗"}  ${"people.jsonがcontent/snapshots/と一致".padEnd(40)} → ` +
+      `${Object.keys(expected).length}人・出演${total}件` +
+      (same ? "" : "  (不一致: node scripts/build-person-index.ts を実行してください)")
+  );
+
+  // 収録方針: 配信情報が1件も無い作品は載せない（過去クール索引と同じ理由）。
+  // ここが崩れると、作品ページに飛んでも「配信情報なし」としか書いていない
+  // リンクを声優ページから大量に生やすことになる。
+  const noServices = new Set<string>();
+  for (const { data } of snapshots) {
+    for (const it of data.items) if (it.services.length === 0) noServices.add(it.id);
+  }
+  const leaked = Object.values(expected)
+    .flat()
+    .filter(([id]) => noServices.has(id)).length;
+  if (leaked > 0) peopleNg++;
+  console.log(
+    `${leaked === 0 ? "✓" : "✗"}  ${"配信0件の作品を載せていない".padEnd(40)} → 混入${leaked}件`
+  );
+
+  // 1作品しか無い人を載せない（クール別ページと中身が同じになるため）。
+  const thin = Object.entries(expected).filter(([, w]) => w.length < MIN_WORKS).length;
+  if (thin > 0) peopleNg++;
+  console.log(
+    `${thin === 0 ? "✓" : "✗"}  ${`出演${MIN_WORKS}作品未満の人を載せていない`.padEnd(40)} → ${thin}人`
+  );
+
+  // 表示側は「そのクールに出ていた分」を二重に出さない（クール別ページが既に出している）。
+  const sampleName = Object.keys(expected)[0];
+  const sample = expected[sampleName]?.[0];
+  const filtered = sample
+    ? otherSeasonWorks({ generatedAt: "", people: expected }, sampleName, sample[2], sample[3])
+    : [];
+  const excluded = sample ? !filtered.some(([id]) => id === sample[0]) : false;
+  if (!excluded) peopleNg++;
+  console.log(
+    `${excluded ? "✓" : "✗"}  ${"otherSeasonWorksが同一クールを除く".padEnd(40)} → ${sampleName ?? "(データなし)"}`
+  );
+}
+console.log(`結果（声優の出演作索引）: ${peopleNg === 0 ? 4 : 0} 件OK / ${peopleNg} 件NG`);
+
+// ─────────────────────────────────────────────
 // 作品ページ title の幅の検査（2026-08-05追加）
 //
 // 検索結果の日本語titleは概ね全角30〜33文字で切られる。2026-07-27に
@@ -1029,8 +1108,27 @@ let xIntentNg = 0;
   console.log(
     `${p3 ? "✓" : "✗"}  ${"キット本文にワンタップのリンクが出る".padEnd(40)} → 投稿=${hasPost} 検索=${hasSearch}`
   );
+
+  // 日次の下書きIssueにも同じリンクが入っていること（2026-08-07追加）。
+  // 週次キットにだけ入れて日次を忘れていた期間があり、**毎日やる側**の手数が
+  // 減らないままだった（日次のIssueは7/31以降7件が連続でopen）。
+  // ワークフローが --issue を落とすとベタ書きに戻り、静かに元の運用へ逆戻りする。
+  const digestYml = readFileSync(new URL("../.github/workflows/daily-digest.yml", import.meta.url), "utf8");
+  const ymlOk = /print-digest\.js\s+--issue/.test(digestYml);
+  // 本文は組み立て関数を直接呼んで確かめる（文字列grepだと書き換えに追随できない）。
+  // 本文に # と改行を含む、実運用に近い入力。
+  const issueMd = printDigest.renderIssue([{ kind: "top5", text: "【テスト】1話\n#今期アニメ" }]);
+  const mdOk =
+    issueMd.includes("https://x.com/intent/post?text=") &&
+    issueMd.includes("注目作TOP5") &&
+    issueMd.includes("【テスト】1話"); // コピー用のコードブロックも残っていること
+  const p4 = ymlOk && mdOk;
+  if (!p4) xIntentNg++;
+  console.log(
+    `${p4 ? "✓" : "✗"}  ${"日次の下書きIssueもワンタップで開く".padEnd(40)} → ワークフローが--issue=${ymlOk} 本文にリンクと下書き=${mdOk}`
+  );
 }
-console.log(`結果（Xの手動運用リンク）: ${xIntentNg === 0 ? 3 : 0} 件OK / ${xIntentNg} 件NG`);
+console.log(`結果（Xの手動運用リンク）: ${xIntentNg === 0 ? 4 : 0} 件OK / ${xIntentNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // SSRの中身が空にならないことの検査（2026-08-05追加・重大度高）
@@ -1193,6 +1291,175 @@ let embedNg = 0;
   );
 }
 console.log(`結果（配信先ウィジェット）: ${embedNg === 0 ? "全件OK" : `${embedNg} 件NG`}`);
+
+// ─────────────────────────────────────────────
+// カレンダー購読（.ics）の不変条件（2026-08-07追加）
+//
+// 【放送開始1週間前ルール】(CLAUDE.md) の派生。UIで曜日・時刻を出さないのは
+// 「今週の水曜22:30」と誤読させないためで、カレンダーは実日付を持つのでその誤読は
+// 起きない。ただし DTSTART を「次の水曜」から始めてしまうと、1話も配信されていない
+// 日に予定が入る＝同じ誤誘導になる。DTSTART は必ず broadcastStartDate に置き、
+// 放送開始日が分からない作品は**載せない**（推測で日付を作らない）。
+//
+// .ics は購読されたら相手のカレンダーに常駐する＝壊れた値の影響がこちらに見えない
+// ので、ウィジェットと同じ強さで固定しておく。
+// ─────────────────────────────────────────────
+console.log("\n── カレンダー購読（.ics）の不変条件 ──");
+let icsNg = 0;
+{
+  function icsCheck(name: string, pass: boolean, detail: string) {
+    if (!pass) icsNg++;
+    console.log(`${pass ? "✓" : "✗"}  ${name.padEnd(38)} → ${detail}`);
+  }
+
+  const works: CalendarWork[] = [
+    {
+      id: 100,
+      title: "放送開始日あり作品",
+      services: [{ key: "d_anime", short: "dアニメ" }],
+      otherServices: [],
+      broadcastStartDate: "2026-07-08",
+      broadcastTime: "22:30",
+    },
+    {
+      // 放送開始日が分からない作品。カレンダーに出してはいけない。
+      id: 101,
+      title: "放送開始日なし作品",
+      services: [{ key: "abema", short: "ABEMA" }],
+      otherServices: [],
+      broadcastStartDate: null,
+      broadcastTime: "22:30",
+    },
+    {
+      // 時刻だけ無い作品も、開始時刻を決められないので出さない。
+      id: 102,
+      title: "時刻なし作品",
+      services: [],
+      otherServices: [],
+      broadcastStartDate: "2026-07-08",
+      broadcastTime: null,
+    },
+  ];
+
+  const ics = buildCalendar(works, { seasonLabel: "2026年夏", now: new Date("2026-08-07T00:00:00Z") });
+
+  icsCheck(
+    "放送開始日が無い作品を載せない",
+    !ics.includes("放送開始日なし作品") && !ics.includes("時刻なし作品"),
+    ics.includes("放送開始日なし作品") || ics.includes("時刻なし作品") ? "混入" : "除外できている"
+  );
+
+  const uidCount = (ics.match(/^UID:/gm) ?? []).length;
+  icsCheck("載るのは開始日が判明した作品だけ", uidCount === 1, `VEVENT ${uidCount}件（期待 1件）`);
+
+  // JST 22:30 → UTC 13:30 同日。9時間の引き算がずれていないか。
+  icsCheck(
+    "DTSTARTがJST→UTCで正しい",
+    ics.includes("DTSTART:20260708T133000Z"),
+    ics.match(/DTSTART:[^\r\n]+/)?.[0] ?? "なし"
+  );
+
+  // 「26:30」のような24時以降表記が翌日に繰り上がるか（JST 26:30 = 翌日2:30 = UTC 前日17:30）。
+  const late = buildCalendar(
+    [{ ...works[0], broadcastTime: "26:30" }],
+    { seasonLabel: "2026年夏", now: new Date("2026-08-07T00:00:00Z") }
+  );
+  icsCheck(
+    "26:30表記が翌日に繰り上がる",
+    late.includes("DTSTART:20260708T173000Z"),
+    late.match(/DTSTART:[^\r\n]+/)?.[0] ?? "なし"
+  );
+
+  // 予定の中身から自サイトへ戻れること＋流入計測の印。
+  icsCheck("作品ページへのリンクに?ref=が付く", ics.includes(`?ref=${CALENDAR_REF}`), `ref=${CALENDAR_REF}`);
+
+  // RFC 5545 のテキストエスケープ。作品名にカンマ・セミコロンが入ると
+  // エスケープ漏れでプロパティが壊れ、購読側でイベントが消える。
+  const escaped = buildCalendar(
+    [{ ...works[0], title: "A,B;C" }],
+    { seasonLabel: "2026年夏", now: new Date("2026-08-07T00:00:00Z") }
+  );
+  icsCheck(
+    "作品名のカンマ・セミコロンをエスケープする",
+    escaped.includes("SUMMARY:A\\,B\\;C"),
+    escaped.match(/SUMMARY:[^\r\n]+/)?.[0] ?? "なし"
+  );
+
+  // 改行は CRLF でなければならない（RFC 5545）。LFだけだと一部クライアントが読まない。
+  icsCheck(
+    "改行がCRLF",
+    ics.includes("\r\n") && !/[^\r]\n/.test(ics),
+    ics.includes("\r\n") ? "CRLF" : "LFのみ"
+  );
+
+  icsCheck(
+    "VCALENDARが閉じている",
+    ics.startsWith("BEGIN:VCALENDAR") && ics.trimEnd().endsWith("END:VCALENDAR"),
+    "BEGIN/END"
+  );
+}
+console.log(`結果（カレンダー購読）: ${icsNg === 0 ? "全件OK" : `${icsNg} 件NG`}`);
+
+// ─────────────────────────────────────────────
+// 配信状況の集計を年次比較に使わない（2026-08-07追加）
+//
+// スナップショットは「作品に配信情報があるか」の収録率が年々上がっているだけでなく、
+// 「その作品の配信社が漏れなく記録されているか」も年々上がっている。後者は注目度上位
+// への絞り込みでは補正できない（U-NEXTの掲載率が2021年=0%→2023年=79%と出るのが実例。
+// U-NEXTが2021年にアニメを配信していなかったはずはない）。
+// サービスが記録漏れすると作品は実際より「独占」に見え、平均社数は少なく出るため、
+// 「独占が減った」「マルチ配信化した」は**収録改善だけでも同じ形になる**。
+// 外向けに使ってよいのは記録が濃い直近年の現状だけ、という線をここで固定する。
+// ─────────────────────────────────────────────
+console.log("\n── 配信集計の年次比較を禁じる ──");
+let trendNg = 0;
+{
+  function trendCheck(name: string, pass: boolean, detail: string) {
+    if (!pass) trendNg++;
+    console.log(`${pass ? "✓" : "✗"}  ${name.padEnd(38)} → ${detail}`);
+  }
+
+  const mk = (n: number, services: string[][]) =>
+    Array.from({ length: n }, (_, i) => ({
+      watchers: 1000 - i,
+      hasBroadcastData: true,
+      services: (services[i] ?? []).map((key) => ({ key })),
+    }));
+
+  // 収録が薄い年（配信情報が半分しか無い）は集計対象から落ちる。
+  const thin = aggregateYear("2019", [mk(4, [["a"], [], [], []])]);
+  const dense = aggregateYear("2025", [mk(4, [["a", "b"], ["a", "b"], ["a"], ["a", "b"]])]);
+  trendCheck(
+    "収録が薄い年はusableYearsが落とす",
+    usableYears([thin, dense]).length === 1 && usableYears([thin, dense])[0].year === "2025",
+    `${thin.year}=${pct(thin.coverage)} / ${dense.year}=${pct(dense.coverage)}`
+  );
+
+  // 外向けに出せるのは最新の使える年ひとつだけ（＝年次の差分APIを生やさない）。
+  const state = currentState([thin, dense]);
+  trendCheck("currentStateは最新の使える年を返す", state?.year === "2025", state?.year ?? "null");
+
+  // 集計の中身が壊れていないこと（独占＝サービス1社の割合）。
+  trendCheck(
+    "独占率はサービス1社の割合",
+    Math.abs(dense.exclusiveRate - 0.25) < 1e-9,
+    `${pct(dense.exclusiveRate)}（期待 25%）`
+  );
+  trendCheck(
+    "平均社数は配信情報がある作品での平均",
+    Math.abs(dense.avgServices - 1.75) < 1e-9,
+    `${dense.avgServices}（期待 1.75）`
+  );
+
+  // 年次の増減を出す関数が生えていないこと。生やすとこの節の意味が無くなる。
+  const trendsSrc = readFileSync(new URL("../lib/streamingTrends.ts", import.meta.url), "utf8");
+  trendCheck(
+    "年次差分を返す関数を持たない",
+    !/export function (delta|diff|trendOverYears|compareYears)/.test(trendsSrc),
+    "delta/diff/compareYears なし"
+  );
+}
+console.log(`結果（配信集計の年次比較）: ${trendNg === 0 ? "全件OK" : `${trendNg} 件NG`}`);
 
 // ─────────────────────────────────────────────
 // 放送終了作品に「いま配信中」と断定しない（2026-08-06追加）
@@ -1489,7 +1756,397 @@ console.log("\n── シーズンページのHTML量 ──");
   );
 }
 
+// ─────────────────────────────────────────────
+// 配信サービス追加の検知（2026-08-07追加）
+//
+// Annictはコミュニティ編集なので、登録ミスの取り消し・付け直しがそのまま
+// 「イベント」に見える。無防備に扱うと**上流の編集の揺れが利用者に届く**
+// （2026-08-07・利用者の指摘）。ここで機械的に見張るのは次の4点:
+//   1. 消えたことは扱わない
+//   2. 連続してN日見えてから確定（1日でも途切れたらやり直し）
+//   3. 一度報告した組は永久に再報告しない
+//   4. 初回は種まき（既存の全ペアを黙って報告済みにする）
+// ─────────────────────────────────────────────
+console.log("\n── 配信サービス追加の検知 ──");
+let addNg = 0;
+{
+  const pair = (workId: number, serviceKey: string) => ({
+    workId,
+    workTitle: `作品${workId}`,
+    serviceKey,
+    serviceShort: serviceKey,
+  });
+  const P = [pair(1, "d")];
+  const SEASON = "2026-summer";
+  const run = (
+    existing: Parameters<typeof applySightings>[0],
+    today: Parameters<typeof applySightings>[1],
+    date: string,
+    seed = false
+  ) => applySightings(existing, today, date, SEASON, seed);
+
+  // (4) 初回の種まきでは何も報告しない
+  const seeded = run([], P, "2026-08-01", true);
+  const seedOk = seeded.confirmed.length === 0 && seeded.upserts[0].reportedOn === "2026-08-01";
+  if (!seedOk) addNg++;
+  console.log(
+    `${seedOk ? "✓" : "✗"}  ${"初回は既存ぶんを黙って記録する".padEnd(40)} → ` +
+      (seedOk ? "報告0件" : `報告${seeded.confirmed.length}件（既存が全部「新規」に見えている）`)
+  );
+
+  // (2) 連続3日でだけ確定する
+  let state = run([], P, "2026-08-01").upserts;
+  const d1 = state[0].reportedOn === null;
+  state = run(state, P, "2026-08-02").upserts;
+  const d2 = state[0].reportedOn === null;
+  const third = run(state, P, "2026-08-03");
+  const d3 = third.confirmed.length === 1;
+  const streakOk = d1 && d2 && d3;
+  if (!streakOk) addNg++;
+  console.log(
+    `${streakOk ? "✓" : "✗"}  ${"連続3日見えてはじめて確定".padEnd(40)} → ` +
+      (streakOk ? "1日目・2日目は出さず3日目に1件" : `1日目=${!d1 ? "出た" : "OK"} / 3日目=${d3 ? "OK" : "出ない"}`)
+  );
+
+  // (2') 途中で消えたら連続日数はやり直し＝確定しない（登録と削除の繰り返し）
+  let churn = run([], P, "2026-08-01").upserts;
+  // 8-02 は見えない（＝upsertされない）。8-03 に復活。
+  const churn3 = run(churn, P, "2026-08-03");
+  const churn4 = run(churn3.upserts, P, "2026-08-04");
+  const churnOk = churn3.confirmed.length === 0 && churn4.confirmed.length === 0;
+  if (!churnOk) addNg++;
+  console.log(
+    `${churnOk ? "✓" : "✗"}  ${"付けて消してを繰り返す編集は出さない".padEnd(40)} → ` +
+      (churnOk ? "確定0件（連続が切れたのでやり直し）" : "確定してしまっている")
+  );
+
+  // (3) 一度報告したものは、消えて付け直されても二度と出さない
+  const reported = third.upserts;
+  let again = run(reported, P, "2026-08-10").upserts; // 大きく間が空いて復活
+  again = run(again, P, "2026-08-11").upserts;
+  const againRes = run(again, P, "2026-08-12");
+  const onceOk = againRes.confirmed.length === 0;
+  if (!onceOk) addNg++;
+  console.log(
+    `${onceOk ? "✓" : "✗"}  ${"報告済みの組は永久に再報告しない".padEnd(40)} → ` +
+      (onceOk ? "再報告なし" : "再報告されている（通知が繰り返される）")
+  );
+
+  // (1) 消えたサービスは行が消えず、報告もされない
+  const gone = run(third.upserts, [], "2026-08-04");
+  const goneOk = gone.upserts.length === 0 && gone.confirmed.length === 0;
+  if (!goneOk) addNg++;
+  console.log(
+    `${goneOk ? "✓" : "✗"}  ${"消えたことは扱わない".padEnd(40)} → ` +
+      (goneOk ? "書き換えも報告もしない" : "消えたことを扱ってしまっている")
+  );
+
+  // 同じ日に2回走っても二重に進まない（再実行・遅延で2回叩かれる場合）
+  const twice = run(run(state, P, "2026-08-03").upserts, P, "2026-08-03");
+  const idemOk = twice.confirmed.length === 0 && twice.upserts[0].streak === 3;
+  if (!idemOk) addNg++;
+  console.log(
+    `${idemOk ? "✓" : "✗"}  ${"同じ日に2回走っても二重に進まない".padEnd(40)} → ` +
+      (idemOk ? `連続${twice.upserts[0].streak}日のまま・再報告なし` : "二重に進んでいる")
+  );
+}
+
+// ─────────────────────────────────────────────
+// Discord スラッシュコマンド（2026-08-07追加）
+//
+// 見張るのは2点:
+//   (1) 署名検証が本当に効くこと。Discord はエンドポイント登録時に**わざと壊れた署名**を
+//       送って401を返すか試すので、ここが緩むと登録できないだけでなく、
+//       誰でも偽のリクエストを投げられる穴になる。
+//   (2) 返信の文面が「放送終了作品に配信中と書かない」ルールを守ること
+//       （lib/workAvailability.ts と同じ制約。Discordの返信は他人のサーバーに残る）。
+// ─────────────────────────────────────────────
+console.log("\n── Discordスラッシュコマンド ──");
+let discordNg = 0;
+{
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  const pub = publicKey.export({ format: "der", type: "spki" }).subarray(12).toString("hex");
+  const ts = "1754500000";
+  const body = JSON.stringify({ type: 1 });
+  const sig = cryptoSign(null, Buffer.from(ts + body), privateKey).toString("hex");
+
+  const cases: { label: string; ok: boolean }[] = [
+    { label: "正しい署名は通る", ok: verifyDiscordSignature(pub, sig, ts, body) === true },
+    {
+      label: "壊れた署名は弾く",
+      ok: verifyDiscordSignature(pub, "ab".repeat(64), ts, body) === false,
+    },
+    {
+      label: "ボディを差し替えたら弾く",
+      ok: verifyDiscordSignature(pub, sig, ts, JSON.stringify({ type: 2 })) === false,
+    },
+    {
+      label: "タイムスタンプを差し替えたら弾く",
+      ok: verifyDiscordSignature(pub, sig, "1754500001", body) === false,
+    },
+    { label: "公開鍵が不正なら弾く", ok: verifyDiscordSignature("zz", sig, ts, body) === false },
+  ];
+  for (const c of cases) {
+    if (!c.ok) discordNg++;
+    console.log(`${c.ok ? "✓" : "✗"}  ${c.label.padEnd(40)} → ${c.ok ? "OK" : "検証が期待どおりでない"}`);
+  }
+
+  // 放送終了作品の返信に、現在形の断定とサービス名の羅列が無いこと。
+  const finished = buildAnimeReply("テスト", {
+    id: 1,
+    title: "テスト作品",
+    serviceNames: ["dアニメ", "ABEMA"],
+    year: 2020,
+    season: "winter",
+    finished: true,
+  });
+  const noAssert = !/配信されています|視聴できます|配信中/.test(finished);
+  const noList = !finished.includes("dアニメ") && !finished.includes("ABEMA");
+  if (!noAssert) discordNg++;
+  if (!noList) discordNg++;
+  console.log(
+    `${noAssert ? "✓" : "✗"}  ${"放送終了作品に断定を書かない".padEnd(40)} → ${noAssert ? "断定なし" : "断定が入っている"}`
+  );
+  console.log(
+    `${noList ? "✓" : "✗"}  ${"放送終了作品にサービス名を並べない".padEnd(40)} → ${noList ? "並べていない" : "並べてしまっている"}`
+  );
+
+  // 放送中の作品は従来どおり言い切ってよい。
+  const airing = buildAnimeReply("テスト", {
+    id: 2,
+    title: "テスト作品",
+    serviceNames: ["dアニメ"],
+    year: 2026,
+    season: "summer",
+    finished: false,
+  });
+  const airOk = airing.includes("配信されています") && airing.includes("dアニメ");
+  if (!airOk) discordNg++;
+  console.log(
+    `${airOk ? "✓" : "✗"}  ${"放送中の作品は言い切る".padEnd(40)} → ${airOk ? "サービス名あり" : "文面が変わっている"}`
+  );
+
+  // 返信が誰かにメンションを飛ばさないこと（他人のサーバーで動くため）。
+  const msg = messageResponse("テスト");
+  const noMention = Array.isArray(msg.data.allowed_mentions?.parse) &&
+    msg.data.allowed_mentions.parse.length === 0;
+  if (!noMention) discordNg++;
+  console.log(
+    `${noMention ? "✓" : "✗"}  ${"返信でメンションを飛ばさない".padEnd(40)} → ${noMention ? "allowed_mentions は空" : "メンションが許可されている"}`
+  );
+}
+
+// ─────────────────────────────────────────────
+// 視聴プランの計算（2026-08-07追加）
+//
+// 「お気に入りに入れた作品を全部見るには、どのサービスに入れば足りるか」を出す
+// 集合被覆の厳密解（lib/servicePlan.ts）。見張るのは2点:
+//   (1) 正しさ … 最小のサービス数を本当に返すか（貪欲法だと1つ多い答えを返す形を含む）
+//   (2) 速さ  … 利用者の指定で「一覧表示が2秒以上かからないこと」が要件。
+//               計算は折りたたみを開いたときだけ走るが、それでも実データで上限を切る。
+// ─────────────────────────────────────────────
+console.log("\n── 視聴プランの計算 ──");
+let planNg = 0;
+{
+  const svc = (key: string) => ({ key, short: key });
+  const w = (id: number, ...keys: string[]) => ({
+    id,
+    title: `作品${id}`,
+    services: keys.map(svc),
+  });
+
+  // (1-a) 1社で足りるなら1社と答える
+  const a = buildServicePlan([w(1, "d"), w(2, "d", "abema"), w(3, "d")]);
+  const aOk = a.minCount === 1 && a.combos[0][0].key === "d";
+  if (!aOk) planNg++;
+  console.log(
+    `${aOk ? "✓" : "✗"}  ${"1社で足りるとき".padEnd(40)} → ` +
+      (aOk ? "最小1サービス" : `最小${a.minCount} / ${JSON.stringify(a.combos)}`)
+  );
+
+  // (1-b) 貪欲法が誤る形。d は3本を覆うので貪欲だと d を先に取り、そのあと x と y が
+  //       必要になって3社になる。正解は a2+b2 の2社。
+  const g = buildServicePlan([
+    w(1, "d", "a2"),
+    w(2, "d", "a2"),
+    w(3, "d", "b2"),
+    w(4, "a2"),
+    w(5, "b2"),
+    w(6, "b2"),
+  ]);
+  const gOk = g.minCount === 2;
+  if (!gOk) planNg++;
+  console.log(
+    `${gOk ? "✓" : "✗"}  ${"貪欲法では1社多くなる形".padEnd(40)} → ` +
+      (gOk ? "最小2サービス（厳密解）" : `最小${g.minCount}（厳密解なら2）`)
+  );
+
+  // (1-c) 配信情報が無い作品は組み合わせに含めず、別枠で返す
+  const u = buildServicePlan([w(1, "d"), w(2)]);
+  const uOk = u.minCount === 1 && u.uncovered.length === 1 && u.covered === 1;
+  if (!uOk) planNg++;
+  console.log(
+    `${uOk ? "✓" : "✗"}  ${"配信情報が無い作品は別枠".padEnd(40)} → ` +
+      (uOk ? "対象1本 / 別枠1本" : `対象${u.covered} / 別枠${u.uncovered.length}`)
+  );
+
+  // (2) 速さ。実データのうち最も重いクールで測る。お気に入りは普通10本前後なので
+  //     クール全作品はあり得ない上限だが、そこでも一瞬で終わることを確かめる。
+  const BUDGET_MS = 200; // 一覧表示の要件（2秒）に対して10倍の余裕を取った上限
+  const dir = new URL("../content/snapshots/", import.meta.url);
+  let worst = { season: "", n: 0, ms: 0 };
+  for (const f of readdirSync(dir).filter((x) => x.endsWith(".json"))) {
+    const snap = JSON.parse(readFileSync(new URL(f, dir), "utf8")) as {
+      items?: { id: number; title: string; services: { key: string; short: string }[] }[];
+    };
+    const works = (snap.items ?? []).map((it) => ({
+      id: it.id,
+      title: it.title,
+      services: it.services.map((s) => ({ key: s.key, short: s.short })),
+    }));
+    if (works.length === 0) continue;
+    const t0 = performance.now();
+    buildServicePlan(works);
+    const ms = performance.now() - t0;
+    if (ms > worst.ms) worst = { season: f.replace(/\.json$/, ""), n: works.length, ms };
+  }
+  const fast = worst.ms < BUDGET_MS;
+  if (!fast) planNg++;
+  console.log(
+    `${fast ? "✓" : "✗"}  ${"最大クールでも上限内で終わる".padEnd(40)} → ` +
+      `${worst.season}（${worst.n}作品）${worst.ms.toFixed(1)}ms` +
+      (fast ? `（上限${BUDGET_MS}ms）` : ` — 上限${BUDGET_MS}msを超えた`)
+  );
+}
+
+// ─────────────────────────────────────────────
+// 孤立ページを作らない（2026-08-07追加）
+//
+// 経緯: `/service/[key]/[year]/[season]`（サービス別ページ）は実装済みで sitemap にも
+// 載せていたのに、**サイト内からのリンクが1本も無かった**。人もクローラーも辿り着けず、
+// 「このサービスに入るべきか」という加入判断の面＝アフィリエイトの転換が起きる唯一の
+// 場面（docs/growth-strategy-2026-08.md の Tier3⑥）が事実上存在しないのと同じ状態に
+// なっていた。画面上部のサービス絞り込みは <button> でクライアント状態を変えるだけで
+// <a href> を持たないため、**画面を見ている限り「リンクがある」と錯覚する**。
+// 2026-08-05に他クールへのリンクで踏んだのと同じ穴。
+//
+// sitemapに載っているページには、サイト内のどこかから実リンクがあること。
+// ─────────────────────────────────────────────
+console.log("\n── 孤立ページを作らない（内部リンク）──");
+let orphanNg = 0;
+{
+  const cases: { file: string; needle: string; label: string }[] = [
+    {
+      file: "../components/SeasonExplorer.tsx",
+      needle: "/service/${",
+      label: "シーズン/トップ → サービス別ページ",
+    },
+    {
+      file: "../app/anime/[id]/page.tsx",
+      needle: "/service/${",
+      label: "作品ページ → サービス別ページ",
+    },
+  ];
+  for (const c of cases) {
+    const src = readFileSync(new URL(c.file, import.meta.url), "utf8");
+    const ok = src.includes(c.needle);
+    if (!ok) orphanNg++;
+    console.log(
+      `${ok ? "✓" : "✗"}  ${c.label.padEnd(40)} → ` +
+        (ok
+          ? "リンクあり"
+          : `${c.file} に \`${c.needle}\` が無い。sitemapに載せているページはサイト内からも辿れるようにすること`)
+    );
+  }
+
+  // サービス別ページの `.ics` 購読導線は「今期」に限ること。
+  // /calendar.ics は year/season を受け取らず常に currentSeasonKey() の作品を返すので、
+  // 過去クールのページに置くと「2020年冬の予定表」を期待した人に今期のカレンダーを渡す。
+  // この環境ではAnnictトークンが無く今期のページをSSRで確かめられないため、機械的に見張る。
+  const svc = readFileSync(
+    new URL("../app/service/[key]/[year]/[season]/page.tsx", import.meta.url),
+    "utf8"
+  );
+  const hasLink = svc.includes("CalendarSubscribeLink");
+  const gated = /isCurrentSeason\s*&&/.test(svc) && svc.includes("currentSeasonKey()");
+  const icsOk = hasLink && gated;
+  if (!icsOk) orphanNg++;
+  console.log(
+    `${icsOk ? "✓" : "✗"}  ${"サービス別の.ics導線は今期だけ".padEnd(40)} → ` +
+      (icsOk
+        ? "CalendarSubscribeLink を isCurrentSeason で出し分け"
+        : hasLink
+          ? "購読リンクが今期に限定されていない（/calendar.ics は常に今期を返す）"
+          : "購読リンクが無い")
+  );
+}
+
+// ─────────────────────────────────────────────
+// 次クール準備の窓（2026-08-07追加）
+//
+// 検索需要はクール開始の約1ヶ月前から立ち上がり、山は年に4回しか来ない。
+// その準備開始のきっかけを人の記憶に頼らず `.github/workflows/season-prep.yml` が
+// Issueで出す。ここで見張るのは2点:
+//   (1) 窓の定義が scripts/lib/build-season-prep.js だけにあること
+//       （YAMLにも月日を書くと、ズレたときに気づけない。SLOTSと同じ方針）
+//   (2) 4つの窓が意図した対象クールを返すこと。特に11月下旬の窓は**翌年**の冬クールで、
+//       ここを取り違えると1年ずれたIssueが出る
+// ─────────────────────────────────────────────
+console.log("\n── 次クール準備の窓 ──");
+let prepNg = 0;
+{
+  const { findPrepWindow } = seasonPrep;
+
+  // (1) YAMLに月日を書いていないか。cronは5フィールド（分 時 日 月 曜日）で、
+  //     日と月が両方 "*" であること＝「毎日起動するだけ」を確かめる。
+  const yml = readFileSync(
+    new URL("../.github/workflows/season-prep.yml", import.meta.url),
+    "utf8"
+  );
+  const crons = [...yml.matchAll(/cron:\s*"([^"]+)"/g)].map((m) => m[1]);
+  const cronOk =
+    crons.length > 0 &&
+    crons.every((c) => {
+      const f = c.trim().split(/\s+/);
+      return f.length === 5 && f[2] === "*" && f[3] === "*";
+    });
+  if (!cronOk) prepNg++;
+  console.log(
+    `${cronOk ? "✓" : "✗"}  ${"cronに月日を書いていない".padEnd(40)} → ` +
+      (cronOk
+        ? `毎日起動のみ（${crons.join(", ")}）`
+        : `season-prep.yml のcronに月日が入っている（${crons.join(", ")}）。窓の定義は scripts/lib/build-season-prep.js だけが持つこと`)
+  );
+
+  // (2) 4つの窓 ＋ 窓の外。JSTで判定されるので、UTCの15:00は翌日のJSTになる点に注意し、
+  //     JSTの正午に相当する 03:00Z で確かめる。
+  const at = (iso: string) => findPrepWindow(new Date(iso));
+  const expectations: { iso: string; want: string | null; label: string }[] = [
+    { iso: "2026-08-21T03:00:00Z", want: "2026-autumn", label: "8月下旬 → 今年の秋" },
+    { iso: "2026-11-25T03:00:00Z", want: "2027-winter", label: "11月下旬 → 翌年の冬" },
+    { iso: "2027-02-28T03:00:00Z", want: "2027-spring", label: "2月下旬 → 今年の春" },
+    { iso: "2026-05-21T03:00:00Z", want: "2026-summer", label: "5月下旬 → 今年の夏" },
+    { iso: "2026-08-20T03:00:00Z", want: null, label: "窓の直前（20日）は出さない" },
+    { iso: "2026-09-25T03:00:00Z", want: null, label: "窓の無い月は出さない" },
+  ];
+  for (const e of expectations) {
+    const w = at(e.iso);
+    const got = w ? `${w.targetYear}-${w.targetSeason}` : null;
+    const ok = got === e.want;
+    if (!ok) prepNg++;
+    console.log(
+      `${ok ? "✓" : "✗"}  ${e.label.padEnd(40)} → ` +
+        (ok ? (got ?? "窓の外") : `期待 ${e.want ?? "窓の外"} / 実際 ${got ?? "窓の外"}`)
+    );
+  }
+}
+
 if (
+  addNg > 0 ||
+  discordNg > 0 ||
+  planNg > 0 ||
+  orphanNg > 0 ||
+  prepNg > 0 ||
   archiveNg > 0 ||
   titleNg > 0 ||
   linkNg > 0 ||

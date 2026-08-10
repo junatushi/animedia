@@ -621,6 +621,25 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                   {workSeason.year}年{workSeason.label}アニメの配信情報をすべて見る →
                 </Link>
               </p>
+              {/* 配信サービス別ページへの導線（2026-08-07追加）。
+                  /service/[key]/[year]/[season] はsitemapにしか載っておらず、
+                  サイト内リンクがどこにも無い孤立ページだった。
+                  「この作品はABEMAか。ABEMAには他に何がある？」という
+                  加入判断の流れをそのまま繋ぐ。ここはバッジ列の外なので
+                  「バッジの中に別行き先のリンクを入れない」ルールには触れない
+                  （文言つきのテキストリンクにしてあり、記号だけのリンクにもしない）。 */}
+              {streamingServices.length > 0 && (
+                <p className="related-works-more">
+                  {streamingServices.map((s, i) => (
+                    <span key={s.key}>
+                      {i > 0 && " ・ "}
+                      <Link href={`/service/${s.key}/${workSeason.year}/${workSeason.key}`}>
+                        {s.short}で見られる{workSeason.year}年{workSeason.label}アニメ
+                      </Link>
+                    </span>
+                  ))}
+                </p>
+              )}
             </div>
           </article>
         )}
