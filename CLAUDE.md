@@ -295,6 +295,10 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   だけにし、`SeasonExplorer`本体は`urlQuery`propで受け取る形にした。
   SSR/ISRページを追加・変更したときは、**必ずビルドして`curl`でHTMLを取り、狙った見出し・
   リンクが入っているかを数える**こと（ブラウザの表示は当てにならない）。
+  サンドボックスで外向き通信が遮断されていても**`localhost`は遮断されない**ので、
+  `npm run build && npx next start -p 3100` で本番ビルドを起動すれば同じ検査ができる
+  （過去クールは`content/snapshots/`から返るのでトークン不要。現在クールは要
+  `ANNICT_TOKEN`）。手順とリダイレクト検査は`docs/operations.md`の⑲。
   `node scripts/check.ts`に「SeasonExplorerが`useSearchParams`をimportしない」
   「シーズンページは`SeasonExplorer`を直接使う」の検査を入れてあるので消さないこと。
   **本番HTMLの確認は自動化済み**（2026-08-07）。`scripts/verify-production.sh`を毎日
