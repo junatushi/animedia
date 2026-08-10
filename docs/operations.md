@@ -1085,7 +1085,8 @@ Vercel Proに課金せず、既に導入済みのSupabase（無料枠のPostgres
 | `follow_click`（30日） | -（未実装） | -（未デプロイ） | -（取得できず） |
 | `official_link_click`（30日） | -（未表示） | -（未デプロイ） | -（取得できず） |
 | `affiliate_click`（30日） | -（未表示） | -（未デプロイ） | -（取得できず） |
-| 提携済みASP数 | 2（ABEMA / Prime Video） | 2（dアニメは全ASPへ申請済み・提携待ち） | **3**（＋Hulu＝afbで承認済み・未登録） |
+| 提携済みサービス数 | 2（ABEMA / Prime Video） | 2（dアニメは全ASPへ申請済み・提携待ち） | **3**（＋Hulu＝afb・2026-08-10登録） |
+| 収益化されるバッジの割合 | -（未計測） | 22.2% | **31.6%** |
 
 > 2026-08-06のサイト側指標が「未取得」なのは、この日のセッションで外向き通信が
 > プロキシに全面遮断されていた（`animedia-khaki.vercel.app`・`public.api.bsky.app`・
