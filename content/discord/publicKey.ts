@@ -28,4 +28,5 @@
 //
 // 【鍵を変えるとき】Discord でアプリを作り直した場合はここを差し替えて main に push する。
 // ───────────────────────────────────────────────────────────────
-export const DISCORD_PUBLIC_KEY_FALLBACK = "";
+export const DISCORD_PUBLIC_KEY_FALLBACK =
+  "7976fc094ae692d6cdad51d9e3a21dc7f56cdded38eae76d35f040d91e748058";
