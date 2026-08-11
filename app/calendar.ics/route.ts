@@ -2,7 +2,7 @@ import { getSeasonData } from "@/lib/getSeasonData";
 import { SERVICES, splitRentalServices } from "@/lib/services";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import { buildCalendar, type CalendarWork } from "@/lib/calendar";
-import { currentSeasonKey } from "@/lib/resolveSeasonParams";
+import { currentYearSeason } from "@/lib/resolveSeasonParams";
 
 // 放送・配信スケジュールの iCalendar 配信（2026-08-07導入）。
 // 経緯・設計理由は lib/calendar.ts の冒頭コメントと docs/growth-strategy-2026-08.md。
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     return new Response("Unknown service key", { status: 404 });
   }
 
-  const [year, season] = currentSeasonKey().split("-");
+  const { year, season } = currentYearSeason();
 
   let works: CalendarWork[] = [];
   try {

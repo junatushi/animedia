@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSeasonData } from "@/lib/getSeasonData";
 import { splitRentalServices } from "@/lib/services";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
-import { currentSeasonKey } from "@/lib/resolveSeasonParams";
+import { currentYearSeason } from "@/lib/resolveSeasonParams";
 import { DISCORD_PUBLIC_KEY_FALLBACK } from "@/content/discord/publicKey";
 import {
   COMMAND_NAME,
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
   // 今期のデータだけを対象にする。キャッシュ済み（15分）なので即答でき、
   // 3秒ルールに間に合う。過去クールの横断検索はここでは行わず、見つからなければ
   // サイトの検索へ案内する（lib/discord.ts の設計メモを参照）。
-  const [year, season] = currentSeasonKey().split("-");
+  const { year, season } = currentYearSeason();
   const data = await withTimeout(getSeasonData(year, season), DATA_TIMEOUT_MS);
 
   let hit: DiscordWorkHit | null = null;
