@@ -64,7 +64,13 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   `.github/workflows/gsc-snapshot.yml`が毎日呼び、`content/analytics/gsc/<日付>.json`に保存する。
   **GSCはログインが要るためセッションからは読めない**（通知メールも節目と問題の検出しか届かない）
   ので、外向き通信ができるGitHub Actions側で取ってリポジトリに置き、セッションは
-  コミット済みのJSONを読む。セットアップは`docs/gsc-setup.md`、要`GSC_SERVICE_ACCOUNT_JSON`
+  コミット済みのJSONを読む。セットアップは`docs/gsc-setup.md`、要`GSC_SERVICE_ACCOUNT_JSON`。
+  **2026-08-11に`weeklyByType`（面ごとの週次推移）を追加**。従来は date/query/page を別々の軸で
+  取っており「面ごとの時系列」が存在しなかったため、「作品ページはクールの進行で落ちるが
+  声優ページは落ちない」といった問いに答えられなかった。GSCは16ヶ月保持しているので
+  `date`×`page`を長期（既定480日）で取り、`scripts/lib/gsc-page-type.js`が「週×面」へ畳んでから
+  書き出す（生の行をそのままコミットするとファイルが肥大化するため）。面の分類は
+  そのファイル**だけ**が持つ
 - `node scripts/audit-coverage.ts [year] [season]` … 配信データ網羅率の点検（2026-07-12導入）。
   引数省略時は現在のクール。(a)TV放送データはあるが配信サービス0件の作品（注目度順。
   Annict側の登録待ちの疑い）、(b)「その他配信」に落ちた未知チャンネル名（`SERVICES`

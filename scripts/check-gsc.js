@@ -5,15 +5,22 @@
 // ネットワークには一切出ない（127.0.0.1 のスタブのみ）。依存パッケージも追加しない。
 //
 // ここで固定していること（CLAUDE.md「外部APIに投げる処理は一時的な失敗を前提に書く」）:
-//   1. 正常系: 3種類のデータが揃い、期間合計が**表示回数で重み付け**されて計算される
+//   1. 正常系: 各種類のデータが揃い、期間合計が**表示回数で重み付け**されて計算される
 //   2. 429 は指数バックオフで再試行して成功する（＝一時的なエラーで丸ごと落ちない）
 //   3. 5xx も同様に再試行する
 //   4. 401 は**再試行せず即座に失敗**する（何度投げても直らないため）
-//   5. 3種類のうち1つが恒久エラーでも**残り2つは取得され、ファイルにも書かれる**
+//   5. 1つが恒久エラーでも**残りは取得され、ファイルにも書かれる**
 //      （1件目の失敗で残りを巻き添えにしない）。ただし終了コードは1（運用動線に出すため）
 //   6. 鍵の形式が壊れていたら、トークンURLを叩く前に失敗する
 //   7. **書き出したJSONに秘密鍵・アクセストークンが混入しない**
 //      （このファイルはリポジトリにコミットされるので、混入は事故に直結する）
+//   8. 面別（週次・長期）が「週 × ページ種別」に畳まれ、順位が**表示回数で重み付け**される
+//      （2026-08-11追加。生の date×page 行をそのまま書くとファイルが肥大化するので、
+//        畳んでから書く設計になっている。畳み方が壊れると分析が静かに嘘になる）
+//   9. 表示もクリックも0の組は書き出さない（ファイルを無意味に膨らませない）
+//  10. 長期の窓が直近28日の窓より**実際に長い**（長期側を取りにいっている）
+//  11. rowLimit ちょうどで返ってきたらページ送りして続きを取る
+//      （取り切れていないのに「全部取れた」と誤読すると、分析が静かに歪む）
 //
 // このテストを消したり緩めたりすると、「毎日静かに失敗しているのに緑に見える」状態に戻る。
 
@@ -60,7 +67,9 @@ function jsonRes(res, status, body) {
  * counts に「どのエンドポイントを何回叩いたか」を記録し、再試行の有無を検証する。
  */
 function startStub(behavior) {
-  const counts = { token: 0, date: 0, query: 0, page: 0 };
+  // 軸の並びをそのままキーにする。dimensions[0] で数えると
+  // ["date"] と ["date","page"] が同じ "date" に潰れて、再試行回数の検証が壊れる。
+  const counts = { token: 0, date: 0, query: 0, page: 0, "date+page": 0 };
   const server = http.createServer((req, res) => {
     let raw = "";
     req.on("data", (c) => (raw += c));
@@ -74,12 +83,12 @@ function startStub(behavior) {
       }
       if (req.url.includes("/searchAnalytics/query")) {
         const body = JSON.parse(raw || "{}");
-        const dim = body.dimensions[0];
+        const dim = body.dimensions.join("+");
         counts[dim]++;
         const plan = behavior[dim] || [];
         const status = plan[counts[dim] - 1];
         if (status) return jsonRes(res, status, { error: "stub_error" });
-        return jsonRes(res, 200, { rows: rowsFor(dim) });
+        return jsonRes(res, 200, { rows: rowsFor(dim, body) });
       }
       jsonRes(res, 404, { error: "not_found" });
     });
@@ -95,7 +104,33 @@ function startStub(behavior) {
 // 日別2行。表示回数の重みが効いているかを見たいので、順位を大きく変えてある。
 //   合算: クリック 3+7=10 / 表示 100+900=1000 / CTR 1.0% /
 //   平均掲載順位 (20*100 + 10*900) / 1000 = 11.0（単純平均なら15.0になる＝重み付けの検証）
-function rowsFor(dim) {
+// date×page の行。「週 × 面」への畳み方を検証するために、次を全部含めてある:
+//   ・同じ週の同じ面が2行（合算されるか／順位が表示回数で重み付けされるか）
+//   ・週をまたぐ行（2026-08-03は月曜、2026-08-10は次の週の月曜）
+//   ・面が違う行（/anime/ → 作品、/person/ → 声優。声優URLはGSC同様に
+//     パーセントエンコードされた状態で渡し、復号して分類できるかを見る）
+//   ・表示もクリックも0の行（書き出されずに落ちるか）
+//
+// 期待する集約結果:
+//   2026-08-03 作品: クリック1 / 表示400 / 順位 (20*100 + 10*300)/400 = 12.5
+//                    （単純平均なら15.0＝重み付けの検証）
+//   2026-08-03 声優: クリック5 / 表示50  / 順位 6
+//   2026-08-10 作品: クリック0 / 表示10  / 順位 30
+const DATE_PAGE_ROWS = [
+  { keys: ["2026-08-03", "https://example.test/anime/11771"], clicks: 1, impressions: 100, ctr: 0.01, position: 20 },
+  { keys: ["2026-08-04", "https://example.test/anime/14132"], clicks: 0, impressions: 300, ctr: 0, position: 10 },
+  {
+    keys: ["2026-08-05", "https://example.test/person/%E6%82%A0%E6%9C%A8%E7%A2%A7/2026/summer"],
+    clicks: 5,
+    impressions: 50,
+    ctr: 0.1,
+    position: 6,
+  },
+  { keys: ["2026-08-06", "https://example.test/"], clicks: 0, impressions: 0, ctr: 0, position: 0 },
+  { keys: ["2026-08-10", "https://example.test/anime/11771"], clicks: 0, impressions: 10, ctr: 0, position: 30 },
+];
+
+function rowsFor(dim, body = {}) {
   if (dim === "date") {
     return [
       { keys: ["2026-08-01"], clicks: 3, impressions: 100, ctr: 0.03, position: 20 },
@@ -105,10 +140,15 @@ function rowsFor(dim) {
   if (dim === "query") {
     return [{ keys: ["ダンダダン 配信"], clicks: 6, impressions: 400, ctr: 0.015, position: 8.2 }];
   }
+  if (dim === "date+page") {
+    // ページ送りを実際に働かせる。rowLimit を小さくして走らせると複数回に分かれる。
+    const start = body.startRow || 0;
+    return DATE_PAGE_ROWS.slice(start, start + (body.rowLimit || DATE_PAGE_ROWS.length));
+  }
   return [{ keys: ["https://example.test/anime/11771"], clicks: 4, impressions: 300, ctr: 0.013, position: 9.4 }];
 }
 
-function runFetch({ baseUrl, serviceAccount = SERVICE_ACCOUNT, outDir }) {
+function runFetch({ baseUrl, serviceAccount = SERVICE_ACCOUNT, outDir, extraEnv = {} }) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [FETCH_GSC], {
       env: {
@@ -119,6 +159,7 @@ function runFetch({ baseUrl, serviceAccount = SERVICE_ACCOUNT, outDir }) {
         GSC_SITE_URL: "https://example.test/",
         GSC_OUT_DIR: outDir,
         GSC_RETRY_BASE_MS: "1", // 待ち時間**だけ**を短くする。分岐は本番と同じ経路を通る
+        ...extraEnv, // 差し替えるのは数値だけ。判断の分岐はテストと本番で同じ経路を通す
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -140,11 +181,11 @@ function readOutput(outDir) {
   };
 }
 
-async function withStub(behavior, fn) {
+async function withStub(behavior, fn, extraEnv = {}) {
   const stub = await startStub(behavior);
   const outDir = fs.mkdtempSync(path.join(os.tmpdir(), "gsc-check-"));
   try {
-    const result = await runFetch({ baseUrl: stub.baseUrl, outDir });
+    const result = await runFetch({ baseUrl: stub.baseUrl, outDir, extraEnv });
     await fn({ ...result, counts: stub.counts, outDir, output: readOutput(outDir) });
   } finally {
     stub.server.close();
@@ -171,6 +212,32 @@ async function main() {
         Math.abs(j.totals.position - 11) < 1e-9, `position=${j.totals.position}`);
       ok("正常系: ファイル名が期間の終端日", output.name === `${j.range.endDate}.json`, output.name);
       ok("正常系: errorsが空", j.errors.length === 0);
+
+      // 8〜10. 面別（週次・長期）
+      const w = j.weeklyByType;
+      ok("面別: 「週 × 面」に畳まれる（5行 → 3行。0の組は落ちる）",
+        Array.isArray(w) && w.length === 3, `weeklyByType=${JSON.stringify(w)}`);
+      if (Array.isArray(w) && w.length === 3) {
+        ok("面別: 同じ週の同じ面が合算される",
+          w[0].week === "2026-08-03" && w[0].type === "作品" &&
+            w[0].clicks === 1 && w[0].impressions === 400,
+          JSON.stringify(w[0]));
+        ok("面別: 順位が表示回数で重み付けされる（単純平均15.0ではなく12.5）",
+          Math.abs(w[0].position - 12.5) < 1e-9, `position=${w[0].position}`);
+        ok("面別: パーセントエンコードされたURLも声優ページとして分類される",
+          w[1].week === "2026-08-03" && w[1].type === "声優" && w[1].impressions === 50,
+          JSON.stringify(w[1]));
+        ok("面別: 週をまたぐ行は別の週になる",
+          w[2].week === "2026-08-10" && w[2].type === "作品" && w[2].impressions === 10,
+          JSON.stringify(w[2]));
+        ok("面別: 表示もクリックも0の組は書き出さない",
+          !w.some((r) => r.clicks === 0 && r.impressions === 0),
+          JSON.stringify(w));
+      }
+      ok("面別: 長期の窓が直近28日の窓より前から始まる",
+        j.longRange && j.longRange.startDate < j.range.startDate &&
+          j.longRange.endDate === j.range.endDate,
+        `range=${JSON.stringify(j.range)} longRange=${JSON.stringify(j.longRange)}`);
       // 7. 秘密情報の混入検査
       ok("書き出したJSONに秘密鍵が混入しない", !output.text.includes("PRIVATE KEY"));
       ok("書き出したJSONにアクセストークンが混入しない", !output.text.includes(ACCESS_TOKEN));
@@ -215,6 +282,41 @@ async function main() {
       ok("一部失敗: 失敗した種類がerrorsに残る",
         j.errors.length === 1 && j.errors[0].key === "queries", JSON.stringify(j.errors));
       ok("一部失敗: 取れた分の合計は計算される", j.totals && j.totals.clicks === 10);
+    }
+  });
+
+  // 11. rowLimit ちょうどで返ってきたらページ送りする（取りこぼしを黙って作らない）
+  await withStub(
+    {},
+    ({ code, output, counts }) => {
+      ok("ページ送り: 成功する", code === 0, `code=${code}`);
+      ok("ページ送り: 3回に分けて取りにいく（2件+2件+1件）",
+        counts["date+page"] === 3, `date+page=${counts["date+page"]}`);
+      if (output) {
+        ok("ページ送り: 全5行ぶんが畳まれている（3行）",
+          output.json.weeklyByType.length === 3,
+          JSON.stringify(output.json.weeklyByType));
+        ok("ページ送り: 最後の週の行まで取れている",
+          output.json.weeklyByType.some((r) => r.week === "2026-08-10"),
+          JSON.stringify(output.json.weeklyByType));
+      }
+    },
+    { GSC_PAGE_ROW_LIMIT: "2" }
+  );
+
+  // 12. 面別だけが恒久エラーでも、残りは取得されファイルにも書かれる
+  await withStub({ "date+page": [403] }, ({ code, output, counts }) => {
+    ok("面別の失敗: 終了コードは1（運用動線に出す）", code === 1, `code=${code}`);
+    ok("面別の失敗: 403は再試行しない", counts["date+page"] === 1, `date+page=${counts["date+page"]}`);
+    ok("面別の失敗: それでもファイルは書かれる", output !== null);
+    if (output) {
+      const j = output.json;
+      ok("面別の失敗: 日別・クエリ別・ページ別は巻き添えにならない",
+        j.daily.length === 2 && j.queries.length === 1 && j.pages.length === 1,
+        `daily=${j.daily.length} queries=${j.queries.length} pages=${j.pages.length}`);
+      ok("面別の失敗: errorsに残る",
+        j.errors.length === 1 && j.errors[0].key === "weeklyByType", JSON.stringify(j.errors));
+      ok("面別の失敗: weeklyByTypeは空配列のまま", Array.isArray(j.weeklyByType) && j.weeklyByType.length === 0);
     }
   });
 
