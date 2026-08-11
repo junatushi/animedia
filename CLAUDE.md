@@ -163,6 +163,13 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `scripts/demand-scan.js` + `scripts/lib/demand-analyze.js` + `content/demand/` … 配信の需要シグナル収集・集計（2026-07-16導入）。`queries.js`が収集用の正準クエリ、`raw/<日付>.jsonl`が入力（WebSearchで収集）、`out/`が集計JSON。集計ロジック（直近N日フィルタ・重複排除・需要分類・作品/サービス抽出・スコア）は`demand-analyze.js`に純粋関数で分離。詳細は`docs/demand-scan.md`
 - `scripts/lead-finder.js` … 流入リード発掘（2026-07-16導入）。`demand-scan`と同じ`raw/<日付>.jsonl`（任意で`status:open|closed`付き）を入力に、ガイドを必要としている個人の投稿を抽出し、作品を`/api/search-index`で`/anime/{id}`に解決して返信下書き付きの`docs/leads-<日付>.md`を出力。分類は`demand-analyze.js`を流用。リンクの`?ref=<媒体>`で流入実測。開/閉判定はnodeから不可のため収集時にClaudeがWebFetchで`status`を記録する設計。本命は同エンジンのX リーチ枠への転用（`docs/x-growth-playbook.md`）。詳細は`docs/demand-scan.md`後半
 - `content/works/extraServices.ts` … Annictにまだ登録されていない配信サービスを人力補完する一覧（2026-07-12導入。`rentalServices.ts`と同じ思想）。`{ key, sourceUrl, confirmedDate }`必須（一次情報のみ・出典明示。CLAUDE.mdの方針に準拠）。任意で`schedule: { weekday, time, startDate }`も指定でき、**Annictに配信の実データが1件も無いときだけ**曜日・時刻カレンダーのフォールバックとして使う（Annict実データがあれば必ずそちらを優先）。`getSeasonData`/`getWorkData`から`toAnimeItem`/`toAnimeDetail`の第2引数に注入され、`ServiceMarks`が通常のAnnict由来サービスとは違う見た目（点線枠）で表示し、出典はバッジ列の下の注記（`.svc-manual-note`。カード一覧では`hideManualNote`で省略）にリンクする。対象は`audit-coverage.ts`の(a)に出た注目作から都度追加する方針（全件を追う保守コストは避ける）
+- `content/works/series.ts` … シリーズ（1期・2期・劇場版）の対応表（2026-08-11導入）。
+  作品ページの「シリーズの他の作品」欄。**Annictの`seriesList`は使っていない**（この作業環境から
+  応答を確認できず、未検証のフィールドを一覧クエリに足すと失敗時にサイト全部のデータ取得が
+  壊れるため）。`extraServices.ts`と同じ人力補完＝一次情報のみ・`sourceUrl`と`confirmedDate`必須・
+  **作品名から「◯期」を機械的に推測して繋がない**（同名の別作品やスピンオフを誤って繋ぐと
+  無関係なページへ送ることになる）。全作品は追わず**GSCで需要が確認できた作品から都度追加**する。
+  経緯は`docs/operations.md`の㉒
 - `content/works/releaseDates.ts` … 劇場公開日の人力補完（2026-07-27導入）。**Annictは劇場公開日を持たない**
   （GraphQLのWork型に該当フィールドが無く、REST v1の`released_on`も新作映画では空。実例:劇場版まどマギ
   〈ワルプルギスの廻天〉はAnnict側の日付情報が`season_name="2026-summer"`だけ）。サイトの日付は
