@@ -6,7 +6,7 @@ import { SERVICES, splitRentalServices } from "@/lib/services";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import ServiceMarks from "@/components/ServiceMarks";
 import CalendarSubscribeLink from "@/components/CalendarSubscribeLink";
-import { currentSeasonKey } from "@/lib/resolveSeasonParams";
+import { currentYearSeason } from "@/lib/resolveSeasonParams";
 
 import { siteUrl } from "@/lib/siteUrl";
 const SEASON_LABEL: Record<string, string> = {
@@ -99,7 +99,8 @@ export default async function ServicePage({ params }: { params: Params }) {
   const checkedDate = new Date().toISOString().slice(0, 10);
   // /calendar.ics は常に「今期」を返す（year/season を受け取らない）ので、
   // 購読の案内は今期のページでだけ出す。
-  const isCurrentSeason = currentSeasonKey() === `${year}-${season}`;
+  const now = currentYearSeason();
+  const isCurrentSeason = now.year === String(year) && now.season === season;
   const structuredLd = !fetchError
     ? [
         {

@@ -10,7 +10,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getSeasonData } from "@/lib/getSeasonData";
 import { splitRentalServices } from "@/lib/services";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
-import { currentSeasonKey } from "@/lib/resolveSeasonParams";
+import { currentYearSeason } from "@/lib/resolveSeasonParams";
 import { applySightings, type Sighting, type TodayPair } from "@/lib/serviceAdditions";
 
 export const runtime = "nodejs";
@@ -36,8 +36,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ skipped: true, reason: "supabase未設定" });
   }
 
-  const season = currentSeasonKey();
-  const [year, seasonName] = season.split("-");
+  const { year, season: seasonName } = currentYearSeason();
+  // 観測記録に残すクール名。年を含めないと年またぎで同じ "summer" が衝突する。
+  const season = `${year}-${seasonName}`;
 
   let items;
   try {

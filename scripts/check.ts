@@ -44,6 +44,7 @@ import { buildServicePlan } from "../lib/servicePlan.ts";
 import { generateKeyPairSync, sign as cryptoSign } from "node:crypto";
 import { verifyDiscordSignature, buildAnimeReply, messageResponse } from "../lib/discord.ts";
 import { DISCORD_PUBLIC_KEY_FALLBACK } from "../content/discord/publicKey.ts";
+import { currentSeasonKey, currentYearSeason } from "../lib/resolveSeasonParams.ts";
 // 配信サービス追加の検知（2026-08-07追加）。純粋関数のみ。
 import { applySightings } from "../lib/serviceAdditions.ts";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
@@ -1862,6 +1863,65 @@ let addNg = 0;
 //   (2) 返信の文面が「放送終了作品に配信中と書かない」ルールを守ること
 //       （lib/workAvailability.ts と同じ制約。Discordの返信は他人のサーバーに残る）。
 // ─────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────
+// currentSeasonKey() の誤用（2026-08-11追加）
+//
+// currentSeasonKey() が返すのは **クール名だけ**（"summer"）で "2026-summer" ではない。
+// にもかかわらず `currentSeasonKey().split("-")` と書いて [year, season] に分解している
+// 箇所が4つあり、year="summer" / season=undefined のまま getSeasonData に渡っていた。
+// 実害: Discordの/animeが常に「見つかりませんでした」、/calendar.icsが空、
+// 配信サービス追加の検知がAnnictの500で毎日スキップ（Annict障害に見えていた）、
+// サービス別ページのisCurrentSeasonが常にfalse。
+// どれも例外にならず「静かに何も出ない」形で壊れるため、画面を見ても気づけない。
+// 年込みで欲しいときは currentYearSeason() を使うこと。
+// ───────────────────────────────────────────────────────────────
+console.log("\n── currentSeasonKey の誤用 ──");
+let seasonKeyNg = 0;
+{
+  const roots = ["app", "lib", "components", "content"];
+  const offenders: string[] = [];
+  const walk = (dir: URL) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const child = new URL(`${e.name}${e.isDirectory() ? "/" : ""}`, dir);
+      if (e.isDirectory()) walk(child);
+      else if (/\.(ts|tsx)$/.test(e.name)) {
+        // コメントは除いてから探す（この誤用を説明している注釈自体を拾わないため）。
+        const src = readFileSync(child, "utf8")
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .replace(/^[ \t]*\/\/.*$/gm, "");
+        if (/currentSeasonKey\(\)\s*\.\s*split\s*\(/.test(src)) {
+          offenders.push(child.pathname.split("/animedia/")[1] ?? e.name);
+        }
+      }
+    }
+  };
+  for (const r of roots) walk(new URL(`../${r}/`, import.meta.url));
+
+  const ok = offenders.length === 0;
+  if (!ok) seasonKeyNg++;
+  console.log(
+    `${ok ? "✓" : "✗"}  ${"currentSeasonKey()をsplitしない".padEnd(40)} → ` +
+      (ok
+        ? "誤用なし（年込みは currentYearSeason() を使う）"
+        : `year が "summer"、season が undefined になる: ${offenders.join(", ")}`)
+  );
+
+  // 関数そのものの契約も固定する（"2026-summer" 形式に変えるとsplit前提のコードが復活しうる）。
+  const key = currentSeasonKey();
+  const ys = currentYearSeason();
+  const contractOk =
+    !key.includes("-") &&
+    ys.season === key &&
+    /^\d{4}$/.test(ys.year);
+  if (!contractOk) seasonKeyNg++;
+  console.log(
+    `${contractOk ? "✓" : "✗"}  ${"currentSeasonKey/YearSeasonの契約".padEnd(40)} → ` +
+      (contractOk
+        ? `currentSeasonKey()="${key}" / currentYearSeason()={${ys.year},${ys.season}}`
+        : `想定外: key="${key}" ys=${JSON.stringify(ys)}`)
+  );
+}
+
 console.log("\n── Discordスラッシュコマンド ──");
 let discordNg = 0;
 {
@@ -2079,7 +2139,7 @@ let orphanNg = 0;
     "utf8"
   );
   const hasLink = svc.includes("CalendarSubscribeLink");
-  const gated = /isCurrentSeason\s*&&/.test(svc) && svc.includes("currentSeasonKey()");
+  const gated = /isCurrentSeason\s*&&/.test(svc) && svc.includes("currentYearSeason()");
   const icsOk = hasLink && gated;
   if (!icsOk) orphanNg++;
   console.log(
@@ -2154,6 +2214,7 @@ let prepNg = 0;
 
 if (
   addNg > 0 ||
+  seasonKeyNg > 0 ||
   discordNg > 0 ||
   planNg > 0 ||
   orphanNg > 0 ||
