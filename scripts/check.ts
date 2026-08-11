@@ -941,6 +941,76 @@ let peopleNg = 0;
 console.log(`結果（声優の出演作索引）: ${peopleNg === 0 ? 4 : 0} 件OK / ${peopleNg} 件NG`);
 
 // ─────────────────────────────────────────────
+// 声優データの取りこぼし（2026-08-11追加・重大度高）
+//
+// シーズン一覧のGraphQLは長らく casts(first: 5) しか取っておらず、「一覧は主要5件で
+// 足りる」という前提が誤っていた。castNames は検索欄の声優名マッチ・声優ページの
+// 出演作一覧・作品ページの声優リンクの判定・sitemapの選定・過去クールの声優索引の
+// **全部**が参照している。実データでは2025夏の172作品中87作品（50.6%）が
+// ちょうど5件＝上限で切られており、6番目以降の声優は「出演していない」のと同じ
+// 扱いになっていた（利用者からの指摘: 悠木碧が作品ページでリンクにならず、検索でも
+// 1作品しかヒットしない）。しかも「そのクールに2作品以上」という閾値と噛み合って、
+// リンクも声優ページも消える形で壊れる。画面にはエラーが出ないので気づけない。
+// 転送量は実測でJSON全体の3.3%しかなく、件数をケチる理由が無い。
+// ─────────────────────────────────────────────
+console.log("\n── 声優データの取りこぼし ──");
+let castsNg = 0;
+{
+  const annictSrc = readFileSync(new URL("../lib/annict.ts", import.meta.url), "utf8");
+  // 一覧クエリが要求するキャスト件数。主要キャストを取りこぼさない下限。
+  const MIN_CASTS_LIST = 20;
+  const listCount = Number(/const CASTS_LIST = (\d+);/.exec(annictSrc)?.[1] ?? "0");
+  const detailCount = Number(/const CASTS_DETAIL = (\d+);/.exec(annictSrc)?.[1] ?? "0");
+
+  const sitemapSrc = readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+  const personPageSrc = readFileSync(
+    new URL("../app/person/[name]/[year]/[season]/page.tsx", import.meta.url),
+    "utf8"
+  );
+
+  const cases: { label: string; ok: boolean; detail: string }[] = [
+    {
+      label: "一覧クエリのキャスト件数が十分",
+      ok: listCount >= MIN_CASTS_LIST,
+      detail: `CASTS_LIST=${listCount}（下限${MIN_CASTS_LIST}）`,
+    },
+    {
+      label: "一覧が作品ページより少なく取らない",
+      ok: listCount >= detailCount,
+      detail: `一覧${listCount} / 個別${detailCount}`,
+    },
+    // 閾値を各所に直書きすると、sitemapに載せた声優ページがページ側で404になる
+    // （またはその逆で載せ漏らす）。定数を1箇所に持つこと。
+    {
+      label: "sitemapが声優ページの閾値を直書きしない",
+      ok: sitemapSrc.includes("PERSON_PAGE_MIN_APPEARANCES"),
+      detail: "lib/personPage.ts の定数を使う",
+    },
+    {
+      label: "声優ページ側も同じ定数を使う",
+      ok: personPageSrc.includes("PERSON_PAGE_MIN_APPEARANCES"),
+      detail: "lib/personPage.ts の定数を使う",
+    },
+    // GSCの実測でいちばん成果の出ているページ種別。過去クール分は
+    // content/archive/people.json から載せる（Annictへの追加取得は不要）。
+    {
+      label: "sitemapが過去クールの声優ページを載せる",
+      ok: sitemapSrc.includes("people.json"),
+      detail: "content/archive/people.json を参照する",
+    },
+  ];
+  for (const c of cases) {
+    if (!c.ok) castsNg++;
+    console.log(
+      `${c.ok ? "\u2713" : "\u2717"}  ${c.label.padEnd(40)} \u2192 ${c.ok ? c.detail : `NG: ${c.detail}`}`
+    );
+  }
+}
+console.log(
+  `結果（声優データの取りこぼし）: ${5 - castsNg} 件OK / ${castsNg} 件NG`
+);
+
+// ─────────────────────────────────────────────
 // 作品ページ title の幅の検査（2026-08-05追加）
 //
 // 検索結果の日本語titleは概ね全角30〜33文字で切られる。2026-07-27に
@@ -2184,6 +2254,22 @@ let orphanNg = 0;
       needle: "/service/${",
       label: "作品ページ → サービス別ページ",
     },
+    // 2026-08-11: 過去クールの声優ページ1,413件をsitemapに載せた。その入口は
+    // 「そのクールの作品ページ」からの声優名リンクしかない（一覧・トップからは
+    // 今期しか辿れない）。作品ページ側のリンクが消えると、追加した分がまるごと
+    // 孤立する。ここでの検証環境はAnnictトークンが無く作品ページのクレジットを
+    // SSRで確かめられない（credits空の縮退版が返る）ため、機械的に見張る。
+    {
+      file: "../app/anime/[id]/page.tsx",
+      needle: "/person/${",
+      label: "作品ページ → 声優ページ",
+    },
+    // 声優ページ同士・過去クールの作品ページへの横断リンク。
+    {
+      file: "../app/person/[name]/[year]/[season]/page.tsx",
+      needle: "otherSeasonWorks",
+      label: "声優ページ → 他クールの出演作",
+    },
   ];
   for (const c of cases) {
     const src = readFileSync(new URL(c.file, import.meta.url), "utf8");
@@ -2281,6 +2367,7 @@ let prepNg = 0;
 
 if (
   addNg > 0 ||
+  castsNg > 0 ||
   seasonKeyNg > 0 ||
   discordNg > 0 ||
   planNg > 0 ||
