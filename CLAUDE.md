@@ -199,7 +199,9 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   の閾値と噛み合って、リンクも声優ページも**消える**形で壊れる。転送量はJSON全体の3.3%
   しかないので件数をケチらない。`node scripts/check.ts` の「声優データの取りこぼし」が下限を
   見張る。**既存の`content/snapshots/`は旧設定(5件)で作られているため、過去クール分は
-  スナップショットを再生成するまで取りこぼしたまま**（`docs/operations.md`の⑳）
+  スナップショットを再生成するまで取りこぼしたまま**。再生成の手順は
+  `docs/snapshot-regenerate.md`（PC作業・要`ANNICT_TOKEN`）、経緯は`docs/operations.md`の⑳。
+  現状の切断率は`node scripts/check.ts`が毎回表示する（`ℹ スナップショットの切断率`）
 - `lib/personIndex.ts` + `content/archive/people.json` + `scripts/build-person-index.ts` …
   声優の出演作索引（2026-08-07導入）。`/person/[name]/[year]/[season]`が持つ
   「他のクールの出演作」の元データ。**そのクールの出演作しか出せない**という制約を外す

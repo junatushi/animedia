@@ -1005,6 +1005,28 @@ let castsNg = 0;
       `${c.ok ? "\u2713" : "\u2717"}  ${c.label.padEnd(40)} \u2192 ${c.ok ? c.detail : `NG: ${c.detail}`}`
     );
   }
+
+  // スナップショットの切断率（参考表示。NGにはしない）。
+  // content/snapshots/ は旧設定（5件）で生成されているので、再生成するまで高いままになる。
+  // 再生成の手順は docs/operations.md の⑳。**この行が下がったかどうかで成否を確認できる**。
+  const { readSnapshots } = await import("./build-archive-index.ts");
+  let works = 0;
+  let atLimit = 0;
+  for (const snap of readSnapshots()) {
+    for (const it of snap.data.items) {
+      if (it.castNames.length === 0) continue;
+      works++;
+      if (it.castNames.length === 5) atLimit++;
+    }
+  }
+  const rate = works === 0 ? 0 : (100 * atLimit) / works;
+  console.log(
+    `\u2139  ${"スナップショットの切断率".padEnd(40)} \u2192 ` +
+      `\u3061\u3087\u3046\u30695\u4ef6 ${atLimit}/${works}\u4f5c\u54c1 (${rate.toFixed(1)}%)` +
+      (rate > 20
+        ? "  \u2190 \u65e7\u8a2d\u5b9a\u306e\u307e\u307e\u3002docs/operations.md \u306e\u2473 \u306e\u624b\u9806\u3067\u518d\u751f\u6210\u3059\u308b\u3068\u4e0b\u304c\u308a\u307e\u3059"
+        : "")
+  );
 }
 console.log(
   `結果（声優データの取りこぼし）: ${5 - castsNg} 件OK / ${castsNg} 件NG`
