@@ -44,24 +44,53 @@ function loadEnvLocal(): void {
 
 let token = "";
 
-async function gql(query: string, label: string): Promise<any> {
-  const res = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ query }),
-  });
-  if (!res.ok) {
-    throw new Error(`${label}: HTTP ${res.status} ${res.statusText}`);
+// 再試行の待ち時間。テストから短くするための差し替え口（値だけ）。
+const RETRY_BASE_MS = Number(process.env.PROBE_RETRY_BASE_MS ?? 800);
+// 1件ずつ問い合わせるときの間隔。Annictに負荷をかけないため。
+const GAP_MS = Number(process.env.PROBE_GAP_MS ?? 300);
+// 1作品あたりに取るシリーズ数・1シリーズあたりに取る作品数。
+// 大きくすると Annict が 500 を返す（2026-08-11実測）。控えめにする。
+const SERIES_PER_WORK = 5;
+const WORKS_PER_SERIES = 30;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function gql(query: string, label: string, retries = 2): Promise<any> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ query }),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      // 一時的なエラー（5xx・429）だけ再試行し、恒久的なエラー（401など）は即失敗させる
+      // ＝CLAUDE.mdの「外部APIに投げる処理」の基本ルール。
+      const transient = res.status >= 500 || res.status === 429;
+      if (transient && attempt < retries) {
+        await sleep(RETRY_BASE_MS * 2 ** attempt);
+        continue;
+      }
+      const body = text.slice(0, 200).replace(/\s+/g, " ").trim();
+      throw new Error(
+        `${label}: HTTP ${res.status} ${res.statusText}${body ? ` / 応答: ${body}` : ""}`
+      );
+    }
+    let json: any;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new Error(`${label}: JSONとして読めない応答（${text.slice(0, 120)}）`);
+    }
+    if (json.errors) {
+      // GraphQLは200でエラーを返す。ここを見落とすと「成功した」と誤読する。
+      throw new Error(`${label}: ${json.errors.map((e: any) => e.message).join(" / ")}`);
+    }
+    return json.data;
   }
-  const json = await res.json();
-  if (json.errors) {
-    // GraphQLは200でエラーを返す。ここを見落とすと「成功した」と誤読する。
-    throw new Error(`${label}: ${json.errors.map((e: any) => e.message).join(" / ")}`);
-  }
-  return json.data;
 }
 
 /** NON_NULL / LIST の包みを剥がして、中身の型名と種類を得る。 */
@@ -216,37 +245,112 @@ async function main() {
     .map((f) => f.name);
   if (orderHints.length > 0) info(`並び順・区分に使えそう: ${orderHints.join("・")}`);
 
-  const workSel = "annictId title seasonYear seasonName";
-  const itemSel = wrapper
-    ? `${orderHints.join(" ")} ${wrapper} { ${workSel} }`
-    : `${orderHints.join(" ")} ${workSel}`;
+  // シリーズ内の1作品について取るフィールド。包み型（item等）があれば1段くぐる。
+  const itemSel = (base: string) => {
+    const hints = orderHints.join(" ");
+    return (wrapper ? `${hints} ${wrapper} { ${base} }` : `${hints} ${base}`).trim();
+  };
+  const worksSel = (base: string) =>
+    `works(first: ${WORKS_PER_SERIES}) { ${worksConn.open} ${itemSel(base)} ${worksConn.close} }`;
 
-  // ── ③ 実際の応答 ──────────────────────────────────────────
-  console.log("\n── ③ 実際の応答 ──");
-  const query = `
+  // ── ③ どこまで取れるか（段階的な切り分け）────────────────────
+  //
+  // 【なぜ段階的に試すか】2026-08-11、`seriesList { name works { … } }` を1作品ぶん
+  // 要求しただけで Annict が **HTTP 500** を返した。全部入りのクエリを1回投げて
+  // 落ちるだけでは「seriesListが壊れている」のか「その中の works が壊れている」のか
+  // 区別できず、次の手が決まらない。そこで**浅い形から順に試して、どこで落ちるか**を
+  // 突き止める。得られる結論が変わる:
+  //   ・シリーズ名すら取れない → seriesList は使えない。人力運用を続ける
+  //   ・名前は取れるが works が取れない → シリーズ内の作品を列挙できない＝自動化不可
+  //   ・作品IDまで取れる → 自動化を検討できる
+  const SHAPES = [
+    { label: "シリーズ名だけ", inner: `${nameField ?? "__typename"}`, depth: 1 },
+    {
+      label: "＋シリーズ内の作品ID",
+      inner: `${nameField ?? "__typename"} ${worksSel("annictId")}`,
+      depth: 2,
+    },
+    {
+      label: "＋作品タイトルと放送クール",
+      inner: `${nameField ?? "__typename"} ${worksSel("annictId title seasonYear seasonName")}`,
+      depth: 3,
+    },
+  ];
+
+  const buildQuery = (id: number, inner: string) => `
 {
-  searchWorks(annictIds: [${targetIds.join(", ")}], first: ${targetIds.length}) {
+  searchWorks(annictIds: [${id}], first: 1) {
     nodes {
       annictId
       title
-      ${seriesField.name}(first: 10) {
+      ${seriesField.name}(first: ${SERIES_PER_WORK}) {
         ${seriesConn.open}
-          ${nameField ?? ""}
-          works(first: 50) {
-            ${worksConn.open}
-              ${itemSel}
-            ${worksConn.close}
-          }
+          ${inner}
         ${seriesConn.close}
       }
     }
   }
 }`;
-  console.log("組み立てた問い合わせ:");
-  console.log(query.split("\n").map((l) => `  ${l}`).join("\n"));
 
-  const data = await gql(query, "seriesList の取得");
-  const nodes: any[] = data.searchWorks?.nodes ?? [];
+  console.log("\n── ③ どこまで取れるか ──");
+  let chosen: (typeof SHAPES)[number] | null = null;
+  for (const shape of SHAPES) {
+    try {
+      await gql(buildQuery(targetIds[0], shape.inner), `形の確認(${shape.label})`, 1);
+      ok(`${shape.label}: 取れた`);
+      chosen = shape;
+    } catch (e) {
+      ng(`${shape.label}: ${e instanceof Error ? e.message : String(e)}`);
+      // 浅い順に並べてあるので、落ちた時点でそれより深い形は試すだけ無駄。
+      break;
+    }
+    await sleep(GAP_MS);
+  }
+
+  if (!chosen) {
+    console.log("\n────────────────────────────────");
+    console.log("結論: seriesList は**シリーズ名すら取れない**（Annict側が落ちる）。");
+    console.log("→ 自動化はできない。content/works/series.ts の人力運用を続ける。");
+    console.log("この出力をそのまま貼って共有してください。");
+    process.exit(0);
+  }
+  if (chosen.depth === 1) {
+    console.log("\n────────────────────────────────");
+    console.log("結論: シリーズ名は取れるが、**シリーズ内の作品を列挙できない**（works で落ちる）。");
+    console.log("→ 「他の作品」を作れないので自動化はできない。人力運用を続ける。");
+    console.log("この出力をそのまま貼って共有してください。");
+    process.exit(0);
+  }
+  const hasTitles = chosen.depth >= 3;
+
+  // ── ④ 実際の応答 ──────────────────────────────────────────
+  //
+  // 【1作品ずつ問い合わせる理由】まとめて要求すると重くなり、Annictが500を返しやすい。
+  // 1件の失敗で残り全部を巻き添えにしないよう、try/catchも1件ずつ独立させる
+  // （CLAUDE.mdの「外部APIに投げる処理」の基本ルール）。
+  console.log("\n── ④ 実際の応答 ──");
+  console.log(`組み立てた問い合わせ（${targetIds.length}作品ぶん、1件ずつ投げる）:`);
+  console.log(
+    buildQuery(targetIds[0], chosen.inner).split("\n").map((l) => `  ${l}`).join("\n")
+  );
+
+  const nodes: any[] = [];
+  const failed: string[] = [];
+  for (const id of targetIds) {
+    try {
+      const data = await gql(buildQuery(id, chosen.inner), `seriesList の取得(${id})`);
+      const got: any[] = data.searchWorks?.nodes ?? [];
+      if (got.length === 0) failed.push(`${id}: 作品が返らなかった`);
+      else nodes.push(...got);
+    } catch (e) {
+      failed.push(`${id}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    await sleep(GAP_MS);
+  }
+  if (failed.length > 0) {
+    console.log("");
+    for (const f of failed) ng(f);
+  }
   if (nodes.length === 0) {
     ng("作品が1件も返らなかった");
     process.exit(1);
@@ -278,17 +382,21 @@ async function main() {
       for (const it of items2) {
         const w2 = wrapper ? it[wrapper] : it;
         if (!w2) continue;
-        titles.push(`    ${w2.annictId} ${w2.title}（${w2.seasonYear ?? "?"}-${w2.seasonName ?? "?"}）`);
+        titles.push(
+          hasTitles
+            ? `    ${w2.annictId} ${w2.title}（${w2.seasonYear ?? "?"}-${w2.seasonName ?? "?"}）`
+            : `    ${w2.annictId}`
+        );
       }
       console.log(titles.join("\n"));
     }
   }
 
-  // ── ④ 手作業の対応表との突き合わせ ──────────────────────────
+  // ── ⑤ 手作業の対応表との突き合わせ ──────────────────────────
   // ここが判断材料。Annictが人力で確認した対応を再現できるなら自動化を検討でき、
   // 取りこぼす・余計なものを含めるなら人力を続ける根拠になる。
   if (argIds.length === 0) {
-    console.log("\n── ④ 手作業の対応表との突き合わせ ──");
+    console.log("\n── ⑤ 手作業の対応表との突き合わせ ──");
     for (const s of SERIES) {
       const handIds = s.works.map((w) => w.id).sort((a, b) => a - b);
       // シリーズ内のどれか1作品から引けた集合のうち、最も手作業に近いものを見る。
@@ -319,7 +427,7 @@ async function main() {
 
   console.log("\n────────────────────────────────");
   console.log("この出力をそのまま貼って共有してください。");
-  console.log("④が全部✓なら自動化を検討します。✗が混じるなら人力の対応表を続けます。");
+  console.log("⑤が全部✓なら自動化を検討します。✗が混じるなら人力の対応表を続けます。");
 }
 
 main().catch((e) => {

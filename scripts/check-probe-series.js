@@ -11,6 +11,14 @@
 //   ③ edges { node } 形式でも同じ結論に辿り着く（形が違っても壊れない）
 //   ④ 中身が違えば ✗ を出し、取りこぼし・余分を名指しする（黙って通さない）
 //   ⑤ GraphQLが200でerrorsを返したら失敗として扱う（成功と誤読しない）
+//   ⑥ 1件が500でも残りを巻き添えにしない／500の応答本文を見せる
+//   ⑦ 一時的な500は再試行して成功させる
+//   ⑧ works で落ちるときは「作品を列挙できない」と結論して正常終了する
+//   ⑨ seriesList 自体が落ちるときは「シリーズ名すら取れない」と結論して正常終了する
+//
+// ⑧⑨は2026-08-11にAnnictが実際に500を返したことを受けて追加した。
+// 全部入りのクエリを1回投げて落ちるだけでは、seriesListが壊れているのか
+// その中の works が壊れているのか区別できず、次の手が決まらないため。
 //
 // probe-series.ts を触ったら必ず実行すること。
 const { createServer } = require("node:http");
@@ -148,6 +156,9 @@ function run(port, args = []) {
         ...process.env,
         ANNICT_TOKEN: "dummy-token-for-stub",
         ANNICT_GRAPHQL_ENDPOINT: `http://127.0.0.1:${port}/graphql`,
+        // 待ち時間だけを短くする（判断の分岐はテストと本番で同じ経路を通す）。
+        PROBE_RETRY_BASE_MS: "5",
+        PROBE_GAP_MS: "0",
       },
     });
     let out = "";
@@ -167,18 +178,58 @@ function introspectedTypeName(query) {
   return m ? m[1] : null;
 }
 
-function makeHandler({ hasSeriesList, connectionStyle, data, graphqlErrors }) {
+/** データ問い合わせから annictIds を抜く（探りは1作品ずつ投げる）。 */
+function requestedIds(query) {
+  const m = query.match(/annictIds:\s*\[([0-9,\s]*)\]/);
+  if (!m) return [];
+  return m[1]
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0);
+}
+
+/**
+ * @param failFor   このIDの問い合わせは常に500を返す（1件失敗が残りを巻き添えにしないかを見る）
+ * @param flakyFor  このIDは最初のN回だけ500を返し、その後成功する（再試行の確認）
+ */
+function makeHandler({
+  hasSeriesList,
+  connectionStyle,
+  data,
+  graphqlErrors,
+  failFor = null,
+  failIf = null,
+  flakyFor = null,
+  flakyTimes = 2,
+  stats = { dataRequests: 0, requestedIdSets: [] },
+}) {
   const types = schemaWith({ hasSeriesList, connectionStyle });
+  let flakyCount = 0;
   return (query) => {
-    if (graphqlErrors && !introspectedTypeName(query)) {
-      // GraphQLは失敗しても200を返す。errorsを見落とさないことの確認。
-      return { status: 200, body: { errors: [{ message: "Field 'seriesList' doesn't exist" }] } };
-    }
     const typeName = introspectedTypeName(query);
     if (typeName) {
       return { status: 200, body: { data: { __type: types[typeName] ?? null } } };
     }
-    return { status: 200, body: { data } };
+    stats.dataRequests++;
+    const ids = requestedIds(query);
+    stats.requestedIdSets.push(ids);
+    if (graphqlErrors) {
+      // GraphQLは失敗しても200を返す。errorsを見落とさないことの確認。
+      return { status: 200, body: { errors: [{ message: "Field 'seriesList' doesn't exist" }] } };
+    }
+    if (failIf && failIf(query)) {
+      return { status: 500, body: { message: "Internal Server Error" } };
+    }
+    if (failFor != null && ids.includes(failFor)) {
+      return { status: 500, body: { message: "Internal Server Error" } };
+    }
+    if (flakyFor != null && ids.includes(flakyFor) && flakyCount < flakyTimes) {
+      flakyCount++;
+      return { status: 500, body: { message: "Internal Server Error" } };
+    }
+    // 探りは1作品ずつ投げるので、要求されたIDぶんだけ返す。
+    const nodes = (data.searchWorks?.nodes ?? []).filter((n) => ids.includes(n.annictId));
+    return { status: 200, body: { data: { searchWorks: { nodes } } } };
   };
 }
 
@@ -193,15 +244,13 @@ function check(label, ok, detail) {
  * （「✗が混じるなら…」）まで拾って誤判定するため、必ず節を絞ってから見る。
  */
 function assembledQuery(out) {
-  const m = out.match(/組み立てた問い合わせ:\n([\s\S]*?)\n\n── ③/);
-  if (m) return m[1];
-  const m2 = out.match(/組み立てた問い合わせ:\n([\s\S]*?)\n\n/);
-  return m2 ? m2[1] : "";
+  const m = out.match(/組み立てた問い合わせ[^\n]*:\n([\s\S]*?)\n\n/);
+  return m ? m[1] : "";
 }
 
 /** ④の突き合わせ節だけを切り出す（末尾の案内文を含めない）。 */
 function comparisonSection(out) {
-  const m = out.match(/── ④ 手作業の対応表との突き合わせ ──\n([\s\S]*?)\n─{8}/);
+  const m = out.match(/── ⑤ 手作業の対応表との突き合わせ ──\n([\s\S]*?)\n─{8}/);
   return m ? m[1] : "";
 }
 
@@ -237,11 +286,23 @@ async function main() {
       for (const w of s.works) seriesByWork[w.id] = [{ name: s.title, ids }];
     }
     const data = makeSearchWorksData({ connectionStyle: style, seriesByWork, titles });
+    const stats = { dataRequests: 0, requestedIdSets: [] };
     const { server, port } = await startStub(
-      makeHandler({ hasSeriesList: true, connectionStyle: style, data })
+      makeHandler({ hasSeriesList: true, connectionStyle: style, data, stats })
     );
     const { code, out } = await run(port);
     server.close();
+    // 14作品を1回のクエリにまとめると Annict が500を返した（2026-08-11実測）ため、
+    // 1作品ずつ投げていることを固定する。まとめる実装に戻ると1リクエストになる。
+    const idCount = Object.keys(seriesByWork).length;
+    const distinct = new Set(stats.requestedIdSets.flat());
+    check(
+      `${style}形式で1作品ずつ問い合わせる`,
+      stats.requestedIdSets.length > 0 &&
+        stats.requestedIdSets.every((s) => s.length === 1) &&
+        distinct.size === idCount,
+      `${stats.dataRequests}リクエスト・すべて1件ずつ / ${distinct.size}作品を網羅（対象${idCount}）`
+    );
     const section = comparisonSection(out);
     const allMatched = SERIES.every((s) => section.includes(`✓  ${s.title}: 一致`));
     check(
@@ -284,7 +345,7 @@ async function main() {
     check(
       "シリーズの中身を実際に表示する",
       out.includes("シリーズ「逃げ上手の若君」") && out.includes("99999"),
-      "③にAnnictの答えがそのまま出る"
+      "④にAnnictの答えがそのまま出る"
     );
   }
 
@@ -314,7 +375,7 @@ async function main() {
     );
   }
 
-  // ⑤ 200 + errors を失敗として扱う
+  // ⑤ 200 + errors を失敗として扱う（成功と誤読しない）
   {
     const { server, port } = await startStub(
       makeHandler({ hasSeriesList: true, connectionStyle: "nodes", data: {}, graphqlErrors: true })
@@ -322,8 +383,113 @@ async function main() {
     const { code, out } = await run(port);
     server.close();
     check(
-      "200で返るGraphQLエラーを失敗にする",
-      code === 1 && out.includes("失敗:") && out.includes("doesn't exist"),
+      "200で返るGraphQLエラーを失敗にする（成功と誤読しない）",
+      code === 0 && out.includes("doesn't exist") && out.includes("シリーズ名すら取れない"),
+      `exit=${code}`
+    );
+  }
+
+  // ⑥ 1件が500でも、残りを巻き添えにしない（2026-08-11にAnnictが実際に500を返した）
+  {
+    const { SERIES } = await import("../content/works/series.ts");
+    const seriesByWork = {};
+    for (const s of SERIES) {
+      const ids = s.works.map((w) => w.id);
+      for (const w of s.works) seriesByWork[w.id] = [{ name: s.title, ids }];
+    }
+    // 段階的切り分け（③）は targetIds[0] だけを使うので、そこと別のIDを壊す。
+    const broken = SERIES[0].works[1].id;
+    const data = makeSearchWorksData({ connectionStyle: "nodes", seriesByWork, titles });
+    const { server, port } = await startStub(
+      makeHandler({ hasSeriesList: true, connectionStyle: "nodes", data, failFor: broken })
+    );
+    const { code, out } = await run(port);
+    server.close();
+    const others = SERIES.slice(1);
+    check(
+      "1件が500でも残りを巻き添えにしない",
+      code === 0 &&
+        out.includes(`✗  ${broken}: `) &&
+        out.includes("HTTP 500") &&
+        others.every((s) => comparisonSection(out).includes(`✓  ${s.title}: 一致`)),
+      `${broken} だけ✗、他の${others.length}シリーズは✓`
+    );
+    // 応答本文を添えて原因を追いやすくする（500の中身が分からないと手が出せない）。
+    check(
+      "500のときは応答本文も見せる",
+      out.includes("応答: ") && out.includes("Internal Server Error"),
+      "エラー文にサーバーの応答が入る"
+    );
+  }
+
+  // ⑦ 一時的な500は再試行して成功させる
+  {
+    const { SERIES } = await import("../content/works/series.ts");
+    const seriesByWork = {};
+    for (const s of SERIES) {
+      const ids = s.works.map((w) => w.id);
+      for (const w of s.works) seriesByWork[w.id] = [{ name: s.title, ids }];
+    }
+    // 段階的切り分け（③）に巻き込まれないよう、targetIds[0] 以外を不安定にする。
+    const flaky = SERIES[0].works[1].id;
+    const data = makeSearchWorksData({ connectionStyle: "nodes", seriesByWork, titles });
+    const { server, port } = await startStub(
+      makeHandler({
+        hasSeriesList: true,
+        connectionStyle: "nodes",
+        data,
+        flakyFor: flaky,
+        flakyTimes: 2,
+      })
+    );
+    const { code, out } = await run(port);
+    server.close();
+    const section = comparisonSection(out);
+    check(
+      "一時的な500は再試行して成功する",
+      code === 0 &&
+        !out.includes(`✗  ${flaky}: `) &&
+        SERIES.every((s) => section.includes(`✓  ${s.title}: 一致`)),
+      `${flaky} は2回500のあと成功`
+    );
+  }
+
+  // ⑧ works で落ちるなら「作品を列挙できない」と結論する
+  {
+    const { server, port } = await startStub(
+      makeHandler({
+        hasSeriesList: true,
+        connectionStyle: "nodes",
+        data: { searchWorks: { nodes: [] } },
+        failIf: (q) => /works\s*\(/.test(q),
+      })
+    );
+    const { code, out } = await run(port);
+    server.close();
+    check(
+      "worksで落ちるなら列挙できないと結論する",
+      code === 0 &&
+        out.includes("✓  シリーズ名だけ: 取れた") &&
+        out.includes("シリーズ内の作品を列挙できない"),
+      `exit=${code}`
+    );
+  }
+
+  // ⑨ seriesList 自体が落ちるなら「シリーズ名すら取れない」と結論する
+  {
+    const { server, port } = await startStub(
+      makeHandler({
+        hasSeriesList: true,
+        connectionStyle: "nodes",
+        data: { searchWorks: { nodes: [] } },
+        failIf: (q) => /seriesList\s*\(/.test(q),
+      })
+    );
+    const { code, out } = await run(port);
+    server.close();
+    check(
+      "seriesListが落ちるなら名前すら取れないと結論する",
+      code === 0 && out.includes("シリーズ名すら取れない") && out.includes("人力運用を続ける"),
       `exit=${code}`
     );
   }
