@@ -17,6 +17,7 @@ import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
 import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
+import { seriesFor } from "@/content/works/series";
 import FollowLinks from "@/components/FollowLinks";
 import ServiceMarks from "@/components/ServiceMarks";
 import EmbedSnippet from "@/components/EmbedSnippet";
@@ -276,6 +277,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
       // 取得に失敗しても声優名をプレーンテキストで出すだけなので、ページ全体は壊さない。
     }
   }
+
+  // シリーズの他の作品（2026-08-11追加）。対応表は content/works/series.ts。
+  // Annictへの追加取得は発生しない（リポジトリ同梱の静的データのみ）。
+  const series = seriesFor(id);
+  const seriesOthers = series ? series.works.filter((w) => w.id !== id) : [];
 
   // 関連作品（2026-08-05追加）。
   // これを入れる前、作品ページから他の作品ページへのリンクは1本も無く、
@@ -584,6 +590,40 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                   </a>
                 </p>
               )}
+            </div>
+          </article>
+        )}
+        {/* シリーズの他の作品（2026-08-11追加）。
+            GSCの実測で、逃げ上手の若君は2期（/anime/14132）が184表示・0クリック・15.9位、
+            1期（/anime/10591）は**表示回数ゼロ**で、しかも互いにリンクが1本も無かった。
+            同じ作品名の需要を分け合う2ページが繋がっていない状態だったので、双方向に繋ぐ。
+            対応表は content/works/series.ts（一次情報・出典明示の人力補完）。
+            **放送が終わったシリーズ作品に「いま配信中」とは書かない**（CLAUDE.mdの基本ルール）。
+            ここは作品ページへのリンクと、シリーズ内での位置（第1期など）を出すだけにして、
+            配信の現在の可否には触れない。 */}
+        {series && seriesOthers.length > 0 && (
+          <article className="card">
+            <div className="card-body">
+              <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
+                「{series.title}」シリーズの他の作品
+              </h2>
+              <ul className="related-works">
+                {seriesOthers.map((w) => (
+                  <li key={w.id} className="related-work">
+                    <Link href={`/anime/${w.id}`} className="related-work-title">
+                      {series.title}（{w.label}）
+                    </Link>
+                    <span className="related-work-sub">配信情報を見る</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="related-works-more" style={{ color: "var(--muted)" }}>
+                シリーズの構成は{" "}
+                <a href={series.sourceUrl} target="_blank" rel="noopener noreferrer">
+                  公式サイト
+                </a>{" "}
+                で確認（{series.confirmedDate}時点）
+              </p>
             </div>
           </article>
         )}

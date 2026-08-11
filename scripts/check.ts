@@ -1033,6 +1033,99 @@ console.log(
 );
 
 // ─────────────────────────────────────────────
+// シリーズの対応表（2026-08-11追加）
+//
+// content/works/series.ts は「1期・2期・劇場版」を人力で繋ぐ表。GSCの実測で
+// 逃げ上手の若君の2期が184表示・0クリック・15.9位、1期は表示回数ゼロで、
+// しかも互いにリンクが1本も無かったことから追加した。
+// 誤って別作品を繋ぐと利用者を無関係なページへ送るため、機械的に見張る:
+//   (1) 出典と確認日がある（推測で繋がない・CLAUDE.mdの補完データ共通の方針）
+//   (2) 2件以上ある（1件ではシリーズにならない）
+//   (3) 同じ作品IDが複数のシリーズに出てこない（seriesFor が先勝ちで曖昧になる）
+//   (4) スナップショットに存在するIDは、そのタイトルが実在する作品と噛み合う
+//       （過去クールの作品なら照合できる。今期の作品は snapshots に無いので照合しない）
+// ─────────────────────────────────────────────
+console.log("\n── シリーズの対応表 ──");
+let seriesNg = 0;
+{
+  const { SERIES, seriesFor } = await import("../content/works/series.ts");
+  const { readSnapshots } = await import("./build-archive-index.ts");
+  const titleById = new Map<number, string>();
+  for (const snap of readSnapshots()) {
+    for (const it of snap.data.items) titleById.set(it.id, it.title);
+  }
+
+  const seen = new Map<number, string>();
+  const problems: string[] = [];
+  for (const s of SERIES) {
+    if (!s.sourceUrl || !/^https?:\/\//.test(s.sourceUrl)) {
+      problems.push(`${s.title}: sourceUrl が無い`);
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s.confirmedDate)) {
+      problems.push(`${s.title}: confirmedDate の形式が YYYY-MM-DD でない`);
+    }
+    if (s.works.length < 2) {
+      problems.push(`${s.title}: 作品が${s.works.length}件（2件以上必要）`);
+    }
+    for (const w of s.works) {
+      if (!Number.isInteger(w.id) || w.id <= 0) problems.push(`${s.title}: 不正なID ${w.id}`);
+      if (!w.label) problems.push(`${s.title}: ${w.id} に label が無い`);
+      const dup = seen.get(w.id);
+      if (dup) problems.push(`作品${w.id} が「${dup}」と「${s.title}」の両方にある`);
+      else seen.set(w.id, s.title);
+    }
+  }
+
+  // 過去クールの作品は、実在する作品かどうかまで照合できる。
+  const checked: string[] = [];
+  for (const s of SERIES) {
+    for (const w of s.works) {
+      const actual = titleById.get(w.id);
+      if (!actual) continue; // 今期の作品（snapshotsに無い）は照合対象外
+      checked.push(`${w.id}=${actual}`);
+    }
+  }
+
+  const cases: { label: string; ok: boolean; detail: string }[] = [
+    {
+      label: "定義に不備が無い",
+      ok: problems.length === 0,
+      detail: problems.length === 0 ? `${SERIES.length}シリーズ` : problems.join(" / "),
+    },
+    {
+      label: "スナップショットのIDと照合できる",
+      ok: true,
+      detail: checked.length > 0 ? checked.join("・") : "過去クールの作品を含まない",
+    },
+    // 双方向に引けること（片方向だけだと繋いだつもりで繋がっていない）。
+    {
+      label: "どの作品からも同じシリーズを引ける",
+      ok: SERIES.every((s) => s.works.every((w) => seriesFor(w.id)?.title === s.title)),
+      detail: "seriesFor が全作品で同じシリーズを返す",
+    },
+    // 作品ページが実際にリンクを出していること（孤立させない・出典を出す）。
+    {
+      label: "作品ページがシリーズを描画する",
+      ok: (() => {
+        const page = readFileSync(
+          new URL("../app/anime/[id]/page.tsx", import.meta.url),
+          "utf8"
+        );
+        return page.includes("seriesFor") && page.includes("seriesOthers");
+      })(),
+      detail: "app/anime/[id]/page.tsx が seriesFor を使う",
+    },
+  ];
+  for (const c of cases) {
+    if (!c.ok) seriesNg++;
+    console.log(
+      `${c.ok ? "\u2713" : "\u2717"}  ${c.label.padEnd(40)} \u2192 ${c.ok ? c.detail : `NG: ${c.detail}`}`
+    );
+  }
+}
+console.log(`結果（シリーズの対応表）: ${4 - seriesNg} 件OK / ${seriesNg} 件NG`);
+
+// ─────────────────────────────────────────────
 // 作品ページ title の幅の検査（2026-08-05追加）
 //
 // 検索結果の日本語titleは概ね全角30〜33文字で切られる。2026-07-27に
@@ -2389,6 +2482,7 @@ let prepNg = 0;
 
 if (
   addNg > 0 ||
+  seriesNg > 0 ||
   castsNg > 0 ||
   seasonKeyNg > 0 ||
   discordNg > 0 ||
