@@ -1,0 +1,17 @@
+# シェルスクリプトは必ずLFで展開する（2026-08-11導入）
+#
+# このリポジトリは core.autocrlf=true の Windows 機で開発している。.gitattributes が
+# 無いと *.sh も CRLF で作業ツリーに展開され、bash が行末の CR を引数の一部として
+# 読むため `$'\r': command not found` / `set: pipefail: invalid option name` で
+# **スクリプトが1行も実行できない**状態になる。
+#
+# ところが Git for Windows 同梱の bash は CR を許容するので、Git Bash から回している
+# 限り気づけない。WSL の bash（PowerShell から `bash` を呼ぶとこちらが選ばれる）では
+# 落ちる。GitHub Actions の ubuntu は LF で展開するので CI も永久に緑のままになる。
+# 「CIは緑・特定のシェルからだけ必ず落ちる」という、2026-08-11 に見つかった一連の
+# 問題（docs/operations.md の㉔）と同じ形なので、ここで固定する。
+*.sh text eol=lf
+
+# GitHub Actions が読むワークフローも同じ理由でLFに寄せておく（run: の複数行スクリプトは
+# ランナーの bash に渡されるため）。
+*.yml text eol=lf

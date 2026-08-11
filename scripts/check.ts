@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { classifyChannel, toAnimeItem } from "../lib/services.ts";
@@ -2546,7 +2546,88 @@ let prepNg = 0;
   }
 }
 
+// ─────────────────────────────────────────────
+// 検査を回す環境（2026-08-11追加）
+//
+// 2026-08-11、CIに入っているのに**手元では必ず失敗する**検査が2本、数セッションに
+// わたって赤いまま放置されていたことが分かった（docs/operations.md の㉔）。
+//   - scripts/probe-series.ts … Windows では process.exit() が書き込み途中の stdout を
+//     巻き込んで異常終了する（0xC0000409）
+//   - scripts/verify-production.sh … jq に依存していた（ubuntu ランナーには同梱、
+//     Windows の開発機には無い）
+// どちらも ubuntu だけで回している限り**原理的に検知できない**壊れ方で、検査を
+// 増やしても環境が1つでは同じことが起きる。そこで見張るのは次の2点:
+//   (1) CI が ubuntu と windows の両方で回っていること（matrixを消させない）
+//   (2) `npm run check` が CI と同じ検査を並べていること
+//       （手元の1コマンドとCIがズレると、手元で緑でもCIで落ちる／その逆が起きる）
+// ─────────────────────────────────────────────
+console.log("\n── 検査を回す環境 ──");
+let ciNg = 0;
+{
+  const ciYml = readFileSync(
+    new URL("../.github/workflows/ci.yml", import.meta.url),
+    "utf8"
+  );
+
+  // (1) 開発機（Windows）とCI（ubuntu）の両方。片方だけに戻すと上記の穴が復活する。
+  const oses = ["ubuntu-latest", "windows-latest"].filter((os) => ciYml.includes(os));
+  const osOk = oses.length === 2;
+  if (!osOk) ciNg++;
+  console.log(
+    `${osOk ? "✓" : "✗"}  ${"CIがubuntuとwindowsの両方で回る".padEnd(40)} → ` +
+      (osOk
+        ? oses.join(" / ")
+        : `${JSON.stringify(oses)} しかない。開発機と同じOSを外すと「CIは緑なのに手元では必ず落ちる」検査に気づけなくなる`)
+  );
+
+  // (2) CIの run: が呼ぶ検査スクリプトと、package.json の "check" が呼ぶものを突き合わせる。
+  //     ビルド（npm run build）は Windows では回さない＝`npm run check` にも入れないので
+  //     比較の対象から外す。
+  const scriptsIn = (src: string) =>
+    new Set([...src.matchAll(/node (scripts\/check[\w-]*\.(?:ts|js))/g)].map((m) => m[1]));
+  const pkg = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8")
+  ) as { scripts?: Record<string, string> };
+  const checkCmd = pkg.scripts?.check ?? "";
+  const ciScripts = scriptsIn(ciYml);
+  const pkgScripts = scriptsIn(checkCmd);
+  const missing = [...ciScripts].filter((s) => !pkgScripts.has(s));
+  const extra = [...pkgScripts].filter((s) => !ciScripts.has(s));
+  const sameOk = checkCmd !== "" && missing.length === 0 && extra.length === 0;
+  if (!sameOk) ciNg++;
+  console.log(
+    `${sameOk ? "✓" : "✗"}  ${"npm run check がCIと同じ検査を並べている".padEnd(40)} → ` +
+      (sameOk
+        ? `${ciScripts.size}本が一致`
+        : checkCmd === ""
+          ? `package.json に "check" が無い`
+          : `CIにあって check に無い=${JSON.stringify(missing)} / check にあってCIに無い=${JSON.stringify(extra)}`)
+  );
+
+  // (3) シェルスクリプトがLFで展開されること。core.autocrlf=true のWindows機では
+  //     .gitattributes が無いと *.sh がCRLFになり、bashが行末のCRを引数に含めて読むため
+  //     スクリプトが1行も動かない（`$'\r': command not found`）。Git同梱のbashは許容し、
+  //     CI（ubuntu）はLFで展開するので、**特定のシェルからだけ必ず落ちる**形になる。
+  const attrs = existsSync(new URL("../.gitattributes", import.meta.url))
+    ? readFileSync(new URL("../.gitattributes", import.meta.url), "utf8")
+    : "";
+  const shOk = /^\*\.sh\s+.*eol=lf/m.test(attrs);
+  if (!shOk) ciNg++;
+  console.log(
+    `${shOk ? "✓" : "✗"}  ${".gitattributesが*.shをLFに固定している".padEnd(40)} → ` +
+      (shOk ? "*.sh text eol=lf" : "指定が無い。Windowsの作業ツリーで *.sh がCRLFになり bash が実行できなくなる")
+  );
+
+  // (2') 型チェックも手元の1コマンドに含める（CIの最初のゲート）。
+  const tscOk = checkCmd.includes("tsc --noEmit");
+  if (!tscOk) ciNg++;
+  console.log(
+    `${tscOk ? "✓" : "✗"}  ${"npm run check に型チェックが入っている".padEnd(40)} → ${tscOk ? "tsc --noEmit" : "見つからない"}`
+  );
+}
+
 if (
+  ciNg > 0 ||
   addNg > 0 ||
   seriesNg > 0 ||
   spotlightNg > 0 ||
@@ -2574,4 +2655,8 @@ if (
   xIntentNg > 0 ||
   trackNg > 0
 )
-  process.exit(1);
+  // process.exit() ではなく exitCode。Windows では stdout がパイプされていると
+  // process.exit() が書き込み途中のバッファを巻き込んでプロセスを異常終了させ、
+  // 終了コードが 1 ではなく 3221226505 (0xC0000409) になる。CI（ubuntu）では
+  // 起きないので気づきにくいが、手元で失敗したときに原因の切り分けを難しくする。
+  process.exitCode = 1;
