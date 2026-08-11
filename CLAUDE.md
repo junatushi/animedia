@@ -45,6 +45,17 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   旧形式で`roleCredits`を持たないため**空の索引になる**（落ちずに警告を出す）。実データを入れるには
   `ANNICT_TOKEN`のある環境で`node scripts/snapshot-past-seasons.ts <年> <年> --force`から回す。
   詳細は`docs/operations.md`の⑱-11
+- `node scripts/probe-series.ts` … Annictの`seriesList`が使えるかの「探り」（2026-08-11導入）。
+  `content/works/series.ts`の人力対応表を自動化できるかを判断するための読み取り専用スクリプト。
+  **本番のクエリ（`lib/annict.ts`）は一切触らない**。フィールド名を決め打ちせず、まず
+  イントロスペクションで形を聞いてから問い合わせを組み立てるので、無いフィールドを指定して
+  失敗することが無い。最後に人力の対応表と突き合わせ、**全一致したときだけ自動化を検討する**。
+  要`ANNICT_TOKEN`＝PC作業。手順は`docs/annict-serieslist-probe.md`
+- `node scripts/check-probe-series.js` … 上の探りスクリプト自身のテスト（2026-08-11導入）。
+  GraphQLのスタブを立てて`probe-series.ts`を実際に動かし、`seriesList`が無いスキーマでも
+  落ちないこと・`nodes`/`edges`どちらの形でも辿れること・食い違いを黙って通さないこと・
+  200で返るGraphQLエラーを失敗として扱うことを固定する。ネットワークには出ない。
+  `probe-series.ts`を触ったら必ず実行する
 - `node scripts/check-gsc.js` … GSC取得スクリプトのテスト（2026-08-10導入）。APIのスタブを立てて
   `scripts/fetch-gsc.js`を実際に動かし、一時エラーの再試行・恒久エラーの即失敗・1件失敗で残りを
   巻き添えにしないこと・**書き出すJSONに鍵やトークンが混入しないこと**を固定する。

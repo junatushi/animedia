@@ -68,5 +68,11 @@ jobs:
       - name: GSC取得スクリプトの検査（APIスタブ。ネットワークには出ない）
         run: node scripts/check-gsc.js
 
+      # Annict seriesList の「探り」スクリプトの検査。これはPCで人が1回実行して
+      # 結果を判断するための道具で、こちらの環境では実物のAnnictに繋げない。
+      # 壊れたまま渡すと往復1回ぶん無駄になるので、スタブ相手に動作を固定する。
+      - name: seriesList探りスクリプトの検査（GraphQLスタブ。ネットワークには出ない）
+        run: node scripts/check-probe-series.js
+
       - name: 本番ビルド
         run: npm run build
