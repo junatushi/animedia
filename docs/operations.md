@@ -2002,16 +2002,26 @@ Interactions Endpoint URL 登録 → コマンド登録 → サーバーに追�
 
 `content/snapshots/` は**旧設定（5件）で生成されている**ため、過去クールは直っていない。
 `content/archive/people.json`（787人）も、それを元に作られているので同じく過少。
-`ANNICT_TOKEN` のある環境で以下を回すと、過去クールの声優データも揃う。
+現状の切断率は `node scripts/check.ts` が毎回表示する（**全4,121作品中3,622作品=87.9%が
+ちょうど5件**。※声優データが1件でもある作品のうちの割合）。
+
+再生成の完全な手順は **`docs/snapshot-regenerate.md`** にある。要点だけ再掲:
 
 ```bash
+git switch main && git pull origin main     # ← 先に修正を取り込む（これを忘れると無意味）
 node scripts/snapshot-past-seasons.ts 2010 2025 --force
 node scripts/build-archive-index.ts
 node scripts/build-person-index.ts
-node scripts/check.ts          # 索引とスナップショットのズレが無いこと
+node scripts/build-studio-index.ts
+node scripts/check.ts                       # 切断率が下がっていること
 ```
 
+**注意**: `--force` の途中で `✗` が出た年は、**そのまま再実行しても直らない**
+（古いファイルが残っているため `--force` 無しだとスキップされる）。
+失敗した年を指定して `--force` で取り直すこと（例: `node scripts/snapshot-past-seasons.ts 2017 2017 --force`）。
+
 再生成後は `people.json` の人数・出演件数が増え、sitemapに載る声優ページも増える。
+`roleCredits` も入るので `content/archive/studios.json`（いまは空）も埋まる。
 
 ## ㉑ 声優ページを過去クールへ広げる（2026-08-11導入）
 
