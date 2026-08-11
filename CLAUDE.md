@@ -15,6 +15,12 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `npm install` … 依存をインストール（初回のみ）
 - `npm run dev` … 開発サーバー起動 → http://localhost:3000
 - `npm run build` … 本番ビルド
+- `npm run check` … **コミット前はこれ1本**（2026-08-11導入）。下の検査スクリプトを
+  CIと同じ順で全部回す（`tsc --noEmit` → `check.ts` → `check-threads.js` →
+  `check-verify-production.js` → `check-gsc.js` → `check-probe-series.js`）。
+  検査が6コマンドに分かれていると実際には全部は回されず、2件が数セッション赤いまま
+  放置された（`docs/operations.md`の㉔追記2）。CIの`run:`とこのコマンドが同じ検査を
+  並べていることは`node scripts/check.ts`が突き合わせる。ネットワークには出ない
 - `node scripts/check.ts` … 配信判定ロジックのテスト（全件OKになること）
 - `node scripts/check-threads.js` … Threads自動投稿のテスト（2026-08-05導入）。APIのスタブを
   立てて`scripts/post-threads.js`を実際に動かし、コンテナの状態待ち・一時エラーの再試行・

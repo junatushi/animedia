@@ -2374,7 +2374,44 @@ Node はこのリポジトリの前提そのものなので、これで**どの�
 埋め込みに`<script>`・CORSが消えた等）も全部NGを出す。検査は緩んでいない。
 
 **教訓**: 「CIが緑」は「検査が働いている」と同義ではない。CIは1つのOSでしか回らないので、
-**手元で全部の検査を通してから触る**（`npx tsc --noEmit` → `check.ts` →
-`check-threads.js` → `check-gsc.js` → `check-verify-production.js` →
-`check-probe-series.js` → `npm run build`）。今回は3セッション以上にわたって
+**手元で全部の検査を通してから触る**。今回は3セッション以上にわたって
 2つの検査が赤いまま放置されていた。
+
+### 追記2: 「手元だけ赤い」が起きない構造にした（2026-08-11）
+
+上の追記は「手元で全部の検査を通してから触る」という**手順**で終わっていた。しかし
+このリポジトリで手順に委ねたものは実行されない（⑦-10の本番HTML確認が3セッション
+連続で持ち越された件、`verify-production.sh` をGitHub Actionsに移した理由がそれ）。
+同じ轍なので、機械に移した。
+
+**やったこと**
+
+1. **CIをubuntuとwindowsの両方で回す**（`.github/workflows/ci.yml` に matrix）。
+   今回の2件はどちらもWindows固有で、**ubuntuだけで回している限り原理的に検知できない**。
+   検査を増やしても環境が1つでは同じことが起きる。開発機と同じOSをCIに含めるのが
+   唯一の構造的な対処になる。費用は、差が出にくく最も重い `npm run build` を
+   Linux側だけにして抑えた（Windowsランナーはubuntuの2倍消費する）。
+2. **`npm run check` を足した**。検査が6コマンドに分かれていると「全部通してから触る」は
+   実際には守られない。1コマンドにまとめ、`node scripts/check.ts` が
+   **CIの `run:` と `npm run check` が同じ検査を並べていること**を突き合わせる
+   （片方に足してもう片方を忘れると落ちる）。
+3. **`.gitattributes` で `*.sh` をLFに固定した**。この調査中に、`core.autocrlf=true` の
+   影響で `verify-production.sh` が**CRLFで作業ツリーに展開されていた**ことが分かった。
+   bashは行末のCRを引数の一部として読むため `set: pipefail: invalid option name` /
+   `$'\r': command not found` となり、**スクリプトが1行も実行できない**。
+   Git同梱のbashはCRを許容するので Git Bash からは気づけず、CIのubuntuはLFで展開する
+   ので永久に緑。「特定のシェルからだけ必ず落ちる」という、まさに同じ形の穴だった。
+4. **`check-verify-production.js` が使うbashを明示的に選ぶようにした**。Windowsには
+   bashが複数あり、PowerShellから `bash` を呼ぶとPATH先頭の
+   `C:\Windows\System32\bash.exe`＝**WSL**が選ばれる。WSLからはWindows側の
+   127.0.0.1で待つスタブサーバーに届かず、Windows絶対パスも解決できないため
+   bashが127を返し、**検査が「14件NG」に見えていた**（＝検査が壊れているように
+   見えるが、実際は呼び出し元のシェルの違い）。Git同梱のbashがあればそれを優先する。
+   スクリプトのパスもリポジトリ相対に変えた。
+
+**確認済み**: PowerShellから `npm run check` が exit 0（tsc / check.ts / check-threads /
+check-verify-production / check-gsc / check-probe-series の6つすべて）。
+`check-verify-production.js` は17項目OK・15シナリオでNG検出のまま＝検査は緩んでいない。
+
+**この節の教訓**: 「ローカルでも実行できる」と手順書に書いてあることは、**書いた環境でしか
+確かめられていない**。書いた側が使うシェル・OSと、次に読む人が使うそれは違う。
