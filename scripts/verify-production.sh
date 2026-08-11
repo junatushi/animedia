@@ -39,6 +39,13 @@ set -uo pipefail
 BASE="${BASE:-https://animedia-khaki.vercel.app}"
 CURL="curl -sS --max-time 30 --retry 2 --retry-delay 3"
 
+# JSONから値を取り出す小道具。**jq は使わない**（2026-08-11変更）。
+# jq は GitHub Actions の ubuntu には最初から入っているが Windows の開発機には無く、
+# 「CIは緑なのに手元では必ず失敗する」状態になっていた（検査対象を1件も選べずに終了）。
+# Node はこのリポジトリの前提そのものなので、そちらに寄せて依存を1つ減らす。
+# 取り出す中身は変えていない（scripts/lib/json-pick.js のコメント参照）。
+PICK="node $(dirname "$0")/lib/json-pick.js"
+
 NG=0
 ok()   { echo "  OK   $*"; }
 fail() { echo "  NG   $*"; NG=$((NG + 1)); }
@@ -65,7 +72,7 @@ fi
 # 固定IDにしないのは、作品がAnnictから消えたときに検査自体が壊れるのを避けるため。
 pick_with_services() {
   for id in $1; do
-    if [ "$($CURL "$BASE/api/work/${id}" | jq -r '(.services // []) | length')" != "0" ]; then
+    if [ "$($CURL "$BASE/api/work/${id}" | $PICK services-count)" != "0" ]; then
       echo "$id"
       return 0
     fi
@@ -75,12 +82,9 @@ pick_with_services() {
 
 # 過去クールの候補: content/archive/index.json（配信1件以上の作品だけを持つ索引）の
 # いちばん新しいクールから5件。古いクールほど作品がAnnictから消える確率が上がる。
-PAST_CANDIDATES=$(jq -r \
-  '[.seasons[] | select((.workIds | length) > 0)] | last | .workIds[0:5][]' \
-  content/archive/index.json)
+PAST_CANDIDATES=$($PICK archive-candidates content/archive/index.json)
 # 現在クールの候補: 注目度上位5件（＝いちばん見られるページなので壊れたら影響が大きい）。
-CURRENT_CANDIDATES=$($CURL "$BASE/api/season?year=${YEAR}&season=${SEASON}" \
-  | jq -r '.items | sort_by(-(.watchers // 0)) | .[0:5][] | .id')
+CURRENT_CANDIDATES=$($CURL "$BASE/api/season?year=${YEAR}&season=${SEASON}" | $PICK top-ids)
 
 PAST_ID=$(pick_with_services "$PAST_CANDIDATES") || {
   echo "NG: 配信サービスのある過去クール作品を見つけられませんでした（候補: $(tr '\n' ' ' <<<"$PAST_CANDIDATES")）"
@@ -147,8 +151,8 @@ echo
 echo "E. 公開API（/api/work/{id}）"
 PAST_JSON=$($CURL "$BASE/api/work/${PAST_ID}")
 CUR_JSON=$($CURL "$BASE/api/work/${CURRENT_ID}")
-PAST_STATUS=$(jq -r '.airingStatus // "missing"' <<<"$PAST_JSON")
-CUR_STATUS=$(jq -r '.airingStatus // "missing"' <<<"$CUR_JSON")
+PAST_STATUS=$($PICK airing-status <<<"$PAST_JSON")
+CUR_STATUS=$($PICK airing-status <<<"$CUR_JSON")
 [ "$PAST_STATUS" = "finished" ] && ok "過去作の airingStatus=finished" \
   || fail "過去作の airingStatus が ${PAST_STATUS}（finished のはず）"
 [ "$CUR_STATUS" = "airing" ] && ok "今期作の airingStatus=airing" \

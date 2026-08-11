@@ -20,6 +20,15 @@
 //   node scripts/probe-series.ts 14132 16555 … 作品IDを指定して試す
 //
 // 要 ANNICT_TOKEN（.env.local から読む。トークンの中身は出力しない）。
+//
+// 【終了のしかた・2026-08-11】
+// このスクリプトは `process.exit()` を**使わない**。`process.exitCode` を立てて return する。
+// Windowsで標準出力がパイプのとき、書き込みが残ったまま process.exit() すると
+// プロセスが異常終了し、終了コードが 3221226505（0xC0000409）になる。
+// このスクリプトは結論を何行も出したあとに終わるので必ず踏む。
+// scripts/check-probe-series.js は終了コードを見て判定するため、
+// **CI（ubuntu）は緑のまま、Windowsのローカルでだけ常に赤い**という形で放置されていた
+// （scripts/fetch-gsc.js でも同じ問題を直した。詳細は docs/operations.md の㉔）。
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { SERIES } from "../content/works/series.ts";
@@ -160,7 +169,8 @@ async function main() {
   token = process.env.ANNICT_TOKEN ?? "";
   if (!token) {
     console.error("ANNICT_TOKEN が未設定です（.env.local を確認してください）。");
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   const argIds = process.argv.slice(2).map(Number).filter((n) => Number.isInteger(n) && n > 0);
@@ -172,7 +182,8 @@ async function main() {
   const workFields = await typeFields("Work");
   if (!workFields) {
     ng("Work型が引けなかった。Annictのスキーマが変わっている可能性がある");
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   const seriesField = workFields.find((f) => f.name === "seriesList");
   if (!seriesField) {
@@ -182,7 +193,8 @@ async function main() {
         (workFields.filter((f) => /series/i.test(f.name)).map((f) => f.name).join("・") || "なし")
     );
     console.log("\n→ 自動化はできない。content/works/series.ts の人力運用を続ける。");
-    process.exit(0);
+    process.exitCode = 0;
+    return;
   }
   ok(`seriesList がある → ${seriesField.type.name}（${seriesField.type.kind}）`);
 
@@ -191,14 +203,16 @@ async function main() {
   const seriesConn = await connectionShape(seriesField.type.name!);
   if (!seriesConn) {
     ng(`${seriesField.type.name} から1件ぶんの型に降りられなかった`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   ok(`${seriesField.type.name} → ${seriesConn.itemType}`);
 
   const seriesFields = await typeFields(seriesConn.itemType);
   if (!seriesFields) {
     ng(`${seriesConn.itemType} のフィールドが引けなかった`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   info(`${seriesConn.itemType} のフィールド: ${seriesFields.map((f) => f.name).join("・")}`);
 
@@ -211,19 +225,22 @@ async function main() {
   if (!worksField?.type.name) {
     ng(`${seriesConn.itemType} に works が無い＝シリーズ内の作品を引けない`);
     console.log("\n→ シリーズ名は取れても「他の作品」は作れない。人力運用を続ける。");
-    process.exit(0);
+    process.exitCode = 0;
+    return;
   }
   const worksConn = await connectionShape(worksField.type.name);
   if (!worksConn) {
     ng(`${worksField.type.name} から1件ぶんの型に降りられなかった`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   ok(`${seriesConn.itemType}.works → ${worksConn.itemType}`);
 
   const itemFields = await typeFields(worksConn.itemType);
   if (!itemFields) {
     ng(`${worksConn.itemType} のフィールドが引けなかった`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   info(`${worksConn.itemType} のフィールド: ${itemFields.map((f) => f.name).join("・")}`);
 
@@ -234,7 +251,8 @@ async function main() {
     : ["item", "work", "node"].find((n) => itemFields.some((f) => f.name === n));
   if (!hasAnnictId && !wrapper) {
     ng(`${worksConn.itemType} から作品IDに辿り着けない`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   // 並び順の手がかり（第何作か）になりそうなフィールドがあるかも見ておく。
   // スカラー（またはenum）に限る。オブジェクト型を選択すると「selection set が要る」と
@@ -312,14 +330,16 @@ async function main() {
     console.log("結論: seriesList は**シリーズ名すら取れない**（Annict側が落ちる）。");
     console.log("→ 自動化はできない。content/works/series.ts の人力運用を続ける。");
     console.log("この出力をそのまま貼って共有してください。");
-    process.exit(0);
+    process.exitCode = 0;
+    return;
   }
   if (chosen.depth === 1) {
     console.log("\n────────────────────────────────");
     console.log("結論: シリーズ名は取れるが、**シリーズ内の作品を列挙できない**（works で落ちる）。");
     console.log("→ 「他の作品」を作れないので自動化はできない。人力運用を続ける。");
     console.log("この出力をそのまま貼って共有してください。");
-    process.exit(0);
+    process.exitCode = 0;
+    return;
   }
   const hasTitles = chosen.depth >= 3;
 
@@ -353,7 +373,8 @@ async function main() {
   }
   if (nodes.length === 0) {
     ng("作品が1件も返らなかった");
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   // 応答から「作品ID → 同じシリーズの作品IDの集合」を作る。
@@ -433,5 +454,6 @@ async function main() {
 main().catch((e) => {
   console.error(`\n失敗: ${e instanceof Error ? e.message : String(e)}`);
   console.error("この文面もそのまま貼って共有してください（本番のクエリには影響しません）。");
-  process.exit(1);
+  process.exitCode = 1;
+  return;
 });
