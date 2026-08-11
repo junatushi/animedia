@@ -145,6 +145,10 @@ body {
     0 0 16px rgba(var(--halo-rgb), 0.9);
 }
 /* 「.」の代わりに、ゲームのカーソル/ロックオン照準を思わせる菱形マークを描く */
+/* シーズンページのh1（「2026年夏アニメ 配信情報一覧」）はブランド名より長いので、
+   同じ字数感で収まるよう一段小さくする（2026-08-05追加）。 */
+.brand-long { font-size: clamp(21px, 3.6vw, 30px); }
+
 .brand .dot {
   display: inline-block;
   width: 0.34em;
@@ -1066,6 +1070,38 @@ body {
   flex-direction: column;
   gap: 6px;
 }
+/* 視聴プラン（2026-08-07追加。lib/servicePlan.ts）。
+   お気に入りを全部見るのに必要な最小のサービス組み合わせを、候補ごとに1行で出す。 */
+.plan-panel {
+  padding: 10px 12px 12px;
+}
+.plan-combos {
+  list-style: none;
+  margin: 8px 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.plan-combo-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.plan-combo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
 .svc-compare-row {
   width: 100%;
   display: flex;
@@ -1396,6 +1432,29 @@ body {
   line-height: 1.6;
   color: var(--ink);
 }
+/* コード片（/developers の貼り付け例・APIの呼び出し例）。横に長いので単独でスクロールさせる。 */
+.detail-code {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--ink);
+}
+.detail-body code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.18);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+[data-theme="light"] .detail-code,
+[data-theme="light"] .detail-body code { background: rgba(0, 0, 0, 0.05); }
+
 /* 声優一覧は人数が多いので2〜3列グリッドで縦を抑える。 */
 .detail-cast-grid {
   list-style: none;
@@ -1489,8 +1548,125 @@ a.detail-cast-name:hover { text-decoration: underline; }
 }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
-.footnote {
+/* ── 作品ページの「関連作品」（同じクールの他作品）──────── */
+.related-works { list-style: none; margin: 0; padding: 0; }
+.related-work {
+  padding: 9px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.related-work:first-child { border-top: none; padding-top: 0; }
+.related-work-title {
+  display: block;
+  color: var(--accent-2); text-decoration: none;
+  font-size: 14px; font-weight: 700; line-height: 1.5;
+}
+.related-work-title:hover { text-decoration: underline; }
+.related-work-sub {
+  display: block; margin-top: 2px;
+  color: var(--muted-2); font-size: 12px; line-height: 1.6;
+}
+.related-works-more { margin: 12px 0 0; font-size: 13px; }
+.related-works-more a { color: var(--accent-2); text-decoration: none; }
+.related-works-more a:hover { text-decoration: underline; }
+/* スマホでは1行あたりのタップ領域を確保する（44px前後）。 */
+@media (max-width: 480px) {
+  .related-work { padding: 11px 0; }
+}
+
+/* ── 配信先ウィジェットの貼り付け欄（2026-08-06導入）─────────── */
+/* 検索意図（＝配信先の答え）を押し下げないよう <details> で閉じて置く。
+   実装は components/EmbedSnippet.tsx、スニペット生成は lib/embed.ts。 */
+.embed-share {
+  margin-top: 22px;
+  border: 1px dashed var(--border-soft);
+  border-radius: 12px;
+  background: var(--card-bg, transparent);
+}
+.embed-share > summary {
+  padding: 12px 14px;
+  cursor: pointer;
+  font-size: 13px; font-weight: 700; color: var(--muted);
+  list-style: none;
+}
+.embed-share > summary::-webkit-details-marker { display: none; }
+.embed-share > summary::before { content: "＋ "; color: var(--accent-2); }
+.embed-share[open] > summary::before { content: "− "; }
+.embed-share > summary:hover { color: var(--ink); }
+.embed-share-body { padding: 0 14px 14px; }
+.embed-share-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+.embed-share-tabs button {
+  padding: 6px 12px;
+  border: 1px solid var(--border-soft); border-radius: 999px;
+  background: transparent; color: var(--muted-2);
+  font-size: 12px; cursor: pointer;
+}
+.embed-share-tabs button.is-on {
+  border-color: var(--accent-2); color: var(--accent-2); font-weight: 700;
+}
+.embed-share-note { margin: 0 0 8px; font-size: 12px; line-height: 1.7; color: var(--muted-2); }
+.embed-share-code {
+  width: 100%; resize: vertical;
+  padding: 10px; border: 1px solid var(--border-soft); border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18); color: var(--ink);
+  font-family: var(--mono); font-size: 11px; line-height: 1.6;
+}
+.embed-share-actions {
+  margin-top: 8px; display: flex; align-items: center; gap: 14px;
+  font-size: 12px;
+}
+.embed-share-copy {
+  padding: 8px 18px;
+  border: 1px solid var(--accent-2); border-radius: 999px;
+  background: transparent; color: var(--accent-2);
+  font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.embed-share-actions a { color: var(--muted-2); text-decoration: underline; }
+[data-theme="light"] .embed-share-code { background: rgba(0, 0, 0, 0.04); }
+/* スマホでもタブ・コピーが押しやすい高さを確保する（44px前後）。 */
+@media (max-width: 480px) {
+  .embed-share-tabs button { padding: 10px 14px; }
+  .embed-share-copy { padding: 11px 22px; }
+}
+
+/* ── 他クールへのアーカイブ導線（クロール可能な実リンク）──────── */
+/* 上部の年・季節の切替はクライアント状態を変える <button> で <a href> を持たない。
+   ここは検索エンジンが過去クールへ辿れるようにするための実リンク列（2026-08-05追加）。
+   利用者にとっても「前のクールを見返す」導線になる。 */
+.season-archive {
   margin-top: 44px; padding-top: 18px;
+  border-top: 1px solid var(--border-soft);
+}
+.season-archive-title {
+  margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--muted);
+}
+.season-archive-row {
+  margin: 0 0 6px;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+  font-size: 12px; line-height: 1.9;
+}
+.season-archive-label { color: var(--muted-2); }
+.season-archive-item a { color: var(--accent-2); text-decoration: none; }
+.season-archive-item a:hover { text-decoration: underline; }
+/* いま表示中のクールはリンクにせず、現在地として控えめに示す。 */
+.season-archive-item [aria-current="page"] { color: var(--muted-2); font-weight: 700; }
+
+/* ── SNSフォロー導線（2026-08-06導入）────────
+   フッターの注記の直前に1行だけ置く。バナー・モーダルにはしない
+   （配信情報を調べに来た人の邪魔をしてまで獲るものではない）。
+   注記より少しだけ目立たせるが、本文より弱いままにする。 */
+.follow-links {
+  margin-top: 28px; padding-top: 18px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--muted); font-size: 13px; line-height: 1.8;
+}
+.follow-links a { font-weight: 600; }
+/* 直後の .footnote と罫線が二重にならないようにする */
+.follow-links + .footnote {
+  margin-top: 10px; padding-top: 0; border-top: none;
+}
+
+.footnote {
+  margin-top: 28px; padding-top: 18px;
   border-top: 1px solid var(--border-soft);
   color: var(--muted-2); font-size: 12px; line-height: 1.7;
 }

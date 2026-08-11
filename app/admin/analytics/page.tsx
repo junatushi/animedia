@@ -25,6 +25,29 @@ const EVENT_LABELS: Record<string, string> = {
   filter_service: "配信サービスで絞り込み",
   filter_cast: "声優で絞り込み",
   change_season: "シーズン切り替え",
+  // フッターのフォロー導線（2026-08-06追加。components/FollowLinks.tsx）。
+  // Xのフォロワーを増やす手段のうち、サイト側で測れる唯一の数字なので必ず出す。
+  follow_click: "SNSフォロー導線をクリック",
+  // カレンダー購読（2026-08-07追加。app/calendar.ics / components/FollowLinks.tsx）。
+  // フォローと違い、購読されるとこちらが投稿しなくても毎週相手のカレンダーに出る。
+  // 定着（Direct流入）の施策なので、follow_click と並べて比較する
+  // （docs/growth-strategy-2026-08.md ／ docs/operations.md ⑱）。
+  calendar_subscribe: "カレンダー購読をクリック",
+  // 視聴プラン（2026-08-07追加）。お気に入りを全部見るのに必要な最小のサービス
+  // 組み合わせを開いた回数。加入判断に最も近い操作。
+  plan_open: "視聴プランを開いた",
+  // 【2026-08-06追加】配信バッジのクリック。`components/ServiceMarks.tsx` が
+  // 2026-07-19からずっと記録していたのに、このラベル表に載っていなかったため
+  // ダッシュボードのどこにも出ていなかった（`events` は EVENT_LABELS のキーから
+  // 作られるので、ここに無いイベントは表にもグラフにも現れない）。
+  // アフィリエイトの提携先を決める判断材料そのものなので必ず出す。
+  affiliate_click: "広告リンクをクリック（提携済み）",
+  official_link_click: "公式サイトへ（未提携）",
+  // 配信先ウィジェットの貼り付けコードがコピーされた（2026-08-06追加。
+  // components/EmbedSnippet.tsx）。被リンク施策（docs/operations.md ⑯）の
+  // 効果測定の起点で、コピー数と ?ref=embed の流入を突き合わせて
+  // 「貼られていないのか／貼られたが押されないのか」を切り分ける。
+  embed_copy: "埋め込みコードをコピー",
 };
 
 function countBy(rows: EventRow[], since: Date | null): Record<string, number> {
@@ -123,6 +146,15 @@ export default async function AnalyticsDashboard({
   const topServices = countByDataField(rows, "filter_service", "service");
   const maxService = Math.max(1, ...topServices.map(([, n]) => n));
 
+  // 【2026-08-06追加】配信バッジのクリックをサービス別に出す。
+  // 未提携（official_link_click）の多い順が、そのまま「次にどのASPと提携すれば
+  // 収益が増えるか」の答えになる。掲載本数からの推定（docs/affiliate-setup.md の
+  // 「提携の優先順位」）より、こちらの実クリックのほうが一次情報として強い。
+  const affiliateClicks = countByDataField(rows, "affiliate_click", "service");
+  const officialClicks = countByDataField(rows, "official_link_click", "service");
+  const maxAffiliate = Math.max(1, ...affiliateClicks.map(([, n]) => n));
+  const maxOfficial = Math.max(1, ...officialClicks.map(([, n]) => n));
+
   return (
     <main
       style={{
@@ -168,6 +200,37 @@ export default async function AnalyticsDashboard({
           <h2 style={{ fontSize: 15, margin: "28px 0 10px" }}>配信サービス別 絞り込み回数（直近{WINDOW_DAYS}日）</h2>
           {topServices.map(([service, n]) => (
             <Bar key={service} label={service} count={n} max={maxService} />
+          ))}
+        </>
+      )}
+
+      {officialClicks.length > 0 && (
+        <>
+          <h2 style={{ fontSize: 15, margin: "28px 0 4px" }}>
+            未提携サービスへのクリック（直近{WINDOW_DAYS}日）
+          </h2>
+          <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 10 }}>
+            提携が無いため公式サイトへ素通ししているクリック。
+            <strong>多い順に提携すれば、そのぶんがそのまま収益機会になる</strong>。
+            手順は <code>docs/affiliate-setup.md</code>「提携の優先順位」。
+          </p>
+          {officialClicks.map(([service, n]) => (
+            <Bar key={service} label={service} count={n} max={maxOfficial} />
+          ))}
+        </>
+      )}
+
+      {affiliateClicks.length > 0 && (
+        <>
+          <h2 style={{ fontSize: 15, margin: "28px 0 4px" }}>
+            提携済みサービスへのクリック（直近{WINDOW_DAYS}日）
+          </h2>
+          <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 10 }}>
+            収益になりうるクリック。<strong>成果（登録完了）の件数はASPの管理画面にしか出ない</strong>ので、
+            ここで分かるのはクリックまで。
+          </p>
+          {affiliateClicks.map(([service, n]) => (
+            <Bar key={service} label={service} count={n} max={maxAffiliate} />
           ))}
         </>
       )}

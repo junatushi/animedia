@@ -53,34 +53,50 @@ async function main() {
     return;
   }
 
-  const { posts } = await buildPost();
+  // 第2引数＝投稿先。Mastodonは5〜7時台にその日の分をまとめて出す枠なので、
+  // 「おはようございます／今日は○本」と1日の全体像から入る本文になる（2026-08-06）。
+  const { posts } = await buildPost(new Date(), "mastodon");
+
+  // 投稿は1件ずつ独立させる。1本目が落ちても2本目は投げ、最後にまとめて報告する
+  // （2026-08-05追加。Threadsで「1本目の失敗＝その日は全滅」の事故が起きたため、
+  // 同じ形をしている3スクリプトを揃えた。経緯は docs/operations.md の⑦-8）。
+  const failures = [];
 
   for (const post of posts) {
-    let mediaIds;
-    if (post.screenshot) {
-      try {
-        const png = await captureScreenshot(post.screenshot.url, post.screenshot.selector);
-        const mediaId = await uploadMedia(instanceUrl, accessToken, png);
-        mediaIds = [mediaId];
-      } catch (err) {
-        console.error("スクリーンショットの添付に失敗しました（画像なしで投稿を続行します）:", err);
+    try {
+      let mediaIds;
+      if (post.screenshot) {
+        try {
+          const png = await captureScreenshot(post.screenshot.url, post.screenshot.selector);
+          const mediaId = await uploadMedia(instanceUrl, accessToken, png);
+          mediaIds = [mediaId];
+        } catch (err) {
+          console.error("スクリーンショットの添付に失敗しました（画像なしで投稿を続行します）:", err);
+        }
       }
-    }
 
-    const res = await fetch(`${instanceUrl.replace(/\/$/, "")}/api/v1/statuses`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ status: post.text, visibility: "public", ...(mediaIds ? { media_ids: mediaIds } : {}) }),
-    });
+      const res = await fetch(`${instanceUrl.replace(/\/$/, "")}/api/v1/statuses`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: post.text, visibility: "public", ...(mediaIds ? { media_ids: mediaIds } : {}) }),
+      });
 
-    if (!res.ok) {
-      throw new Error(`Mastodon投稿に失敗しました（${res.status}）: ${await res.text()}`);
+      if (!res.ok) {
+        throw new Error(`Mastodon投稿に失敗しました（${res.status}）: ${await res.text()}`);
+      }
+      const json = await res.json();
+      console.log("Mastodonに投稿しました:", json.url);
+    } catch (err) {
+      failures.push(err);
+      console.error(`Mastodonの1件が投稿できませんでした（残りは続行します）: ${err.message}`);
     }
-    const json = await res.json();
-    console.log("Mastodonに投稿しました:", json.url);
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`Mastodon投稿に失敗しました（${posts.length}件中${failures.length}件）。詳細は上のログを参照。`);
   }
 }
 

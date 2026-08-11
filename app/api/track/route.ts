@@ -19,6 +19,18 @@ const ALLOWED_EVENTS = new Set([
   "change_season",
   "affiliate_click",
   "official_link_click",
+  // 配信先ウィジェットの貼り付けコードがコピーされた（2026-08-06追加）。
+  // 被リンク施策の実測用: コピー数 と、埋め込み経由の流入（?ref=embed）を突き合わせる。
+  "embed_copy",
+  // フッターのフォロー導線（2026-08-06追加。components/FollowLinks.tsx）
+  "follow_click",
+  // カレンダー購読リンクが押された（2026-08-07追加。app/calendar.ics）。
+  // 購読は一度されると継続的に接触できるので、フォローと並べて効果を見る。
+  "calendar_subscribe",
+  // 視聴プラン（お気に入りを全部見るのに必要な最小のサービス組み合わせ）が開かれた
+  // （2026-08-07追加。components/SeasonExplorer.tsx / lib/servicePlan.ts）。
+  // 加入判断に最も近い操作なので、affiliate_click と並べて転換を見る。
+  "plan_open",
 ]);
 
 export async function POST(request: Request) {

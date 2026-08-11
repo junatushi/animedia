@@ -4,12 +4,23 @@ import Link from "next/link";
 import { getWorkData } from "@/lib/getWorkData";
 import { getSeasonData } from "@/lib/getSeasonData";
 import { splitRentalServices, getServiceKana, sortServicesForMetadata } from "@/lib/services";
+import { buildWorkTitle } from "@/lib/workTitle";
 import { seasonKeyForMonth, SEASON_LABEL } from "@/lib/resolveSeasonParams";
+import {
+  airingStatus,
+  jstToday,
+  buildWatchAnswer,
+  buildWatchDescription,
+  availabilityLabel,
+} from "@/lib/workAvailability";
 import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
 import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
+import FollowLinks from "@/components/FollowLinks";
 import ServiceMarks from "@/components/ServiceMarks";
+import EmbedSnippet from "@/components/EmbedSnippet";
+import { buildEmbedSnippet, buildEmbedIframeSnippet } from "@/lib/embed";
 
 const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
 
@@ -57,9 +68,17 @@ export async function generateStaticParams() {
   return [];
 }
 
+// Annictから取れなかったときに返すメタデータ（2026-08-05追加）。
+// 作品が存在しない場合は下のページ本体が notFound() を呼ぶので404になるが、
+// Annict側の障害・トークン切れの場合はページ本体が「データを取得できませんでした」を
+// **HTTP 200で**返す。何もしないとレイアウトの robots: { index: true } を継いで
+// このエラー画面がそのまま索引に載りうるので、明示的に noindex にしておく。
+// （このプロジェクトは loading.tsx を置かない判断もソフト404を避けるためで、同じ考え方。）
+const UNAVAILABLE_METADATA: Metadata = { robots: { index: false, follow: false } };
+
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const id = Number(params.id);
-  if (!Number.isInteger(id) || id <= 0) return {};
+  if (!Number.isInteger(id) || id <= 0) return UNAVAILABLE_METADATA;
 
   let item;
   try {
@@ -67,7 +86,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   } catch {
     item = null;
   }
-  if (!item) return {};
+  if (!item) return UNAVAILABLE_METADATA;
 
   const { streaming } = splitRentalServices(item.services, RENTAL_SERVICES[item.id]);
   // 2026-07-26のSearch Console実測では、表示回数を集めているクエリが
@@ -78,11 +97,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   // Annict由来の並び順は作品ごとにばらつく（先頭がFOD等になり、実際に検索されている
   // 主要サービスがtitleから漏れる）ため、実クエリの多い順（sortServicesForMetadata）に揃える。
   const serviceShorts = sortServicesForMetadata(streaming).map((s) => s.short);
-  const leadServices = serviceShorts.slice(0, 2).join("・");
-  const restCount = serviceShorts.length - 2;
-  const title = leadServices
-    ? `${item.title}はどこで配信？${leadServices}${restCount > 0 ? `ほか${restCount}サービス` : ""}`
-    : `${item.title}はどこで配信？最新の配信状況`;
+  // 検索結果で切り捨てられない幅に収める（buildWorkTitle のコメント参照）。
+  const title = buildWorkTitle(item.title, serviceShorts);
   // 配信が1件も無い作品に「配信中」と読める説明文を出すと誤誘導になるため、
   // 「まだ確認できていない」と正直に書く（CLAUDE.mdの推測で埋めない方針と同じ）。
   const descServices =
@@ -91,13 +107,20 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   // description の先頭に出す。「{作品名} 公開日」は劇場作品で最も検索される問いで、
   // 配信の有無だけを書いた説明文よりスニペットが検索意図に一致する。
   const releaseLead = item.releaseDate ? `${formatJpDate(item.releaseDate.date)}劇場公開。` : "";
+  // 放送が終わったクールの作品に「配信している」と現在形で書かない（lib/workAvailability.ts）。
+  // Annictのデータは放送当時の番組表であって、いま配信中である確認ではない。
+  const status = airingStatus(item.broadcastStartDate ?? item.releaseDate?.date ?? null, jstToday());
   const description = serviceShorts.length
-    ? `${releaseLead}「${item.title}」を見放題で配信している動画配信サービスは ${descServices}。どのサービスで見られるかをアニメ視聴ガイドが最新データで一覧にしています。`
+    ? buildWatchDescription({ title: item.title, descServices, releaseLead, status })
     : `${releaseLead}「${item.title}」の配信サービスは現時点で確認できていません。判明し次第このページに反映します。今期アニメの配信状況はアニメ視聴ガイドで確認できます。`;
   const url = `${siteUrl}/anime/${id}`;
 
   return {
-    title,
+    // absolute にしてレイアウトの template（"%s | アニメ視聴ガイド"）を効かせない。
+    // ブランド名は全角11文字ぶん幅を食うのに、「{作品名} 配信」で探している人に対する
+    // 関連性は持たない（サイト名は検索結果でtitleとは別に表示される）。
+    // その11文字を実際に検索されている配信サービス名に使う。
+    title: { absolute: title },
     description,
     alternates: { canonical: url },
     openGraph: { title, description, url, type: "website" },
@@ -153,10 +176,22 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
     }),
     ...item.otherServices,
   ];
+  // 配信情報はAnnictからライブ取得（revalidateの範囲）なので、取得日を鮮度シグナルとして出す。
+  // JSTの日付にする（toISOString()はUTCのため、JSTの朝9時までは前日の日付になってしまう）。
+  const checkedDate = jstToday();
+  // 放送が終わったクールの作品は「いま配信中」と断定しない（lib/workAvailability.ts の
+  // 冒頭コメント参照）。Annictのprogramsは放送当時の番組表であって、現在の配信可否の
+  // 確認ではないため、過去作に現在形を使うと未確認の主張になる。
+  const status = airingStatus(
+    item.broadcastStartDate ?? item.releaseDate?.date ?? null,
+    checkedDate
+  );
   const jsonLdDescription =
     content?.synopsis ||
     (serviceNames.length > 0
-      ? `「${item.title}」は ${serviceNames.join("・")} で配信中。`
+      ? status === "finished"
+        ? `「${item.title}」の配信情報（${serviceNames.join("・")}）。${checkedDate}時点のAnnictデータ。`
+        : `「${item.title}」は ${serviceNames.join("・")} で配信中。`
       : `「${item.title}」の配信状況をアニメ視聴ガイドで確認できます。`);
   const workLd: Record<string, unknown> = {
     "@context": "https://schema.org",
@@ -194,9 +229,6 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   // 作品にだけ入る。
   const release = item.releaseDate ?? null;
 
-  // 配信情報はAnnictからライブ取得（revalidateの範囲）なので、確認日を鮮度シグナルとして出す。
-  // JSTの日付にする（toISOString()はUTCのため、JSTの朝9時までは前日の日付になってしまう）。
-  const checkedDate = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   workLd.dateModified = checkedDate;
   if (release) {
     // schema.org の Movie/TVSeries が持つ公開日。生成AI・検索エンジンに
@@ -226,9 +258,13 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   // （getSeasonDataは10分/24時間キャッシュ済みなので追加負荷は小さい）を見て、
   // 実際にページが存在する声優だけを事前に絞り込む。
   const linkableCastNames = new Set<string>();
+  // 同じクールの他作品（「関連作品」欄に出す候補）。上の声優リンク判定で既に
+  // 取得しているシーズンデータを使い回すので、ここに追加のフェッチは発生しない。
+  let seasonItems: Awaited<ReturnType<typeof getSeasonData>>["items"] = [];
   if (workSeason) {
     try {
       const seasonData = await getSeasonData(String(workSeason.year), workSeason.key);
+      seasonItems = seasonData.items;
       const counts = new Map<string, number>();
       for (const it of seasonData.items) {
         for (const castName of it.castNames) counts.set(castName, (counts.get(castName) ?? 0) + 1);
@@ -240,6 +276,24 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
       // 取得に失敗しても声優名をプレーンテキストで出すだけなので、ページ全体は壊さない。
     }
   }
+
+  // 関連作品（2026-08-05追加）。
+  // これを入れる前、作品ページから他の作品ページへのリンクは1本も無く、
+  // /anime/{id} は完全なリンクの葉だった（出ていく先はトップ・シーズン・声優・公式サイトのみ）。
+  // 作品ページ同士が繋がっていないと、内部リンクの評価が作品ページ間を巡らず、
+  // 利用者も「この作品はここに無かった」で離脱して終わる。
+  // 並びは「同じ声優が出ている作品」を優先し、同点なら注目度順にする。
+  // 声優の重なりは同じ制作座組・同じ客層を指すことが多く、機械的な人気順の羅列より
+  // 実際に見に行きたくなる並びになる（＝回遊率が上がり、リンク自体の価値も上がる）。
+  const ownCastNames = new Set(credits.casts.map((c) => c.personName));
+  const relatedWorks = seasonItems
+    .filter((it) => it.id !== item.id)
+    .map((it) => ({
+      it,
+      sharedCasts: it.castNames.filter((n) => ownCastNames.has(n)).length,
+    }))
+    .sort((a, b) => b.sharedCasts - a.sharedCasts || b.it.watchers - a.it.watchers)
+    .slice(0, 8);
 
   // パンくず（Home → シーズン → 作品名）。AI・検索エンジンにサイト構造を伝える。
   const breadcrumbLd = {
@@ -274,7 +328,13 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
       : "";
   const watchAnswer =
     serviceNames.length > 0
-      ? `「${item.title}」は ${serviceLabels.join("・")} で視聴できます（${checkedDate}時点）。${rentalNote}配信状況は変わることがあるため、視聴前に各サービスの最新情報もご確認ください。`
+      ? buildWatchAnswer({
+          title: item.title,
+          serviceLabels,
+          rentalNote,
+          checkedDate,
+          status,
+        })
       : rentalServices.length > 0
         ? `「${item.title}」は見放題配信は現時点で確認できませんが、${rentalNote}（${checkedDate}時点）`
         : // 劇場公開日が判明している作品は「配信が無い」だけで終わらせず、公開前／公開済みの
@@ -399,7 +459,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                 公式サイト ↗
               </a>
             )}
-            <p className="detail-updated">配信情報の確認日: {checkedDate}（Annictより自動取得）</p>
+            {/* 「確認日」だと「その日に配信されていることを確認した」と読めてしまうが、
+                実際はAnnictからデータを取得した日でしかない（配信の現在の可否は誰も
+                確認していない）。放送中の作品でも同じ誤解を招くので、全作品で
+                「取得日」と書く。 */}
+            <p className="detail-updated">配信情報の取得日: {checkedDate}（Annictより自動取得）</p>
             {manualSources.length > 0 && (
               <p className="svc-manual-note">
                 出典:{" "}
@@ -523,13 +587,83 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
             </div>
           </article>
         )}
+        {/* 関連作品（同じクール）。作品ページ同士を繋ぐ唯一の導線なので、
+            配信サービスのバッジを添えて「次に見る作品もここで配信先が分かる」ことを
+            その場で示す。バッジは出さずサービス名の短縮表記だけを文字で置く
+            （ServiceMarksはリンクを持つため、作品ページへ飛ぶこの一覧に入れると
+            CLAUDE.mdの「リンクの中に別行き先のリンクを入れない」に反する）。 */}
+        {relatedWorks.length > 0 && workSeason && (
+          <article className="card">
+            <div className="card-body">
+              <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
+                {workSeason.year}年{workSeason.label}アニメの他の作品
+              </h2>
+              <ul className="related-works">
+                {relatedWorks.map(({ it, sharedCasts }) => {
+                  const names = [...it.services.map((s) => s.short), ...it.otherServices];
+                  return (
+                    <li key={it.id} className="related-work">
+                      <Link href={`/anime/${it.id}`} className="related-work-title">
+                        {it.title}
+                      </Link>
+                      <span className="related-work-sub">
+                        {names.length > 0
+                          ? `${names.slice(0, 3).join("・")}${names.length > 3 ? `ほか${names.length - 3}件` : ""}で配信`
+                          : "配信情報は未登録"}
+                        {sharedCasts > 0 && "・共通の出演声優あり"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="related-works-more">
+                <Link href={`/season/${workSeason.year}/${workSeason.key}`}>
+                  {workSeason.year}年{workSeason.label}アニメの配信情報をすべて見る →
+                </Link>
+              </p>
+              {/* 配信サービス別ページへの導線（2026-08-07追加）。
+                  /service/[key]/[year]/[season] はsitemapにしか載っておらず、
+                  サイト内リンクがどこにも無い孤立ページだった。
+                  「この作品はABEMAか。ABEMAには他に何がある？」という
+                  加入判断の流れをそのまま繋ぐ。ここはバッジ列の外なので
+                  「バッジの中に別行き先のリンクを入れない」ルールには触れない
+                  （文言つきのテキストリンクにしてあり、記号だけのリンクにもしない）。 */}
+              {streamingServices.length > 0 && (
+                <p className="related-works-more">
+                  {streamingServices.map((s, i) => (
+                    <span key={s.key}>
+                      {i > 0 && " ・ "}
+                      <Link href={`/service/${s.key}/${workSeason.year}/${workSeason.key}`}>
+                        {s.short}で見られる{workSeason.year}年{workSeason.label}アニメ
+                      </Link>
+                    </span>
+                  ))}
+                </p>
+              )}
+            </div>
+          </article>
+        )}
+        {/* 配信先ウィジェットの貼り付けコード（2026-08-06導入）。
+            被リンク・外部言及がゼロに近いことが順位（19.8位）のボトルネックという判断で、
+            「アニメ感想ブログが記事末に貼りたい情報」を1行で配れるようにした。
+            リンク先は自サイトの作品ページのみ（アフィリエイトリンクは入れない）。
+            生成は lib/embed.ts、検査は scripts/check.ts。詳細は docs/operations.md ⑯。 */}
+        <EmbedSnippet
+          title={item.title}
+          snippet={buildEmbedSnippet(item)}
+          iframeSnippet={buildEmbedIframeSnippet(item)}
+        />
       </div>
+
+      <FollowLinks />
 
       <p className="footnote">
         データ元: Annict（コミュニティ更新ベース）。配信情報は網羅率100%ではなく、
         新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
         「その他配信」は未登録サービスの可能性があり、点線で表示しています。
         {" "}
+        <Link href="/developers">配信先ウィジェット・公開API</Link>
+        {" ・ "}
         <Link href="/about">運営者情報</Link>
         {" ・ "}
         <Link href="/privacy">プライバシーポリシー・広告掲載について</Link>

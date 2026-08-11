@@ -1,67 +1,430 @@
 name: 毎日ダイジェスト（Bluesky/Mastodon/Threads自動投稿＋Xの下書きIssue）
 
-# 毎日 21:00 JST（12:00 UTC）に自動実行。手動実行（workflow_dispatch）も可能。
+# 【2026-08-05変更】1日1回まとめて連投していたのを、内容の種類ごとに時間帯を分けた。
+#   7〜10時  JST … 注目作TOP5（日曜のみ。平日は放送作品があるので出ない）
+#   11〜12時 JST … 【どこで見れる？】スポットライト（毎日。昼休みの12時台に確実に
+#                  届かせるため1時間手前から窓を開けてある）
+#   18〜21時 JST … その曜日に放送・配信のある今期アニメ（放送がある日のみ）
+#
+# ただし【Mastodonだけは従来どおり】1日1回、その日の分をまとめて投稿する
+# （利用者の指定で元の運用に戻した）。時間帯で分けるのはBluesky/Threadsだけ。
+# Mastodonの時間帯は2026-08-06に21〜23時台から**5〜7時台**へ変更した（利用者の指定）。
+# Mastodonは専用のキャッシュキー（posted-mastodon-<JST日付>）で1日1回を担保する。
+#
+# 【なぜ「予定時刻に1回」ではなく「1時間おきに様子を見る」なのか】
+# GitHub Actions の schedule は予定通りに発火しない。旧構成（0 12 * * * ＝21:00 JST）の
+# 実測では遅延が2.1〜6.4時間・中央値約5時間あり、cronに何時と書いても投稿時刻はまったく
+# 守れなかった（21:00のつもりが翌日の2〜3時になる日もあった）。
+# そこで「予定時刻に起動して投稿する」のをやめ、**1時間おきに起動して、いまがどの枠の
+# 時間帯かを自分で判定し、その枠がまだ未投稿ならそこで投稿する**方式にした。
+# 何時間遅延しても、次の起動が時間帯の中に入りさえすれば狙った時間帯に投稿できる。
+#
+# 時間帯の定義はこのファイルには書かない。scripts/lib/build-digest.js の SLOTS が唯一の
+# 定義で、起動のたびに scripts/current-slot.js に聞く（両方に時刻を書くとズレたときに
+# 「投稿されない」「違う日の内容が出る」という気づきにくい壊れ方をするため）。
+#
+# 二重投稿の防止: 「枠＋JSTの日付」をキーにしたキャッシュを、投稿できた後に保存する。
+# 次の起動はそのキャッシュが在ることで「この枠は今日もう投げた」と分かり、何もしない。
+# 逆に全滅した回はキャッシュを残さないので、同じ時間帯の次の起動が自動で再試行になる。
+#
+# 【遅れ投稿・2026-08-05追加】GitHubはscheduleを大量に間引く。実測（warm-cache.ymlの
+# */5指定）では本来1,046回に対し実際の起動は30回だけで、間隔の中央値2.5時間・最大13時間
+# だった。1時間おきに頼んでも18〜21時の4時間枠を丸ごと逃す日が約6日に1日ある。
+# そこで「時間帯の中にいる枠」を第一希望としつつ、**時間帯を過ぎても未投稿の枠は
+# その日のうちなら遅れて投げる**（22時以降になっても、投稿が消えるよりはよいという判断）。
+# JSTの日付が変わったら諦める（内容が前日のものになってしまうため）。
+#
+# 手動実行（workflow_dispatch）では slot を選べる。既定の all は時間帯もキャッシュも
+# 無視して1日分を全部出す（動作確認・臨時投稿用）。
+#
 # 投稿内容は曜日で出し分ける（scripts/lib/build-digest.js）:
-#   日曜=今期の注目作TOP5＋その日の放送/配信があれば曜日紹介（最大2投稿）
-#   月〜土=その曜日に放送・配信のある今期アニメ。
+#   日曜=今期の注目作TOP5＋その日の放送/配信があれば曜日紹介
+#   月〜土=その曜日に放送・配信のある今期アニメ（無ければTOP5にフォールバック）
+#   これに加えて毎日スポットライト（【どこで見れる？】）が1本。
+# 本文は**投稿先ごとに書き分ける**（2026-08-06導入）。各post-*.jsが自分の投稿先を
+# buildPost(now, "bluesky"|"mastodon"|"threads") で渡す。Mastodonは朝のまとめ枠なので
+# 「おはようございます／今日は○本」から入る。言い回しは週替わり（決定的。乱数は使わない）。
 # Bluesky/Mastodon/Threadsは投稿APIが無料のため自動投稿する。Xは有料化されたため
 # 自動投稿はせず、コピペ用の下書きをGitHub Issueとして起票するだけにする。
 # 投稿にはサイト実画面のスクリーンショット（カレンダー表示の該当曜日 / 「今期の注目作
 # TOP5」パネル）を添付する。Playwrightのヘッドレスブラウザで本番サイトを直接開いて撮る
-# （新規デザインの画像は作らない。2026-07-14導入）。Threadsは画像添付非対応（公開URL
-# 必須のため）でテキストのみ投稿する。
+# （新規デザインの画像は作らない。2026-07-14導入）。Threadsだけはバイナリ添付ができず
+# 公開URLが必須なので、サイト側の画像エンドポイント（/api/sns-image）のURLを渡す
+# （2026-07-27導入）。
 on:
   schedule:
-    - cron: "0 12 * * *"
+    # 1時間おき。毎時0分は混雑して遅延が大きいので分をずらしてある。
+    # 何分に置くかは投稿時刻に影響しない（枠の判定は「起動した時のJST時刻」で行う）。
+    - cron: "41 * * * *"
   workflow_dispatch:
+    inputs:
+      slot:
+        description: "投稿する枠（all=時間帯を無視して1日分をまとめて出す）"
+        type: choice
+        options: [all, morning, noon, evening]
+        default: all
+      mark_only:
+        description: "投稿せず「今日はもう投稿した」印だけ残す（手で投稿した日の二重投稿を防ぐ）"
+        type: boolean
+        default: false
+      dry_run:
+        description: "本文を表示するだけで投稿しない（動作確認用。まずこれで試す）"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   issues: write
 
+# 同じ枠に対して2つの実行が同時に走ると、キャッシュを見る前に両方が投稿してしまう。
+# 直列化する（走っている方を殺さない。殺すと投稿の途中で止まりうるため）。
+concurrency:
+  group: daily-digest
+  cancel-in-progress: false
+
 jobs:
   digest:
     runs-on: ubuntu-latest
     steps:
+      # まず「いま投稿すべきか」だけを判定する。時間帯に入っていない起動（1日の大半が
+      # これ）はここで終わり、npm ci も Playwright のインストールも走らせない。
       - uses: actions/checkout@v4
+
+      - name: いまがどの枠の時間帯かを判定
+        id: when
+        run: |
+          if [ -n "${{ inputs.slot }}" ]; then
+            # 手動実行: 時間帯も投稿済みかも無視して、指定された枠をそのまま使う
+            {
+              echo "slot=${{ inputs.slot }}"
+              echo "due_morning=false"
+              echo "due_noon=false"
+              echo "due_evening=false"
+              echo "due_mastodon=false"
+              echo "date=$(TZ=Asia/Tokyo date +%F)"
+              echo "manual=true"
+            } | tee -a "$GITHUB_OUTPUT"
+          else
+            node scripts/current-slot.js | tee -a "$GITHUB_OUTPUT"
+            echo "manual=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # 開始時刻を迎えた枠それぞれについて、今日もう投げていないかを確認する
+      # （lookup-onlyなので中身は取り出さない）。
+      - name: morning枠を今日すでに投稿済みか確認
+        id: posted_morning
+        if: ${{ steps.when.outputs.due_morning == 'true' }}
+        uses: actions/cache/restore@v4
+        with:
+          path: .posted
+          key: posted-morning-${{ steps.when.outputs.date }}
+          lookup-only: true
+      - name: noon枠を今日すでに投稿済みか確認
+        id: posted_noon
+        if: ${{ steps.when.outputs.due_noon == 'true' }}
+        uses: actions/cache/restore@v4
+        with:
+          path: .posted
+          key: posted-noon-${{ steps.when.outputs.date }}
+          lookup-only: true
+      - name: evening枠を今日すでに投稿済みか確認
+        id: posted_evening
+        if: ${{ steps.when.outputs.due_evening == 'true' }}
+        uses: actions/cache/restore@v4
+        with:
+          path: .posted
+          key: posted-evening-${{ steps.when.outputs.date }}
+          lookup-only: true
+
+      - name: Mastodonのまとめ投稿を今日すでにしたか確認
+        id: posted_mastodon
+        if: ${{ steps.when.outputs.due_mastodon == 'true' }}
+        uses: actions/cache/restore@v4
+        with:
+          path: .posted-mastodon
+          key: posted-mastodon-${{ steps.when.outputs.date }}
+          lookup-only: true
+
+      # どの枠を投げるかを1つだけ決める。
+      #   第一希望: いま時間帯の「中」にいる枠（＝狙った時間帯に出せる）
+      #   次点    : 時間帯を過ぎたのに未投稿の枠を、古い順に1つ（＝遅れ投稿）
+      # 1回の起動で1枠だけにするのは、取りこぼしが重なった日に連投になるのを避けるため
+      # （残りは次の起動が拾う）。
+      - name: 投稿する枠を決める
+        id: gate
+        env:
+          IN_WINDOW: ${{ steps.when.outputs.slot }}
+          MANUAL: ${{ steps.when.outputs.manual }}
+          DUE_MORNING: ${{ steps.when.outputs.due_morning }}
+          DUE_NOON: ${{ steps.when.outputs.due_noon }}
+          DUE_EVENING: ${{ steps.when.outputs.due_evening }}
+          DUE_MASTODON: ${{ steps.when.outputs.due_mastodon }}
+          HIT_MORNING: ${{ steps.posted_morning.outputs.cache-hit }}
+          HIT_NOON: ${{ steps.posted_noon.outputs.cache-hit }}
+          HIT_EVENING: ${{ steps.posted_evening.outputs.cache-hit }}
+          HIT_MASTODON: ${{ steps.posted_mastodon.outputs.cache-hit }}
+        run: |
+          now="JST $(TZ=Asia/Tokyo date +%H:%M)"
+
+          if [ "${{ inputs.mark_only }}" = "true" ]; then
+            # 投稿はせず、下の「印だけ残す」ステップに任せる
+            {
+              echo "slot=none"
+              echo "go=false"
+              echo "mastodon_slot=none"
+              echo "mastodon_go=false"
+            } >> "$GITHUB_OUTPUT"
+            echo "mark_only: 投稿はせず、今日（${{ steps.when.outputs.date }}）の分を投稿済みとして印だけ残します"
+            exit 0
+          fi
+
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            # 【2026-08-05追加】本文を出すだけで投稿しない。
+            # これが無かった頃は、ワークフローの動作確認をしようとすると
+            # 手動実行（下のMANUAL分岐）しか手段が無く、それは時間帯もキャッシュも
+            # 無視して本番アカウントへ実際に投稿してしまう。実際、2026-08-05に
+            # 動作確認のための手動実行を41分あいだを空けて2回行った結果、
+            # ほぼ同じ本文がBluesky・Mastodon・Threadsそれぞれに2回ずつ投稿された。
+            # 「壊れていないか確かめる」ために毎回フォロワーへ連投するしかない状態
+            # だったので、投稿しない確認手段を用意する。
+            {
+              echo "slot=$IN_WINDOW"
+              echo "go=false"
+              echo "mastodon_slot=$IN_WINDOW"
+              echo "mastodon_go=false"
+            } >> "$GITHUB_OUTPUT"
+            echo "dry_run: 枠 $IN_WINDOW の本文を表示するだけで、投稿はしません（$now）"
+            exit 0
+          fi
+
+          if [ "$MANUAL" = "true" ]; then
+            # 手動実行はBluesky/Threads/Mastodonとも同じ指定でそのまま投げる
+            # （臨時投稿用）。時間帯もキャッシュも無視して**実際に投稿する**ので、
+            # 動作確認をしたいだけなら dry_run を使うこと。
+            {
+              echo "slot=$IN_WINDOW"
+              echo "go=true"
+              echo "mastodon_slot=$IN_WINDOW"
+              echo "mastodon_go=true"
+            } >> "$GITHUB_OUTPUT"
+            echo "手動実行: 枠 $IN_WINDOW として実際に投稿します（$now）"
+            exit 0
+          fi
+
+          # Mastodonは時間帯で分けず、開始時刻（5時 JST）を過ぎていて未投稿なら
+          # その日の分をまとめて投げる（2026-08-05に従来運用へ戻し、2026-08-06に
+          # 時間帯を5〜7時台へ変更）。Bluesky/Threadsの枠選びとは独立に判定する。
+          # 時刻はここに書かない（build-digest.js の BATCH_SLOTS が唯一の定義で、
+          # scripts/current-slot.js が due_mastodon として渡してくる）。
+          echo "mastodon_slot=mastodon" >> "$GITHUB_OUTPUT"
+          if [ "$DUE_MASTODON" = "true" ] && [ "$HIT_MASTODON" != "true" ]; then
+            echo "mastodon_go=true" >> "$GITHUB_OUTPUT"
+            echo "Mastodon: 今日の分をまとめて投稿します（$now）"
+          else
+            echo "mastodon_go=false" >> "$GITHUB_OUTPUT"
+            echo "Mastodon: 投稿しません（開始時刻の前、または今日は投稿済み）"
+          fi
+
+          unposted() {  # $1=枠名 → 開始済みかつ未投稿なら0
+            due=$(eval echo "\$DUE_$(echo "$1" | tr a-z A-Z)")
+            hit=$(eval echo "\$HIT_$(echo "$1" | tr a-z A-Z)")
+            [ "$due" = "true" ] && [ "$hit" != "true" ]
+          }
+
+          pick=""
+          reason=""
+          if [ "$IN_WINDOW" != "none" ] && unposted "$IN_WINDOW"; then
+            pick="$IN_WINDOW"
+            reason="時間帯の中"
+          else
+            for s in morning noon evening; do
+              if unposted "$s"; then
+                pick="$s"
+                reason="時間帯を過ぎた取りこぼしの遅れ投稿"
+                break
+              fi
+            done
+          fi
+
+          if [ -z "$pick" ]; then
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            echo "slot=none" >> "$GITHUB_OUTPUT"
+            echo "投稿すべき枠はありません（$now / 時間帯の中=$IN_WINDOW）。何もしません"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+            echo "slot=$pick" >> "$GITHUB_OUTPUT"
+            echo "枠 $pick として投稿します（$now / 理由: $reason）"
+          fi
+
       - uses: actions/setup-node@v4
+        if: ${{ steps.gate.outputs.go == 'true' || steps.gate.outputs.mastodon_go == 'true' || inputs.dry_run }}
         with:
           node-version: 20
       - run: npm ci
+        if: ${{ steps.gate.outputs.go == 'true' || steps.gate.outputs.mastodon_go == 'true' || inputs.dry_run }}
+
+      # 【dry_run】実際に投稿する各SNSのステップはすべて go=false でスキップされる。
+      # ここで「投稿されるはずだった本文」だけを実行ログに出す。スクリーンショットは
+      # 撮らないのでChromiumのインストールも要らない（下のstepはdry_runでは走らない）。
+      - name: 投稿される本文を表示するだけ（dry_run）
+        if: ${{ inputs.dry_run }}
+        env:
+          DIGEST_SLOT: ${{ steps.gate.outputs.slot }}
+        run: |
+          echo "=== 枠: $DIGEST_SLOT として投稿されるはずの本文（投稿先ごと） ==="
+          node scripts/print-digest.js --platform=all
 
       - name: スクリーンショット撮影用にChromiumをインストール
+        if: ${{ steps.gate.outputs.go == 'true' || steps.gate.outputs.mastodon_go == 'true' }}
         run: npx playwright install --with-deps chromium
 
-      - name: ダイジェスト本文を生成
+      # Xの下書きは手動投稿用なので枠で分けず、1日分をまとめて1つのIssueにする。
+      # 起票は朝の枠（1日の最初の枠）だけ。DIGEST_SLOT を渡さないので全投稿が入る。
+      # --issue を付けると、投稿ごとに「タップ1回でXの投稿画面が本文入りで開く」リンク付きの
+      # Markdownで出る（2026-08-07。週次X成長キットと同じ形。経緯は scripts/lib/x-intent.js）。
+      - name: Xの下書き本文を生成（朝の枠のみ・1日分をまとめて）
         id: digest
-        run: node scripts/print-digest.js > digest.txt
+        if: ${{ steps.gate.outputs.go == 'true' && (steps.gate.outputs.slot == 'morning' || steps.gate.outputs.slot == 'all') }}
+        run: node scripts/print-digest.js --issue > digest.txt
 
+      # 各SNS投稿は「できたものだけ出す」方式で互いに独立させる。どれか1つが失敗しても
+      # 後続のSNSがスキップされないよう、全ステップに !cancelled() を付ける
+      # （2026-08-05修正。以前はこのガードがXの下書き起票にしか付いておらず、たとえば
+      # Blueskyが落ちるとMastodon・Threadsが丸ごとスキップされる状態だった）。
+      # 上のXの下書き生成は朝の枠でしか走らないので、その結果には依存させない
+      # （各post-*.jsは自前でbuildPost()を呼ぶため、本文生成が壊れていれば自分で失敗する）。
+      # 失敗したステップ自体はfailureのまま残し、最後の通知ステップで拾う。
       - name: Blueskyへ自動投稿（無料・Secrets未設定ならスキップ）
+        id: bluesky
+        if: ${{ !cancelled() && steps.gate.outputs.go == 'true' }}
         run: node scripts/post-bluesky.js
         env:
           BLUESKY_IDENTIFIER: ${{ secrets.BLUESKY_IDENTIFIER }}
           BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+          DIGEST_SLOT: ${{ steps.gate.outputs.slot }}
 
-      - name: Mastodonへ自動投稿（無料・Secrets未設定ならスキップ）
+      # Mastodonだけは時間帯で分けず、1日1回・5〜7時台にその日の分をまとめて投げる
+      # （2026-08-05に従来運用へ戻した）。Bluesky/Threadsの枠とは独立に判定している。
+      - name: Mastodonへ自動投稿（1日1回・5〜7時台にまとめて／Secrets未設定ならスキップ）
+        id: mastodon
+        if: ${{ !cancelled() && steps.gate.outputs.mastodon_go == 'true' }}
         run: node scripts/post-mastodon.js
         env:
           MASTODON_INSTANCE_URL: ${{ secrets.MASTODON_INSTANCE_URL }}
           MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+          DIGEST_SLOT: ${{ steps.gate.outputs.mastodon_slot }}
 
       - name: Threadsへ自動投稿（無料・Secrets未設定ならスキップ）
+        id: threads
+        if: ${{ !cancelled() && steps.gate.outputs.go == 'true' }}
         run: node scripts/post-threads.js
         env:
           THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          DIGEST_SLOT: ${{ steps.gate.outputs.slot }}
+
+      # 【mark_only】手で投稿した日などに、投稿せず「今日はもう投げた」印だけを残す。
+      # 全部の枠＋Mastodonに印を付けるので、その日はもう自動投稿されない。
+      - name: 今日の分を投稿済みとして印だけ残す（mark_only）
+        if: ${{ inputs.mark_only }}
+        run: date -u +%FT%TZ | tee .posted .posted-mastodon
+      - uses: actions/cache/save@v4
+        if: ${{ inputs.mark_only }}
+        with:
+          path: .posted
+          key: posted-morning-${{ steps.when.outputs.date }}
+      - uses: actions/cache/save@v4
+        if: ${{ inputs.mark_only }}
+        with:
+          path: .posted
+          key: posted-noon-${{ steps.when.outputs.date }}
+      - uses: actions/cache/save@v4
+        if: ${{ inputs.mark_only }}
+        with:
+          path: .posted
+          key: posted-evening-${{ steps.when.outputs.date }}
+      - uses: actions/cache/save@v4
+        if: ${{ inputs.mark_only }}
+        with:
+          path: .posted-mastodon
+          key: posted-mastodon-${{ steps.when.outputs.date }}
+
+      # 「この枠は今日もう投げた」印を残す。1つでも投稿できた回だけ保存するので、
+      # 全滅した回は印が残らず、同じ時間帯の次の起動が自動で再試行になる。
+      # Bluesky/Threads（時間帯の枠）とMastodon（1日1回のまとめ）は別々の印にする。
+      # 片方だけ失敗した日に、もう片方の再試行まで止めてしまわないため。
+      - name: 投稿済みの印を残す（Bluesky/Threadsの枠）
+        id: mark
+        if: ${{ !cancelled() && steps.gate.outputs.go == 'true' && steps.gate.outputs.slot != 'all'
+          && (steps.bluesky.outcome == 'success' || steps.threads.outcome == 'success') }}
+        run: date -u +%FT%TZ > .posted
+      - uses: actions/cache/save@v4
+        if: ${{ !cancelled() && steps.mark.outcome == 'success' }}
+        with:
+          path: .posted
+          key: posted-${{ steps.gate.outputs.slot }}-${{ steps.when.outputs.date }}
+
+      - name: 投稿済みの印を残す（Mastodonのまとめ投稿）
+        id: mark_mastodon
+        if: ${{ !cancelled() && steps.mastodon.outcome == 'success' && steps.gate.outputs.mastodon_slot == 'mastodon' }}
+        run: date -u +%FT%TZ > .posted-mastodon
+      - uses: actions/cache/save@v4
+        if: ${{ !cancelled() && steps.mark_mastodon.outcome == 'success' }}
+        with:
+          path: .posted-mastodon
+          key: posted-mastodon-${{ steps.when.outputs.date }}
 
       - name: Xの下書きをGitHub Issueとして起票（手動投稿用）
-        # 各SNS投稿は「できたものだけ出す」方式で互いに独立させる。特にThreadsが失敗
-        # しても（2026-07-22〜の障害がこれ）Xの下書き起票まで巻き添えでスキップされない
-        # ようにする。ただし本文（digest.txt）の生成自体が失敗したときは中身が無いので
-        # 起票しない。2026-07-24追加。
+        # 本文（digest.txt）の生成自体が失敗したときは中身が無いので起票しない。2026-07-24追加。
+        # 朝の枠以外では上の生成ステップがskippedなので、ここも走らない（1日1件のまま）。
         if: ${{ !cancelled() && steps.digest.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
+          # 日付はJSTで採る。以前はランナーのUTCで採っていたため、本文（JST基準）と
+          # タイトルの日付が1日ズレることがあった（実例: Issue #31 はタイトル8/3・本文【火曜】=8/4）。
           gh issue create \
-            --title "Xへの投稿下書き ($(date +%Y-%m-%d))" \
+            --title "Xへの投稿下書き ($(TZ=Asia/Tokyo date +%Y-%m-%d))" \
             --body-file digest.txt
+
+      # 【再発防止・2026-08-05追加】どのSNSが落ちたかをIssueにして気づけるようにする。
+      # 2026-07-22〜08-02にThreadsだけが約3割の日で0投稿になっていたが、失敗はActionsの
+      # 赤いマークとGitHubの既定メールにしか出ず、2週間気づけなかった。毎日Xの下書きIssueが
+      # 起票される運用なので、同じIssue一覧に「落ちた」も並べるのが一番目に入る。
+      - name: SNS投稿が失敗していたらIssueで知らせる
+        if: ${{ !cancelled() && (steps.bluesky.outcome == 'failure' || steps.mastodon.outcome == 'failure' || steps.threads.outcome == 'failure' || steps.digest.outcome == 'failure') }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DIGEST_OUTCOME: ${{ steps.digest.outcome }}
+          BLUESKY_OUTCOME: ${{ steps.bluesky.outcome }}
+          MASTODON_OUTCOME: ${{ steps.mastodon.outcome }}
+          THREADS_OUTCOME: ${{ steps.threads.outcome }}
+          SLOT: ${{ steps.gate.outputs.slot }}
+          # 同じ内容のIssueが毎日積み上がらないよう、既に開いている失敗Issueがあれば
+          # そちらにコメントを足すだけにする。
+          TITLE: "SNS自動投稿が失敗しています"
+        run: |
+          body=$(cat <<EOF
+          $(TZ=Asia/Tokyo date +%Y-%m-%d) の自動投稿（枠: \`${SLOT}\`）で失敗したものがあります。
+
+          | ステップ | 結果 |
+          |---|---|
+          | Xの下書き生成 | \`${DIGEST_OUTCOME}\` |
+          | Bluesky | \`${BLUESKY_OUTCOME}\` |
+          | Mastodon | \`${MASTODON_OUTCOME}\` |
+          | Threads | \`${THREADS_OUTCOME}\` |
+
+          実行ログ: ${RUN_URL}
+
+          全滅した回は投稿済みの印を残さないので、同じ時間帯の次の起動（1時間後）が
+          自動で再試行します。時間帯を過ぎても直らない場合だけ手当てが要ります。
+
+          直ったらこのIssueを閉じてください（次に失敗したときは新しいIssueが立ちます）。
+          EOF
+          )
+          existing=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$TITLE" --body "$body"
+          fi

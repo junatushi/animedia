@@ -6,6 +6,8 @@
 // ───────────────────────────────────────────────────────────────
 import { NextResponse } from "next/server";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
+import { apiSource } from "@/lib/attribution";
+import { jstToday } from "@/lib/workAvailability";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -20,7 +22,10 @@ export async function GET(req: Request) {
   }
 
   try {
-    const body = await getSeasonData(year, season);
+    const data = await getSeasonData(year, season);
+    // 出典情報を添えて返す（2026-08-07）。二次利用する側がレスポンスを見るだけで
+    // 出典を書けるようにするため。形は /api/work/[id] と揃えてある（lib/attribution.ts）。
+    const body = { ...data, source: apiSource(jstToday()) };
     // CDNエッジにもJSONを載せる（クエリ文字列ごとにキャッシュされる）。
     // s-maxage内はエッジが即応答、その後1日はstale-while-revalidateにより
     // 「古い値を即返しつつ裏で再取得」となるため、Vercelデータキャッシュが
@@ -29,6 +34,10 @@ export async function GET(req: Request) {
     return NextResponse.json(body, {
       headers: {
         "Cache-Control": "public, s-maxage=600, stale-while-revalidate=86400",
+        // 公開データとして第三者のサイト・スクリプトからも直接叩けるようにする
+        // （2026-08-06。認証情報を載せないため * でよい。docs/operations.md ⑯）。
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
       },
     });
   } catch (e) {

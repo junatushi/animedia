@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { logEvent } from "@/lib/logEvent";
 import { textOn, splitRentalServices } from "@/lib/services";
+import { buildServicePlan } from "@/lib/servicePlan";
 import { CHANGELOG } from "@/lib/changelog";
 import ThemeToggle from "./ThemeToggle";
 import AuthWidget from "./AuthWidget";
 import { useAuth } from "./AuthProvider";
 import { useLoginGatedWorkSet } from "./useLoginGatedWorkSet";
+import FollowLinks from "@/components/FollowLinks";
 import ScrollTopButton from "./ScrollTopButton";
 import ServiceMarks from "./ServiceMarks";
 import type { AnimeItem, SeasonResponse, ServiceTag, SearchIndexEntry } from "@/lib/types";
@@ -176,8 +178,23 @@ function brandMark(short: string): string {
 }
 
 // X（旧Twitter）の投稿画面を、本文とURLをプリセットして開く共通処理。
+//
+// 【via を付ける理由・2026-08-06追加】via を付けると投稿画面の本文末尾に
+// 「via @animedia0705」が入る。共有した人のフォロワーにアカウント名が出るので、
+// **利用者の共有がそのままアカウントの露出になる**。
+// これまでは共有されてもサイトのURLが流れるだけで、Xアカウントには何も返って
+// いなかった（3週間・約70投稿でフォロワー0という実測に対し、こちらは
+// 「こちらから話しかけずに露出を増やす」数少ない手段）。
+// 押し付けにはならない: 本文は投稿前に人が編集できるので、不要なら消せる。
+//
+// エンドポイントも twitter.com/intent/tweet（旧）から x.com/intent/post（現行）に
+// 更新した。旧URLはリダイレクトで動くが、リダイレクトを1回挟むぶんスマホの
+// アプリ起動に失敗しやすい。
+const X_SCREEN_NAME = "animedia0705";
 function openXIntent(text: string, url: string) {
-  const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+  const intent =
+    `https://x.com/intent/post?text=${encodeURIComponent(text)}` +
+    `&url=${encodeURIComponent(url)}&via=${encodeURIComponent(X_SCREEN_NAME)}`;
   window.open(intent, "_blank", "noopener,noreferrer,width=600,height=480");
 }
 
@@ -216,6 +233,11 @@ export interface SeasonExplorerProps {
   initialYear?: number;
   initialSeason?: string;
   initialData?: SeasonResponse;
+  // URLのクエリ文字列（"year=2026&season=summer" のような形。先頭の "?" は不要）。
+  // トップページ（"/"）だけが TopPageExplorer 経由で渡す。
+  // ここで useSearchParams() を呼ばずに props で受けるのは、呼ぶと Next.js が
+  // このコンポーネントをサーバーで描画しなくなるため（下の実装コメント参照）。
+  urlQuery?: string;
 }
 
 // URLクエリ（?year=2026&season=summer）と年・シーズンの選択状態を同期する。
@@ -225,9 +247,20 @@ export default function SeasonExplorer({
   initialYear: fixedYear,
   initialSeason: fixedSeason,
   initialData,
+  urlQuery,
 }: SeasonExplorerProps) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+  // URLクエリは props で受け取る（自分では useSearchParams() を呼ばない。2026-08-05変更）。
+  //
+  // 経緯: このコンポーネントが useSearchParams() を呼んでいたため、Next.js 14 は
+  // 静的生成（ISR）されるページでこのSuspense境界を丸ごとクライアント描画に退避させ、
+  // **サーバーHTMLには fallback の <div class="wrap"> しか入っていなかった**。
+  // 実測（本番ビルドで /season/2024/summer を取得）: h1が0個、作品への
+  // <a href="/anime/..."> が0個、可視テキストが0文字で、中身はJSON-LDだけだった。
+  // 「SEO用のSSRページ」として作ったページ群が、実際には空のHTMLを返していたことになる。
+  // クエリを読むのは呼び出し側（TopPageExplorer）の責任にして、このコンポーネント自身は
+  // サーバーで描画できる状態に保つ。
+  const searchParams = new URLSearchParams(urlQuery ?? "");
   // サーバー側から年・シーズンを渡された（＝/season/.. ページ）場合は、
   // URLクエリへの同期やクエリからの読み取りをしない「固定表示」モードになる。
   const isFixed = fixedYear !== undefined && fixedSeason !== undefined;
@@ -448,6 +481,28 @@ export default function SeasonExplorer({
     [serviceUsage],
   );
 
+  // 視聴プラン（lib/servicePlan.ts）。**開いたときにだけ**計算する。
+  // planOpen を依存に入れてあるので、閉じている間は buildServicePlan を1度も呼ばない
+  // （一覧・検索・絞り込みの操作で余計な計算を走らせないための門番）。
+  const [planOpen, setPlanOpen] = useState(false);
+  const plan = useMemo(() => {
+    if (!planOpen || !data) return null;
+    const picked = data.items
+      .filter((it) => favorites.has(it.id))
+      .map((it) => ({
+        id: it.id,
+        title: it.title,
+        // レンタル/都度課金は「契約すれば見られる」ではないので組み合わせに数えない
+        // （対応本数の集計 serviceUsage と同じ扱い）。
+        services: splitRentalServices(it.services, RENTAL_SERVICES[it.id]).streaming.map((s) => ({
+          key: s.key,
+          short: s.short,
+        })),
+      }));
+    if (picked.length === 0) return null;
+    return buildServicePlan(picked);
+  }, [planOpen, data, favorites]);
+
   // 今期に複数作品へ出演している声優を、出演数の多い順にチップ化する（試験実装）。
   // 1作品だけの声優は対象外にして、チップの数を絞る。
   const CAST_CHIP_MIN_COUNT = 2;
@@ -605,13 +660,33 @@ export default function SeasonExplorer({
         <span className="eyebrow" aria-hidden="true">
           LINK START :: 今期アニメの配信データベースに接続完了
         </span>
+        {/* h1の出し分け（2026-08-05追加）。
+            /season/{year}/{season} は「2026年夏アニメ 配信情報一覧」という
+            ロングテール語をtitleに置いて流入を狙う設計なのに、h1は全ページ共通で
+            「アニメ視聴ガイド」のままだった。titleとh1が食い違うページは、Googleが
+            ページ内容（多くはh1）に合わせてtitleを書き換えることがあり、狙った語が
+            検索結果に出ないまま終わる。固定シーズンページのときだけ、h1をtitleと
+            同じ語にしてブランド名は隣のバッジに回す。
+            トップ（"/"）は指名検索の受け皿なのでブランドをh1のまま残す。 */}
         <div className="brandrow">
-          <h1 className="brand">
-            アニメ視聴ガイド<span className="dot" aria-hidden="true" />
-          </h1>
-          <span className="brand-season">
-            {year} {SEASON_LABEL[season]}クール
-          </span>
+          {isFixed ? (
+            <>
+              <h1 className="brand brand-long">
+                {year}年{SEASON_LABEL[season]}アニメ 配信情報一覧
+                <span className="dot" aria-hidden="true" />
+              </h1>
+              <span className="brand-season">アニメ視聴ガイド</span>
+            </>
+          ) : (
+            <>
+              <h1 className="brand">
+                アニメ視聴ガイド<span className="dot" aria-hidden="true" />
+              </h1>
+              <span className="brand-season">
+                {year} {SEASON_LABEL[season]}クール
+              </span>
+            </>
+          )}
         </div>
         <div className="meta">
           <span className="live">
@@ -849,6 +924,83 @@ export default function SeasonExplorer({
             </ol>
           </details>
         )}
+
+      {/* 視聴プラン＝「お気に入りに入れた作品を全部見るには、どのサービスに入れば足りるか」。
+          （2026-08-07導入。lib/servicePlan.ts）
+
+          【一覧の表示速度を落とさないための約束】
+          ・カード1枚ごとにマークアップを足さない（作品数に比例してHTMLが膨らむため。
+            シーズンページのHTML量は scripts/check.ts が見張っている）。
+          ・計算は**この折りたたみを開いたときだけ**走らせる（planOpen で門番する）。
+            一覧の描画・検索・絞り込みの経路では1度も呼ばれない。
+          実測（scripts/check.ts の「視聴プランの計算」節）: 最大クール201作品でも1ms前後。 */}
+      {viewMode === "grid" && !loading && !error && data && favorites.size > 0 && (
+        <details
+          className="svc-compare fold-panel"
+          onToggle={(e) => {
+            const open = (e.currentTarget as HTMLDetailsElement).open;
+            setPlanOpen(open);
+            if (open) logEvent("plan_open");
+          }}
+        >
+          <summary className="fold-summary">
+            <h2 className="fold-summary-text">
+              お気に入り{favorites.size}本の視聴プラン
+            </h2>
+          </summary>
+          {planOpen && plan && (
+            <div className="plan-panel">
+              {plan.covered === 0 ? (
+                <p className="detail-text">
+                  お気に入りの作品に配信情報がまだ登録されていないため、組み合わせを出せません。
+                </p>
+              ) : (
+                <>
+                  <p className="detail-text">
+                    お気に入り{plan.selected}本のうち配信情報がある{plan.covered}本は、
+                    <strong>最小{plan.minCount}サービス</strong>で見られます。
+                  </p>
+                  {/* 【誤読を防ぐ】候補が複数あるとき、並んだサービスを「全部に入る必要がある」と
+                      読まれると逆の意味になる。候補どうしは**いずれか1つを選ぶもの**なので、
+                      見出しで明示し、各行にも「案1/案2」の番号を付ける。 */}
+                  {plan.combos.length > 1 && (
+                    <p className="detail-sub">
+                      次の{plan.combos.length}通りのうち、<strong>どれか1つ</strong>を選べば足ります
+                      {plan.minCount > 1 && `（1つの案の中のサービスは全部必要です）`}。
+                    </p>
+                  )}
+                  <ul className="plan-combos">
+                    {plan.combos.map((combo, i) => (
+                      <li key={i} className="plan-combo">
+                        {plan.combos.length > 1 && (
+                          <span className="plan-combo-label">案{i + 1}</span>
+                        )}
+                        <ServiceMarks
+                          services={combo.map(
+                            (c) => availableServices.find((s) => s.key === c.key) ?? null
+                          ).filter((s): s is ServiceTag => s !== null)}
+                          otherServices={[]}
+                          hideDisclosure
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                  {plan.uncovered.length > 0 && (
+                    <p className="detail-sub">
+                      配信情報が未登録のため組み合わせに含められなかった作品:{" "}
+                      {plan.uncovered.map((u) => u.title).join("・")}
+                    </p>
+                  )}
+                  <p className="detail-sub">
+                    Annictに配信の記録がある作品から計算しています。過去クールの作品は、
+                    いま配信されているとは限りません。契約前に各サービスでご確認ください。
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+        </details>
+      )}
 
       {/* 配信サービス横断の比較表。「このサービスだけで何本見れるか」を一目で見せる。
           注目作ランキングと同じく、絞り込みをしていない素の状態でだけ出す。既定は折りたたみ。
@@ -1196,6 +1348,64 @@ export default function SeasonExplorer({
         </ul>
       </details>
 
+      {/* 他クールへの「クロールできる」リンク（2026-08-05追加）。
+          画面上部の年・季節の切替は <button> でクライアント状態を変えるだけなので、
+          <a href> が1つも無く、検索エンジンは今期以外のクールへ辿れなかった。
+          その結果、実装としては存在し高速に開ける64クール・8,957作品のページが
+          まるごと不可視になっていた（sitemapも今期しか載せていなかった）。
+          ここで「同じ年の他の季節」＋「同じ季節の他の年」を実リンクで置くと、
+          どのシーズンページからでも2ホップで全クールに到達できる網になる。
+          各シーズンページはその年季の全作品を /anime/{id} へリンクしているので、
+          作品ページもこの網からまとめて辿れるようになる。 */}
+      <nav className="season-archive" aria-label="他のクールのアニメ配信情報">
+        <h2 className="season-archive-title">他のクールのアニメ配信情報</h2>
+        <p className="season-archive-row">
+          <span className="season-archive-label">{year}年:</span>
+          {SEASONS.map((s) => (
+            <span key={s.key} className="season-archive-item">
+              {s.key === season ? (
+                <span aria-current="page">{s.label}</span>
+              ) : (
+                <Link href={`/season/${year}/${s.key}`}>{s.label}</Link>
+              )}
+            </span>
+          ))}
+        </p>
+        {/* 配信サービス別ページへのリンク（2026-08-07追加）。
+            /service/[key]/[year]/[season] は実装済みで sitemap にも載せていたが、
+            **サイト内からのリンクが1本も無い孤立ページ**だった。
+            加入判断（＝アフィリエイトの転換が起きる唯一の場面）は「このサービスに
+            入るべきか」というサービス軸で起きるのに、その面へ人も
+            クローラーも辿り着けない状態になっていた。
+            上部の絞り込みチップは <button> でクライアント状態を変えるだけなので
+            <a href> が無く、他クールへのリンクを足したときと同じ穴（2026-08-05）。
+            並び順は serviceUsage（そのクールで見られる本数の多い順）に従う。 */}
+        {availableServices.length > 0 && (
+          <p className="season-archive-row">
+            <span className="season-archive-label">配信サービス別:</span>
+            {availableServices.map((s) => (
+              <span key={s.key} className="season-archive-item">
+                <Link href={`/service/${s.key}/${year}/${season}`}>{s.short}</Link>
+              </span>
+            ))}
+          </p>
+        )}
+        <p className="season-archive-row">
+          <span className="season-archive-label">過去の{SEASON_LABEL[season]}アニメ:</span>
+          {years.map((y) => (
+            <span key={y} className="season-archive-item">
+              {y === year ? (
+                <span aria-current="page">{y}</span>
+              ) : (
+                <Link href={`/season/${y}/${season}`}>{y}</Link>
+              )}
+            </span>
+          ))}
+        </p>
+      </nav>
+
+      <FollowLinks />
+
       <p className="footnote">
         データ元: Annict（コミュニティ更新ベース）。配信情報は網羅率100%ではなく、
         新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
@@ -1204,6 +1414,8 @@ export default function SeasonExplorer({
         <Link href={`/exclusive/${year}/${season}`}>{year}年{SEASON_LABEL[season]}アニメの独占配信まとめ</Link>
         {" ・ "}
         <Link href={`/rankings/${year}/${season}`}>配信サービス勢力図・ランキング</Link>
+        {" ・ "}
+        <Link href="/developers">配信先ウィジェット・公開API</Link>
         {" ・ "}
         <Link href="/about">運営者情報</Link>
         {" ・ "}
