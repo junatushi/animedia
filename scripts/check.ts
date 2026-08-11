@@ -46,6 +46,7 @@ import {
   verifyDiscordSignature,
   buildAnimeReply,
   buildCandidatesReply,
+  buildUnavailableReply,
   messageResponse,
   MAX_CANDIDATES,
 } from "../lib/discord.ts";
@@ -2031,6 +2032,34 @@ let discordNg = 0;
     },
   ];
   for (const c of multiCases) {
+    if (!c.ok) discordNg++;
+    console.log(`${c.ok ? "✓" : "✗"}  ${c.label.padEnd(40)} → ${c.ok ? "OK" : "期待どおりでない"}`);
+  }
+
+  // データが取れなかったときの返信（2026-08-11追加）。
+  // 「取れなかった」を「作品が無い」と混同しないこと。デプロイ直後はデータキャッシュが
+  // 空になり（キーにビルドIDが入る）、今期の作品でも取得が上限を超えることがある。
+  // そのとき「見つかりませんでした」と返すと存在しないという断定になる（実際に起きた）。
+  const unavailable = buildUnavailableReply("異世界");
+  const unavailableCases: { label: string; ok: boolean }[] = [
+    {
+      label: "取得失敗を「見つからない」と言わない",
+      ok: !unavailable.includes("見つかりませんでした"),
+    },
+    { label: "取得できなかったことを伝える", ok: unavailable.includes("取得できませんでした") },
+    { label: "再試行を促す", ok: unavailable.includes("もう一度") },
+    { label: "検索語を含める", ok: unavailable.includes("異世界") },
+  ];
+  // ルート側が取得失敗を素通ししていないか（buildAnimeReply(null) に落とさないこと）。
+  const routeSrc = readFileSync(
+    new URL("../app/api/discord/route.ts", import.meta.url),
+    "utf8"
+  );
+  unavailableCases.push({
+    label: "ルートが取得失敗を別扱いにしている",
+    ok: routeSrc.includes("buildUnavailableReply"),
+  });
+  for (const c of unavailableCases) {
     if (!c.ok) discordNg++;
     console.log(`${c.ok ? "✓" : "✗"}  ${c.label.padEnd(40)} → ${c.ok ? "OK" : "期待どおりでない"}`);
   }

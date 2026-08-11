@@ -12,6 +12,7 @@ import {
   RESPONSE_PONG,
   buildAnimeReply,
   buildCandidatesReply,
+  buildUnavailableReply,
   messageResponse,
   normalizeQuery,
   verifyDiscordSignature,
@@ -93,27 +94,35 @@ export async function POST(request: Request) {
   const { year, season } = currentYearSeason();
   const data = await withTimeout(getSeasonData(year, season), DATA_TIMEOUT_MS);
 
-  let hits: DiscordWorkHit[] = [];
-  if (data) {
-    const needle = query.toLowerCase();
-    const toHit = (it: (typeof data.items)[number]): DiscordWorkHit => ({
-      id: it.id,
-      title: it.title,
-      serviceNames: splitRentalServices(it.services, RENTAL_SERVICES[it.id]).streaming.map(
-        (s) => s.short
-      ),
-      year: Number(year),
-      season,
-      // 今期のデータしか見ていないので、ここに入るのは常に放送中/これから。
-      finished: false,
-    });
-
-    // 完全一致があればそれが答え（部分一致の候補列挙に落とさない）。
-    const exact = data.items.find((it) => it.title.toLowerCase() === needle);
-    hits = exact
-      ? [toHit(exact)]
-      : data.items.filter((it) => it.title.toLowerCase().includes(needle)).map(toHit);
+  // 【重要】取れなかったことを「作品が無い」と混同しない（2026-08-11）。
+  // データが無いのに buildAnimeReply(null) を通すと「見つかりませんでした」＝
+  // 存在しないという断定になる。実際にデプロイ直後（データキャッシュが空の状態）で
+  // 今期の作品が「見つかりませんでした」と返る事故になった。理由は
+  // lib/discord.ts の buildUnavailableReply を参照。
+  // items が空になるのも同じ扱いにする（今期のクールに作品が0件はありえないため、
+  // 空＝上流の異常）。
+  if (!data || data.items.length === 0) {
+    return NextResponse.json(messageResponse(buildUnavailableReply(query)));
   }
+
+  const needle = query.toLowerCase();
+  const toHit = (it: (typeof data.items)[number]): DiscordWorkHit => ({
+    id: it.id,
+    title: it.title,
+    serviceNames: splitRentalServices(it.services, RENTAL_SERVICES[it.id]).streaming.map(
+      (s) => s.short
+    ),
+    year: Number(year),
+    season,
+    // 今期のデータしか見ていないので、ここに入るのは常に放送中/これから。
+    finished: false,
+  });
+
+  // 完全一致があればそれが答え（部分一致の候補列挙に落とさない）。
+  const exact = data.items.find((it) => it.title.toLowerCase() === needle);
+  const hits: DiscordWorkHit[] = exact
+    ? [toHit(exact)]
+    : data.items.filter((it) => it.title.toLowerCase().includes(needle)).map(toHit);
 
   // 「異世界」のような広い語では複数該当する。1件だけ返すと他があることが
   // 分からないので、2件以上なら候補を並べて選んでもらう（2026-08-11）。

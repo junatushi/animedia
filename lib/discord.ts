@@ -178,6 +178,28 @@ export function buildCandidatesReply(query: string, hits: DiscordWorkHit[]): str
   ].join("\n");
 }
 
+/**
+ * データそのものが取れなかったときの返信。
+ *
+ * 【なぜ「見つかりませんでした」と分けるか・2026-08-11】
+ * 取得に失敗したときも hit=null になるため、buildAnimeReply を通すと
+ * **「その作品は無い」と断定してしまう**（利用者からの指摘。実際に今期の作品が
+ * 「見つかりませんでした」と返った）。原因は、このエンドポイントが getSeasonData を
+ * 直接呼んでいて CDN エッジキャッシュを経由せず、Next.js のデータキャッシュ
+ * （unstable_cache）だけが頼りであること。このキャッシュのキーにはビルドIDが入るので
+ * **デプロイのたびに空になり**、次の1回はAnnictへの実取得になって3秒ルール用の
+ * 上限（DATA_TIMEOUT_MS）を超える。
+ * 分からないことを分からないと言い、もう一度試せば直ることを伝える
+ * （2回目以降はキャッシュが温まっているので通る）。
+ */
+export function buildUnavailableReply(query: string): string {
+  const q = normalizeQuery(query);
+  return [
+    `いま配信情報を取得できませんでした（「${q}」が無いという意味ではありません）。`,
+    `もう一度お試しください。サイトからも探せます: ${siteUrl}/?ref=${DISCORD_REF}`,
+  ].join("\n");
+}
+
 /** Discord に返す JSON（メッセージ）。 */
 export function messageResponse(content: string) {
   return {
