@@ -3,6 +3,7 @@ import { getSeasonData } from "@/lib/getSeasonData";
 import { splitRentalServices } from "@/lib/services";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import { currentSeasonKey } from "@/lib/resolveSeasonParams";
+import { DISCORD_PUBLIC_KEY_FALLBACK } from "@/content/discord/publicKey";
 import {
   COMMAND_NAME,
   COMMAND_OPTION,
@@ -36,7 +37,10 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
 }
 
 export async function POST(request: Request) {
-  const publicKey = process.env.DISCORD_PUBLIC_KEY;
+  // 環境変数を優先し、無ければリポジトリ同梱の値を使う。
+  // Public Key は秘密情報ではない（署名の検証専用で、偽造には使えない）ため
+  // コミットしてよい。理由と経緯は content/discord/publicKey.ts の冒頭。
+  const publicKey = process.env.DISCORD_PUBLIC_KEY || DISCORD_PUBLIC_KEY_FALLBACK;
   if (!publicKey) {
     // 未設定なら機能自体が無効。Discord側から見ると登録に失敗するだけで、
     // サイトの他の機能には影響しない。

@@ -43,6 +43,7 @@ import { buildServicePlan } from "../lib/servicePlan.ts";
 // Discordスラッシュコマンド（2026-08-07追加）。
 import { generateKeyPairSync, sign as cryptoSign } from "node:crypto";
 import { verifyDiscordSignature, buildAnimeReply, messageResponse } from "../lib/discord.ts";
+import { DISCORD_PUBLIC_KEY_FALLBACK } from "../content/discord/publicKey.ts";
 // 配信サービス追加の検知（2026-08-07追加）。純粋関数のみ。
 import { applySightings } from "../lib/serviceAdditions.ts";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
@@ -1885,6 +1886,16 @@ let discordNg = 0;
       ok: verifyDiscordSignature(pub, sig, "1754500001", body) === false,
     },
     { label: "公開鍵が不正なら弾く", ok: verifyDiscordSignature("zz", sig, ts, body) === false },
+    // リポジトリ同梱の Public Key（Vercelの環境変数を使えないときの代替。秘密情報ではない
+    // 理由は content/discord/publicKey.ts の冒頭）。形式が違うと、Discordのエンドポイント
+    // 登録が「認証できませんでした」で失敗するのに、原因が画面からは分からない。
+    // 空（＝連携を使わない）か、16進64文字か、のどちらかであることを固定する。
+    {
+      label: "同梱の公開鍵は空か16進64文字",
+      ok:
+        DISCORD_PUBLIC_KEY_FALLBACK === "" ||
+        /^[0-9a-f]{64}$/i.test(DISCORD_PUBLIC_KEY_FALLBACK),
+    },
   ];
   for (const c of cases) {
     if (!c.ok) discordNg++;
