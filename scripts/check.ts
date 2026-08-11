@@ -42,7 +42,13 @@ import seasonPrep from "./lib/build-season-prep.js";
 import { buildServicePlan } from "../lib/servicePlan.ts";
 // Discordスラッシュコマンド（2026-08-07追加）。
 import { generateKeyPairSync, sign as cryptoSign } from "node:crypto";
-import { verifyDiscordSignature, buildAnimeReply, messageResponse } from "../lib/discord.ts";
+import {
+  verifyDiscordSignature,
+  buildAnimeReply,
+  buildCandidatesReply,
+  messageResponse,
+  MAX_CANDIDATES,
+} from "../lib/discord.ts";
 import { DISCORD_PUBLIC_KEY_FALLBACK } from "../content/discord/publicKey.ts";
 import { currentSeasonKey, currentYearSeason } from "../lib/resolveSeasonParams.ts";
 // 配信サービス追加の検知（2026-08-07追加）。純粋関数のみ。
@@ -1996,6 +2002,38 @@ let discordNg = 0;
   console.log(
     `${airOk ? "✓" : "✗"}  ${"放送中の作品は言い切る".padEnd(40)} → ${airOk ? "サービス名あり" : "文面が変わっている"}`
   );
+
+  // 候補が複数あるときの返信（2026-08-11追加）。
+  // 「異世界」のような広い語で1件しか返さないと、他に該当作があること自体が
+  // 分からない（利用者からの指摘）。件数・並び・上限・サービス名を並べないことを固定する。
+  const many = Array.from({ length: MAX_CANDIDATES + 3 }, (_, i) => ({
+    id: 100 + i,
+    title: `異世界テスト${i}`,
+    serviceNames: ["dアニメ", "ABEMA"],
+    year: 2026,
+    season: "summer",
+    finished: false,
+  }));
+  const multi = buildCandidatesReply("異世界", many);
+  const shownCount = (multi.match(/^・/gm) ?? []).length;
+  const multiCases: { label: string; ok: boolean }[] = [
+    { label: "候補の総件数を伝える", ok: multi.includes(`${many.length} 件`) },
+    { label: "候補は上限まで（並べすぎない）", ok: shownCount === MAX_CANDIDATES },
+    { label: "候補に作品ページのリンクを付ける", ok: multi.includes(`/anime/100?ref=`) },
+    // 1行に収めるため、また放送終了作品が混ざったときに現在の可否と誤読されないため。
+    {
+      label: "候補一覧にサービス名を並べない",
+      ok: !multi.includes("dアニメ") && !multi.includes("ABEMA"),
+    },
+    {
+      label: "候補が上限以下なら「上位n件」と書かない",
+      ok: !buildCandidatesReply("異世界", many.slice(0, 2)).includes("上位"),
+    },
+  ];
+  for (const c of multiCases) {
+    if (!c.ok) discordNg++;
+    console.log(`${c.ok ? "✓" : "✗"}  ${c.label.padEnd(40)} → ${c.ok ? "OK" : "期待どおりでない"}`);
+  }
 
   // 返信が誰かにメンションを飛ばさないこと（他人のサーバーで動くため）。
   const msg = messageResponse("テスト");

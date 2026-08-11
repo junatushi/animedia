@@ -148,6 +148,36 @@ export function buildAnimeReply(query: string, hit: DiscordWorkHit | null): stri
   ].join("\n");
 }
 
+/** 候補が複数あるときに並べる上限。Discordのメッセージ長と可読性の兼ね合い。 */
+export const MAX_CANDIDATES = 5;
+
+/**
+ * 候補が複数見つかったときの返信。
+ *
+ * 【なぜ要るか・2026-08-11】
+ * 一致した作品を1件だけ返していたため、「異世界」のような広い語だと**該当する
+ * 他の作品があること自体が分からなかった**（利用者からの指摘）。
+ * 検索欄と違ってDiscordでは絞り込みのやり直しが面倒なので、候補を並べて選べるようにする。
+ *
+ * ここでは配信サービス名を**並べない**。1作品あたり1行に収めないとメッセージが
+ * 長くなりすぎるうえ、放送終了作品が混ざったときに現在の可否と誤読される
+ * （CLAUDE.mdの基本ルール）。サービス名は作品を特定してから出す。
+ */
+export function buildCandidatesReply(query: string, hits: DiscordWorkHit[]): string {
+  const q = normalizeQuery(query);
+  const shown = hits.slice(0, MAX_CANDIDATES);
+  const lines = shown.map((h) => `・**${h.title}** ${workUrl(h.id)}`);
+  const head =
+    hits.length > MAX_CANDIDATES
+      ? `「${q}」に一致する作品が ${hits.length} 件あります（上位${MAX_CANDIDATES}件）:`
+      : `「${q}」に一致する作品が ${hits.length} 件あります:`;
+  return [
+    head,
+    ...lines,
+    `作品名をもう少し詳しく入れると1件に絞れます。`,
+  ].join("\n");
+}
+
 /** Discord に返す JSON（メッセージ）。 */
 export function messageResponse(content: string) {
   return {

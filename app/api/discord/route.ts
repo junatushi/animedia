@@ -11,6 +11,7 @@ import {
   INTERACTION_PING,
   RESPONSE_PONG,
   buildAnimeReply,
+  buildCandidatesReply,
   messageResponse,
   normalizeQuery,
   verifyDiscordSignature,
@@ -92,27 +93,32 @@ export async function POST(request: Request) {
   const { year, season } = currentYearSeason();
   const data = await withTimeout(getSeasonData(year, season), DATA_TIMEOUT_MS);
 
-  let hit: DiscordWorkHit | null = null;
+  let hits: DiscordWorkHit[] = [];
   if (data) {
     const needle = query.toLowerCase();
-    const found =
-      data.items.find((it) => it.title.toLowerCase() === needle) ??
-      data.items.find((it) => it.title.toLowerCase().includes(needle));
-    if (found) {
-      hit = {
-        id: found.id,
-        title: found.title,
-        serviceNames: splitRentalServices(
-          found.services,
-          RENTAL_SERVICES[found.id]
-        ).streaming.map((s) => s.short),
-        year: Number(year),
-        season,
-        // 今期のデータしか見ていないので、ここに入るのは常に放送中/これから。
-        finished: false,
-      };
-    }
+    const toHit = (it: (typeof data.items)[number]): DiscordWorkHit => ({
+      id: it.id,
+      title: it.title,
+      serviceNames: splitRentalServices(it.services, RENTAL_SERVICES[it.id]).streaming.map(
+        (s) => s.short
+      ),
+      year: Number(year),
+      season,
+      // 今期のデータしか見ていないので、ここに入るのは常に放送中/これから。
+      finished: false,
+    });
+
+    // 完全一致があればそれが答え（部分一致の候補列挙に落とさない）。
+    const exact = data.items.find((it) => it.title.toLowerCase() === needle);
+    hits = exact
+      ? [toHit(exact)]
+      : data.items.filter((it) => it.title.toLowerCase().includes(needle)).map(toHit);
   }
 
-  return NextResponse.json(messageResponse(buildAnimeReply(query, hit)));
+  // 「異世界」のような広い語では複数該当する。1件だけ返すと他があることが
+  // 分からないので、2件以上なら候補を並べて選んでもらう（2026-08-11）。
+  if (hits.length > 1) {
+    return NextResponse.json(messageResponse(buildCandidatesReply(query, hits)));
+  }
+  return NextResponse.json(messageResponse(buildAnimeReply(query, hits[0] ?? null)));
 }
