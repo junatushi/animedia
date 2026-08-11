@@ -1126,6 +1126,72 @@ let seriesNg = 0;
 console.log(`結果（シリーズの対応表）: ${4 - seriesNg} 件OK / ${seriesNg} 件NG`);
 
 // ─────────────────────────────────────────────
+// スポットライト枠の作品リスト（2026-08-11追加）
+//
+// content/sns/spotlight.js は SNS の「【どこで見れる？】スポットライト」枠で
+// 日替わりに紹介する作品の一覧。実測（GSC / Vercel Analytics）を根拠に人が入れ替える。
+// 投稿は毎日自動で出るため、ここが壊れていると誤った投稿が他所に残る。見張るのは:
+//   (1) 作品IDが重複していない（重複するとローテーションが偏る）
+//   (2) source（根拠）が全件にある。推測で足していないことの担保
+//   (3) hashtag がタグとして成立する文字だけでできている。
+//       「☆」「 」「#」はX・Blueskyのタグ解析でタグの終端として扱われ、
+//       #魔法少女まどか☆マギカ が「#魔法少女まどか」＋地の文に割れて壊れる
+//       （2026-07-27に実際に踏んだため、まどマギは略称を使っていた）
+//   (4) 候補が十分ある。buildSpotlight は「今期に存在し配信1件以上」の作品だけに
+//       絞り込むため、元が少ないと絞った後に0〜1件になり同じ作品ばかり出る
+// ─────────────────────────────────────────────
+console.log("\n── スポットライト枠の作品リスト ──");
+let spotlightNg = 0;
+{
+  const { SPOTLIGHT_WORKS } = await import("../content/sns/spotlight.js");
+  type Entry = { annictId: number; title: string; source: string; hashtag?: string };
+  const works = SPOTLIGHT_WORKS as Entry[];
+
+  const dupIds = works
+    .map((w) => w.annictId)
+    .filter((id, i, arr) => arr.indexOf(id) !== i);
+  const noSource = works.filter((w) => !w.source).map((w) => w.title);
+  // タグ解析を壊す文字。半角/全角スペース・#・☆・★・記号類。
+  const badTagChars = /[\s#　☆★＃!-\/:-@\[-`{-~]/;
+  const badTags = works
+    .filter((w) => w.hashtag != null && (w.hashtag === "" || badTagChars.test(w.hashtag)))
+    .map((w) => `${w.title}: "${w.hashtag}"`);
+
+  const cases: { label: string; ok: boolean; detail: string }[] = [
+    {
+      label: "作品IDが重複していない",
+      ok: dupIds.length === 0,
+      detail: dupIds.length === 0 ? `${works.length}件` : `重複ID: ${dupIds.join("・")}`,
+    },
+    {
+      label: "全件に根拠（source）がある",
+      ok: noSource.length === 0,
+      detail: noSource.length === 0 ? "実測値のみ" : noSource.join(" / "),
+    },
+    {
+      label: "hashtagがタグとして成立する",
+      ok: badTags.length === 0,
+      detail:
+        badTags.length === 0
+          ? `${works.filter((w) => w.hashtag).length}件にタグあり（省略${works.filter((w) => !w.hashtag).length}件）`
+          : badTags.join(" / "),
+    },
+    {
+      label: "候補が十分ある",
+      ok: works.length >= 5,
+      detail: `${works.length}件（下限5件）`,
+    },
+  ];
+  for (const c of cases) {
+    if (!c.ok) spotlightNg++;
+    console.log(
+      `${c.ok ? "✓" : "✗"}  ${c.label.padEnd(40)} → ${c.ok ? c.detail : `NG: ${c.detail}`}`
+    );
+  }
+}
+console.log(`結果（スポットライト枠）: ${4 - spotlightNg} 件OK / ${spotlightNg} 件NG`);
+
+// ─────────────────────────────────────────────
 // 作品ページ title の幅の検査（2026-08-05追加）
 //
 // 検索結果の日本語titleは概ね全角30〜33文字で切られる。2026-07-27に
@@ -2483,6 +2549,7 @@ let prepNg = 0;
 if (
   addNg > 0 ||
   seriesNg > 0 ||
+  spotlightNg > 0 ||
   castsNg > 0 ||
   seasonKeyNg > 0 ||
   discordNg > 0 ||
