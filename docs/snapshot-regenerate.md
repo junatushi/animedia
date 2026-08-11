@@ -232,6 +232,12 @@ git push origin main
 
 pushが通れば、数分でVercelに反映されます。
 
+> 【`LF will be replaced by CRLF` という警告が大量に出るのは正常】
+> Windowsのgitが持つ改行コードの自動変換（`core.autocrlf`）の通知で、**エラーではない**。
+> スクリプトが書くJSONの改行はLF、Windowsで取り出すときはCRLFに変換されるが、
+> **リポジトリに保存される中身はLFのまま**で、JSONの内容は変わらない。
+> 64個のスナップショット全部について出るので大量に見えるだけ。そのまま進めてよい。
+
 ---
 
 ## 終わったら
@@ -255,6 +261,7 @@ pushが通れば、数分でVercelに反映されます。
 | `git push` が拒否される | 先に `git pull origin main` を実行してから push し直す |
 | `cannot lock ref 'HEAD'` / `HEAD.lock: File exists` | ロックファイルの残骸。手順1の注記を参照（**gitが動いていないことを確かめてから** `del .git\HEAD.lock`） |
 | `MODULE_TYPELESS_PACKAGE_JSON` という警告が出る | **無視してよい**。毎回出る警告で、失敗ではない |
+| `git add` で `LF will be replaced by CRLF` が大量に出る | **無視してよい**。Windowsの改行コード自動変換の通知で、保存される中身は変わらない |
 
 ## 次に同じ作業が必要になるとき
 
