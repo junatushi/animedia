@@ -119,6 +119,33 @@ node scripts/check.ts
 > 「Your local changes would be overwritten」と出る場合、手元に未保存の変更があります。
 > `git stash` を実行してから `git pull origin main` をやり直してください。
 
+> 【`cannot lock ref 'HEAD'` / `HEAD.lock: File exists` と出たら】
+> gitが異常終了したときなどに残るロックファイルの残骸です。消せば直りますが、
+> **動いているgitがある状態で消すとリポジトリが壊れる可能性がある**ので順番を守ること。
+>
+> 1. このフォルダを開いているアプリ（VS Code・GitHub Desktop・SourceTree等）を閉じる
+> 2. gitが動いていないか確かめる。何も表示されなければOK
+>
+>    ```
+>    tasklist | findstr /i git
+>    ```
+>
+> 3. ロックファイルを消す
+>
+>    ```
+>    del .git\HEAD.lock
+>    ```
+>
+> 4. 他のロックも残っていないか確認する（`ファイルが見つかりません` ならきれい）
+>
+>    ```
+>    dir .git\*.lock
+>    ```
+>
+> 5. `git status` がエラー無く動くことを確かめてから、`git switch main` をやり直す
+>
+> ロックファイルを消してもコミットや作業内容は消えない（「操作中」の目印の空ファイル）。
+
 ### 手順2：スナップショットを再生成する（30分程度・待つだけ）
 
 ```
@@ -205,6 +232,12 @@ git push origin main
 
 pushが通れば、数分でVercelに反映されます。
 
+> 【`LF will be replaced by CRLF` という警告が大量に出るのは正常】
+> Windowsのgitが持つ改行コードの自動変換（`core.autocrlf`）の通知で、**エラーではない**。
+> スクリプトが書くJSONの改行はLF、Windowsで取り出すときはCRLFに変換されるが、
+> **リポジトリに保存される中身はLFのまま**で、JSONの内容は変わらない。
+> 64個のスナップショット全部について出るので大量に見えるだけ。そのまま進めてよい。
+
 ---
 
 ## 終わったら
@@ -226,7 +259,9 @@ pushが通れば、数分でVercelに反映されます。
 | `対象は過去年のみです` と出る | 終了年に今年（2026）を指定している。`2025` までにする |
 | 途中で `✗` が出た | 上の「`✗` が出た年があった場合」を参照。**年を指定して `--force` で取り直す** |
 | `git push` が拒否される | 先に `git pull origin main` を実行してから push し直す |
+| `cannot lock ref 'HEAD'` / `HEAD.lock: File exists` | ロックファイルの残骸。手順1の注記を参照（**gitが動いていないことを確かめてから** `del .git\HEAD.lock`） |
 | `MODULE_TYPELESS_PACKAGE_JSON` という警告が出る | **無視してよい**。毎回出る警告で、失敗ではない |
+| `git add` で `LF will be replaced by CRLF` が大量に出る | **無視してよい**。Windowsの改行コード自動変換の通知で、保存される中身は変わらない |
 
 ## 次に同じ作業が必要になるとき
 
