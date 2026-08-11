@@ -392,6 +392,45 @@ async function main() {
     }
   }
 
+  // ── 健全性の検査：作品は自分のシリーズに入っているか ─────────────
+  //
+  // 【なぜ要るか】2026-08-11の実測で、Annictの `Series.works` は**作品IDとは
+  // 別の番号**を返した。逃げ上手の若君（10591）のシリーズが返したのは 7729・7730 で、
+  // これは手元のデータでは「羅小黒戦記」「シルバニアファミリー」だった。
+  // `title` を要求すると500で落ちることと合わせて、Annict側のリゾルバが壊れている。
+  //
+  // これは「作品は必ず自分のシリーズに含まれる」という当たり前の性質で機械的に
+  // 判定できる。手元のデータと突き合わせないと気づけない、では検査になっていない。
+  // ここで弾かないと、無関係な作品へのリンクをそのままサイトに出すことになる。
+  console.log("\n── 健全性の検査（作品は自分のシリーズに入っているか）──");
+  const withSeries = [...fromAnnict.entries()].filter(([, list]) => list.length > 0);
+  const selfContained = withSeries.filter(([id, list]) => list.some((s) => s.ids.includes(id)));
+  const broken = withSeries.filter(([id, list]) => !list.some((s) => s.ids.includes(id)));
+  if (withSeries.length === 0) {
+    ng("シリーズ情報を持つ作品が1件も無かった");
+  } else if (broken.length === 0) {
+    ok(`${selfContained.length}/${withSeries.length}作品が自分のシリーズに含まれている`);
+  } else {
+    ng(
+      `${broken.length}/${withSeries.length}作品が自分のシリーズに入っていない` +
+        `（例: ${broken[0][0]} のシリーズは ${broken[0][1][0]?.ids.slice(0, 3).join("・")} …）`
+    );
+  }
+  // 1件も自分自身を含まない＝IDの体系そのものが違う。個々のデータの不足ではないので、
+  // 突き合わせに進んでも意味が無い（全部✗になるだけで、原因を取り違える）。
+  if (withSeries.length > 0 && selfContained.length === 0) {
+    console.log("");
+    console.log("   どの作品も自分のシリーズに入っていない＝Annictが返すIDは、");
+    console.log("   作品IDとは別の番号である。このまま使うと、無関係な作品への");
+    console.log("   リンクをサイトに出すことになる。");
+    console.log("");
+    console.log("────────────────────────────────");
+    console.log("結論: seriesList は**使えない**（返るIDが作品IDではない）。");
+    console.log("→ content/works/series.ts の人力運用を続ける。");
+    console.log("この出力をそのまま貼って共有してください。");
+    process.exit(0);
+  }
+
   // ── ⑤ 手作業の対応表との突き合わせ ──────────────────────────
   // ここが判断材料。Annictが人力で確認した対応を再現できるなら自動化を検討でき、
   // 取りこぼす・余計なものを含めるなら人力を続ける根拠になる。

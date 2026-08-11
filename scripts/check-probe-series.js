@@ -15,6 +15,7 @@
 //   ⑦ 一時的な500は再試行して成功させる
 //   ⑧ works で落ちるときは「作品を列挙できない」と結論して正常終了する
 //   ⑨ seriesList 自体が落ちるときは「シリーズ名すら取れない」と結論して正常終了する
+//   ⑩ 返るIDが作品IDでないとき（作品が自分のシリーズに入っていない）に気づいて止まる
 //
 // ⑧⑨は2026-08-11にAnnictが実際に500を返したことを受けて追加した。
 // 全部入りのクエリを1回投げて落ちるだけでは、seriesListが壊れているのか
@@ -491,6 +492,33 @@ async function main() {
       "seriesListが落ちるなら名前すら取れないと結論する",
       code === 0 && out.includes("シリーズ名すら取れない") && out.includes("人力運用を続ける"),
       `exit=${code}`
+    );
+  }
+
+  // ⑩ 返るIDが作品IDでないなら、突き合わせに進まずそこで結論する。
+  // 2026-08-11の実測でAnnictが実際にこの壊れ方をした（逃げ上手の若君のシリーズが
+  // 羅小黒戦記・シルバニアファミリーのIDを返した）。
+  {
+    const { SERIES } = await import("../content/works/series.ts");
+    const seriesByWork = {};
+    for (const s of SERIES) {
+      // 自分自身のIDを含まない、まったく別の番号を返す。
+      const bogus = s.works.map((w) => w.id % 1000);
+      for (const w of s.works) seriesByWork[w.id] = [{ name: s.title, ids: bogus }];
+    }
+    const data = makeSearchWorksData({ connectionStyle: "nodes", seriesByWork, titles });
+    const { server, port } = await startStub(
+      makeHandler({ hasSeriesList: true, connectionStyle: "nodes", data })
+    );
+    const { code, out } = await run(port);
+    server.close();
+    check(
+      "返るIDが作品IDでないことに気づく",
+      code === 0 &&
+        out.includes("自分のシリーズに入っていない") &&
+        out.includes("返るIDが作品IDではない") &&
+        !out.includes("手作業の対応表との突き合わせ"),
+      `exit=${code}・突き合わせまで進まない`
     );
   }
 
