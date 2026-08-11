@@ -65,6 +65,72 @@ export const SERIES: SeriesEntry[] = [
     sourceUrl: "https://nigewaka.run/",
     confirmedDate: "2026-08-11",
   },
+  // ここから下は GSC 2026-08-08（直近28日）で表示回数が確認できた作品。
+  // 過去クール側のIDと正式タイトルは content/snapshots/ の実データで確認しており
+  // （タイトル文字列からの推測ではない）、シリーズの関係は下記 sourceUrl で確認した。
+  {
+    // GSC: /anime/16555 が38表示・28.8位。「クレバテス 2期」「クレバテス 2期 配信」の
+    // クエリも出ている。1期は content/snapshots/2025-summer.json に 13593 として実在。
+    title: "クレバテス",
+    works: [
+      { id: 13593, label: "第1期" },
+      { id: 16555, label: "第2期" },
+    ],
+    sourceUrl: "https://clevatess.com/",
+    confirmedDate: "2026-08-11",
+  },
+  {
+    // GSC: /anime/10352 が27表示・33.6位。「乙女ゲー世界はモブに厳しい世界です2 配信」
+    // 16表示など。1期は content/snapshots/2022-spring.json に 9130 として実在。
+    title: "乙女ゲー世界はモブに厳しい世界です",
+    works: [
+      { id: 9130, label: "第1期" },
+      { id: 10352, label: "第2期" },
+    ],
+    sourceUrl: "https://mobseka.com/",
+    confirmedDate: "2026-08-11",
+  },
+  {
+    // GSC: /anime/16248 は1表示・40.0位と小さいが、2026-07-26のVercel Analyticsでは
+    // 30日で7訪問と作品ページ上位だった（旧スポットライトの選定根拠）。
+    // 1期は content/snapshots/2025-spring.json に 13738 として実在。
+    title: "片田舎のおっさん、剣聖になる",
+    works: [
+      { id: 13738, label: "第1期" },
+      { id: 16248, label: "第2期" },
+    ],
+    sourceUrl: "https://ossan-kensei.com/",
+    confirmedDate: "2026-08-11",
+  },
+  {
+    // GSC: 「文豪ストレイドッグス わん２ 配信」など3表示。
+    // 1期は content/snapshots/2021-winter.json に 7602「文豪ストレイドッグス わん！」として実在。
+    // 【注意】本編の「文豪ストレイドッグス」（4564・4774・6182・9077・10647 ほか）とは繋がない。
+    // 「わん！」はミニキャラのスピンオフで、本編と同一のシリーズとして案内すると
+    // 別作品へ送ることになる。本編側はGSCに需要も出ていないため対象外。
+    title: "文豪ストレイドッグス わん！",
+    works: [
+      { id: 7602, label: "第1期" },
+      { id: 16681, label: "第2期" },
+    ],
+    sourceUrl: "https://wan2.bungo-stray-dogs-wan.com/",
+    confirmedDate: "2026-08-11",
+  },
+  {
+    // GSC: /anime/17820 が22表示・12.2位、「不死身な僕の日常 シーズン4」14.5位。
+    // シーズン1〜3は content/snapshots/ に 8737（2021春）・10566（2022秋）・11271（2023夏）
+    // として実在し、いずれも「不死身な僕の日常」＋シーズン番号の同一タイトル。
+    // 日本国内の配信元（イマジニア）の公式ニュースでシーズン4の配信開始を確認した。
+    title: "不死身な僕の日常",
+    works: [
+      { id: 8737, label: "シーズン1" },
+      { id: 10566, label: "シーズン2" },
+      { id: 11271, label: "シーズン3" },
+      { id: 17820, label: "シーズン4" },
+    ],
+    sourceUrl: "https://www.imagineer.co.jp/news/article.php?id=2118",
+    confirmedDate: "2026-08-11",
+  },
 ];
 
 /** 作品IDから、その作品が属するシリーズを引く。属していなければ null。 */
