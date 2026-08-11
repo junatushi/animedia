@@ -61,5 +61,12 @@ jobs:
       - name: 本番検査スクリプト自身の検査（スタブ。ネットワークには出ない）
         run: node scripts/check-verify-production.js
 
+      # GSC取得スクリプトの検査。外部APIを叩く処理なので、一時的エラーの再試行・
+      # 恒久エラーの即失敗・1件失敗で残りを巻き添えにしないこと、そして
+      # 「書き出すJSONに秘密鍵やアクセストークンが混入しないこと」を固定する
+      # （このJSONはリポジトリにコミットされるため、混入は事故に直結する）。
+      - name: GSC取得スクリプトの検査（APIスタブ。ネットワークには出ない）
+        run: node scripts/check-gsc.js
+
       - name: 本番ビルド
         run: npm run build

@@ -39,4 +39,13 @@ export const AFFILIATE_PROGRAMS: Partial<Record<ServiceKey, AffiliateProgram[]>>
     { asp: "afb", url: "https://t.afi-b.com/visit.php?a=915733P-r510403Z&p=i9877067", rewardYen: 845, rewardNote: "税込・新規登録後7日以内のプライムビデオ初回視聴（1動画を10分以上）。他にチャンネル登録100円、レンタル・購入は税込8.47%", confirmedDate: "2026-07-28", active: true },
     { asp: "バリューコマース", url: "https://primevideojapan.sjv.io/MKAnAo", rewardYen: 836, rewardNote: "税込・新規登録後の動画視聴。他に月額サブスクリプション契約209円、レンタル・購入は税込8.36%、新規登録のみは0円", confirmedDate: "2026-07-24", active: true },
   ],
+  // 広告ID 506241 を採用。afbのHuluは広告IDごとに訴求（コナン／日テレドラマ／韓流／海外ドラマ）が
+  // 分かれており、遷移先もその特集になりうる。このサイトのバッジは全アニメ作品の下に同じものが
+  // 出るため、作品を限定しない汎用のHulu素材（alt="Hulu"・素材の中で最も新しい）を選んだ。
+  // 素材のうち広告ID 334531 は <script> でiframeを書き出す形式のため使わない
+  // （バッジはただのテキストリンクであり、他所で実行されるJSを持ち込まない方針）。
+  // afbのインプレッション計測用<img>は入れていない。成果はvisit.php経由のクリックで計上される。
+  hulu: [
+    { asp: "afb", url: "https://t.afi-b.com/visit.php?a=G8792C-u506241i&p=i9877067", rewardYen: 2368, rewardNote: "税込・定額報酬", confirmedDate: "2026-08-10", active: true },
+  ],
 };
