@@ -66,8 +66,24 @@ interface SearchWorksPage {
 
 // キャスト/スタッフは声優・スタッフ名での検索（一覧）と作品個別ページの
 // クレジット表示の両方で使う。casts は sortNumber 昇順（主要キャストが先頭）で返る。
-// 一覧（検索用）は主要5件で足りるが、作品ページは声優を「全員」出したいので多めに取る。
-const CASTS_LIST = 5;
+//
+// 【重大・2026-08-11】ここは長らく CASTS_LIST = 5 だった。「一覧（検索用）は主要5件で
+// 足りる」という前提が誤りで、次の全部がこの5件だけを見ている:
+//   ・検索欄の声優名マッチ（components/SeasonExplorer.tsx）
+//   ・声優ページの出演作一覧（app/person/.../page.tsx の findWorks）
+//   ・作品ページの声優リンクを出すか否かの判定（app/anime/[id]/page.tsx）
+//   ・sitemapに載せる声優ページの選定（app/sitemap.ts）
+//   ・過去クールの声優索引（content/archive/people.json）
+// 実データでは **2025夏の172作品中87作品（50.6%）がちょうど5件＝上限で切られていた**。
+// つまり6番目以降にクレジットされた声優は、そのクールに出演していないのと同じ扱いに
+// なっていた（利用者からの指摘: 悠木碧が作品ページでリンクにならず、検索でも1作品しか
+// 出てこない）。しかも「2作品以上」の閾値と噛み合って、リンクもページも消える。
+// 一覧の castNames は /api/season の応答とSSRのHTMLに載るが、実測で **JSON全体119KBの
+// うち3KB（3.3%）** しかなく、増やしても支配的にならない。件数をケチる理由が無い。
+// なお一覧はキャラクター名を使わない（作品ページ専用）ので、一覧のクエリからは
+// `character { name }` を落として増分を相殺する。
+// `node scripts/check.ts` が「一覧クエリの casts が十分な件数か」を検査している。
+const CASTS_LIST = 40;
 const CASTS_DETAIL = 40;
 // staffs は「監督」「原作」「アニメーション制作」を探すための件数。多くの作品は
 // 数件〜20件程度に収まるが、余裕を持って40件まで見る（それでも無ければ省略）。
@@ -76,10 +92,16 @@ const CASTS_DETAIL = 40;
 const STAFFS_LIST = 15;
 const STAFFS_DETAIL = 40;
 
-function creditsFields(castsCount: number, staffsCount: number): string {
+// withCharacter=false のときキャラクター名を取らない。一覧は声優名しか使わない
+// （キャラ名を出すのは作品個別ページだけ）ので、その分の転送量を節約する。
+function creditsFields(
+  castsCount: number,
+  staffsCount: number,
+  withCharacter = true
+): string {
   return `
       casts(first: ${castsCount}) {
-        nodes { name character { name } }
+        nodes { name${withCharacter ? " character { name }" : ""} }
       }
       staffs(first: ${staffsCount}) {
         nodes {
@@ -93,7 +115,7 @@ function creditsFields(castsCount: number, staffsCount: number): string {
         }
       }`;
 }
-const CREDITS_FIELDS = creditsFields(CASTS_LIST, STAFFS_LIST);
+const CREDITS_FIELDS = creditsFields(CASTS_LIST, STAFFS_LIST, false);
 const CREDITS_FIELDS_DETAIL = creditsFields(CASTS_DETAIL, STAFFS_DETAIL);
 
 // シーズンの作品一覧＋各作品の programs（最大 PROGRAMS_PER_WORK_LIST 件）＋

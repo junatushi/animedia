@@ -3,7 +3,9 @@
 // casts/staffs の生ノード形（シーズン一覧・作品個別ページの両方で取得する）。
 export interface RawCastNode {
   name: string;
-  character: { name: string } | null;
+  // シーズン一覧のクエリはキャラクター名を取らない（声優名しか使わないため。
+  // lib/annict.ts の creditsFields を参照）ので、一覧由来のデータでは欠ける。
+  character?: { name: string } | null;
 }
 export interface RawStaffNode {
   name: string;
