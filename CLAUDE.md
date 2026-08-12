@@ -46,11 +46,12 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   約1〜1.5ヶ月前（8/11/2/5月の下旬）ならIssue本文をstdoutに出し、窓の外なら**何も出さない**。
   `.github/workflows/season-prep.yml`が毎日呼ぶ。窓の定義は`scripts/lib/build-season-prep.js`
   **だけ**が持ち、YAMLに月日を書かない（`node scripts/check.ts`が検査する）。ネットワーク不要
-- `node scripts/build-studio-index.ts` … 制作会社・監督の索引（2026-08-07導入・**データは再生成待ち**）。
-  スナップショットの`roleCredits`から`content/archive/studios.json`を作る。いまのスナップショットは
-  旧形式で`roleCredits`を持たないため**空の索引になる**（落ちずに警告を出す）。実データを入れるには
-  `ANNICT_TOKEN`のある環境で`node scripts/snapshot-past-seasons.ts <年> <年> --force`から回す。
-  詳細は`docs/operations.md`の⑱-11
+- `node scripts/build-studio-index.ts` … 制作会社・監督の索引。スナップショットの`roleCredits`から
+  `content/archive/studios.json`を作る。ネットワーク不要。
+  **スナップショットを追加・再生成したら必ず実行する**。
+  2026-08-11のスナップショット再生成でデータが入った（制作会社165社・監督378人）。
+  導入時（2026-08-07）は旧形式のスナップショットに`roleCredits`が無く空の索引だったが、
+  **その状態はもう解消している**（`docs/operations.md`の⑱-11の「データ待ち」は済み）
 - `node scripts/probe-series.ts` … Annictの`seriesList`が使えるかの「探り」（2026-08-11導入）。
   `content/works/series.ts`の人力対応表を自動化できるかを判断するための読み取り専用スクリプト。
   **本番のクエリ（`lib/annict.ts`）は一切触らない**。フィールド名を決め打ちせず、まず
@@ -265,9 +266,19 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `lib/studioIndex.ts` + `content/archive/studios.json` + `scripts/build-studio-index.ts` …
   制作会社・監督の横断索引（2026-08-07導入）。`lib/personIndex.ts`と同じ流儀・同じ収録方針
   （配信情報が1件以上ある作品だけ・2作品以上の会社/監督だけ）で、表示側の表現の制約も同じ
-  （「配信情報がある」までに留める）。**スナップショットが`roleCredits`を持つまで索引は空**で、
-  ページ（`app/studio/...`）はまだ作っていない。`creditNames`から名前の見た目で
+  （「配信情報がある」までに留める）。`creditNames`から名前の見た目で
   制作会社と人名を推測して分けることは**しない**（誤判定が嘘のページになるため）
+- `app/studio/[name]/page.tsx` + `app/director/[name]/page.tsx` + `components/CreditPage.tsx` …
+  制作会社ページ・監督ページ（2026-08-12導入）。上の索引だけで完結する静的ページで、
+  **クールで割らない**（声優ページがクール別なのは今期のライブ取得を使うためで、こちらは
+  静的JSONだけなので割る理由が無い）。165社＋378人を**全件事前生成**するので`revalidate`は不要
+  （`generateStaticParams`が索引のキーを返す）。中身は`CreditPage.tsx`が1箇所で持ち、
+  2ページで表現がズレないようにしてある。**`loading.tsx`を置かないこと**（ソフト404になる）。
+  作品ページの「監督」「製作会社」欄からのリンクが唯一の入口で、リンク側は`hasCreditPage`で
+  門番する（索引に無い名前は素のテキストのまま＝404へのリンクを配らない）。
+  `node scripts/check.ts`の「制作会社・監督ページ」「孤立ページを作らない」が検査する。
+  **監督名・制作会社名での検索需要は未実測**（声優ページの実績からの推測で作った面）。
+  効果は`weeklyByType`で後から判定する
 - `lib/embed.ts` + `app/embed/anime/[id]/route.ts` + `components/EmbedSnippet.tsx` + `app/developers/page.tsx`
   … 配信先ウィジェット（2026-08-06導入）。他サイトに貼ってもらうための埋め込み。作品ページの
   「ブログ・サイトに貼る」からHTML/iframeの貼り付けコードをコピーできる。**被リンク獲得が目的**
