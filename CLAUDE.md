@@ -65,6 +65,20 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   **GSCはログインが要るためセッションからは読めない**（通知メールも節目と問題の検出しか届かない）
   ので、外向き通信ができるGitHub Actions側で取ってリポジトリに置き、セッションは
   コミット済みのJSONを読む。セットアップは`docs/gsc-setup.md`、要`GSC_SERVICE_ACCOUNT_JSON`
+- `node scripts/track-season.js` … クール別の「初出日」の記録（2026-08-12導入）。
+  **AnnictとAniListを毎日並べて記録し、どちらが先に「作品名＋○年○月放送」を持つかを測る**。
+  現在クール＋先の2クールが対象で、①作品がそのクールに初めて現れた日 ②配信サービスが
+  初めて現れた日 ③日ごとの総数 を`content/coverage/first-seen.json`に書く。
+  Annict側はデプロイ済みサイトの公開API`/api/season`、AniList側は公式GraphQL（キー不要）から
+  取るので**`ANNICT_TOKEN`は要らない**（`x-growth.yml`と同じ方針）。毎日
+  `.github/workflows/track-season.yml`が回すので手で実行する必要は無い。
+  **落ちた日のデータは後追いで取り返せない**（毎日の変化そのものが測定対象）。
+  詳細は`docs/next-season-coverage.md`の7章
+- `node scripts/check-track-season.js` … 上の記録スクリプトのテスト（2026-08-12導入）。
+  HTTPスタブ（Annict・AniListの両方）を立てて`track-season.js`を実際に動かし、
+  **firstSeenを上書きしない・消えたものを消さない・初回に`seeded`印を付ける・
+  1情報源の失敗で残りを巻き添えにしない**ことを固定する。ネットワークには出ない。
+  `track-season.js`を触ったら必ず実行する
 - `node scripts/audit-coverage.ts [year] [season]` … 配信データ網羅率の点検（2026-07-12導入）。
   引数省略時は現在のクール。(a)TV放送データはあるが配信サービス0件の作品（注目度順。
   Annict側の登録待ちの疑い）、(b)「その他配信」に落ちた未知チャンネル名（`SERVICES`
@@ -154,6 +168,13 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   「配信が手薄」を理由に依存をやめた経緯があり、AniList/MALは国内配信サービス名を持たない。
   **動かせるのは「発表→サイトに載る」の遅れだけで、その実測はまだ無い**（測り方は同ドキュメント6章。
   `/api/season`を毎日記録するだけでよく`ANNICT_TOKEN`は不要。**窓は9月中旬〜10月上旬**）。
+  ⑥**「作品名＋○月放送」の粒度なら、AniListが2027年冬＝約5ヶ月先の作品を既に持っている**
+  （2026-08-12確認。公式GraphQL・無料・キー不要・`season`/`seasonYear`/`status`を持つ）。
+  ただし**Annictが未放送作品をどれだけ早く登録するかは実測も評判も無く、優劣は不明**。
+  推測できないので`scripts/track-season.js`で**両方を毎日記録して比べる計測を開始した**
+  （2026-08-12〜）。結論が出るまで「AniListのほうが速い」と書かないこと。
+  AniListの規約はデータの大量収集・退蔵を禁じているので、取得は1クール1日1回・
+  保存はID/タイトル/初出日だけに留める（詳細は`docs/next-season-coverage.md`の7章）。
 - **Annictへのデータ還元と再配布の相談**は `docs/annict-contribution.md`（2026-08-07導入）。
   `audit-coverage.ts`が出す「配信0件の注目作」「未知チャンネル名」を一次情報で確認してAnnictへ
   登録する手順と、作品データの再配布可否を尋ねる問い合わせ文面。**主目的はサイトの配信網羅率が
