@@ -14,6 +14,8 @@ import {
   availabilityLabel,
 } from "@/lib/workAvailability";
 import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
+import { hasCreditPage, type StudioIndex } from "@/lib/studioIndex";
+import studioIndexJson from "@/content/archive/studios.json";
 import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
@@ -22,6 +24,8 @@ import FollowLinks from "@/components/FollowLinks";
 import ServiceMarks from "@/components/ServiceMarks";
 import EmbedSnippet from "@/components/EmbedSnippet";
 import { buildEmbedSnippet, buildEmbedIframeSnippet } from "@/lib/embed";
+
+const STUDIO_INDEX = studioIndexJson as unknown as StudioIndex;
 
 const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
 
@@ -558,17 +562,41 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                 </section>
               )}
 
+              {/* 監督・製作会社は、横断ページ（/director/[name]・/studio/[name]）が
+                  ある名前だけリンクにする。索引（content/archive/studios.json）は
+                  2作品以上の名前しか持たないので、hasCreditPage で門番しないと
+                  404へのリンクを配ることになる（声優リンクを
+                  PERSON_PAGE_MIN_APPEARANCES で門番しているのと同じ）。
+                  sitemapに載せるページはサイト内からも辿れること
+                  ＝ここが唯一の入口なので消さないこと（scripts/check.ts の
+                  「孤立ページを作らない」節が見張っている）。 */}
               {credits.director && (
                 <section className="detail-section">
                   <h2 className="detail-heading">監督</h2>
-                  <p className="detail-text">{credits.director}</p>
+                  <p className="detail-text">
+                    {hasCreditPage(STUDIO_INDEX, "director", credits.director) ? (
+                      <Link href={`/director/${encodeURIComponent(credits.director)}`}>
+                        {credits.director}
+                      </Link>
+                    ) : (
+                      credits.director
+                    )}
+                  </p>
                 </section>
               )}
 
               {credits.productionCompany && (
                 <section className="detail-section">
                   <h2 className="detail-heading">製作会社</h2>
-                  <p className="detail-text">{credits.productionCompany}</p>
+                  <p className="detail-text">
+                    {hasCreditPage(STUDIO_INDEX, "studio", credits.productionCompany) ? (
+                      <Link href={`/studio/${encodeURIComponent(credits.productionCompany)}`}>
+                        {credits.productionCompany}
+                      </Link>
+                    ) : (
+                      credits.productionCompany
+                    )}
+                  </p>
                 </section>
               )}
 

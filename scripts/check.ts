@@ -2451,6 +2451,25 @@ let orphanNg = 0;
       needle: "otherSeasonWorks",
       label: "声優ページ → 他クールの出演作",
     },
+    // 2026-08-12: 制作会社ページ165件・監督ページ378件をsitemapに載せた。その入口は
+    // 作品ページの「監督」「製作会社」欄のリンクだけで、一覧・トップからは辿れない。
+    // ここが消えると543ページがまるごと孤立する（サービス別ページで踏んだ穴と同じ形）。
+    {
+      file: "../app/anime/[id]/page.tsx",
+      needle: "/director/${",
+      label: "作品ページ → 監督ページ",
+    },
+    {
+      file: "../app/anime/[id]/page.tsx",
+      needle: "/studio/${",
+      label: "作品ページ → 制作会社ページ",
+    },
+    // 制作会社・監督ページから作品ページ・シーズンページへ戻る導線。
+    {
+      file: "../components/CreditPage.tsx",
+      needle: "/anime/${",
+      label: "制作会社・監督ページ → 作品ページ",
+    },
   ];
   for (const c of cases) {
     const src = readFileSync(new URL(c.file, import.meta.url), "utf8");
@@ -2547,6 +2566,80 @@ let prepNg = 0;
 }
 
 // ─────────────────────────────────────────────
+// 制作会社・監督ページ（2026-08-12追加）
+//
+// content/archive/studios.json から作る静的なページ（/studio/[name]・/director/[name]）。
+// 見張るのは3点:
+//   (1) 索引に載っている名前が全部ページになること（sitemapに404を載せない）
+//   (2) 表現が「配信情報がある」に留まっていること。ここに並ぶのは過去クールの記録で、
+//       いま配信されている保証は無い（CLAUDE.mdの基本ルール／lib/workAvailability.ts）
+//   (3) sitemapが両方の索引を載せていること
+// ─────────────────────────────────────────────
+console.log("\n── 制作会社・監督ページ ──");
+let creditNg = 0;
+{
+  const studioIndex = JSON.parse(
+    readFileSync(new URL("../content/archive/studios.json", import.meta.url), "utf8")
+  ) as { studios: Record<string, unknown[]>; directors: Record<string, unknown[]> };
+
+  // (1) 事前生成が索引の全キーを返すこと。Object.keys(creditMap(...)) の形を確かめる
+  //     （件数を直書きすると索引が増えたときに嘘になるので、生成の「作り方」を見る）。
+  for (const [role, file] of [
+    ["studio", "../app/studio/[name]/page.tsx"],
+    ["director", "../app/director/[name]/page.tsx"],
+  ] as const) {
+    const src = readFileSync(new URL(file, import.meta.url), "utf8");
+    const genOk =
+      /generateStaticParams/.test(src) &&
+      src.includes(`Object.keys(creditMap(INDEX, "${role}"))`) &&
+      src.includes("encodeURIComponent");
+    // notFound() が無いと索引に無い名前で空ページを返してしまう。
+    const guardOk = src.includes("notFound()");
+    const ok = genOk && guardOk;
+    if (!ok) creditNg++;
+    console.log(
+      `${ok ? "✓" : "✗"}  ${`${role}ページが索引の全件を事前生成`.padEnd(40)} → ` +
+        (ok
+          ? `${Object.keys(role === "studio" ? studioIndex.studios : studioIndex.directors).length}件`
+          : !genOk
+            ? "generateStaticParams が索引のキーから作られていない"
+            : "notFound() が無い（索引に無い名前で空ページを返す）")
+    );
+  }
+
+  // (2) 未確認の断定をしていないこと。放送終了作品の表現と同じ禁止語。
+  const creditSrc = readFileSync(new URL("../components/CreditPage.tsx", import.meta.url), "utf8");
+  // コメント行（注意書きとして禁止語そのものを書いている）は除いてから探す。
+  const body = creditSrc
+    .split("\n")
+    .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+    .join("\n");
+  const banned = ["視聴できます", "配信中", "配信しています", "見られます"].filter((w) =>
+    body.includes(w)
+  );
+  const wordOk = banned.length === 0 && body.includes("配信情報がある");
+  if (!wordOk) creditNg++;
+  console.log(
+    `${wordOk ? "✓" : "✗"}  ${"表現が「配信情報がある」に留まっている".padEnd(40)} → ` +
+      (wordOk
+        ? "断定表現なし"
+        : banned.length > 0
+          ? `未確認の断定が入っている（${banned.join("・")}）`
+          : "「配信情報がある」が無い")
+  );
+
+  // (3) sitemapが両方を載せていること。
+  const sitemapSrc = readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+  const mapOk =
+    sitemapSrc.includes("/studio/${encodeURIComponent(name)}") &&
+    sitemapSrc.includes("/director/${encodeURIComponent(name)}");
+  if (!mapOk) creditNg++;
+  console.log(
+    `${mapOk ? "✓" : "✗"}  ${"sitemapが制作会社・監督ページを載せる".padEnd(40)} → ${mapOk ? "両方あり" : "片方または両方が無い"}`
+  );
+}
+
+// ─────────────────────────────────────────────
 // 検査を回す環境（2026-08-11追加）
 //
 // 2026-08-11、CIに入っているのに**手元では必ず失敗する**検査が2本、数セッションに
@@ -2627,6 +2720,7 @@ let ciNg = 0;
 }
 
 if (
+  creditNg > 0 ||
   ciNg > 0 ||
   addNg > 0 ||
   seriesNg > 0 ||
