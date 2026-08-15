@@ -113,7 +113,12 @@ export function sortServicesForMetadata<T extends { key: string }>(services: T[]
 // 2026-07-12追記: ぎふチャン（ひらがな表記の岐阜のCATV局）・チャンネルNECO（時代劇専門CS局）・
 // 鉄道チャンネル（CS局）・カートゥーンネットワーク／ディズニー・チャンネル（CS/CATVの
 // 放送チャンネルで、Disney+等の"配信"サービスとは別物）を追加（2026冬・春クールの実データより）。
-const TV_PATTERN =
+// 2026-08-13: export した。公開データセット（lib/serviceDataset.ts）が
+// matching.broadcastPattern としてこの正規表現そのものを配るため。SERVICES だけを
+// 公開しても、この除外が無いと二次利用側は TOKYO MX / AT-X / BS11 を「その他配信」＝
+// 配信サービスとして扱ってしまい、本サイトの判定を再現できない（差別化の本体は
+// 一覧ではなく正規化のほう＝docs/growth-strategy-2026-08.md 4章）。
+export const TV_PATTERN =
   /(放送|テレビ|ＴＶ|^tv|tv$|チャンネル.*放送|wowow|bs|cs|nhk|日テレ|日本テレビ|ntv|tbs|フジ|テレビ朝日|テレ朝|テレビ東京|テレ東|tokyomx|mx|tvk|サンテレビ|kbs京都|kbs|チバ|テレ玉|とちぎ|群馬|びわ湖|岐阜|ぎふ|三重|静岡|札幌|北海道|htb|stv|hbc|青森|岩手|秋田|山形|福島|新潟|長野|山梨|福井|石川|富山|広島|岡山|山口|愛媛|高知|香川|徳島|福岡|rkb|佐賀|長崎|熊本|大分|宮崎|鹿児島|沖縄|at-x|atx|アニマックス|animax|キッズステーション|キッズ|アニメシアター|メ.?テレ|チャンネルneco|鉄道チャンネル|カ-トゥ-ンネットワ-ク|cartoonnetwork|ディズニ-.?チャンネル|disneychannel)/i;
 
 export type ChannelClass =
