@@ -21,6 +21,9 @@
 //   「配信情報がある」だけを述べ、確認を促す。
 // ───────────────────────────────────────────────────────────────
 
+import { SITE_NAME, DATA_PROVIDER, DATA_PROVIDER_URL } from "./attribution.ts";
+import { siteUrl } from "./siteUrl.ts";
+
 // "airing"   … 現在クール以降（放送中・これから放送）。従来どおり現在形で書いてよい。
 // "finished" … 放送が終了したクールの作品。現在の配信可否は未確認なので断定しない。
 export type AiringStatus = "airing" | "finished";
@@ -99,4 +102,85 @@ export function buildWatchDescription(params: {
 // 「配信中のサービス」と言い切ると、貼った側の記事の信頼まで巻き添えにする。
 export function availabilityLabel(status: AiringStatus): string {
   return status === "finished" ? "配信情報" : "配信中のサービス";
+}
+
+// ───────────────────────────────────────────────────────────────
+// 配信情報を構造化データ（JSON-LD）で機械可読にする（2026-08-13追加）
+//
+// なぜ要るか:
+//   作品ページのJSON-LDは声優・監督・製作会社・原作者を持っていたのに、このサイトの
+//   中心的な事実である「どこで配信されているか」は可視テキストにしか無かった。
+//   AI検索・生成AIが引用するのは機械可読の層なので、いちばん引用してほしい事実だけが
+//   そこから落ちていたことになる。
+//
+// 生成をこのファイルに置く理由（＝作品ページに直書きしない理由）は、可視テキストで
+// 既に守っている制約（放送終了作品に「いま配信中」と書かない／第三者に配るものに広告リンクを
+// 入れない）を、機械可読の層でも同じ場所・同じ強さで守るため。機械はそのまま事実として
+// 再配布するので、可視テキストより影響が広い。
+// scripts/check.ts の「配信情報の構造化データ」節が機械的に検査する。
+//
+// 【WatchAction は使わない（2026-08-13。一度実装してから取り下げた）】
+//   最初の実装は potentialAction に schema.org の WatchAction を並べていた。実装後の
+//   レビューで、可視テキスト側で守っているルールを機械可読側で3つ破ると分かったので撤回した。
+//   同じ設計を再提案しないために記録を残す:
+//     ①WatchAction は「ここで見られる」という現在形の主張そのもの。放送終了クールは
+//       弾いていたが、**放送開始前**の作品は airing 扱いなので素通りしていた。まだ1話も
+//       配信されていない作品に「見られる」と機械可読で配ることになり、CLAUDE.md の
+//       「放送開始1週間前ルール」の趣旨を機械可読の層で破る。
+//     ②target.urlTemplate に入れられるのは各サービスの公式トップページだけで、作品への
+//       直リンクは持っていない。「この作品を見る」と名乗って行き先がトップページなのは
+//       「リンクの見た目＝遷移先」（配信バッジの事故と同じ型）を人の目に触れない層で犯す。
+//     ③見放題かレンタルかを表す Offer を付けられない。
+//   代わりに additionalProperty（PropertyValue）で**事実だけ**を述べる。「この作品には
+//   これらのサービスの配信情報がある」は放送中でも終了後でも真で、行為も行き先も主張しない。
+//   だから status で分岐する必要が無く、分岐が無いぶん「放送終了に現在形を出す」壊れ方が
+//   構造的に起こらない。URL を一切持たないので、広告リンクが混入する経路も存在しない。
+
+// additionalProperty に載せる property の名前。可視テキスト側の
+// availabilityLabel("finished") と同じ「配信情報」の語で、配信の現在の可否は主張しない。
+export const STREAMING_PROPERTY_NAME = "配信情報のあるサービス";
+
+// 作品ページの JSON-LD に載せる additionalProperty（PropertyValue の配列）を作る。
+//
+// ・渡すのは表示名だけ。URL は受け取らないし組み立てもしない（広告リンクを渡す口を作らない）。
+// ・重複は落とす。0件のときは空配列を返し、呼び出し側は additionalProperty ごと出さない。
+// ・「その他配信」（正準リストに無い未知チャンネル名）は呼び出し側で渡さない。正規化できて
+//   いない生の名前を機械可読で配ると、二次利用側がそれをサービス名として扱ってしまう。
+// ・レンタル（都度課金）も呼び出し側で除いてから渡す（見放題と混ぜない）。
+export function buildStreamingProperties(
+  services: Array<{ name: string }>
+): Array<Record<string, unknown>> {
+  const out: Array<Record<string, unknown>> = [];
+  const seen = new Set<string>();
+  for (const s of services) {
+    const name = (s?.name ?? "").trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    out.push({
+      "@type": "PropertyValue",
+      name: STREAMING_PROPERTY_NAME,
+      value: name,
+    });
+  }
+  return out;
+}
+
+// 構造化データの「出所」を機械可読にする。
+//
+// retrievedDate は **Annict からデータを取得した日**（JST, "YYYY-MM-DD"）であって、
+// 配信の可否を誰かが確認した日ではない。だから可視テキストと同じく「確認日」という語を
+// 使わない（docs/operations.md の⑰・CLAUDE.md の基本ルール）。
+// schema.org の語彙で言うと sdDatePublished が
+// "the date on which the current structured data was generated/published" と定義されており、
+// 「この構造化データを作った日」という意味にちょうど一致する。
+//   ・sdDatePublished … 構造化データを生成した日
+//   ・sdPublisher     … その構造化データを出しているのは誰か（＝本サイト）
+//   ・citation        … その内容が何を参照しているか（＝Annict）
+// 名前とURLは lib/attribution.ts（出典表記の正準定義）を使い回す。
+export function buildDataProvenance(retrievedDate: string): Record<string, unknown> {
+  return {
+    sdDatePublished: retrievedDate,
+    sdPublisher: { "@type": "Organization", name: SITE_NAME, url: siteUrl },
+    citation: { "@type": "WebSite", name: DATA_PROVIDER, url: DATA_PROVIDER_URL },
+  };
 }

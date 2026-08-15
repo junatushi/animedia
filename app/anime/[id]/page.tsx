@@ -12,6 +12,8 @@ import {
   buildWatchAnswer,
   buildWatchDescription,
   availabilityLabel,
+  buildStreamingProperties,
+  buildDataProvenance,
 } from "@/lib/workAvailability";
 import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
 import { hasCreditPage, type StudioIndex } from "@/lib/studioIndex";
@@ -240,6 +242,25 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
     // 「いつ公開か」を機械可読な形で渡す。
     workLd.datePublished = release.date;
   }
+
+  // 「どこで配信されているか」を機械可読にする（2026-08-13追加）。
+  // ここまでの JSON-LD は声優・監督・製作会社・原作者を持っていたのに、このサイトの
+  // 中心的な事実である配信先だけは可視テキスト（watchAnswer・FAQPage）にしか無く、
+  // AI検索・生成AIが読む層から落ちていた。
+  // 組み立ては lib/workAvailability.ts に集約する（ここに直書きすると
+  // node scripts/check.ts の検査をすり抜ける）。渡すのは表示名だけで URL は渡さない＝
+  // **アフィリエイトリンクを混ぜる口が無い**（構造化データは第三者の機械に配られるので、
+  // lib/embed.ts と同じ原則が働く）。WatchAction を使わない理由は同ファイルの注記を参照。
+  // レンタル（都度課金）と「その他配信」（未正規化の生の名前）は渡さない。
+  const streamingProperties = buildStreamingProperties(
+    streamingServices.map((s) => ({ name: s.name }))
+  );
+  if (streamingProperties.length > 0) {
+    workLd.additionalProperty = streamingProperties;
+  }
+  // データの出所（Annict）と、そこから取得した日。「確認日」ではない
+  // （誰かが配信の可否を確認した日ではなく、データを取った日）。
+  Object.assign(workLd, buildDataProvenance(checkedDate));
 
   // 放送開始日（JST, "YYYY-MM-DD"）から、この作品がどのクールに属するかを逆算する。
   // 「シーズン別ページ」への内部リンクを作ることで、そのクールの他の作品にも
