@@ -165,7 +165,8 @@ export function buildStreamingProperties(
   return out;
 }
 
-// 構造化データの「出所」を機械可読にする。
+// 構造化データの「出所」を機械可読にする。**作品（TVSeries/Movie）ではなく
+// ページ（WebPage）に付ける独立したノードを返す**。
 //
 // retrievedDate は **Annict からデータを取得した日**（JST, "YYYY-MM-DD"）であって、
 // 配信の可否を誰かが確認した日ではない。だから可視テキストと同じく「確認日」という語を
@@ -175,10 +176,24 @@ export function buildStreamingProperties(
 // 「この構造化データを作った日」という意味にちょうど一致する。
 //   ・sdDatePublished … 構造化データを生成した日
 //   ・sdPublisher     … その構造化データを出しているのは誰か（＝本サイト）
-//   ・citation        … その内容が何を参照しているか（＝Annict）
+//   ・citation        … 何を参照しているか（＝Annict）
+//
+// 2026-08-16修正: これを作品ノードに Object.assign していたが、citation は CreativeWork の
+// プロパティ＝「**その作品が**参照している別の著作物」という意味なので、TVSeries に
+// 置くと機械可読の層でだけ「アニメ『◯◯』はAnnictを引用している」という事実でない主張に
+// なっていた（可視テキストには無い嘘が構造化データにだけ残る＝⑰・WatchActionと同じ型の
+// 事故）。参照しているのは作品ではなくこのページなので、WebPage ノードに移した。
+// sdDatePublished/sdPublisher は「構造化データそのもの」にスコープされた語彙なので
+// どちらのノードでも正しいが、出所一式は1ノードにまとめる。
 // 名前とURLは lib/attribution.ts（出典表記の正準定義）を使い回す。
-export function buildDataProvenance(retrievedDate: string): Record<string, unknown> {
+export function buildDataProvenance(
+  retrievedDate: string,
+  pageUrl: string
+): Record<string, unknown> {
   return {
+    "@type": "WebPage",
+    "@id": pageUrl,
+    url: pageUrl,
     sdDatePublished: retrievedDate,
     sdPublisher: { "@type": "Organization", name: SITE_NAME, url: siteUrl },
     citation: { "@type": "WebSite", name: DATA_PROVIDER, url: DATA_PROVIDER_URL },

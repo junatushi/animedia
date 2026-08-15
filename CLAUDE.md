@@ -302,7 +302,15 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   （再配布可否が未確認。`docs/annict-contribution.md`）。帰属義務（出典表記・リンク）はJSON応答
   自体と`/developers`の両方に付ける。`.ts`に置いてあるのは`lib/embed.ts`と同じ理由で
   `node scripts/check.ts`から検査するため（`route.ts`は`next/server`依存でNodeから直接importできない）。
-  検査は「配信サービス名寄せ表の公開」節。背景は`docs/operations.md`の㉖
+  検査は「配信サービス名寄せ表の公開」節。背景は`docs/operations.md`の㉖。
+  外してはいけない点が4つある: ①**`SERVICES`だけでなく`TV_PATTERN`（放送局の除外）も
+  `matching.broadcastPattern`として配る**。これが無いと二次利用側はTOKYO MX・AT-X・BS11を
+  「その他配信」＝配信サービスとして扱い、本サイトの判定を再現できない（TVerが`^tv`で
+  TV枠に入るのも**仕様どおり**。ここを弄らない）。②**出典表記にAnnictを出さない**
+  （このAPIはAnnictに一度も触れないうえ、被リンクを得るための公開なのにクレジットが
+  Annictへ流れる）。③**応答に日付を持たせない**（`s-maxage=86400`とズレる）。
+  ④CSVの`Link: rel="license"`は`Access-Control-Expose-Headers: Link`が無いと
+  ブラウザの`fetch`から読めない（`curl`では届くので気づけない）
 - `lib/workAvailability.ts` … 「その作品が今も配信されているか」を断定してよい範囲で表現する
   ロジック（2026-08-06導入）。`airingStatus`（クール判定）と、作品ページ・ウィジェットが共用する
   文面生成（`buildWatchAnswer`/`buildWatchDescription`/`availabilityLabel`）を持つ。
@@ -321,7 +329,12 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   放送中・放送終了のどれでも真なので**状態で分岐しない**＝分岐の抜けで壊れる形が構造的に無い。
   URLを一切持たないので広告リンクの混入経路も存在しない。逆戻りは`node scripts/check.ts`が
   機械的に禁じている（生成箇所に`WatchAction`/`potentialAction`/`EntryPoint`/`urlTemplate`が
-  現れないことを検査する）ので、この検査を消さないこと
+  現れないことを検査する）ので、この検査を消さないこと。
+  **`buildDataProvenance`は作品ノードに混ぜず、独立した`WebPage`ノードとして出す**
+  （2026-08-16修正）。`citation`は`CreativeWork`の「**その作品が**参照している著作物」という
+  意味なので、`TVSeries`に付けると「このアニメがAnnictを引用している」という事実でない主張に
+  なる＝可視テキストに無い嘘が機械可読の層にだけ残る（撤回した`WatchAction`と同じ型）。
+  参照しているのは作品ではなくページ。`Object.assign(workLd, ...)`への逆戻りも検査済み
 - `app/api/season/route.ts` … `GET /api/season?year=2026&season=spring`（トップページのクライアント側フェッチ用）
 - `app/api/search-index/route.ts` … クール横断キーワード検索用の軽量インデックス（直近数年分の作品ID・タイトル・読み仮名・年・季節のみ。programs/castsは含めない）。日次キャッシュ（`revalidate=86400`）。検索欄で表示中クール以外の作品もヒットさせるのに使う
 - `app/page.tsx` … トップページ（サーバーコンポーネント。2026-07-21にISR化＝`revalidate=900`。

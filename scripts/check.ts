@@ -2064,7 +2064,8 @@ let ldNg = 0;
   );
 
   // (5) 取得元と取得日。schema.org の語彙で機械可読になっていること。
-  const provenance = buildDataProvenance("2026-08-13");
+  const provPageUrl = `${siteUrl}/anime/12345`;
+  const provenance = buildDataProvenance("2026-08-13", provPageUrl);
   const citation = provenance.citation as { name?: string; url?: string } | undefined;
   const sdPublisher = provenance.sdPublisher as { url?: string } | undefined;
   const provOk =
@@ -2079,6 +2080,22 @@ let ldNg = 0;
     provOk
       ? `sdDatePublished=2026-08-13 / citation=${DATA_PROVIDER}`
       : `期待の形でない: ${JSON.stringify(provenance)}`
+  );
+
+  // (5-2) 出所は **作品ノードではなく WebPage ノード**であること。
+  // citation は CreativeWork の「その作品が参照している著作物」なので、TVSeries/Movie に
+  // 付けると「このアニメがAnnictを引用している」という事実でない主張になる。可視テキストに
+  // 無い嘘が機械可読の層にだけ残る型の事故（⑰・撤回した WatchAction と同じ）。
+  const provNodeOk =
+    provenance["@type"] === "WebPage" &&
+    provenance["@id"] === provPageUrl &&
+    provenance.url === provPageUrl;
+  ldCheck(
+    "出所はWebPageノードで出す（作品ノードに混ぜない）",
+    provNodeOk,
+    provNodeOk
+      ? `@type=WebPage / @id=${provPageUrl}`
+      : `作品ノードに混ざる形に戻っている: ${JSON.stringify(provenance)}`
   );
 
   // 実装レベルの担保（lib/embed.ts・公開データセットと同じ流儀）。
@@ -2137,6 +2154,28 @@ let ldNg = 0;
       "取得元・取得日もworkAvailability由来",
       ldRegion.includes("buildDataProvenance("),
       ldRegion.includes("buildDataProvenance(") ? "buildDataProvenanceを使う" : "直書きに戻っている"
+    );
+    // 出所を作品ノードに畳み込む書き方（Object.assign(workLd, ...) や workLd.citation = ...）に
+    // 戻っていないこと。戻ると (5-2) の検査は通ったまま作品ノードに citation が乗る。
+    const ldRegionBody = stripComments(ldRegion);
+    const mergedIntoWork =
+      /Object\.assign\(\s*workLd/.test(ldRegionBody) ||
+      /workLd\.(citation|sdDatePublished|sdPublisher)\s*=/.test(ldRegionBody);
+    ldCheck(
+      "出所を作品ノードに畳み込んでいない",
+      !mergedIntoWork,
+      mergedIntoWork
+        ? "workLdへ merge している（citationは作品のプロパティなので嘘になる）"
+        : "WebPageノードとして別に出している"
+    );
+    // 書き出す <script> の配列に WebPage ノードが載っていること（作らせただけで
+    // 出力に入れ忘れる、という抜けを塞ぐ）。
+    const emitTail = pageSrc.slice(ldEnd, ldEnd + 400);
+    const emitted = emitTail.includes("provenanceLd");
+    ldCheck(
+      "WebPageノードをJSON-LDに出力している",
+      emitted,
+      emitted ? "JSON.stringify の配列に含まれる" : `出力に無い: ${JSON.stringify(emitTail.slice(0, 200))}`
     );
     const ldBody = stripComments(ldRegion);
     const pageRevert = revertWords.filter((w) => ldBody.includes(w));
@@ -3197,6 +3236,21 @@ let datasetNg = 0;
     "APIがCORS・キャッシュ・CSVを備える",
     corsOk,
     corsOk ? "Allow-Origin: * / Cache-Control / text/csv" : "いずれかが欠けている"
+  );
+
+  // CSVは本文に利用条件を書けないので Link: rel="license" で示している。ところが
+  // CORSで既定で読める応答ヘッダに Link は含まれないため、expose しないと
+  // **ブラウザの fetch で取る二次利用者にだけ利用条件が届かない**（curl では届くので
+  // 気づけない）。帰属表記＝被リンクが目的のデータセットなので、この1行を消さないこと。
+  const exposeOk =
+    /"Access-Control-Expose-Headers":\s*"[^"]*Link/.test(routeSrc) &&
+    routeSrc.includes('rel="license"');
+  datasetCheck(
+    "CSVの利用条件がブラウザからも読める（Linkをexpose）",
+    exposeOk,
+    exposeOk
+      ? 'Access-Control-Expose-Headers: Link / Link: rel="license"'
+      : "Expose-Headers に Link が無い（fetchで取る二次利用者に利用条件が届かない）"
   );
 
   // ?format= の解釈。元の実装は `searchParams.get("format") ?? "json"` で、`??` は

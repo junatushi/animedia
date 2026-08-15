@@ -35,6 +35,13 @@ import {
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
+  // CSVの利用条件は本文に書けないので Link: rel="license" で示している（下記）。
+  // ところがCORSで既定で読める応答ヘッダは Cache-Control / Content-Language /
+  // Content-Length / Content-Type / Expires / Last-Modified / Pragma の7つだけで、
+  // Link は入っていない。expose しないと **ブラウザの fetch で取る二次利用者にだけ
+  // 利用条件が届かない**（curl やサーバー側取得では届くので気づきにくい）。
+  // 帰属表記＝被リンクがこのデータセットの目的なので、届かない経路を残さない。
+  "Access-Control-Expose-Headers": "Link",
 };
 
 // 名寄せ表はコード（SERVICES）から作るのでデプロイ間で変わらない。

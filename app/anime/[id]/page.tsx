@@ -260,7 +260,10 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   }
   // データの出所（Annict）と、そこから取得した日。「確認日」ではない
   // （誰かが配信の可否を確認した日ではなく、データを取った日）。
-  Object.assign(workLd, buildDataProvenance(checkedDate));
+  // **作品ノードには混ぜない**。citation は「その作品が参照している著作物」の意味なので、
+  // TVSeries に付けると「この作品がAnnictを引用している」という嘘になる（理由は
+  // lib/workAvailability.ts の注記）。参照しているのはページなので WebPage ノードで出す。
+  const provenanceLd = buildDataProvenance(checkedDate, `${siteUrl}/anime/${id}`);
 
   // 放送開始日（JST, "YYYY-MM-DD"）から、この作品がどのクールに属するかを逆算する。
   // 「シーズン別ページ」への内部リンクを作ることで、そのクールの他の作品にも
@@ -414,7 +417,9 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify([workLd, breadcrumbLd, faqLd]) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify([workLd, provenanceLd, breadcrumbLd, faqLd]),
+        }}
       />
       <header className="masthead">
         <span className="eyebrow" aria-hidden="true">

@@ -2625,6 +2625,31 @@ Aのうち費用ゼロ・今週中に検証可能な項目（同書5章）から
 `urlTemplate`の4語が`lib/workAvailability.ts`と作品ページの生成箇所の**コード**に現れないことを
 検査する（なぜ使わないかを書いたコメントは行頭が`//`なので除外され、記録として残せる）。
 
+#### 再レビューで見つかった2件（2026-08-16修正）
+
+上の修正を入れたあと、**指摘が本当に直ったかを再現して確かめる再レビュー**を回したところ、
+さらに2件見つかった。どちらも「緑のまま残っていた」もので、検査を書き足してある。
+
+1. **`citation`を作品ノードに付けていた。** `buildDataProvenance`の戻り値を
+   `Object.assign(workLd, ...)`で`TVSeries`に畳み込んでいたが、`citation`は`CreativeWork`の
+   プロパティ＝「**その作品が**参照している別の著作物」という意味なので、機械可読の層でだけ
+   「アニメ『◯◯』はAnnictを引用している」という事実でない主張になっていた。**可視テキストには
+   無い嘘が構造化データにだけ残る**という、いま撤回したばかりの`WatchAction`とまったく同じ型。
+   参照しているのは作品ではなくこのページなので、`WebPage`ノード（`@id`＝作品ページのURL）を
+   別に立ててそこに移した。`sdDatePublished`/`sdPublisher`は「構造化データそのもの」に
+   スコープされた語彙なのでどちらでも正しいが、出所は1ノードにまとめる。書き出しは
+   `JSON.stringify([workLd, provenanceLd, breadcrumbLd, faqLd])`。
+2. **CSVの利用条件がブラウザからは読めなかった。** CSVは本文に利用条件を書けないので
+   `Link: <…/developers>; rel="license"`（RFC 8288）で示していたが、CORSで既定で読める応答
+   ヘッダは`Cache-Control`/`Content-Language`/`Content-Length`/`Content-Type`/`Expires`/
+   `Last-Modified`/`Pragma`の7つだけで`Link`は入っていない。`curl`やサーバー側取得では届くので
+   **気づけないまま、ブラウザの`fetch`で取る二次利用者にだけ利用条件が届かない**状態だった。
+   帰属表記＝被リンクがこのデータセットの唯一の狙いなので、届かない経路は残せない。
+   `Access-Control-Expose-Headers: Link`を1行追加した。
+
+教訓は「実装当日に見つかった5件」と同じで、**検査が緑であることは正しさの証明にならない**。
+どちらも検査を1つずつ足し、変異テストで✗が出ることを確認してある（下記）。
+
 ### 検査・確認済み
 
 両実装とも`npx tsc --noEmit`・`node scripts/check.ts`（追加した2節を含め✗0件）を実行して確認、
@@ -2635,6 +2660,14 @@ Aのうち費用ゼロ・今週中に検証可能な項目（同書5章）から
 検査そのものの効き目は変異テストで確かめた（意図的に壊して✗が出ることを確認し、元に戻した）:
 `lib/workAvailability.ts`に`potentialAction`の`WatchAction`を戻す→✗、`PropertyValue`に`url`を
 持たせる→✗、作品ページで`additionalProperty`を直書きする→✗。
+
+2026-08-16の追加2件も同じく変異テスト済み: `Access-Control-Expose-Headers`の行を消す→✗、
+出所を`Object.assign(workLd, ...)`に戻す→✗（`WebPage`ノードが出力配列から消えることも別に✗）、
+`buildDataProvenance`から`@type: "WebPage"`を外す→✗。実HTMLでも4作品
+（放送中`/anime/13582`・放送終了`/anime/13180`・放送開始前`/anime/18055`・配信0件`/anime/17359`）で
+ノード構成が`[TVSeries, WebPage, BreadcrumbList, FAQPage]`・作品ノードに`citation`が無いこと・
+`additionalProperty`にURLを持つ要素が0件であることを確認した。CSVの実応答にも
+`access-control-expose-headers: Link`が出ている。
 
 ### 何をしないと決めたか
 
