@@ -2,7 +2,15 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { classifyChannel, toAnimeItem, SERVICES } from "../lib/services.ts";
-import { PROGRAMS_QUERY, PROGRAMS_QUERY_LIST } from "../lib/annict.ts";
+import {
+  SEASON_QUERY,
+  WORK_QUERY,
+  PROGRAMS_QUERY_LIST,
+  PROGRAMS_QUERY_DETAIL,
+  PROGRAMS_QUERY_EPISODE,
+  mergeEpisodeInfo,
+  type ProgramNodes,
+} from "../lib/annict.ts";
 import type { AnnictWork } from "../lib/types.ts";
 import {
   buildEmbedSnippet,
@@ -357,10 +365,17 @@ console.log(`結果（人力補完マージ）: ${extraOk} 件OK / ${extraNg} �
 // クエリ（PROGRAMS_QUERY）を使っていたため、Annictがepisode未紐付けprogramで
 // 返すnon-nullフィールド違反によりノードが丸ごとnullになり、配信サービス側の
 // programが失われて「配信情報なし」に見えていた。シーズン一覧の追い取得
-// （fetchSeasonWorks → fetchRemainingPrograms）はepisodeを使わないPROGRAMS_QUERY_LIST
+// （fetchSeasonWorks → fetchProgramsPaged）はepisodeを使わないPROGRAMS_QUERY_LIST
 // を使うべきで、これが再び episode を含む形に統合されないよう固定する。
 let queryOk = 0;
 let queryNg = 0;
+// 「その方針を説明している注釈そのもの」を検査対象に拾わないよう、行頭コメントを落とす。
+function stripCommentLines(src: string): string {
+  return src
+    .split(String.fromCharCode(10))
+    .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+    .join(String.fromCharCode(10));
+}
 function checkQueryField(name: string, query: string, field: string, shouldContain: boolean) {
   const contains = query.includes(field);
   const pass = contains === shouldContain;
@@ -371,7 +386,126 @@ function checkQueryField(name: string, query: string, field: string, shouldConta
   );
 }
 checkQueryField("PROGRAMS_QUERY_LIST（シーズン一覧の追い取得）", PROGRAMS_QUERY_LIST, "episode", false);
-checkQueryField("PROGRAMS_QUERY（作品個別/通知機能）", PROGRAMS_QUERY, "episode", true);
+
+// ── 作品個別クエリの episode 要求の回帰テスト（2026-08-16導入・重大度高） ──
+// 上の2026-07-12の修正は「300件を超えた分の追い取得」だけを直しており、**1ページ目を
+// 取る WORK_QUERY 自体が episode を要求したまま**だった。そのため programs が数十件
+// しかない作品でも、話数が未紐付けなら program ノードが丸ごとnullになり、
+// 一覧（/api/season）には配信サービスが出るのに**作品ページだけ「配信情報なし」**に
+// なっていた（利用者からの指摘で発覚）。
+// 実測（2026-08-16・Annict本番）: 17359 スティール・ボール・ランは programs 11件が
+// 11件ともnullでNetflixが消滅。2026-autumn 99作品中2件・2026-summer 148作品中2件が
+// 一覧と食い違っていた。影響は作品ページ本体だけでなく、公開API /api/work/[id]・
+// 他人のサイトに貼られる埋め込みウィジェット・JSON-LD にも同じ嘘が載る
+// （CLAUDE.mdの「放送が終わった作品に『いま配信中』と書かない」と同じ重大度）。
+// episode を要求してよいのは配信開始通知メールの話数表示だけなので、その1本
+// （PROGRAMS_QUERY_EPISODE）以外に episode が復活しないことを固定する。
+checkQueryField("SEASON_QUERY（シーズン一覧）", SEASON_QUERY, "episode", false);
+checkQueryField("WORK_QUERY（作品個別の1ページ目）", WORK_QUERY, "episode", false);
+checkQueryField("PROGRAMS_QUERY_DETAIL（作品個別の追い取得）", PROGRAMS_QUERY_DETAIL, "episode", false);
+checkQueryField("PROGRAMS_QUERY_EPISODE（通知の話数取得）", PROGRAMS_QUERY_EPISODE, "episode", true);
+// 通知バッチは「今日・再放送でない」番組を探すので rebroadcast は要る。episode を
+// 外した副作用で rebroadcast まで落ちると、再放送の日に誤って通知が飛ぶ
+// （rebroadcast は nullable なので要求してもノードは消えない＝落とす理由が無い）。
+checkQueryField("WORK_QUERY（再放送の判定に必要）", WORK_QUERY, "rebroadcast", true);
+checkQueryField("PROGRAMS_QUERY_DETAIL（再放送の判定に必要）", PROGRAMS_QUERY_DETAIL, "rebroadcast", true);
+
+// クエリ本文を別の場所に手書きされると上の検査をすり抜けるので、lib/annict.ts の中で
+// episode フィールドを書いてよい場所を1箇所（PROGRAM_FIELDS_EPISODE）に固定する。
+{
+  const annictSrc = readFileSync(new URL("../lib/annict.ts", import.meta.url), "utf8");
+  const body = stripCommentLines(annictSrc);
+  const occurrences = body.split("episode { number numberText }").length - 1;
+  const onlyInFieldConst =
+    /const PROGRAM_FIELDS_EPISODE = [^\n]*episode \{ number numberText \}/.test(body);
+  const ok = occurrences === 1 && onlyInFieldConst;
+  if (ok) queryOk++; else queryNg++;
+  console.log(
+    `${ok ? "✓" : "✗"}  ${"episodeを書くのはPROGRAM_FIELDS_EPISODEだけ".padEnd(40)} → ` +
+      (ok
+        ? "1箇所のみ"
+        : `${occurrences}箇所（そこ以外にepisodeを足すと、その経路の配信サービスが丸ごと消える）`)
+  );
+}
+
+// episode を要求する取得（withEpisode）を使ってよいのは配信開始通知バッチだけ。
+// 作品ページ・公開API・埋め込みの経路が話数欲しさにこれを立てると、増えたリクエストと
+// 引き換えに「配信情報なし」を復活させることになる。
+{
+  const root = new URL("../", import.meta.url).pathname;
+  const callers: string[] = [];
+  const walk = (dir: URL) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const child = new URL(`${e.name}${e.isDirectory() ? "/" : ""}`, dir);
+      if (e.isDirectory()) walk(child);
+      else if (/\.(ts|tsx)$/.test(e.name)) {
+        if (/withEpisode\s*:\s*true/.test(stripCommentLines(readFileSync(child, "utf8")))) {
+          callers.push(decodeURIComponent(child.pathname).replace(decodeURIComponent(root), ""));
+        }
+      }
+    }
+  };
+  for (const r of ["app", "lib", "components"]) walk(new URL(`../${r}/`, import.meta.url));
+  const ok = callers.length === 1 && callers[0] === "app/api/notify/run/route.ts";
+  if (ok) queryOk++; else queryNg++;
+  console.log(
+    `${ok ? "✓" : "✗"}  ${"withEpisodeを使うのは通知バッチだけ".padEnd(40)} → ` +
+      (ok ? callers[0] : `${JSON.stringify(callers)}（通知以外がepisodeを要求してはいけない）`)
+  );
+}
+
+// mergeEpisodeInfo は「話数だけ」を重ねる。episode側でnullになったノードを理由に
+// base側を削る/差し替えるように書き換えると、episodeを直接要求したのと同じ事故
+// （配信サービスの消滅）になるため、その振る舞いを固定する。
+{
+  const base: ProgramNodes = [
+    { channel: { name: "Netflix" }, startedAt: "2026-10-05T12:00:00Z", rebroadcast: false },
+    { channel: { name: "TOKYO MX" }, startedAt: "2026-10-05T13:00:00Z", rebroadcast: false },
+  ];
+  // Annictは episode 未紐付けの program をノードごとnullで返す（1件目がそれ）。
+  const withEpisode: ProgramNodes = [
+    null,
+    {
+      channel: { name: "TOKYO MX" },
+      startedAt: "2026-10-05T13:00:00Z",
+      rebroadcast: false,
+      episode: { number: 1, numberText: "第1話" },
+    },
+  ];
+  mergeEpisodeInfo(base, withEpisode);
+
+  const allNull: ProgramNodes = [
+    { channel: { name: "Netflix" }, startedAt: "2026-10-05T12:00:00Z", rebroadcast: false },
+  ];
+  mergeEpisodeInfo(allNull, [null, null]);
+
+  const mergeCases: { label: string; ok: boolean; detail: string }[] = [
+    {
+      label: "baseのノードを減らさない",
+      ok: base.length === 2 && base.every(Boolean),
+      detail: `${base.length}件・null ${base.filter((p) => !p).length}件`,
+    },
+    {
+      label: "話数が取れた番組には重ねる",
+      ok: base[1]?.episode?.numberText === "第1話",
+      detail: String(base[1]?.episode?.numberText),
+    },
+    {
+      label: "episode側がnullでもチャンネルは残る",
+      ok: base[0]?.channel?.name === "Netflix" && !base[0]?.episode,
+      detail: `${base[0]?.channel?.name} / 話数${base[0]?.episode ? "有" : "無"}`,
+    },
+    {
+      label: "episode側が全滅でもチャンネルは残る",
+      ok: allNull.length === 1 && allNull[0]?.channel?.name === "Netflix",
+      detail: "17359（programs全件がnull）の形",
+    },
+  ];
+  for (const c of mergeCases) {
+    if (c.ok) queryOk++; else queryNg++;
+    console.log(`${c.ok ? "✓" : "✗"}  ${c.label.padEnd(40)} → ${c.detail}`);
+  }
+}
 console.log(`結果（追い取得クエリ）: ${queryOk} 件OK / ${queryNg} 件NG`);
 
 // ── Threadsのハッシュタグ1個制限の回帰テスト ──
