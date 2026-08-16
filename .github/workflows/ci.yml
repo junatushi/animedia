@@ -31,7 +31,29 @@ concurrency:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    # ubuntu だけでなく windows でも回す（2026-08-11追加）。
+    #
+    # なぜ2つ回すか:
+    #   このリポジトリの開発機は Windows で、CI は ubuntu だった。そのため
+    #   **CIは緑なのに手元では必ず失敗する**検査が2本、数セッションにわたり
+    #   赤いまま放置された（docs/operations.md の㉔）。
+    #     - scripts/probe-series.ts … Windows では process.exit() が書き込み途中の
+    #       stdout を巻き込んで異常終了する（0xC0000409）。ubuntu では起きない。
+    #     - scripts/verify-production.sh … jq に依存していた。ubuntu ランナーには
+    #       最初から入っているが Windows には無い。
+    #   どちらも「ubuntu で回している限り原理的に検知できない」壊れ方で、
+    #   検査を足しても環境が1つでは同じことが繰り返される。作業者が実際に使う
+    #   環境を CI に含めるのが唯一の構造的な対処になる。
+    #
+    # 費用を増やしすぎない工夫:
+    #   Windows ランナーは ubuntu の2倍消費する。重い `npm run build` は
+    #   プラットフォーム差が出にくいので Linux 側だけで回し、Windows では
+    #   差が出る**スクリプト検査だけ**を回す（下の if を参照）。
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -80,5 +102,8 @@ jobs:
       - name: 初出日記録スクリプトの検査（HTTPスタブ。ネットワークには出ない）
         run: node scripts/check-track-season.js
 
+      # ビルドはプラットフォーム差がほとんど出ない一方でいちばん時間が掛かるので、
+      # Windows では回さない（上の strategy のコメント参照）。
       - name: 本番ビルド
+        if: runner.os == 'Linux'
         run: npm run build

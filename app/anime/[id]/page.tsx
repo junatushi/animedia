@@ -12,8 +12,12 @@ import {
   buildWatchAnswer,
   buildWatchDescription,
   availabilityLabel,
+  buildStreamingProperties,
+  buildDataProvenance,
 } from "@/lib/workAvailability";
 import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
+import { hasCreditPage, type StudioIndex } from "@/lib/studioIndex";
+import studioIndexJson from "@/content/archive/studios.json";
 import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
@@ -22,6 +26,8 @@ import FollowLinks from "@/components/FollowLinks";
 import ServiceMarks from "@/components/ServiceMarks";
 import EmbedSnippet from "@/components/EmbedSnippet";
 import { buildEmbedSnippet, buildEmbedIframeSnippet } from "@/lib/embed";
+
+const STUDIO_INDEX = studioIndexJson as unknown as StudioIndex;
 
 const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
 
@@ -237,6 +243,28 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
     workLd.datePublished = release.date;
   }
 
+  // 「どこで配信されているか」を機械可読にする（2026-08-13追加）。
+  // ここまでの JSON-LD は声優・監督・製作会社・原作者を持っていたのに、このサイトの
+  // 中心的な事実である配信先だけは可視テキスト（watchAnswer・FAQPage）にしか無く、
+  // AI検索・生成AIが読む層から落ちていた。
+  // 組み立ては lib/workAvailability.ts に集約する（ここに直書きすると
+  // node scripts/check.ts の検査をすり抜ける）。渡すのは表示名だけで URL は渡さない＝
+  // **アフィリエイトリンクを混ぜる口が無い**（構造化データは第三者の機械に配られるので、
+  // lib/embed.ts と同じ原則が働く）。WatchAction を使わない理由は同ファイルの注記を参照。
+  // レンタル（都度課金）と「その他配信」（未正規化の生の名前）は渡さない。
+  const streamingProperties = buildStreamingProperties(
+    streamingServices.map((s) => ({ name: s.name }))
+  );
+  if (streamingProperties.length > 0) {
+    workLd.additionalProperty = streamingProperties;
+  }
+  // データの出所（Annict）と、そこから取得した日。「確認日」ではない
+  // （誰かが配信の可否を確認した日ではなく、データを取った日）。
+  // **作品ノードには混ぜない**。citation は「その作品が参照している著作物」の意味なので、
+  // TVSeries に付けると「この作品がAnnictを引用している」という嘘になる（理由は
+  // lib/workAvailability.ts の注記）。参照しているのはページなので WebPage ノードで出す。
+  const provenanceLd = buildDataProvenance(checkedDate, `${siteUrl}/anime/${id}`);
+
   // 放送開始日（JST, "YYYY-MM-DD"）から、この作品がどのクールに属するかを逆算する。
   // 「シーズン別ページ」への内部リンクを作ることで、そのクールの他の作品にも
   // 回遊させる（＝シーズンページへの内部被リンクが増え、クロール・回遊双方にプラス）。
@@ -389,7 +417,9 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify([workLd, breadcrumbLd, faqLd]) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify([workLd, provenanceLd, breadcrumbLd, faqLd]),
+        }}
       />
       <header className="masthead">
         <span className="eyebrow" aria-hidden="true">
@@ -558,17 +588,41 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                 </section>
               )}
 
+              {/* 監督・製作会社は、横断ページ（/director/[name]・/studio/[name]）が
+                  ある名前だけリンクにする。索引（content/archive/studios.json）は
+                  2作品以上の名前しか持たないので、hasCreditPage で門番しないと
+                  404へのリンクを配ることになる（声優リンクを
+                  PERSON_PAGE_MIN_APPEARANCES で門番しているのと同じ）。
+                  sitemapに載せるページはサイト内からも辿れること
+                  ＝ここが唯一の入口なので消さないこと（scripts/check.ts の
+                  「孤立ページを作らない」節が見張っている）。 */}
               {credits.director && (
                 <section className="detail-section">
                   <h2 className="detail-heading">監督</h2>
-                  <p className="detail-text">{credits.director}</p>
+                  <p className="detail-text">
+                    {hasCreditPage(STUDIO_INDEX, "director", credits.director) ? (
+                      <Link href={`/director/${encodeURIComponent(credits.director)}`}>
+                        {credits.director}
+                      </Link>
+                    ) : (
+                      credits.director
+                    )}
+                  </p>
                 </section>
               )}
 
               {credits.productionCompany && (
                 <section className="detail-section">
                   <h2 className="detail-heading">製作会社</h2>
-                  <p className="detail-text">{credits.productionCompany}</p>
+                  <p className="detail-text">
+                    {hasCreditPage(STUDIO_INDEX, "studio", credits.productionCompany) ? (
+                      <Link href={`/studio/${encodeURIComponent(credits.productionCompany)}`}>
+                        {credits.productionCompany}
+                      </Link>
+                    ) : (
+                      credits.productionCompany
+                    )}
+                  </p>
                 </section>
               )}
 

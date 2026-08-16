@@ -3,11 +3,27 @@ import Link from "next/link";
 
 import { siteUrl } from "@/lib/siteUrl";
 import { EMBED_FRAME_HEIGHT } from "@/lib/embed";
-import { attributionHtml, attributionMarkdown, attributionText } from "@/lib/attribution";
+import {
+  attributionHtml,
+  attributionMarkdown,
+  attributionText,
+  datasetAttributionHtml,
+  datasetAttributionMarkdown,
+  datasetAttributionText,
+  SITE_NAME,
+} from "@/lib/attribution";
+import {
+  CSV_COLUMNS,
+  DATASET_CSV_URL,
+  DATASET_DESCRIPTION,
+  DATASET_JSON_URL,
+  DATASET_LICENSE,
+  DATASET_NAME,
+} from "@/lib/serviceDataset";
 
 const title = "配信先ウィジェット・公開API";
 const description =
-  "アニメの配信先をブログに貼れる無料ウィジェットと、配信情報を取得できる公開API（JSON）の使い方。登録不要・APIキー不要。";
+  "アニメの配信先をブログに貼れる無料ウィジェットと、配信情報を取得できる公開API（JSON）、配信サービス名寄せ表（CSV/JSON）の使い方。登録不要・APIキー不要。";
 
 export const metadata: Metadata = {
   title,
@@ -35,6 +51,36 @@ export default function DevelopersPage() {
     ],
   };
 
+  // 配信サービス名寄せ表の構造化データ（2026-08-13追加）。
+  // Googleのデータセット検索は schema.org/Dataset を読む。ページの本文に書くだけでは
+  // 「データセットとして」は見つけてもらえないので、配布形式（JSON・CSV）と利用条件を
+  // 機械可読でも出す。URL・名前・利用条件は lib/serviceDataset.ts の1箇所から取る
+  // （本文と構造化データがズレると、機械が読む側にだけ嘘が残る）。
+  const datasetLd = {
+    "@context": "https://schema.org",
+    "@type": "Dataset",
+    name: DATASET_NAME,
+    description: DATASET_DESCRIPTION,
+    url: `${pageUrl}#dataset`,
+    license: DATASET_LICENSE.url,
+    isAccessibleForFree: true,
+    creator: { "@type": "Organization", name: SITE_NAME, url: siteUrl },
+    distribution: [
+      {
+        "@type": "DataDownload",
+        name: `${DATASET_NAME}（JSON）`,
+        encodingFormat: "application/json",
+        contentUrl: DATASET_JSON_URL,
+      },
+      {
+        "@type": "DataDownload",
+        name: `${DATASET_NAME}（CSV）`,
+        encodingFormat: "text/csv",
+        contentUrl: DATASET_CSV_URL,
+      },
+    ],
+  };
+
   const iframeExample =
     `<iframe src="${siteUrl}/embed/anime/14132" title="配信先（アニメ視聴ガイド）"\n` +
     `  width="100%" height="${EMBED_FRAME_HEIGHT}" style="border:0;max-width:520px" loading="lazy"></iframe>`;
@@ -45,6 +91,11 @@ export default function DevelopersPage() {
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+      />
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(datasetLd) }}
       />
       <header className="masthead">
         <span className="eyebrow" aria-hidden="true">
@@ -139,8 +190,80 @@ export default function DevelopersPage() {
               </p>
             </section>
 
+            {/* 配信サービス名寄せ表（2026-08-13追加）。
+                docs/growth-strategy-2026-08.md の4章の結論＝本サイト固有の資産は一覧ではなく
+                「Annictの生チャンネル名 → 国内配信サービス」への名寄せである、を機械可読で配る。
+                Annict由来の作品データ（作品ごとの配信実績）は再配布の可否が未確認なので
+                含めない（同5章①の法務上の切り分け）。 */}
+            <section className="detail-section" id="dataset">
+              <h2 className="detail-heading">3. 配信サービス名寄せ表（CSV / JSON）</h2>
+              <p className="detail-text">
+                Annict が持つ放送・配信チャンネルの<strong>生の名前</strong>（「dアニメストア」
+                「ｄアニメストア」「d-anime」のような表記ゆれや、TV局名が混ざったもの）から、
+                国内の見放題配信サービスを特定するための対応表です。本サイトが自前で作っているもので、
+                そのまま持ち帰って使えます。
+              </p>
+              <ul className="detail-list">
+                <li>
+                  <code>GET /api/services</code> … JSON（
+                  <a href={DATASET_JSON_URL} target="_blank" rel="noopener noreferrer">
+                    {DATASET_JSON_URL}
+                  </a>
+                  ）
+                </li>
+                <li>
+                  <code>GET /api/services?format=csv</code> … CSV（
+                  <a href={DATASET_CSV_URL} target="_blank" rel="noopener noreferrer">
+                    {DATASET_CSV_URL}
+                  </a>
+                  ）。BOM無しUTF-8・RFC 4180。
+                </li>
+              </ul>
+              <pre className="detail-code">{`curl "${DATASET_CSV_URL}"`}</pre>
+              <p className="detail-text">
+                項目は{" "}
+                {CSV_COLUMNS.map((col, i) => (
+                  <span key={col}>
+                    {i > 0 ? " / " : ""}
+                    <code>{col}</code>
+                  </span>
+                ))}{" "}
+                です。<code>channelPattern</code> は判定に使っている正規表現そのもので、
+                チャンネル名を「小文字にする → 空白を取り除く → 長音・ダッシュ類を半角ハイフンに統一する
+                → 全角英数字を半角にする」の順で整えてから、配列の先頭から順に当てます
+                （配列の順序が判定の優先順です）。どれにも一致せず放送局らしい名前でもないものは
+                「その他配信」として元の名前のまま扱っています。
+              </p>
+              <p className="detail-text">
+                判定は<strong>①サービス → ②放送局（除外） → ③その他配信</strong>の順です。
+                ②の放送局パターンは JSON の <code>matching.broadcastPattern</code> に入っています。
+                これを飛ばすと <code>TOKYO MX</code>・<code>AT-X</code>・<code>BS11</code>{" "}
+                といった放送局名がすべて「その他配信」に残り、配信サービスとして表示されてしまいます。
+              </p>
+              <p className="detail-text">
+                <strong>作品ごとの配信実績（どの作品がどこで配信されたか）は含みません。</strong>
+                そちらは Annict 由来のデータで、本サイトの外への再配布の可否が未確認のためです。
+                作品単位の情報が必要な場合は上の公開APIをご利用ください。
+              </p>
+              <p className="detail-text">
+                利用条件は下の「4. 利用条件」と同じですが、
+                <strong>この表に Annict のデータは含まれないため、Annict の表記は不要です</strong>
+                （本サイトが自前で作った表です）。
+                <strong>出典表記（サイト名とリンク）だけを添えてください</strong>。JSONの応答にも{" "}
+                <code>license</code> と <code>attribution</code> として同じ内容が入っています。
+                作品データ（上の公開API・ウィジェット）と混ぜて使う場合は、そちらの分だけ
+                <Link href="#attribution">出典の書き方</Link>の Annict 併記版をお使いください。
+              </p>
+              <p className="detail-text">HTML</p>
+              <pre className="detail-code">{datasetAttributionHtml()}</pre>
+              <p className="detail-text">Markdown</p>
+              <pre className="detail-code">{datasetAttributionMarkdown()}</pre>
+              <p className="detail-text">テキスト</p>
+              <pre className="detail-code">{datasetAttributionText()}</pre>
+            </section>
+
             <section className="detail-section">
-              <h2 className="detail-heading">3. 利用条件</h2>
+              <h2 className="detail-heading">4. 利用条件</h2>
               <ul className="detail-list">
                 <li>個人・非商用のブログやアプリで自由に使えます。連絡は不要です。</li>
                 <li>
@@ -171,11 +294,14 @@ export default function DevelopersPage() {
                 自分で文面を組み立てる手間があると省かれるだけなので、コピーできる形を出す
                 （lib/attribution.ts の冒頭コメント／docs/growth-strategy-2026-08.md）。
                 リンクを義務化して被リンクを買う施策ではない点は上の利用条件のとおり。 */}
-            <section className="detail-section">
+            <section className="detail-section" id="attribution">
               <h2 className="detail-heading">出典の書き方</h2>
               <p className="detail-text">
                 記事やアプリに合うものをそのままお使いください。文面を変えても構いません。
-                APIのレスポンスにも同じ内容が <code>source</code> として入っています。
+                作品データを返すAPI（<code>/api/work/…</code>・<code>/api/season</code>）の
+                レスポンスにも同じ内容が <code>source</code> として入っています。
+                <Link href="#dataset">配信サービス名寄せ表</Link>だけを使う場合は Annict
+                のデータを含まないため、そちらの節にある Annict 抜きの文面をお使いください。
               </p>
               <p className="detail-text">HTML（ブログ記事の末尾など）</p>
               <pre className="detail-code">{attributionHtml()}</pre>

@@ -52,6 +52,35 @@ export const MIN_WORKS = 2;
 // 1ページに出す上限の目安（ページ実装時に使う想定。人物索引と揃えておく）。
 export const MAX_WORKS_SHOWN = 24;
 
+// ページ側が扱う役割。URLの第1セグメントと1対1で対応させる
+// （/studio/[name] と /director/[name]）。
+export type CreditRole = "studio" | "director";
+
+export const CREDIT_ROLE_LABEL: Record<CreditRole, string> = {
+  studio: "制作会社",
+  director: "監督",
+};
+
+// 役割ごとの索引を取り出す。studios / directors を呼び出し側で選び分けると
+// 取り違えが起きるので、ここに寄せる。
+export function creditMap(index: StudioIndex, role: CreditRole): Record<string, StudioWork[]> {
+  return role === "studio" ? index.studios : index.directors;
+}
+
+// 指定した名前の作品を新しい順に返す（索引の時点で新しい順・MIN_WORKS以上に絞ってある）。
+// 該当が無ければ空配列＝ページ側は notFound() を返す。
+export function creditWorks(index: StudioIndex, role: CreditRole, name: string): StudioWork[] {
+  return creditMap(index, role)[name] ?? [];
+}
+
+// 指定した名前がページを持つか。作品ページから監督名・制作会社名にリンクを張るとき、
+// 索引に無い名前へリンクすると404を配ることになるので、リンク側はこれで門番する
+// （声優ページのリンク判定 lib/personPage.ts と同じ考え方）。
+export function hasCreditPage(index: StudioIndex, role: CreditRole, name: string | null): boolean {
+  if (!name) return false;
+  return creditWorks(index, role, name).length >= MIN_WORKS;
+}
+
 // 指定した名前（制作会社名 or 監督名）の、指定クール**以外**の作品を新しい順に返す。
 // `map` には StudioIndex.studios か StudioIndex.directors のどちらかを渡す
 // （役割が違うものを1つの Record に混ぜていないため、呼び出し側でどちらの索引かを選ぶ）。

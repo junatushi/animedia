@@ -297,7 +297,9 @@ async function main() {
 
   if (failures.length > 0) {
     console.error(`\n${failures.length} 件の取得に失敗しました: ${failures.join(", ")}`);
-    process.exit(1);
+    // process.exit() ではなく exitCode にする。Windowsでは出力が残ったまま exit すると
+    // 異常終了（0xC0000409）になり、終了コード1が伝わらない（㉔と同じ形）。
+    process.exitCode = 1;
   }
 }
 
@@ -306,6 +308,6 @@ module.exports = { targetSeasons, applySeason, jstToday };
 if (require.main === module) {
   main().catch((err) => {
     console.error("記録に失敗しました:", err);
-    process.exit(1);
+    process.exitCode = 1;
   });
 }
