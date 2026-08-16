@@ -1400,7 +1400,9 @@ let xIntentNg = 0;
     count: 1,
     drafts: [{ label: "テスト", text: "本文\n#今期アニメ" }],
     queries: ["今期アニメ どこで見れる"],
-    replies: ["テスト返信"],
+    // pinnedDraft は2026-08-16に {text, replyUrl} 形式へ変わった。ここが古い形のままだと
+    // renderGrowthKit が落ちる（＝この検査自体が動かなくなる）ので、実物と同じ形で渡す。
+    pinnedDraft: { text: "固定ポスト本文", replyUrl: null },
   });
   const hasPost = md.includes("https://x.com/intent/post?text=");
   const hasSearch = md.includes("https://x.com/search?q=");
@@ -1525,8 +1527,40 @@ let xPolicyNg = 0;
     `${p4 ? "✓" : "✗"}  ${"Xの文面も3パターン以上ある".padEnd(40)} → ${tables.map((t) => `${t.name}=${t.count}`).join(" ")}` +
       (p4 ? "" : `  (不足: ${JSON.stringify(thin)})`)
   );
+
+  // (5) 週次X成長キットも同じ方針で出す（2026-08-16追加）。
+  //     【なぜ両方見るのか】2026-08-05に日次側のリンク先を /season/ 形式へ直したとき、
+  //     当時の検査が build-digest.js しか見ていなかったため**週次キットだけ直し漏れて
+  //     1日も気づかれなかった**（⑫の経緯）。「Xの投稿はこう出す」という同じ不変条件を
+  //     持つファイルは、最初から全部ここで見る。
+  const kitWith = renderGrowthKit({
+    year: 2026,
+    label: "夏",
+    todayStr: "2026-08-16",
+    count: 1,
+    drafts: [{ label: "① テスト", text: "【テスト】本文", replyUrl: "https://example.test/season/2026/summer" }],
+    queries: ["テスト"],
+    pinnedDraft: { text: "【テスト】固定", replyUrl: "https://example.test/season/2026/summer" },
+  });
+  const p5 = kitWith.includes("https://example.test/season/2026/summer") && kitWith.includes("リプライ");
+  if (!p5) xPolicyNg++;
+  console.log(
+    `${p5 ? "✓" : "✗"}  ${"週次キットもリプライ用URLを出す".padEnd(40)} → URL=${kitWith.includes("https://example.test/season/2026/summer")} 文言=${kitWith.includes("リプライ")}`
+  );
+
+  // (6) 週次キットの本文組み立てが bodyIncludesUrl を共有していること。
+  //     ここで独自に判定を書き直されると、日次だけ直して週次が取り残される形に戻る。
+  const kitSrc = readFileSync(new URL("./lib/build-growth-kit.js", import.meta.url), "utf8");
+  const sharesPolicy = /bodyIncludesUrl/.test(kitSrc) && /require\("\.\/build-digest"\)/.test(kitSrc);
+  // 死んだ生成物を残さない（replyDrafts は2026-08-16に方針変更で削除済み）。
+  const noDeadReplies = !/function replyDrafts/.test(kitSrc);
+  const p6 = sharesPolicy && noDeadReplies;
+  if (!p6) xPolicyNg++;
+  console.log(
+    `${p6 ? "✓" : "✗"}  ${"週次キットは判定を日次と共有する".padEnd(40)} → bodyIncludesUrlを使う=${sharesPolicy} 死んだリプ下書き無し=${noDeadReplies}`
+  );
 }
-console.log(`結果（Xの投稿方針）: ${xPolicyNg === 0 ? 4 : 4 - xPolicyNg} 件OK / ${xPolicyNg} 件NG`);
+console.log(`結果（Xの投稿方針）: ${6 - xPolicyNg} 件OK / ${xPolicyNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // SSRの中身が空にならないことの検査（2026-08-05追加・重大度高）
