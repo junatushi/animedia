@@ -101,13 +101,26 @@ function buildSeasonPrepIssue(window) {
     lines.push(
       `- [ ] 【年またぎ】\`node scripts/snapshot-past-seasons.ts ${prevYear} ${prevYear}\` で前年分のスナップショットを生成\n` +
         `  - なぜ: 年が変わると${prevYear}年の全クールが「放送済み」で確定するため、ライブ取得より速い静的スナップショットに固定するため。\n` +
-        "  - → 続けて `node scripts/build-archive-index.ts` と `node scripts/build-person-index.ts` を**必ず**実行\n" +
+        "  - → 続けて `node scripts/build-archive-index.ts` と `node scripts/build-person-index.ts` と `node scripts/build-studio-index.ts` を**必ず**実行\n" +
         "  - なぜ: スナップショットだけ増やして索引を再生成しないと、sitemapや声優の出演作ページとの間にズレが生まれ、`node scripts/check.ts` が検出する状態になるため。",
     );
   }
   lines.push(
     "- [ ] 次クールのシーズンページ（`/season/.../...`）が検索エンジンに拾われる状態か確認（sitemap・内部リンク）\n" +
       "  - なぜ: クール切り替わり直後にsitemap反映や内部リンクの張り替えが漏れていると、検索需要が立ち上がる時期にインデックスが間に合わないため。",
+  );
+  // 新シーズン告知の試し打ち（2026-08-16追加）。
+  //
+  // なぜここに入れるか: `season-announce.yml` は 1/4/7/10月の1日にしか発火しないため、
+  // 2026-07-08の導入から2026-08-16まで**一度も実行された履歴が無い**（実測）。
+  // つまり次のクール初日が毎回「未検証のまま本番SNSアカウントへ投稿する」回になる。
+  // このIssueはクール開始の約1〜1.5ヶ月前に必ず立つので、告知の実行前に人の目が通る
+  // 唯一確実な場所がここになる。セッションをまたいで思い出す運用は⑲で失敗しているため、
+  // 手順書に書くのではなく自動で立つチェックリストに載せる。
+  lines.push(
+    "- [ ] 【SNS】Actions →「新シーズン告知」→ Run workflow で告知を1回試し打ちする\n" +
+      "  - なぜ: `season-announce.yml` はクール初日にしか発火しないため、平時に壊れていても気づけない。本番投稿の前にこのIssueの時期に1回通しておく。\n" +
+      "  - 実行した時点の年月から季節を判定するので、この時期に押せば次クールの告知文が出る。",
   );
   lines.push("");
   lines.push(`（このIssueは \`scripts/season-prep.js\` が自動生成しました。窓の判定日: ${jstDate} JST）`);
