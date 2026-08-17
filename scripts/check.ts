@@ -36,6 +36,8 @@ import {
   slotForNow,
   dueSlots,
   jstParts,
+  bodyIncludesUrl,
+  pickDailyXPost,
 } from "./lib/build-digest.js";
 import { xPostUrl, xSearchUrl } from "./lib/x-intent.js";
 // 日次の下書きIssueの本文組み立て（--issue）。require.main ガードがあるので
@@ -1398,7 +1400,9 @@ let xIntentNg = 0;
     count: 1,
     drafts: [{ label: "テスト", text: "本文\n#今期アニメ" }],
     queries: ["今期アニメ どこで見れる"],
-    replies: ["テスト返信"],
+    // pinnedDraft は2026-08-16に {text, replyUrl} 形式へ変わった。ここが古い形のままだと
+    // renderGrowthKit が落ちる（＝この検査自体が動かなくなる）ので、実物と同じ形で渡す。
+    pinnedDraft: { text: "固定ポスト本文", replyUrl: null },
   });
   const hasPost = md.includes("https://x.com/intent/post?text=");
   const hasSearch = md.includes("https://x.com/search?q=");
@@ -1428,6 +1432,135 @@ let xIntentNg = 0;
   );
 }
 console.log(`結果（Xの手動運用リンク）: ${xIntentNg === 0 ? 4 : 0} 件OK / ${xIntentNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// Xの投稿方針の検査（2026-08-16追加・シャドウバン対応）
+//
+// 2026-08-07に @animedia0705 の Search Ban が判明し、推定原因は
+// 「同一に近い文面 × 高頻度 × 毎回リンク × 無会話」だった（docs/handoff.md）。
+// 打ち手として「頻度を1日1回以下・本文からリンクを外す・タグを減らす・本文を毎回変える」を
+// 決めたが、**9日間コードに入らないまま**だった。さらに悪いことに、2026-08-06に
+// 「毎週同じ文面をやめた」修正を入れたときXだけが対象外（文面パターンが1つ）で、
+// 対策が入っているつもりで入っていない状態になっていた。
+//
+// 同じ取り違えが起きないよう、Xについてだけ次の4点を機械的に固定する。
+// **他の3つ（Bluesky/Mastodon/Threads）には適用しない**（シャドウバンの対象ではなく、
+// 本文リンクで問題なく届いているため。ここを一律にすると別の投稿先の運用まで壊す）。
+// ─────────────────────────────────────────────
+console.log("\n── Xの投稿方針（シャドウバン対応・2026-08-16）──");
+let xPolicyNg = 0;
+{
+  // (1) 1日1投稿。3種類そろう日でも1件しか返さないこと、そして狙った種別がその日に
+  //     無くても0件にならない（＝黙って投稿が消えない）ことの両方を見る。
+  const all = [{ kind: "top5" }, { kind: "airing" }, { kind: "spotlight" }];
+  const perDay = [0, 1, 2, 3, 4, 5, 6].map((w) => pickDailyXPost(all, w));
+  const oneEach = perDay.every((posts) => posts.length === 1);
+  // 週のうちに3種類とも登場すること（1種類に偏ると「毎日同じ投稿」に逆戻りする）。
+  const kindsInWeek = [...new Set(perDay.flat().map((p) => p.kind))].sort();
+  const coversAll = JSON.stringify(kindsInWeek) === JSON.stringify(["airing", "spotlight", "top5"]);
+  // 狙った種別が無い日のフォールバック（水曜=airing だが airing が作られなかった場合）。
+  const fallback = pickDailyXPost([{ kind: "top5" }, { kind: "spotlight" }], 3);
+  const fallbackOk = fallback.length === 1;
+  const p1 = oneEach && coversAll && fallbackOk;
+  if (!p1) xPolicyNg++;
+  console.log(
+    `${p1 ? "✓" : "✗"}  ${"Xは1日1投稿（0件にも2件以上にもならない）".padEnd(40)} → 各日1件=${oneEach} 週内に3種=${coversAll} 欠けた日の代替=${fallbackOk}`
+  );
+
+  // (2) 本文にURLを載せない（Xだけ）。他の投稿先は従来どおり載せる。
+  const p2 = bodyIncludesUrl("x") === false && ["bluesky", "mastodon", "threads"].every((pf) => bodyIncludesUrl(pf) === true);
+  if (!p2) xPolicyNg++;
+  console.log(
+    `${p2 ? "✓" : "✗"}  ${"本文のURLはXだけ外す（他は従来どおり）".padEnd(40)} → x=${bodyIncludesUrl("x")} bluesky=${bodyIncludesUrl("bluesky")}`
+  );
+
+  // (3) 本文からURLを外したなら、必ずリプライ用のURLを対で出す。
+  //     ここが抜けると「リンクを外した」だけになり、流入経路が丸ごと消える。
+  //     本文生成は実データが要るので、Issue本文の組み立て側で対を検査する。
+  const withReply = printDigest.renderIssue([
+    { kind: "top5", text: "【テスト】本文", replyUrl: "https://example.test/season/2026/summer" },
+  ]);
+  const withoutReply = printDigest.renderIssue([{ kind: "top5", text: "【テスト】本文" }]);
+  const p3 =
+    withReply.includes("https://example.test/season/2026/summer") &&
+    withReply.includes("リプライ") &&
+    !withoutReply.includes("リプライ"); // replyUrlが無い投稿先には出さない
+  if (!p3) xPolicyNg++;
+  console.log(
+    `${p3 ? "✓" : "✗"}  ${"URLを外した投稿はリプライ用URLを対で出す".padEnd(40)} → 出る=${withReply.includes("リプライ")} 無い時は出ない=${!withoutReply.includes("リプライ")}`
+  );
+
+  // (4) 文面のパターン数。Xだけ1パターンに戻ると「毎週一字一句同じ」に逆戻りする。
+  //     ソースを読んで x の配列の要素数を数える（テーブルが増えても自動で対象になる）。
+  //     行ベースで数える（複数行にまたがる正規表現は書き方に依存して静かに0件になり、
+  //     「検査しているつもりで何も見ていない」状態になるため使わない）。
+  //     この表は「1要素1行」で書く決まりなので、開き `  x: [` と閉じ `  ],` の間の
+  //     実質的な行数がそのまま要素数になる。
+  const src = readFileSync(new URL("./lib/build-digest.js", import.meta.url), "utf8");
+  // このリポジトリのファイルはCRLFで保存されているものがある（build-digest.jsもCRLF）。
+  // 素の split("\n") だと各行の末尾に \r が残り、`line === "  x: ["` が永久に偽になって
+  // **0件検出＝素通り**になる。実際この検査を書いた初回はそれで緑に見えていた。
+  const srcLines = src.split("\n").map((l) => l.replace(/\r$/, ""));
+  const tables: { name: string; count: number }[] = [];
+  srcLines.forEach((line, i) => {
+    if (line !== "  x: [") return;
+    // 直前でいちばん近い `const NAME = {` をこの表の名前とする。
+    let name = "(不明)";
+    for (let j = i; j >= 0; j--) {
+      const m = srcLines[j].match(/^const ([A-Z0-9_]+) = \{$/);
+      if (m) {
+        name = m[1];
+        break;
+      }
+    }
+    let count = 0;
+    for (let j = i + 1; j < srcLines.length && srcLines[j] !== "  ],"; j++) {
+      const t = srcLines[j].trim();
+      if (t !== "" && !t.startsWith("//")) count++;
+    }
+    tables.push({ name, count });
+  });
+  const thin = tables.filter((t) => t.count < 3);
+  const p4 = tables.length >= 4 && thin.length === 0;
+  if (!p4) xPolicyNg++;
+  console.log(
+    `${p4 ? "✓" : "✗"}  ${"Xの文面も3パターン以上ある".padEnd(40)} → ${tables.map((t) => `${t.name}=${t.count}`).join(" ")}` +
+      (p4 ? "" : `  (不足: ${JSON.stringify(thin)})`)
+  );
+
+  // (5) 週次X成長キットも同じ方針で出す（2026-08-16追加）。
+  //     【なぜ両方見るのか】2026-08-05に日次側のリンク先を /season/ 形式へ直したとき、
+  //     当時の検査が build-digest.js しか見ていなかったため**週次キットだけ直し漏れて
+  //     1日も気づかれなかった**（⑫の経緯）。「Xの投稿はこう出す」という同じ不変条件を
+  //     持つファイルは、最初から全部ここで見る。
+  const kitWith = renderGrowthKit({
+    year: 2026,
+    label: "夏",
+    todayStr: "2026-08-16",
+    count: 1,
+    drafts: [{ label: "① テスト", text: "【テスト】本文", replyUrl: "https://example.test/season/2026/summer" }],
+    queries: ["テスト"],
+    pinnedDraft: { text: "【テスト】固定", replyUrl: "https://example.test/season/2026/summer" },
+  });
+  const p5 = kitWith.includes("https://example.test/season/2026/summer") && kitWith.includes("リプライ");
+  if (!p5) xPolicyNg++;
+  console.log(
+    `${p5 ? "✓" : "✗"}  ${"週次キットもリプライ用URLを出す".padEnd(40)} → URL=${kitWith.includes("https://example.test/season/2026/summer")} 文言=${kitWith.includes("リプライ")}`
+  );
+
+  // (6) 週次キットの本文組み立てが bodyIncludesUrl を共有していること。
+  //     ここで独自に判定を書き直されると、日次だけ直して週次が取り残される形に戻る。
+  const kitSrc = readFileSync(new URL("./lib/build-growth-kit.js", import.meta.url), "utf8");
+  const sharesPolicy = /bodyIncludesUrl/.test(kitSrc) && /require\("\.\/build-digest"\)/.test(kitSrc);
+  // 死んだ生成物を残さない（replyDrafts は2026-08-16に方針変更で削除済み）。
+  const noDeadReplies = !/function replyDrafts/.test(kitSrc);
+  const p6 = sharesPolicy && noDeadReplies;
+  if (!p6) xPolicyNg++;
+  console.log(
+    `${p6 ? "✓" : "✗"}  ${"週次キットは判定を日次と共有する".padEnd(40)} → bodyIncludesUrlを使う=${sharesPolicy} 死んだリプ下書き無し=${noDeadReplies}`
+  );
+}
+console.log(`結果（Xの投稿方針）: ${6 - xPolicyNg} 件OK / ${xPolicyNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // SSRの中身が空にならないことの検査（2026-08-05追加・重大度高）
@@ -3496,6 +3629,7 @@ if (
   availNg > 0 ||
   ldNg > 0 ||
   xIntentNg > 0 ||
+  xPolicyNg > 0 ||
   trackNg > 0
 )
   // process.exit() ではなく exitCode。Windows では stdout がパイプされていると

@@ -17,22 +17,32 @@ const {
   jstParts,
   currentSeasonByMonth,
   shortTitle,
+  bodyIncludesUrl,
 } = require("./build-digest");
 const { xPostUrl, xSearchUrl } = require("./x-intent");
 
-// 「配信予定含む」を安全に表現するための放送開始判定。
-// broadcastStartDate が今日以前なら配信開始済み。未定(null)や未来は「予定」扱い。
-// 断定的に「配信中」と書いて誤誘導しないための線引き（放送開始1週間前ルールと同じ思想）。
-function hasStarted(item, todayStr) {
-  return !!item.broadcastStartDate && item.broadcastStartDate <= todayStr;
+// --- 各投稿ドラフトの組み立て ---
+//
+// 【2026-08-16変更】どのドラフトも `{ text, replyUrl }` を返す。
+// 日次ダイジェスト（build-digest.js）と同じシャドウバン対応で、**Xの本文にはURLを入れず**
+// 投稿後のリプライに回すため。URLは捨てずに replyUrl として対で持たせる
+// （本文から消すだけだと流入経路が丸ごと消える）。判定は build-digest.js の
+// bodyIncludesUrl を共有する＝方針を2箇所に持たない。
+//
+// この作り替えの経緯: 2026-08-06に日次側のリンク先を /season/ 形式へ直したとき、
+// **この週次キットだけ直し漏れて気づかれなかった**（当時 check.ts が build-digest.js しか
+// 見ていなかったため）。同じ取りこぼしを繰り返さないよう、今回は check.ts の
+// 「Xの投稿方針」節が最初から両方のファイルを見るようにしてある。
+
+// 本文の末尾に置くURL行。Xでは空配列になる（＝本文にURLが出ない）。
+function urlLinesFor(url) {
+  return bodyIncludesUrl("x") ? [url] : [];
 }
 
-// 作品の配信サービス表示名（先頭数件）。services は ServiceTag[]（.name/.short/.key）。
-function serviceNames(item, limit = 3) {
-  return item.services.slice(0, limit).map((s) => s.name);
+// 本文にURLを載せない運用のとき、リプライで貼るURL。載せる運用なら null。
+function replyUrlFor(url) {
+  return bodyIncludesUrl("x") ? null : url;
 }
-
-// --- 各投稿ドラフトの組み立て（いずれも260字以内・末尾にサイトURL） ---
 
 // ① 独占配信ピック: 見放題が1社だけの作品（独占）を注目度順に。需要◎◎（growth-ideas.md）。
 function draftExclusive(items, year, label, exclusiveUrl) {
@@ -46,11 +56,11 @@ function draftExclusive(items, year, label, exclusiveUrl) {
     "",
     ...exclusives.map((it) => `・${shortTitle(it.title, 20)}（${it.services[0].name}）`),
     "",
-    "サービス別の独占一覧はこちら👇",
-    exclusiveUrl,
+    "サービス別の独占一覧はリプライのリンクから。",
+    ...urlLinesFor(exclusiveUrl),
     `#${year}年${label}アニメ`,
   ];
-  return truncate(lines.join("\n"), MAX_LEN);
+  return { text: truncate(lines.join("\n"), MAX_LEN), replyUrl: replyUrlFor(exclusiveUrl) };
 }
 
 // ② 配信サービス別ピック: そのクールで最も多くの作品を配信しているサービスを取り上げる。
@@ -76,11 +86,11 @@ function draftServicePick(items, year, label, seasonKey) {
     "",
     ...picks.map((it) => `・${shortTitle(it.title, 20)}`),
     "",
-    `${top.name}で見られる今期作品の一覧👇`,
-    serviceUrl,
+    `${top.name}で見られる今期作品の一覧はリプライのリンクから。`,
+    ...urlLinesFor(serviceUrl),
     `#${year}年${label}アニメ`,
   ];
-  return truncate(lines.join("\n"), MAX_LEN);
+  return { text: truncate(lines.join("\n"), MAX_LEN), replyUrl: replyUrlFor(serviceUrl) };
 }
 
 // ③ 声優ピック: そのクールで最も多くの作品に出ている声優を取り上げる。需要○。
@@ -112,11 +122,11 @@ function draftVoiceActor(items, year, label, seasonKey) {
     "",
     ...works.map((it) => `・${shortTitle(it.title, 20)}`),
     "",
-    "出演作と配信先はこちら👇",
-    personUrl,
+    "出演作と配信先はリプライのリンクから。",
+    ...urlLinesFor(personUrl),
     `#${year}年${label}アニメ`,
   ];
-  return truncate(lines.join("\n"), MAX_LEN);
+  return { text: truncate(lines.join("\n"), MAX_LEN), replyUrl: replyUrlFor(personUrl) };
 }
 
 // ④ データもの: 配信サービス別の対応本数ランキング。権利画像不要で拡散・被リンク源になる想定。
@@ -136,14 +146,14 @@ function draftDataViz(items, year, label, rankingUrl) {
     "",
     ...top.map((s, i) => `${i + 1}. ${s.name} … ${s.count}作品`),
     "",
-    "全ランキングはこちら👇",
-    rankingUrl,
+    "全ランキングはリプライのリンクから。",
+    ...urlLinesFor(rankingUrl),
     `#${year}年${label}アニメ`,
   ];
-  return truncate(lines.join("\n"), MAX_LEN);
+  return { text: truncate(lines.join("\n"), MAX_LEN), replyUrl: replyUrlFor(rankingUrl) };
 }
 
-// --- リーチ用: 手動エンゲージのための検索クエリとリプ下書き ---
+// --- リサーチ用: 困りごとを読むための検索クエリ ---
 
 // Xで「見込み客」を見つけるための検索クエリ。ユーザーがXの検索窓にコピペして使う
 // （X APIの有料化で自動検索はしないため、検索は人が行う）。注目作を1〜2本織り込む。
@@ -160,25 +170,14 @@ function searchQueries(items, year, label) {
   return queries;
 }
 
-// リプ下書き（そのまま貼れる形）。配信サービスは実データから埋めるが、投稿直前に
-// サイトで最新を確認する前提の注記を添える（配信情報は後から追加されうるため）。
-// 断定的に「配信中」と書くのは放送開始済み（hasStarted）の作品だけにする。
-function replyDrafts(items, year, label, seasonUrl, todayStr) {
-  const withService = items
-    .filter((it) => it.services.length > 0 && hasStarted(it, todayStr))
-    .sort((a, b) => b.watchers - a.watchers)
-    .slice(0, 3);
-  const drafts = withService.map((it) => {
-    const svc = serviceNames(it, 3).join("・");
-    const workUrl = `${SITE_URL}/anime/${it.id}`;
-    return `「${shortTitle(it.title, 20)}」は ${svc} で配信中ですよ。今期アニメの配信先はここで一覧にしてます👉 ${workUrl}`;
-  });
-  // 作品を特定しない汎用の下書き（「どこで見れる？」への一般返信）。
-  drafts.push(
-    `${year}年${label}アニメがどこで配信されているか、サービス別に一覧でまとめています。よかったら参考にどうぞ👉 ${seasonUrl}`
-  );
-  return drafts;
-}
+// 【2026-08-16削除】replyDrafts（他ユーザーへのリプライ下書き）をここから外した。
+//
+// 2026-08-06に「他ユーザーへのリプライ・絡みは行わない」方針になった際、
+// Issue本文からリプライの節は消したが**生成側の関数は残ったまま**で、
+// buildGrowthKit が毎週 replies を組み立てては renderGrowthKit が一度も使わない、
+// という死んだコードになっていた（2026-08-16の棚卸で発見）。
+// 方針が変わった時は、出力だけでなく生成側も一緒に落とすこと。
+// 依存していた hasStarted / serviceNames も同時に不要になったので削除済み。
 
 // 固定ポスト（プロフィールにピン留めする1投稿）の下書き。
 // 【なぜ要るか・2026-08-06】他ユーザーへのリプライ・絡みをしない方針にしたため、
@@ -193,10 +192,9 @@ function draftPinned(year, label, count, seasonUrl) {
     `・${year}年${label}アニメ${count}作品の配信サービスを一覧で確認できます`,
     "・曜日別のカレンダー表示、作品名・声優名での検索に対応",
     "・配信情報は毎日自動で最新に更新",
-    "",
-    seasonUrl,
+    ...(bodyIncludesUrl("x") ? ["", seasonUrl] : []),
   ];
-  return truncate(lines.join("\n"), MAX_LEN);
+  return { text: truncate(lines.join("\n"), MAX_LEN), replyUrl: replyUrlFor(seasonUrl) };
 }
 
 // --- 全体の組み立て ---
@@ -222,12 +220,16 @@ async function buildGrowthKit(now = new Date()) {
   const exclusiveUrl = `${SITE_URL}/exclusive/${year}/${season}`;
   const rankingUrl = `${SITE_URL}/rankings/${year}/${season}`;
 
+  // 各 draft* は `{ text, replyUrl }` を返す（2026-08-16変更）。候補が無い週は null を返すので
+  // そこで落とし、renderGrowthKit が扱いやすい平らな形に均す。
   const drafts = [
-    { label: "① 独占配信ピック", text: draftExclusive(items, year, label, exclusiveUrl) },
-    { label: "② 配信サービス別ピック", text: draftServicePick(items, year, label, season) },
-    { label: "③ 声優ピック", text: draftVoiceActor(items, year, label, season) },
-    { label: "④ データもの（サービス別対応本数）", text: draftDataViz(items, year, label, rankingUrl) },
-  ].filter((d) => d.text);
+    { label: "① 独占配信ピック", draft: draftExclusive(items, year, label, exclusiveUrl) },
+    { label: "② 配信サービス別ピック", draft: draftServicePick(items, year, label, season) },
+    { label: "③ 声優ピック", draft: draftVoiceActor(items, year, label, season) },
+    { label: "④ データもの（サービス別対応本数）", draft: draftDataViz(items, year, label, rankingUrl) },
+  ]
+    .filter((d) => d.draft)
+    .map((d) => ({ label: d.label, text: d.draft.text, replyUrl: d.draft.replyUrl }));
 
   return {
     year,
@@ -238,13 +240,12 @@ async function buildGrowthKit(now = new Date()) {
     drafts,
     pinnedDraft: draftPinned(year, label, data.count, seasonUrl),
     queries: searchQueries(items, year, label),
-    replies: replyDrafts(items, year, label, seasonUrl, todayStr),
   };
 }
 
 // Issue本文（Markdown）に整形する。
 function renderGrowthKit(kit) {
-  const { year, label, todayStr, count, drafts, queries, replies, pinnedDraft } = kit;
+  const { year, label, todayStr, count, drafts, queries, pinnedDraft } = kit;
   const out = [];
   out.push(`# 今週のX成長アクション（${year}年${label}アニメ / ${todayStr}〜）`);
   out.push("");
@@ -254,6 +255,13 @@ function renderGrowthKit(kit) {
   out.push("");
   out.push(
     "> やらないこと: 自動フォロー/フォロー解除・大量DM・スクレイピングはXのToS違反なので使いません。**他ユーザーへのリプライ・絡みも行わない方針**（2026-08-06・利用者判断）。会話に頼らず「表示を増やす」「見た人が押す率を上げる」の2つでフォロワーを増やします。"
+  );
+  out.push("");
+  // 【2026-08-16追加】シャドウバンの経緯を毎週のIssueに1行だけ残す。
+  // 2026-08-07〜08-16の投稿停止期間を知らないと、この時期のインプレッションを
+  // 「施策が効かなかった」と読み違える。数字の断絶に必ず説明を添える。
+  out.push(
+    "> 📌 **2026-08-07にSearch Ban（シャドウバン）が判明し、8/16に解除を確認**。この間はX投稿を止めていたので、**8月前半の数字とは比較できません**。解除後の初回計測を新しい基準にしてください。本文のリンクとタグの是正は2026-08-16に実装済み（下の4）。"
   );
   out.push("");
 
@@ -275,6 +283,16 @@ function renderGrowthKit(kit) {
     out.push(d.text);
     out.push("```");
     out.push("");
+    // 本文からURLを外した運用のとき（＝X）は、リプライで貼るURLを対で出す。
+    // ここを出し忘れると「リンクを消しただけ」になり流入経路が丸ごと消える。
+    if (d.replyUrl) {
+      out.push("投稿したら、**自分のポストにリプライでこのURLを貼る**:");
+      out.push("");
+      out.push("```");
+      out.push(d.replyUrl);
+      out.push("```");
+      out.push("");
+    }
   }
 
   // 【2026-08-06に構成を変更】以前はここが「リーチ（見込み客に絡む）」で、
@@ -294,8 +312,11 @@ function renderGrowthKit(kit) {
   out.push("| **プロフィールへのアクセス数** | 同上 | 投稿→プロフィールまでは来ているか |");
   out.push("| **フォロワー数** | プロフィール | 目標100人までの残り |");
   out.push("");
+  // 【2026-08-16修正】ここが挙げていた原因のうち「毎投稿に外部リンク」「タグの付けすぎ」は
+  // 実装で解消済み。残っている原因だけを書く（直したものを原因として挙げ続けると、
+  // 次に何を疑えばいいのかが分からなくなる）。
   out.push(
-    "**インプレッションがほぼ0なら**、投稿文をいくら磨いても意味がありません。原因は表示側（新規アカウントの評価・毎投稿に外部リンクが入っていること・タグの付けすぎ）にあるので、下の「4. 表示を増やす実験」を回します。"
+    "**インプレッションがほぼ0のままなら**、投稿文をいくら磨いても意味がありません。本文のリンクとタグは2026-08-16に実装で解消済みなので、次に疑うのは投稿の頻度・時刻・画像の有無です（下の「4」「5」）。**シャドウバンが再発していないかも併せて確認してください**（`shadowban.lami.zip` 等の判定サイト）。"
   );
   out.push("");
   out.push(
@@ -316,14 +337,36 @@ function renderGrowthKit(kit) {
   out.push("");
   out.push("**固定ポストの下書き**（1回貼って固定するだけ。毎週やり直す必要はありません）:");
   out.push("");
-  out.push(`**[▶ このままXの投稿画面を開く](${xPostUrl(pinnedDraft)})**`);
+  out.push(`**[▶ このままXの投稿画面を開く](${xPostUrl(pinnedDraft.text)})**`);
   out.push("");
   out.push("```");
-  out.push(pinnedDraft);
+  out.push(pinnedDraft.text);
   out.push("```");
   out.push("");
+  if (pinnedDraft.replyUrl) {
+    out.push("固定したら、**その投稿へのリプライでこのURLを貼る**（固定ポストは1回きりなので、これも1回だけ）:");
+    out.push("");
+    out.push("```");
+    out.push(pinnedDraft.replyUrl);
+    out.push("```");
+    out.push("");
+  }
 
   out.push("## 4. 表示を増やす実験（会話をしない前提での打ち手）");
+  out.push("");
+  // 【2026-08-16に全面書き換え】この節は長らく「本文からURLを外す」「タグを1個にする」を
+  // **利用者が手で試す実験**として並べていた。2026-08-16にその2つは日次・週次とも
+  // 生成側に実装したので、人がやることではなくなった（下書きが最初からその形で出る）。
+  // 実装済みのものをチェックリストに残すと、毎週「もうやってある」を確認するだけの
+  // 空回りになり、本当に人しかできない項目（画像添付・単発ネタ）が埋もれる。
+  out.push(
+    "**下の2つは実装済みなので、もうやることはありません**（下書きが最初からその形で出ます）。"
+  );
+  out.push("");
+  out.push("- ✅ **ハッシュタグは季節タグ1個だけ**（2026-08-16実装）");
+  out.push("- ✅ **本文にURLを入れず、リプライで貼る**（2026-08-16実装。上のドラフトにリプライ用URLが付いています）");
+  out.push("");
+  out.push("残っているのは、人が手を動かさないとできない次の2つです。");
   out.push("");
   // 【2026-08-07に順番と根拠を書き換え】以前はこの節の筆頭が
   // 「本文からURLを外し、URLは自分の投稿への返信に貼る」だった。根拠は
@@ -334,17 +377,11 @@ function renderGrowthKit(kit) {
   // 日本語のSEO記事が今も「30〜50%減点」と書いているのは撤廃前の情報の複製とみられる。
   // 撤廃を裏付ける独立の実測は無いので断定はしないが、**毎日2手増やす実験を
   // 最優先で人にやらせる根拠としては弱い**ので、手数の増えない順に並べ替えた。
-  out.push(
-    "会話をしない前提だと、打てるのは「表示される回数を増やす」だけです。**手数が増えない順**に並べてあります。上から順に、**2週間ずつ**試して1のインプレッションが変わるか見てください（同時に複数変えると何が効いたか分からなくなります）。"
-  );
-  out.push("");
-  out.push("- [ ] **ハッシュタグを1個だけにする**（手数ゼロ。2026年1月のアルゴリズム刷新でタグの加点はほぼ無くなったとされる。減点される実測は無いが、付ける利益も薄い）");
-  out.push("- [ ] **定型3種以外に、単発で「意外な数字」を1本投げる**（下の1のドラフトがそれ。番組表は誰もリポストしないが、通説を否定する一次データはされうる）");
   out.push("- [ ] **サイトの画面キャプチャを1枚添える**（1手増える。画像付きは伸びやすいと言われる）");
-  out.push("- [ ] **本文からURLを外し、URLは自分の投稿への返信に貼る**（2手増える。**優先度は最後**。根拠にしていた「リンクは表示が抑えられる」説は、2025年10月に撤廃されたと報じられており、いま成り立つか怪しい）");
+  out.push("- [ ] **定型ネタ以外に、単発で「意外な数字」を1本投げる**（上の④のドラフトがそれ。番組表は誰もリポストしないが、通説を否定する一次データはされうる）");
   out.push("");
   out.push(
-    "2週間後、変化があった項目だけ残します。**変わらなければ元に戻してください**（手数が増えるだけなので）。"
+    "**2週間ずつ、片方だけ**試して2のインプレッションが変わるか見てください（同時に両方変えると何が効いたか分かりません）。変わらなければ元に戻します（手数が増えるだけなので）。"
   );
   out.push("");
 
@@ -353,10 +390,23 @@ function renderGrowthKit(kit) {
   out.push(
     "- **時刻**: 放送直後の実況が集まる 21:00〜24:00、または昼の 12:00〜13:00 が届きやすい。"
   );
+  // 【2026-08-16修正】以前はここが「1〜2個」で、生成されるドラフト（季節タグ1個）と
+  // 食い違っていた。手で書き足すときにタグが増えると、せっかく減らした意味が無くなる。
   out.push(
-    `- **ハッシュタグ**: \`#${year}年${label}アニメ\` \`#今期アニメ\` ＋ 話題の作品固有タグ（例: 放送当日の作品名タグ）を1〜2個。付けすぎない。`
+    `- **ハッシュタグ**: \`#${year}年${label}アニメ\` の**1個だけ**にする（2026-08-16変更）。上のドラフトもその形で出る。手で投稿文を書くときも増やさないこと。`
   );
   out.push("- **画像**: 投稿にサイトの実画面（カレンダー/TOP5パネル）のスクショを添えると伸びやすい（権利画像は使わない方針のまま）。");
+  out.push("");
+
+  out.push("## 6. （任意）実際の困りごとを読む");
+  out.push("");
+  out.push(
+    "返信はしない方針なので、これは**リサーチ用**です。「どこで見れる？」で困っている人が実際にどんな書き方をしているかを眺めると、投稿文やスポットライトで取り上げる作品を選ぶ材料になります。やらなくても構いません。"
+  );
+  out.push("");
+  for (const q of queries) {
+    out.push(`- [🔍 Xで検索する](${xSearchUrl(q)})`);
+  }
   out.push("");
 
   out.push("## 7. 今週のチェック");
@@ -374,17 +424,6 @@ function renderGrowthKit(kit) {
   // 【残してある理由】利用者の判断で他ユーザーへのリプライ・絡みは行わない方針だが、
   // 「困っている人が実際にどう困っているか」を読むだけでも、投稿文や
   // content/sns/spotlight.js の見直しの材料になる。接触は求めない書き方にしてある。
-  out.push("## 6. （任意）実際の困りごとを読む");
-  out.push("");
-  out.push(
-    "返信はしない方針なので、これは**リサーチ用**です。「どこで見れる？」で困っている人が実際にどんな書き方をしているかを眺めると、投稿文やスポットライトで取り上げる作品を選ぶ材料になります。やらなくても構いません。"
-  );
-  out.push("");
-  for (const q of queries) {
-    out.push(`- [🔍 Xで検索する](${xSearchUrl(q)})`);
-  }
-  out.push("");
-
   out.push(
     "運用の考え方の全体像は `docs/x-growth-playbook.md` を参照。"
   );

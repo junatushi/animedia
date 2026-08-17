@@ -6,7 +6,7 @@
 **概要**: 投稿API自体は無料（レート制限は投稿250件/24h）。有効化にはMeta側で
 Threadsアプリの準備・認可が必要で、**所要15〜20分の一度きりの作業**。以降の投稿は
 毎日/告知のワークフローが自動で行い、長期アクセストークン（60日有効）も
-`docs/operations.md`の⑦-3（`threads-refresh-token.yml`）が週次で自動延長するため、
+`docs/operations.md`の⑦-14（`threads-refresh-token.yml`）が週次で自動延長するため、
 通常運用では手を動かす必要はない。
 
 以下の手順のうち、Meta側の管理画面操作（アプリ作成・Threadsユースケース追加・
@@ -65,7 +65,7 @@ Threadsアプリの準備・認可が必要で、**所要15〜20分の一度き�
 ## 5. 自動延長用PAT（GH_SECRETS_PAT）の登録
 
 60日ごとの手動更新を避けるため、`threads-refresh-token.yml`が毎週トークンを
-リフレッシュしてSecretsへ書き戻す仕組みがある（`docs/operations.md`の⑦-3）。
+リフレッシュしてSecretsへ書き戻す仕組みがある（`docs/operations.md`の⑦-14）。
 これを動かすには、GitHub Secretsを書き換えられるPATが別途必要。
 
 1. GitHubの https://github.com/settings/personal-access-tokens → 「Generate new token」
