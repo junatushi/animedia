@@ -63,6 +63,22 @@ function renderIssue(posts) {
     out.push(p.text);
     out.push("```");
     out.push("");
+    // 本文からURLを外した投稿（＝X。2026-08-16導入）は、リプライに貼るURLをここに出す。
+    // 本文に入れないだけで導線自体は残す設計なので、**この欄を出し忘れると流入が丸ごと
+    // 消える**。posts側に replyUrl があるときだけ出し、無いときは何も足さない。
+    if (p.replyUrl) {
+      out.push("### ↑を投稿したら、自分のポストにリプライでURLを貼る");
+      out.push("");
+      out.push(
+        "本文に外部リンクを入れないための運用です（2026-08-07のシャドウバン対応）。" +
+          "本文とリプライを分けることで、リンクは残したまま本文からリンクを外せます。"
+      );
+      out.push("");
+      out.push("```");
+      out.push(p.replyUrl);
+      out.push("```");
+      out.push("");
+    }
   });
   return out.join("\n");
 }

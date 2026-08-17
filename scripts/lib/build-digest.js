@@ -61,6 +61,22 @@ function maxLenFor(platform) {
   return PLATFORM_MAX_LEN[platform] || MAX_LEN;
 }
 
+// 本文にURLを載せるか（2026-08-16導入）。
+//
+// 【なぜXだけ載せないか】2026-08-07に判明したシャドウバン（Search Ban）の推定原因は
+// 「同一に近い文面 × 高頻度 × **毎回リンク** × 無会話」で、Xは全投稿の本文に外部リンクが
+// 入っていた。Xは本文中の外部リンクを嫌う傾向があるとされる一方、リンクを完全に捨てると
+// 流入経路が消える。そこで**本文からは外し、自分への1本目のリプライにURLを置く**運用にする
+// （利用者の判断・2026-08-16）。下書きIssueはリプライ用のURLを別枠で出す
+// （print-digest.js の renderIssue）。
+//
+// 他の3つ（Bluesky/Mastodon/Threads）はシャドウバンの対象ではなく、本文リンクで
+// 問題なく届いているので**触らない**。ここを true/false で切り替えるだけにしてあるのは、
+// 解除・再開の判断で戻す可能性があるため（戻すときはこの1関数だけを直す）。
+function bodyIncludesUrl(platform) {
+  return platform !== "x";
+}
+
 // 1970-01-01からの経過日数。buildSpotlightの日替わりローテーションと同じ考え方。
 function daysSinceEpoch(todayStr) {
   return Math.floor(Date.parse(`${todayStr}T00:00:00Z`) / 86400000);
@@ -85,10 +101,21 @@ function pickFor(table, platform, key, todayStr) {
 }
 
 // その曜日の放送・配信（airing）の1行目。
-// x は従来の文面のまま1つだけ持つ（Xは人が手を入れて投稿する下書きで、
-// docs/sns-templates.md の見本との対応を崩したくないため）。
+//
+// 【2026-08-16変更】x も他と同じ4パターンに広げた。
+// それまで x だけ要素数1で、理由は「docs/sns-templates.md の見本との対応を崩したくない」
+// だった。しかしその結果、Xの下書きだけがデータ以外一字一句同じ文面を毎週出し続けており、
+// 2026-08-07に判明したシャドウバン（Search Ban）の推定原因「同一に近い文面 × 高頻度」を
+// **Xだけが丸ごと抱えたまま**になっていた。2026-08-06に他3つを4パターン化したときも
+// Xは対象外だったため、対策が入っているつもりで入っていない状態が9日続いた。
+// 見本の側（docs/sns-templates.md）を追随させる。
 const AIRING_LEAD = {
-  x: [(c) => `【${c.wl}曜】今日放送・配信の今期アニメ（${c.year}年${c.label}）`],
+  x: [
+    (c) => `【${c.wl}曜】今日放送・配信の今期アニメ（${c.year}年${c.label}）`,
+    (c) => `【${c.wl}曜】今日は${c.n}本。放送・配信のある今期アニメです。`,
+    (c) => `今日（${c.wl}曜）放送・配信がある${c.year}年${c.label}アニメ、${c.n}本。`,
+    (c) => `【${c.wl}曜】${c.n}本の放送・配信があります（${c.year}年${c.label}アニメ）。`,
+  ],
   bluesky: [
     (c) => `【${c.wl}曜】今日の放送・配信は${c.n}本です。`,
     (c) => `【${c.wl}曜】今夜からの放送・配信、${c.n}本ぶんの配信先をまとめました。`,
@@ -111,7 +138,12 @@ const AIRING_LEAD = {
 
 // 一覧の締め（カレンダー表示への誘導）。
 const CALENDAR_CTA = {
-  x: ["曜日別はカレンダー表示で。"],
+  x: [
+    "曜日別はカレンダー表示で。",
+    "ほかの曜日もカレンダー表示から見られます。",
+    "曜日ごとの並びはカレンダー表示で。",
+    "残りの曜日はカレンダー表示にまとめています。",
+  ],
   bluesky: ["曜日別はカレンダー表示で。", "曜日ごとの一覧はカレンダー表示から。", "ほかの曜日もカレンダー表示で見られます。"],
   threads: ["曜日別はカレンダー表示で。", "ほかの曜日はカレンダー表示から。", "曜日ごとの並びはカレンダー表示で。"],
   mastodon: ["今週ぶんの並びはカレンダー表示で。", "曜日別はカレンダー表示で。", "ほかの曜日もカレンダー表示から見られます。"],
@@ -119,7 +151,12 @@ const CALENDAR_CTA = {
 
 // 注目作TOP5（top5）の1行目。
 const TOP5_LEAD = {
-  x: [(c) => `今週の「アニメ視聴ガイド」注目作TOP5（${c.year}年${c.label}アニメ）`],
+  x: [
+    (c) => `今週の「アニメ視聴ガイド」注目作TOP5（${c.year}年${c.label}アニメ）`,
+    (c) => `【注目作TOP5】${c.year}年${c.label}アニメ、視聴者数の多い5作品です。`,
+    (c) => `${c.year}年${c.label}アニメの注目作TOP5をまとめました。`,
+    (c) => `今週の注目作TOP5です（${c.year}年${c.label}アニメ）。`,
+  ],
   bluesky: [
     (c) => `今週の注目作TOP5（${c.year}年${c.label}アニメ）`,
     (c) => `【注目作TOP5】${c.year}年${c.label}アニメ、視聴者数の多い5作品です。`,
@@ -139,7 +176,12 @@ const TOP5_LEAD = {
 
 // スポットライト（spotlight）の説明行。配信サービス名の行の直後に置く。
 const SPOTLIGHT_BODY = {
-  x: [() => "見放題で見られるサービスをまとめています。"],
+  x: [
+    () => "見放題で見られるサービスをまとめています。",
+    () => "どのサービスで見放題になっているかを一覧にしています。",
+    () => "見放題で観られるサービスを一覧にしました。",
+    () => "どこで見放題かをまとめています。",
+  ],
   bluesky: [
     () => "見放題で見られるサービスをまとめています。",
     () => "どのサービスで見放題になっているかを一覧にしています。",
@@ -411,12 +453,15 @@ function buildTop5(data, year, label, url, shotUrl = url, todayStr, platform = "
     ...top5.map((it, i) => `${i + 1}. ${shortTitle(it.title)}（${it.watchers.toLocaleString("ja-JP")}人が注目）`),
     "",
     ...(question ? [question] : []),
-    url,
+    ...(bodyIncludesUrl(platform) ? [url] : []),
     `#${year}年${label}アニメ`,
   ];
   return {
     kind: "top5",
     text: truncate(lines.join("\n"), maxLenFor(platform)),
+    // 本文にURLを載せない投稿先（＝X）では、リプライに貼るURLをここで返す。
+    // 本文から消すだけだと導線が丸ごと消えるため、必ず対で持たせる。
+    replyUrl: bodyIncludesUrl(platform) ? null : url,
     screenshot: rankingScreenshot(shotUrl),
     image: rankingImage(),
   };
@@ -450,6 +495,9 @@ function buildTodayAiring(data, weekday, year, label, url, todayStr, platform = 
   const questionLines = question ? [question] : [];
   const tag = `#${year}年${label}アニメ`;
   const max = maxLenFor(platform);
+  // Xは本文にURLを載せない（リプライに退避する。bodyIncludesUrl のコメント参照）。
+  // 字数計算にもそのまま効かせたいので、行を組み立てる全ての箇所でこの配列を展開する。
+  const urlLines = bodyIncludesUrl(platform) ? [url] : [];
 
   // タイトルを1本ずつ足していき、上限を超えない範囲で最大数を載せる。
   const picks = [];
@@ -457,17 +505,17 @@ function buildTodayAiring(data, weekday, year, label, url, todayStr, platform = 
     const line = it.broadcastTime ? `・${it.title}（${it.broadcastTime}〜）` : `・${it.title}`;
     const remain = today.length - (picks.length + 1);
     const tail = remain > 0 ? `ほか${remain}作品。${cta}` : cta;
-    const candidate = [header, "", ...picks, line, "", tail, ...questionLines, url, tag].join("\n");
+    const candidate = [header, "", ...picks, line, "", tail, ...questionLines, ...urlLines, tag].join("\n");
     if ([...candidate].length > max) break;
     picks.push(line);
   }
   // 1本も入らない極端なケースはヘッダーだけでも出す（通常は起きない）。
   if (picks.length === 0) {
-    return truncate([header, "", url, tag].join("\n"), max);
+    return truncate([header, "", ...urlLines, tag].join("\n"), max);
   }
   const remain = today.length - picks.length;
   const tail = remain > 0 ? `ほか${remain}作品。${cta}` : cta;
-  return truncate([header, "", ...picks, "", tail, ...questionLines, url, tag].join("\n"), max);
+  return truncate([header, "", ...picks, "", tail, ...questionLines, ...urlLines, tag].join("\n"), max);
 }
 
 // スポットライト枠（2026-07-27導入）: GSC・Vercel Analyticsの実測で需要が確認できている
@@ -524,7 +572,11 @@ function buildSpotlight(data, year, label, todayStr, platform = "x") {
   const seasonTag = `#${year}年${label}アニメ`;
   // 作品名タグ（hashtag、2026-07-27追加）は季節タグより先に置く。作品名の方が検索・通知に
   // 引っかかりやすく、埋もれさせたくないため（content/sns/spotlight.jsのコメント参照）。
-  const workTag = picked.hashtag ? `#${picked.hashtag}` : null;
+  // 【2026-08-16変更】Xでは作品名タグを付けず、季節タグ1つに絞る。
+  // シャドウバンの推定原因に「タグ付き」が入っており、打ち手として「タグを減らす」が
+  // 挙がっていた（docs/handoff.md 2026-08-07メモ）。スポットライトはXで唯一の2タグ投稿
+  // だったのでここが該当する。他の3つは影響を受けていないので従来どおり2タグのまま。
+  const workTag = platform !== "x" && picked.hashtag ? `#${picked.hashtag}` : null;
   // スポットライトは1作品を名指しする投稿なので、Threadsに添付する画像はその作品ページの
   // OGP画像（既存の app/anime/[id]/opengraph-image）をそのまま使う。専用の画像を
   // 作り足す必要がなく、リンク先と絵柄が一致する。
@@ -534,6 +586,10 @@ function buildSpotlight(data, year, label, todayStr, platform = "x") {
   // スポットライトは曜日で出し分けない枠なので、頻度の判定にも曜日は渡さない（週番号だけ）。
   const question = questionFor("spotlight", platform, todayStr, 0);
   const max = maxLenFor(platform);
+  // スポットライトのリンク先は作品ページ。Xでは本文に出さずリプライへ回す
+  // （bodyIncludesUrl のコメント参照）。
+  const workUrl = `${SITE_URL}/anime/${picked.id}`;
+  const replyUrl = bodyIncludesUrl(platform) ? null : workUrl;
   const buildLines = (tagLine) => [
     `【どこで見れる？】${picked.title}`,
     "",
@@ -541,7 +597,7 @@ function buildSpotlight(data, year, label, todayStr, platform = "x") {
     body,
     ...(question ? ["", question] : []),
     "",
-    `${SITE_URL}/anime/${picked.id}`,
+    ...(bodyIncludesUrl(platform) ? [workUrl] : []),
     tagLine,
   ];
 
@@ -553,15 +609,43 @@ function buildSpotlight(data, year, label, todayStr, platform = "x") {
     // （通常の投稿文＝季節タグのみは元々上限に収まる想定のため、この段階で切り詰める
     // 必要はまず発生しない）。
     if ([...withWorkTag].length <= max) {
-      return { kind: "spotlight", text: withWorkTag, screenshot: null, image: workImage };
+      return { kind: "spotlight", text: withWorkTag, replyUrl, screenshot: null, image: workImage };
     }
   }
-  return { kind: "spotlight", text: truncate(buildLines(seasonTag).join("\n"), max), screenshot: null, image: workImage };
+  return {
+    kind: "spotlight",
+    text: truncate(buildLines(seasonTag).join("\n"), max),
+    replyUrl,
+    screenshot: null,
+    image: workImage,
+  };
+}
+
+// Xの1日あたりの投稿種別（2026-08-16導入）。添字は曜日（0=日）。
+//
+// 【なぜ絞るか】Xの下書きIssueには毎日3投稿ぶん（TOP5・今日の放送・スポットライト）が
+// 入っており、1日3投稿の運用になっていた。2026-08-07に判明したシャドウバンの推定原因が
+// 「同一に近い文面 × **高頻度** × 毎回リンク × 無会話」で、打ち手として「頻度を1日1回以下」が
+// 挙がっていた（docs/handoff.md 2026-08-07メモ）。利用者の判断（2026-08-16）で1日1投稿にする。
+//
+// 種別は曜日で決め打ちにする（乱数は使わない）。同じ日なら何度実行しても同じ結果になり、
+// 3種類が週の中で均等に回る。日曜にTOP5を置くのは、TOP5が週次のランキング＝日曜にしか
+// 出ない枠だったため（buildDigest の weekday===0 の分岐を参照）。
+const X_DAILY_KIND = ["top5", "airing", "spotlight", "airing", "spotlight", "airing", "spotlight"];
+
+// その日にXへ出す1投稿を選ぶ。狙った種別がその日に無い（例: 放送作品が0本で airing が
+// 作られない）ときは、残っているものの先頭へ落とす＝**投稿が0件になることは無い**。
+// 純粋関数にしてあるのは scripts/check.ts から直接検査するため。
+function pickDailyXPost(posts, weekday) {
+  if (posts.length <= 1) return posts;
+  const want = X_DAILY_KIND[weekday];
+  return [posts.find((p) => p.kind === want) ?? posts[0]];
 }
 
 // 月〜土は1投稿（曜日紹介。放送作品が無ければTOP5にフォールバック）。
 // 日曜は「TOP5」＋「その日の放送/配信があれば曜日紹介」の最大2投稿にする
 // （2026-07-14: 日曜もアニメ紹介をする方針に変更）。
+// ※ ただしXは上の pickDailyXPost で最終的に1投稿へ絞る。
 async function buildDigest(now = new Date(), rawPlatform) {
   const platform = normalizePlatform(rawPlatform);
   // どの時間帯枠の実行か（DIGEST_SLOT）。未設定/"all" なら枠で絞らず全部返す。
@@ -591,6 +675,9 @@ async function buildDigest(now = new Date(), rawPlatform) {
     ? {
         kind: "airing",
         text: airingText,
+        // buildTodayAiring は文字列を返すので、リプライ用URLはここで対にする
+        // （本文へURLを入れるかの判定は buildTodayAiring 側と同じ bodyIncludesUrl を使う）。
+        replyUrl: bodyIncludesUrl(platform) ? null : shareUrl,
         screenshot: calendarScreenshot(shotUrl, WEEKDAY_LABEL[weekday]),
         image: airingImage(WEEKDAY_LABEL[weekday]),
       }
@@ -609,8 +696,10 @@ async function buildDigest(now = new Date(), rawPlatform) {
   // 例: 月〜土は放送作品があるので morning(top5) が空、日曜は3枠とも埋まる。
   // kinds を持つ枠（SLOTS）だけ内容を絞る。Mastodonのまとめ投稿（BATCH_SLOTS）は
   // kinds を持たないので、その日の全投稿がそのまま出る。
+  const slotted = slot?.kinds ? posts.filter((p) => slot.kinds.includes(p.kind)) : posts;
   return {
-    posts: slot?.kinds ? posts.filter((p) => slot.kinds.includes(p.kind)) : posts,
+    // Xだけ1日1投稿に絞る（2026-08-16導入。bodyIncludesUrl と同じ理由）。
+    posts: platform === "x" ? pickDailyXPost(slotted, weekday) : slotted,
     year,
     season,
     label,
@@ -749,6 +838,10 @@ module.exports = {
   PLATFORMS,
   normalizePlatform,
   maxLenFor,
+  // X運用の組み直し（2026-08-16導入）。scripts/check.ts が直接検査する。
+  bodyIncludesUrl,
+  pickDailyXPost,
+  X_DAILY_KIND,
   weekIndex,
   buildTop5,
   buildTodayAiring,
