@@ -58,7 +58,9 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   **本番のクエリ（`lib/annict.ts`）は一切触らない**。フィールド名を決め打ちせず、まず
   イントロスペクションで形を聞いてから問い合わせを組み立てるので、無いフィールドを指定して
   失敗することが無い。最後に人力の対応表と突き合わせ、**全一致したときだけ自動化を検討する**。
-  要`ANNICT_TOKEN`＝PC作業。手順は`docs/annict-serieslist-probe.md`
+  要`ANNICT_TOKEN`＝PC作業。手順は`docs/annict-serieslist-probe.md`。
+  **2026-08-11に実測済み＝結論は「使えない」**（`Series.works`が作品IDでない値を返し、
+  `title`を要求すると500。人力の対応表との一致は6シリーズ中0）。**再実行の必要は無い**
 - `node scripts/check-probe-series.js` … 上の探りスクリプト自身のテスト（2026-08-11導入）。
   GraphQLのスタブを立てて`probe-series.ts`を実際に動かし、`seriesList`が無いスキーマでも
   落ちないこと・`nodes`/`edges`どちらの形でも辿れること・食い違いを黙って通さないこと・
