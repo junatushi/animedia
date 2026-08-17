@@ -33,12 +33,14 @@ const MAX_PROGRAM_PAGES = 12;
 
 interface ProgramConn {
   pageInfo: { hasNextPage: boolean; endCursor: string | null };
-  // rebroadcast/episode はWORK_QUERY・PROGRAMS_QUERY（作品個別取得）でのみ取得する
-  // （配信開始通知機能が「今日の実配信日・話数」を特定するために使う）。
+  // rebroadcast は作品個別取得（WORK_QUERY / PROGRAMS_QUERY_DETAIL）でのみ取得する。
   // SEASON_QUERY（一覧）では取得しないため、その場合は常にundefinedになる。
-  // episodeが未紐付けのprogramはAnnict側のnon-nullフィールド違反によりノード自体が
-  // nullで返ってくることがある（gql()が部分エラーとして許容するため）。呼び出し側は
-  // 必ずnullを除外して扱う。
+  // episode は「配信開始通知メールの話数表示」専用で、PROGRAMS_QUERY_EPISODE で
+  // 別途取ってから mergeEpisodeInfo で重ねたときだけ入る（理由は PROGRAM_FIELDS_* の
+  // コメント参照）。
+  // なお episode を要求したクエリでは、未紐付けのprogramがAnnict側のnon-nullフィールド
+  // 違反によりノード自体がnullで返ってくる（gql()が部分エラーとして許容するため）。
+  // 呼び出し側は必ずnullを除外して扱う。
   nodes: ({
     channel: { name: string | null } | null;
     startedAt: string | null;
@@ -46,6 +48,11 @@ interface ProgramConn {
     episode?: { number: number | null; numberText: string | null } | null;
   } | null)[];
 }
+
+// programs.nodes の生の形。episode を要求したクエリでは要素が null になりうる
+// （PROGRAM_FIELDS_* のコメント参照）ため、扱う側は必ず null を落とす。
+// export はテスト用（scripts/check.ts が mergeEpisodeInfo を検査する）。
+export type ProgramNodes = ProgramConn["nodes"];
 
 interface RawWork {
   annictId: number;
@@ -118,9 +125,29 @@ function creditsFields(
 const CREDITS_FIELDS = creditsFields(CASTS_LIST, STAFFS_LIST, false);
 const CREDITS_FIELDS_DETAIL = creditsFields(CASTS_DETAIL, STAFFS_DETAIL);
 
+// ── programs のフィールド構成（2026-08-16 再設計） ──────────────────────────
+// Annict の `Program.episode` は non-null なのに、話数がまだ紐付いていない program が
+// 実在する。そこに episode を要求すると GraphQL の null 伝播で **program ノードが丸ごと
+// null** になり、channel（＝配信サービス）ごと消える。
+// 実測（2026-08-16・Annict本番。episode を外すと全部戻ることも同時に確認）:
+//   ・17359 スティール・ボール・ラン … programs 11件が11件ともnull＝Netflixが消滅
+//   ・17433 カードファイト!! ヴァンガード … 21件が21件ともnull＝放送7局が消滅
+//   ・16468 ブチ切れ令嬢 … 252件中147件がnull＝UTYテレビ山梨が消滅
+// 一方 rebroadcast は nullable なので、要求してもノードは消えない（同日実測）。
+// したがって **配信サービスを数えるための取得では episode を要求しない**。
+// 話数が要るのは配信開始通知メールだけなので、そこだけ PROGRAMS_QUERY_EPISODE で
+// 別に取り、channel名＋startedAt で突き合わせて重ねる（mergeEpisodeInfo）。
+// 2026-07-12 に一覧の追い取得だけを直したが、1ページ目を取る WORK_QUERY 自体が
+// episode を要求したままだったため、300件以下の作品でも作品ページだけが
+// 「配信情報なし」になっていた（一覧＝/api/season には出るのに、である）。
+const PROGRAM_FIELDS_LIST = "channel { name } startedAt";
+const PROGRAM_FIELDS_DETAIL = `${PROGRAM_FIELDS_LIST} rebroadcast`;
+const PROGRAM_FIELDS_EPISODE = `${PROGRAM_FIELDS_DETAIL} episode { number numberText }`;
+
 // シーズンの作品一覧＋各作品の programs（最大 PROGRAMS_PER_WORK_LIST 件）＋
 // casts/staffs（声優・スタッフ名の検索用）を取る。
-const SEASON_QUERY = `
+// export はテスト用（scripts/check.ts）。
+export const SEASON_QUERY = `
 query ($season: String!, $after: String) {
   searchWorks(seasons: [$season], first: ${PAGE_SIZE}, after: $after) {
     pageInfo { hasNextPage endCursor }
@@ -133,23 +160,39 @@ query ($season: String!, $after: String) {
       image { recommendedImageUrl }
       programs(first: ${PROGRAMS_PER_WORK_LIST}) {
         pageInfo { hasNextPage endCursor }
-        nodes { channel { name } startedAt }
+        nodes { ${PROGRAM_FIELDS_LIST} }
       }
 ${CREDITS_FIELDS}
     }
   }
 }`;
 
-// 一括取得で programs が切れた作品だけ、残りの programs を追い取りするクエリ（作品個別ページ用）。
-// rebroadcast/episode は配信開始通知機能が必要とするフィールド。
-// export はテスト用（scripts/check.ts が「一覧側はepisodeを要求しない」ことを固定する）。
-export const PROGRAMS_QUERY = `
+// 作品個別取得（fetchWorkById）で programs が1ページに収まらなかったときの追い取得。
+// episode は要求しない（要求するとノードごと消える。PROGRAM_FIELDS_* のコメント参照）。
+// export はテスト用（scripts/check.ts が「episodeを要求しない」ことを固定する）。
+export const PROGRAMS_QUERY_DETAIL = `
 query ($id: Int!, $after: String) {
   searchWorks(annictIds: [$id], first: 1) {
     nodes {
       programs(first: ${PROGRAMS_PER_WORK_DETAIL}, after: $after) {
         pageInfo { hasNextPage endCursor }
-        nodes { channel { name } startedAt rebroadcast episode { number numberText } }
+        nodes { ${PROGRAM_FIELDS_DETAIL} }
+      }
+    }
+  }
+}`;
+
+// 配信開始通知メールの「話数」専用クエリ（2026-08-16分離）。**これだけが episode を
+// 要求してよい**。episode 未紐付けのprogramはノードごとnullで返るので、この応答は
+// 「配信サービスの一覧」には決して使わず、mergeEpisodeInfo で話数だけを重ねる。
+// export はテスト用（scripts/check.ts）。
+export const PROGRAMS_QUERY_EPISODE = `
+query ($id: Int!, $after: String) {
+  searchWorks(annictIds: [$id], first: 1) {
+    nodes {
+      programs(first: ${PROGRAMS_PER_WORK_DETAIL}, after: $after) {
+        pageInfo { hasNextPage endCursor }
+        nodes { ${PROGRAM_FIELDS_EPISODE} }
       }
     }
   }
@@ -169,7 +212,7 @@ query ($id: Int!, $after: String) {
     nodes {
       programs(first: ${PROGRAMS_PER_WORK_DETAIL}, after: $after) {
         pageInfo { hasNextPage endCursor }
-        nodes { channel { name } startedAt }
+        nodes { ${PROGRAM_FIELDS_LIST} }
       }
     }
   }
@@ -178,7 +221,9 @@ query ($id: Int!, $after: String) {
 // 作品個別ページ（/anime/[id]）用に、1作品だけをIDで取得するクエリ。
 // 取得対象は1作品だけなので、programs/staffsの上限を一覧クエリより高く保っても
 // 応答時間への影響は小さい（完全性を優先）。
-const WORK_QUERY = `
+// **episode を足さないこと**（足すと配信サービスが丸ごと消える。PROGRAM_FIELDS_* 参照）。
+// export はテスト用（scripts/check.ts）。
+export const WORK_QUERY = `
 query ($id: Int!) {
   searchWorks(annictIds: [$id], first: 1) {
     nodes {
@@ -190,7 +235,7 @@ query ($id: Int!) {
       image { recommendedImageUrl }
       programs(first: ${PROGRAMS_PER_WORK_DETAIL}) {
         pageInfo { hasNextPage endCursor }
-        nodes { channel { name } startedAt rebroadcast episode { number numberText } }
+        nodes { ${PROGRAM_FIELDS_DETAIL} }
       }
 ${CREDITS_FIELDS_DETAIL}
     }
@@ -268,19 +313,22 @@ async function mapWithConcurrency<T>(
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
 
-// programs が上限で切れた作品について、残りの programs を全ページ取得する。
-// query は呼び出し側で使い分ける（一覧はepisode不要のPROGRAMS_QUERY_LIST、
-// 作品個別ページ/通知機能はrebroadcast/episodeが要るPROGRAMS_QUERYがデフォルト）。
-async function fetchRemainingPrograms(
+// programs をページ送りで取得する。startAfter に endCursor を渡せば「上限で切れた
+// 残り」を、null を渡せば1ページ目から取る（通知機能の話数取得で使う）。
+// query に既定値は持たせない: episode を要求するクエリとしないクエリの取り違えが
+// そのまま「配信情報なし」に化けるため、どちらで取るのかを呼び出し側に毎回書かせる
+// （2026-08-16。既定値が PROGRAMS_QUERY＝episode付きだったことが取りこぼしの一因）。
+async function fetchProgramsPaged(
   annictId: number,
-  startAfter: string,
   token: string,
-  query: string = PROGRAMS_QUERY
+  query: string,
+  startAfter: string | null
 ): Promise<ProgramConn["nodes"]> {
-  const extra: ProgramConn["nodes"] = [];
+  const collected: ProgramConn["nodes"] = [];
   let after: string | null = startAfter;
 
-  for (let i = 0; i < MAX_PROGRAM_PAGES && after; i++) {
+  for (let i = 0; i < MAX_PROGRAM_PAGES; i++) {
+    if (i > 0 && !after) break;
     const data: { searchWorks: { nodes: { programs: ProgramConn | null }[] } } =
       await gql<{ searchWorks: { nodes: { programs: ProgramConn | null }[] } }>(
         { query, variables: { id: annictId, after } },
@@ -288,10 +336,40 @@ async function fetchRemainingPrograms(
       );
     const conn = data.searchWorks?.nodes?.[0]?.programs;
     if (!conn) break;
-    extra.push(...conn.nodes);
-    after = conn.pageInfo.hasNextPage ? conn.pageInfo.endCursor : null;
+    collected.push(...conn.nodes);
+    if (!conn.pageInfo.hasNextPage) break;
+    after = conn.pageInfo.endCursor;
+    if (!after) break;
   }
-  return extra;
+  return collected;
+}
+
+// episode 付きで取り直した programs から「話数だけ」を、episode を要求せずに取った
+// programs（＝配信サービスが欠けていない側）へ重ねる。突き合わせの鍵は
+// チャンネル名＋startedAt（この2つで1つの番組が定まる）。
+//
+// 大事なのは **base 側のノードを絶対に減らさない** こと。episode 側で null になった
+// ノードは「話数がまだ紐付いていない」だけであって、その番組が存在しないという意味
+// ではない。base を episode 側で置き換えたり絞り込んだりすると、episode を直接
+// 要求したのとまったく同じ事故（配信サービスの消滅）になる。
+// export はテスト用（scripts/check.ts）。
+export function mergeEpisodeInfo(base: ProgramNodes, withEpisode: ProgramNodes): void {
+  const programKey = (p: NonNullable<ProgramConn["nodes"][number]>) =>
+    `${p.channel?.name ?? ""}\u0000${p.startedAt ?? ""}`;
+
+  const episodeByKey = new Map<string, NonNullable<ProgramConn["nodes"][number]>["episode"]>();
+  for (const p of withEpisode) {
+    if (!p || !p.episode) continue;
+    const key = programKey(p);
+    if (!episodeByKey.has(key)) episodeByKey.set(key, p.episode);
+  }
+  if (episodeByKey.size === 0) return;
+
+  for (const p of base) {
+    if (!p || p.episode) continue;
+    const episode = episodeByKey.get(programKey(p));
+    if (episode) p.episode = episode;
+  }
 }
 
 export async function fetchSeasonWorks(
@@ -343,7 +421,7 @@ export async function fetchSeasonWorks(
   await mapWithConcurrency(deduped, PROGRAMS_FETCH_CONCURRENCY, async (w) => {
     const pi = w.programs?.pageInfo;
     if (w.programs && pi?.hasNextPage && pi.endCursor) {
-      const extra = await fetchRemainingPrograms(w.annictId, pi.endCursor, token, PROGRAMS_QUERY_LIST);
+      const extra = await fetchProgramsPaged(w.annictId, token, PROGRAMS_QUERY_LIST, pi.endCursor);
       w.programs!.nodes.push(...extra);
     }
   });
@@ -364,7 +442,16 @@ export async function fetchSeasonWorks(
 
 // 作品個別ページ（/anime/[id]）用。annictId 1件だけを取得する。
 // 存在しないIDの場合は null を返す（呼び出し側で 404 にする）。
-export async function fetchWorkById(id: number, token: string): Promise<AnnictWork | null> {
+//
+// withEpisode を立てると、話数（episode）を要求する2本目のクエリを追加で投げ、
+// 取れた分だけ話数を重ねる（配信開始通知メールの「第N話」表示専用）。既定では
+// 投げない: episode を要求した応答は program ノードが丸ごと欠けうるので、配信
+// サービスの一覧に使ってはならず、通知以外の用途では追加リクエストの価値が無い。
+export async function fetchWorkById(
+  id: number,
+  token: string,
+  options: { withEpisode?: boolean } = {}
+): Promise<AnnictWork | null> {
   const data = await gql<{ searchWorks: { nodes: RawWork[] } }>(
     { query: WORK_QUERY, variables: { id } },
     token
@@ -374,8 +461,13 @@ export async function fetchWorkById(id: number, token: string): Promise<AnnictWo
 
   const pi = w.programs?.pageInfo;
   if (w.programs && pi?.hasNextPage && pi.endCursor) {
-    const extra = await fetchRemainingPrograms(w.annictId, pi.endCursor, token);
+    const extra = await fetchProgramsPaged(w.annictId, token, PROGRAMS_QUERY_DETAIL, pi.endCursor);
     w.programs.nodes.push(...extra);
+  }
+
+  if (options.withEpisode && w.programs) {
+    const withEpisode = await fetchProgramsPaged(w.annictId, token, PROGRAMS_QUERY_EPISODE, null);
+    mergeEpisodeInfo(w.programs.nodes, withEpisode);
   }
 
   return {
