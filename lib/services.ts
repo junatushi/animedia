@@ -221,7 +221,8 @@ export interface ExtraServiceEntry {
 export function toAnimeItem(
   w: import("./types").AnnictWork,
   extra: ExtraServiceEntry[] = [],
-  release?: import("./types").ReleaseDateEntry
+  release?: import("./types").ReleaseDateEntry,
+  auto?: import("./types").AutoScheduleEntry
 ): import("./types").AnimeItem {
   const serviceMap = new Map<string, ServiceDef>();
   const others = new Set<string>();
@@ -275,6 +276,13 @@ export function toAnimeItem(
   // 人力のscheduleはAnnictに配信の実データが1件も無いときのフォールバック専用。
   const slot = deriveBroadcastSlot(streamingStarts) ?? manualSlot;
 
+  // 機械補完（AniList由来。content/works/autoSchedule.json）は最下位の層。
+  // Annictの実データ・人力補完のどちらかがあれば**使わない**（二次情報が確定情報を
+  // 上書きしないことを保証する。lib/types.ts の AutoScheduleEntry のコメント参照）。
+  // ここで落とすので、下流（カード表示・作品ページ）は autoSchedule が入っていれば
+  // 「他に情報が無い」と判断してよい。
+  const autoSchedule = !slot && !release && auto ? auto : null;
+
   // 声優・スタッフ名での検索用（UIには出さず、SeasonExplorerの検索マッチにのみ使う）。
   const castNames = [...new Set(w.casts.map((c) => c.name))].filter(Boolean);
   const creditNames = [
@@ -300,12 +308,14 @@ export function toAnimeItem(
     otherServices: [...others],
     hasBroadcastData,
     releaseDate: release ?? null,
+    autoSchedule,
     broadcastStartDate: slot?.date ?? null,
     broadcastWeekday: slot?.weekday ?? null,
     broadcastTime: slot?.time ?? null,
     creditNames,
     castNames,
     media: w.media ?? null,
+    malAnimeId: w.malAnimeId ?? null,
   };
 }
 
@@ -350,8 +360,9 @@ function deriveCredits(
 export function toAnimeDetail(
   w: import("./types").AnnictWork,
   extra: ExtraServiceEntry[] = [],
-  release?: import("./types").ReleaseDateEntry
+  release?: import("./types").ReleaseDateEntry,
+  auto?: import("./types").AutoScheduleEntry
 ): import("./types").AnimeDetail {
-  const item = toAnimeItem(w, extra, release);
+  const item = toAnimeItem(w, extra, release, auto);
   return { ...item, credits: deriveCredits(w.casts, w.staffs) };
 }

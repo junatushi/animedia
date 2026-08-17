@@ -1,0 +1,100 @@
+name: 次クールの放送予定日の自動取得
+
+# 【なぜ要るか・2026-08-17】
+# 2026秋クールの実測で、Annictに99作品が登録されているのに programs（番組表）を
+# 持つのは3件だけで、サイト上では96件が「放送時期未定」だった。同じ日、AniListは
+# 同じクールについて38件の日付（日まで）を既に持っていた。つまり日付はもう
+# 公開されているのに、それをサイトへ運ぶ経路が無いのが穴だった。
+#
+# 取得内容は scripts/fetch-upcoming.js（YAMLに条件を書かない。ローカルからも
+# `node scripts/fetch-upcoming.js` でそのまま回せる）。情報源はデプロイ済みサイトの
+# 公開API /api/season と AniList の公式GraphQL（キー不要）の2つだけなので、
+# track-season.yml と同じく Secrets は不要（ANNICT_TOKEN を足さない）。
+#
+# 「いまが何時か」で挙動を変えないスクリプトなので、UPCOMING_TODAY 等の環境変数は
+# 渡さない（JSTの今日はスクリプト側の jstToday() が自分で決める）。
+
+on:
+  schedule:
+    # 1日2回（利用者の選択）。GitHub Actions の schedule はこのリポジトリの実測で
+    # 2.1〜6.4時間遅れるため、最大遅延を足してもJSTの日付をまたがない時刻を選んだ
+    # （CLAUDE.md の基本ルール）。
+    # 00:00 UTC = 09:00 JST（遅延+6.4hでも15:24 JST）
+    - cron: "0 0 * * *"
+    # 06:00 UTC = 15:00 JST（遅延+6.4hでも21:24 JST。24:00 JSTまで2.6時間の余裕を残す）
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: fetch-upcoming
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # scripts/fetch-upcoming.js は node: 組み込みモジュールと組み込みの fetch しか
+      # requireしない（外部npmパッケージへの依存が無い）ため npm ci は不要。
+      - name: 次クールの放送予定日を取得する
+        id: fetch
+        run: node scripts/fetch-upcoming.js
+
+      # 部分失敗（一部クールだけ取れた）でも、取れた分は残したい（fetch-upcoming.js は
+      # 部分成功でも書き出したうえで終了コード1を返す）ので always() で回す。
+      # 全クール失敗時はファイル自体が書き換わらないので、この後の判定で差分なしになる。
+      - name: 取得結果をコミットする
+        if: always()
+        run: |
+          if [ -z "$(git status --porcelain content/works/autoSchedule.json)" ]; then
+            echo "差分なし。コミットしません。"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add content/works/autoSchedule.json
+          git commit -m "次クールの放送予定日を取得（$(date -u +%Y-%m-%d)）"
+          # 毎日コミットするワークフローが他にもあり（track-season.yml・gsc-snapshot.yml）、
+          # scheduleの遅延で実行が重なるとpushが弾かれる。触るファイルは互いに違うので
+          # rebaseして1回だけ再試行する（衝突しうる変更ではない）。
+          git push || (git pull --rebase --autostash && git push)
+
+      # 失敗をログの中だけで終わらせない（track-season.yml と同じ考え方）。同じ内容の
+      # Issueを毎日量産しないよう、開いているIssueがあればコメントで追記するに留める。
+      - name: 失敗したらIssueに出す
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = "次クールの放送予定日の取得が失敗しました";
+            const { data: open } = await github.rest.issues.listForRepo({
+              ...context.repo, state: "open", labels: "fetch-upcoming", per_page: 10,
+            });
+            const body = [
+              `定期取得が失敗しました。`,
+              ``,
+              `- ログ: ${url}`,
+              `- 取得内容: \`scripts/fetch-upcoming.js\``,
+              ``,
+              `よくある原因:`,
+              `- 本番サイトの \`/api/season\` が落ちている（Annict障害・Vercelのデプロイ失敗）`,
+              `- AniList側のレート制限（90req/分）や仕様変更`,
+              ``,
+              `一時的なエラー（429・5xx）は指数バックオフで再試行済みなので、ここまで来た失敗は恒久的なものの可能性が高いです。`,
+              `手で回すときは \`node scripts/fetch-upcoming.js\`（シークレット不要）。`,
+            ].join("\n");
+            if (open.length > 0) {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: open[0].number, body });
+            } else {
+              await github.rest.issues.create({ ...context.repo, title, body, labels: ["fetch-upcoming"] });
+            }

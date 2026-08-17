@@ -52,6 +52,8 @@ interface RawWork {
   title: string;
   watchersCount: number | null;
   officialSiteUrl: string | null;
+  // AniListとの突き合わせキー（lib/types.ts の AnnictWork.malAnimeId 参照）。
+  malAnimeId: number | null;
   image: { recommendedImageUrl: string | null } | null;
   media: string | null;
   programs: ProgramConn | null;
@@ -129,6 +131,7 @@ query ($season: String!, $after: String) {
       title
       watchersCount
       officialSiteUrl
+      malAnimeId
       media
       image { recommendedImageUrl }
       programs(first: ${PROGRAMS_PER_WORK_LIST}) {
@@ -186,6 +189,7 @@ query ($id: Int!) {
       title
       watchersCount
       officialSiteUrl
+      malAnimeId
       media
       image { recommendedImageUrl }
       programs(first: ${PROGRAMS_PER_WORK_DETAIL}) {
@@ -354,6 +358,7 @@ export async function fetchSeasonWorks(
     title: w.title,
     watchersCount: w.watchersCount,
     officialSiteUrl: w.officialSiteUrl,
+    malAnimeId: w.malAnimeId ?? null,
     media: w.media,
     image: w.image,
     programs: w.programs ? { nodes: w.programs.nodes } : null,
@@ -383,6 +388,7 @@ export async function fetchWorkById(id: number, token: string): Promise<AnnictWo
     title: w.title,
     watchersCount: w.watchersCount,
     officialSiteUrl: w.officialSiteUrl,
+    malAnimeId: w.malAnimeId ?? null,
     media: w.media,
     image: w.image,
     programs: w.programs ? { nodes: w.programs.nodes } : null,

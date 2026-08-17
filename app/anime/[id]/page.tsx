@@ -42,6 +42,19 @@ function formatJpDate(dateStr: string): string {
   return `${y}年${m}月${d}日(${wd})`;
 }
 
+// 機械補完した放送/公開予定日（AniList由来。content/works/autoSchedule.json）の表示文字列。
+// 月までしか判明していない作品は「2026年10月」で止め、**曜日・時刻を付けない**
+// （毎週その曜日に放送される枠が確定しているように見せないため。lib/autoSchedule.ts の注記）。
+function formatAutoScheduleDate(auto: AutoScheduleEntry): string {
+  if (auto.precision === "month") {
+    const [y, m] = auto.date.split("-").map(Number);
+    return `${y}年${m}月`;
+  }
+  const base = formatJpDate(auto.date);
+  return auto.time ? `${base} ${auto.time}` : base;
+}
+
+import type { AutoScheduleEntry } from "@/lib/types";
 import { siteUrl } from "@/lib/siteUrl";
 
 type Params = { id: string };
@@ -235,6 +248,12 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   // 0件のため、これが無いと劇場作品のページには日付が一切出ない。一次情報で確認できた
   // 作品にだけ入る。
   const release = item.releaseDate ?? null;
+  // 機械補完した放送/公開の予定日（AniList由来。2026-08-17導入）。Annictの番組表も
+  // 人力補完も無い作品にだけ入る（優先順位は lib/services.ts の toAnimeItem が決める）。
+  // **JSON-LDには出さない**（datePublished も FAQPage も触らない）。一次情報で確認した
+  // 事実ではなく二次情報の「予定」なので、可視テキストに出典と取得日を添えて示すに留める
+  // 理由は lib/types.ts の AutoScheduleEntry の注記を参照。
+  const auto = item.autoSchedule ?? null;
 
   workLd.dateModified = checkedDate;
   if (release) {
@@ -271,7 +290,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   // 放送開始日が未定の作品（broadcastStartDateがnull）はリンクを出さない。
   // 劇場公開作品はprogramsが無く放送開始日も出ないため、公開日をクール逆算にも使う
   // （これが無いと劇場作品だけシーズンページへの内部リンク・パンくずが消える）。
-  const seasonBaseDate = item.broadcastStartDate ?? release?.date ?? null;
+  // 機械補完した予定日も逆算に使う（2026-08-17追加）。次クールの作品はAnnictに番組表が
+  // 入るまで broadcastStartDate が null で、この行が無いと**放送予定日を表示できている
+  // 作品でもシーズンページへのリンク・パンくずだけが消える**（劇場作品で releaseDate を
+  // 足したのと同じ理由）。月精度（"2026-10"）でも split の [y, m] は取れる。
+  const seasonBaseDate = item.broadcastStartDate ?? release?.date ?? auto?.date ?? null;
   const workSeason = seasonBaseDate
     ? (() => {
         const [y, m] = seasonBaseDate.split("-").map(Number);
@@ -468,6 +491,23 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                   出典 ↗
                 </a>
                 <span className="detail-sub">（{release.confirmedDate}確認・変更の可能性あり）</span>
+              </p>
+            )}
+            {/* 機械補完した放送/公開の予定日（AniList由来。2026-08-17追加）。
+                次クールの作品はAnnictの番組表が入るのが遅く（2026-08-17実測で2026秋99作品中3件）、
+                この層が無いと「放送時期未定」としか書けない。一次情報で確認した事実ではないので
+                ①「予定」と明示する ②出典（AniListの作品ページ）と取得日を必ず添える
+                ③断定しない、の3点を守る。Annictに番組表が入れば上の行に切り替わり、ここは消える。 */}
+            {!release && auto && (
+              <p className="detail-release detail-release-planned">
+                {auto.kind === "release" ? "公開予定" : "放送開始予定"}:{" "}
+                <strong>{formatAutoScheduleDate(auto)}</strong>{" "}
+                <a href={auto.sourceUrl} target="_blank" rel="noopener noreferrer">
+                  出典: AniList ↗
+                </a>
+                <span className="detail-sub">
+                  （{auto.fetchedDate}取得・変更の可能性あり。Annictに番組表が登録され次第そちらに切り替わります）
+                </span>
               </p>
             )}
             {/* 見出しの問いに対する答えを、まず1文の可視テキストで返す（2026-07-26追加）。

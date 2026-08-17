@@ -22,6 +22,11 @@ import { EXTRA_SERVICES } from "@/content/works/extraServices";
 import { RELEASE_DATES } from "@/content/works/releaseDates";
 import type { AnimeDetail } from "./types";
 
+// 【ここには autoSchedule.json を読み込まない】機械補完した放送予定日（AniList由来）は
+// OG画像に出さないので、edge runtimeのバンドルにJSONを持ち込む理由が無い（上の
+// スナップショットと同じ理由＝edgeでは動的importも丸ごとインライン化される）。
+// 予定日を表示するのは作品ページ本体（getWorkData.ts）と一覧（getSeasonData.ts）だけ。
+
 // トークン未設定なら投げる（呼び出し側が握りつぶすかはそちらの判断）。
 // 取得できなければ null。フォールバックは一切行わない。
 export async function getWorkDataLive(id: number): Promise<AnimeDetail | null> {

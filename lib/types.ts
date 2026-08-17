@@ -18,6 +18,10 @@ export interface AnnictWork {
   title: string;
   watchersCount: number | null;
   officialSiteUrl: string | null;
+  // MyAnimelist の作品ID。AniList側の `idMal` と突き合わせて「同じ作品」を
+  // 推測なしで特定するための共通キー（scripts/fetch-upcoming.js が使う）。
+  // 2026-08-17実測で2026秋の99作品中86件が保有。持たない作品は null。
+  malAnimeId: number | null;
   image: { recommendedImageUrl: string | null } | null;
   // Annict の Media enum（TV / MOVIE / OVA / WEB / OTHER 等）。構造化データ（JSON-LD）で
   // 作品種別（TVSeries / Movie）を出し分けるために使う。
@@ -64,6 +68,41 @@ export interface ReleaseDateEntry {
   confirmedDate: string;
 }
 
+// 機械補完した放送/公開の予定日（scripts/fetch-upcoming.js が AniList から作る
+// content/works/autoSchedule.json の1件。2026-08-17導入）。
+//
+// 【なぜ要るか】次クールの放送日はAnnictの programs（番組表）に載るのが遅い。
+// 2026-08-17の実測で、2026秋はAnnictの99作品中 **programsを持つのが3件だけ**で、
+// 残り96件はサイト上「放送時期未定」だった。一方でAniListは同じクールの38件が
+// 日付（日まで）を、28件が放送時刻まで持っていた。人力補完（extraServices.ts /
+// releaseDates.ts）は一次情報が要るぶん速くならないので、**機械が運ぶ層**を分けて置く。
+//
+// 【人力補完と混ぜない理由】出典がAniList（コミュニティDB＝二次情報）なので、
+// 一次情報だけを入れる releaseDate とは別のフィールドにし、表示も必ず「予定」と
+// 断り書き＋出典リンクを添える。JSON-LD（機械可読）には出さない。
+// また broadcastWeekday / broadcastTime / broadcastStartDate にも**入れない**
+// （それらはカレンダー・ICS配信・SNS投稿の「今日放送」判定まで流れるため、
+// 二次情報を混ぜると未確認の予定が確定情報として配られてしまう）。
+export interface AutoScheduleEntry {
+  // 予定日。precision が "day" なら "YYYY-MM-DD"、"month" なら "YYYY-MM"。
+  // 必ず precision と対で読む（月までしか判明していない作品があるため）。
+  date: string;
+  precision: "day" | "month";
+  // JSTの曜日（0=日〜6=土）と時刻（"HH:MM"）。AniListが第1話の放送時刻
+  // （airingSchedule）を持つ作品にだけ入る。precision が "month" のときは無い。
+  weekday?: number;
+  time?: string;
+  // 放送開始（broadcast）か劇場公開（release）か。Annictの media で決める。
+  kind: "broadcast" | "release";
+  // 出典（AniListの作品ページ）。人力補完と同じく検証可能性のため必須。
+  sourceUrl: string;
+  // 取得日（"YYYY-MM-DD"）。日付は延期されるため鮮度の目安として表示に出す。
+  fetchedDate: string;
+  // 突き合わせの根拠。"mal"=MyAnimeList ID一致（既定）、"title"=タイトル完全一致、
+  // "url"=公式サイトURL一致。誤マッチを後から検証できるように残す。
+  matchedBy: "mal" | "title" | "url";
+}
+
 export interface AnimeItem {
   id: number;
   title: string;
@@ -87,6 +126,11 @@ export interface AnimeItem {
   // 公式サイト等の一次情報で確認できた作品にだけ content/works/releaseDates.ts で
   // 与える（未確認の作品は null。推測では埋めない）。
   releaseDate: ReleaseDateEntry | null;
+  // 機械補完した放送/公開の予定日（AniList由来）。**Annictの実データも人力補完も
+  // 無いときだけ**入る（優先順位: Annict実データ > 人力補完 > ここ）。
+  // カレンダーや構造化データには流さず、一覧カードと作品ページで「予定」として
+  // 出典つきで見せるためだけに使う（AutoScheduleEntry のコメント参照）。
+  autoSchedule: AutoScheduleEntry | null;
   // 上記と同じ最速 programs から導出した放送/配信開始日（"YYYY-MM-DD", JST）。
   // 放送開始の1週間より前は「今週の曜日」のように見せず日付表示に切り替え、
   // カレンダー（曜日別グリッド）にも出さない基本ルールの判定に使う（SeasonExplorer側）。
@@ -100,6 +144,10 @@ export interface AnimeItem {
   // Annict の Media enum（"TV" / "MOVIE" / "OVA" / "WEB" / "OTHER"）。
   // 構造化データ（JSON-LD）で TVSeries / Movie を出し分けるのに使う。
   media: string | null;
+  // MyAnimeList の作品ID（AnnictWork.malAnimeId をそのまま通す）。
+  // scripts/fetch-upcoming.js が **トークン無しで**（公開APIの /api/season だけで）
+  // AniListと突き合わせられるようにするために公開している。
+  malAnimeId: number | null;
 }
 
 export interface SeasonResponse {

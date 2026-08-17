@@ -7,7 +7,14 @@ import { fetchSeasonWorks } from "./annict";
 import { toAnimeItem } from "./services";
 import { EXTRA_SERVICES } from "@/content/works/extraServices";
 import { RELEASE_DATES } from "@/content/works/releaseDates";
+// 機械補完した放送/公開の予定日（AniList由来。scripts/fetch-upcoming.js が1日2回更新する）。
+// Annictの実データも人力補完も無い作品にだけ効く最下位の層（lib/autoSchedule.ts）。
+import AUTO_SCHEDULE_FILE from "@/content/works/autoSchedule.json";
+import { parseAutoSchedules } from "./autoSchedule";
 import type { SeasonResponse } from "./types";
+
+// モジュール読み込み時に1回だけ検証する（リクエストごとに全件検証しない）。
+const AUTO_SCHEDULES = parseAutoSchedules(AUTO_SCHEDULE_FILE);
 
 export const VALID_SEASONS = new Set(["winter", "spring", "summer", "autumn"]);
 
@@ -35,7 +42,9 @@ async function fetchAndBuild(year: string, season: string): Promise<SeasonRespon
   const seasonStr = `${year}-${season}`;
   const works = await fetchSeasonWorks(seasonStr, token);
   const items = works
-    .map((w) => toAnimeItem(w, EXTRA_SERVICES[w.annictId], RELEASE_DATES[w.annictId]))
+    .map((w) =>
+      toAnimeItem(w, EXTRA_SERVICES[w.annictId], RELEASE_DATES[w.annictId], AUTO_SCHEDULES[w.annictId])
+    )
     .sort((a, b) => b.watchers - a.watchers);
 
   return { season: seasonStr, count: items.length, items };

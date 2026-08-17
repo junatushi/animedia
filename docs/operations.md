@@ -18,7 +18,7 @@
 時刻はJST。**GitHub Actionsのscheduleは数時間遅れる**（実測2.1〜6.4時間）ので、
 表の時刻は狙いであって保証ではない（⑦-9）。
 
-### 自動（GitHub Actions・14本）
+### 自動（GitHub Actions・15本）
 
 | 間隔・狙いの時刻 | やること | 実体 | 壊れたらどこに出るか | 詳細 |
 |---|---|---|---|---|
@@ -28,6 +28,7 @@
 | 毎日 05:17 | 本番SSRの実地検査（h1・作品リンク・断定表現・埋め込み・公開API） | `verify-production.yml` | ラベル`production-check`のIssue | ⑲ |
 | 毎日 06:40 | GSC検索パフォーマンスの取得。**データは3日遅れ**でファイル名＝データ日（コミットメッセージの日付とは3日ずれる。仕様） | `gsc-snapshot.yml` | ラベル`gsc-snapshot`のIssue | — |
 | 毎日 08:00 | 配信開始メール通知の送信 | `notify-run.yml` | **通知なし** | `docs/notify-setup.md` |
+| 毎日 09:00 / 15:00 | 次クールの放送/公開予定日をAniListから取得しAnnictと突き合わせ、差分があれば`content/works/autoSchedule.json`をコミット | `fetch-upcoming.yml` | 失敗したらIssue（ラベル`fetch-upcoming`。開いているIssueがあればコメント追記のみ） | ㉚ |
 | 毎日 11:00 | クール別の初出日を記録（Annict vs AniList）。**落ちた日のデータは後追いで取り返せない** | `track-season.yml` | ラベル`track-season`のIssue | `docs/next-season-coverage.md`7章 |
 | 毎日 12:00 | 次クール準備の窓（8/11/2/5月の下旬）ならチェックリストIssue。窓の外は何も出さない | `season-prep.yml` | 起票されないだけ | ⑱-9 |
 | 毎週月 12:00 | Threads長期トークン（60日）の自動延長 | `threads-refresh-token.yml` | ワークフロー失敗＝GitHubからメール | ⑦-14 |
@@ -3023,4 +3024,113 @@ CLAUDE.mdの基本ルールは「複数件を投げるループは1件ずつ try
 1件目の失敗で残りを巻き添えにしない」と言っている。**投稿ステップ自体は独立していた**
 （⑦-8で直してある）。独立していなかったのは**その結果を記録する側**だった。
 「処理を独立させる」ときは、成否の記録も同じ粒度で分けること。
+
+---
+
+## ㉚ 次クールの放送/公開予定日をAniListから運ぶ層を足した（2026-08-17導入）
+
+### きっかけ（実測・2026-08-17）
+
+2026秋クールはAnnictに99作品が登録されているが、`programs`（番組表）を持つのは**3件だけ**。
+残り96件はサイト上「放送時期未定」だった。同じ日にAniListを見ると、同じクールについて
+**日まで判明した日付を38件、第1話の放送時刻を28件**持っていた。日付はすでに公開されて
+いるのに、それをサイトへ運ぶ経路が無いのが穴だった。従来の人力補完
+（`extraServices.ts`/`releaseDates.ts`）や8月下旬の`season-prep`の窓は、一次情報の確認が
+要るぶん速くならない。詳しい経緯・突き合わせの精度は`docs/next-season-coverage.md`9章。
+
+### 何を足したか
+
+- `scripts/fetch-upcoming.js`（取得。Annict＝デプロイ済みサイトの公開API`/api/season`、
+  AniList＝公式GraphQL。**両方ともキー不要で`ANNICT_TOKEN`は使わない**。`x-growth.yml`・
+  `track-season.yml`と同じ方針）
+- `scripts/lib/upcoming-match.js`（突き合わせの純粋関数。ネットワークにも時計にも触らない）
+- `lib/autoSchedule.ts`（読み込み時の検証）／`content/works/autoSchedule.json`（生成物）
+- `.github/workflows/fetch-upcoming.yml`（1日2回・09:00/15:00 JST起動＝cron
+  `0 0 * * *`と`0 6 * * *`。差分があるときだけコミット）
+- `scripts/check-fetch-upcoming.js`（生成側の回帰テスト。`fetch-upcoming.js`/
+  `upcoming-match.js`を触ったら必ず実行する）
+
+### 突き合わせ（AniListはAnnictのIDを持たないため必要）
+
+1. `malAnimeId`（Annict）と`idMal`（AniList）＝同じMyAnimeListの作品IDでの一致（推測が
+   入らない）: **74/99件**
+2. 正規化したタイトルの完全一致で **+5件**
+3. 公式サイトURL（ホスト＋パス）一致で **+1件**
+
+計**80件**が一致し、**3手段の間で食い違った件は0件**だった。食い違った作品・同じキーに
+2作品ぶら下がった曖昧なキーは**採用しない**（誤マッチは無関係な作品の日付がサイトに出る
+事故になるため）。
+
+AniListの公式サイトURLは`externalLinks`の`type:"INFO"`／`site:"Official Site"`にある。
+**`type:"OFFICIAL"`は存在しない**（最初これで絞って一致0件になった）。
+
+### 層の優先順位と、表示に出さないもの
+
+- **Annict実データ > 人力補完（extraServices/releaseDates） > 機械補完（autoSchedule）**。
+  上位の層があるときは機械補完を使わない（`lib/services.ts`の`toAnimeItem`が決める）。
+- 日付の粒度は**月精度も採用する**（利用者の判断）。AniListが月までしか持たない作品は
+  「10月放送予定」と出す。ただし**月精度には曜日・時刻を付けない**（確定した放送枠が
+  あるように見せないため）。
+- 予定日は`broadcastWeekday`/`broadcastTime`/`broadcastStartDate`に**流し込まない**。
+  したがってカレンダー（曜日別グリッド）・ICS・SNSの「今日放送」には**構造上入らない**
+  （「放送開始1週間前ルール」を機械補完の側から破らないため）。
+- **JSON-LDにも出さない**（`datePublished`もFAQPageも触らない）。撤回した`WatchAction`
+  （`lib/workAvailability.ts`）と同型の「可視テキストに無い主張が機械可読の層にだけ残る」
+  壊れ方を避けるため。
+- 可視テキスト側には必ず①「予定」と明示 ②出典（AniListの作品ページ）へのリンク
+  ③取得日、を添える。表示は作品ページの「放送開始予定/公開予定」行と、一覧カードの
+  「10月放送予定」「10/2(金)〜予定」（点線の下線＋ツールチップ付き）。
+- **過去の日付は「予定」として出さない**（現在クールの作品はAniListの`startDate`が
+  数週間前を指すことがあり、実測で2026夏の9件が該当した）。
+- **取れなかった作品を消さない**（`lib/serviceAdditions.ts`・`scripts/track-season.js`と
+  同じ「揺れを持ち込まない」原則）。予定日が180日より前まで過ぎたら落とす。
+
+### 生成結果（2026-08-17時点）
+
+**105件**（2026夏1件・2026秋71件・2027冬33件）。うち**日まで34件・月まで71件**。
+
+**注意: この105件の`matchedBy`は`title`91件・`url`14件で、`mal`が0件である。**
+上の「74/99件」は手元でAnnictを直接叩いて測った値で、生成スクリプトが読むのは
+**デプロイ済みサイトの`/api/season`**なのに、`malAnimeId`を応答に足した変更が
+まだ本番に出ていないためこの回はMALキーが使えなかった。**この変更をデプロイした翌日の
+実行から`mal`が主になる**（`node scripts/check.ts`は件数を見張るが`matchedBy`の内訳は
+見張っていないので、デプロイ後に一度
+`node -e "…require('./content/works/autoSchedule.json')…"`で内訳を確認するとよい）。
+
+そのため、**Annict側の2作品が同じAniList作品を指した場合は両方とも採用しない**という
+逆向きの門番を`fetch-upcoming.js`に入れてある（索引側の「同じキーに2作品が来たキーは
+使わない」の対になるもの）。タイトル一致が主な手段である間はここが効く場面が実際にある
+（同名のTVシリーズと総集編映画など）。2026-08-17の実行では該当0件だった。
+
+### 対象外（やっていないこと）
+
+- **配信サービス名は運んでいない**。AniListのストリーミングリンクは実測でCrunchyroll 15件 /
+  HIDIVE 4件 / Netflix 4件 / Prime Video 1件しか無く、**言語・地域の情報を持たないため
+  国内配信の証明にならない**。国内配信サービスは従来どおりAnnict＋人力補完で、
+  **配信先の窓は9月中旬以降**（`docs/next-season-coverage.md`8-5節の実測どおり、
+  配信サービス各社のクール別ラインナップ特設ページは8月時点で8社すべて未公開）。
+- しょぼいカレンダーの不採用（8-4節の既存の判断）は変えていない。
+- AniListの規約はデータの大量収集・退蔵を禁じているので、取得は1クール1日2回、
+  保存は作品ID/タイトル/予定日/出典/取得日だけに留める。
+
+### 検査
+
+`node scripts/check.ts`の「機械補完した放送予定日」節（21項目。層の順番・
+`broadcast*`への漏れ・カレンダー参照・壊れたエントリの拒否・月精度に曜日を付けない・
+突き合わせのMAL優先/食い違い/曖昧キー・過去日の除外・消さないこと・JSON-LDとFAQへの
+非混入・出典と取得日の存在・ワークフローがシークレットに依存しないこと、を見張る）。
+生成側は`node scripts/check-fetch-upcoming.js`。
+
+### 追記1: 生成スクリプトが`process.exit()`を使っていて、Windowsで終了コードが化けていた
+
+`check-fetch-upcoming.js`を12回連続で回したところ**1回だけ落ちた**。原因は
+`fetch-upcoming.js`が`process.exit(1)`を使っていたことで、Windowsでは書き込み途中の
+stdoutを巻き込んでプロセスが異常終了し、終了コードが`1`ではなく**3221226505
+（0xC0000409 = STATUS_STACK_BUFFER_OVERRUN）**になる。㉔で`probe-series.ts`が踏んだのと
+**同じ罠**で、`track-season.js`には既に「`process.exit()`ではなく`exitCode`」という
+注記があったのに、それを手本にした新しいスクリプトで再発した。
+
+これは**CI（ubuntu）では原理的に起きない**ため、Windowsを`ci.yml`のmatrixに残していない
+限り永久に緑のままになる。`process.exitCode = 1`＋`return`に直した（テスト側も同じ）。
+**新しいCLIスクリプトを書くときは`process.exit()`を使わないこと。**
 

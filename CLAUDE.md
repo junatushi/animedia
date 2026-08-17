@@ -18,7 +18,7 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `npm run check` … **コミット前はこれ1本**（2026-08-11導入）。下の検査スクリプトを
   CIと同じ順で全部回す（`tsc --noEmit` → `check.ts` → `check-threads.js` →
   `check-verify-production.js` → `check-gsc.js` → `check-probe-series.js` →
-  `check-track-season.js`）。
+  `check-track-season.js` → `check-fetch-upcoming.js`）。
   検査が6コマンドに分かれていると実際には全部は回されず、2件が数セッション赤いまま
   放置された（`docs/operations.md`の㉔追記2）。CIの`run:`とこのコマンドが同じ検査を
   並べていることは`node scripts/check.ts`が突き合わせる。ネットワークには出ない
@@ -93,6 +93,23 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   **firstSeenを上書きしない・消えたものを消さない・初回に`seeded`印を付ける・
   1情報源の失敗で残りを巻き添えにしない**ことを固定する。ネットワークには出ない。
   `track-season.js`を触ったら必ず実行する
+- `node scripts/fetch-upcoming.js` … 次クールの放送/公開予定日の取得（2026-08-17導入）。
+  **AniListが既に持っている放送日をサイトへ運ぶ**。2026-08-17実測で、2026秋はAnnictに99作品が
+  登録されているのに`programs`（番組表）を持つのは3件だけ（96件が「放送時期未定」）で、同じ日
+  AniListは日まで判明した日付を38件・第1話の放送時刻を28件持っていた。人力補完
+  （`extraServices.ts`/`releaseDates.ts`）は一次情報の確認が要るぶん速くならないので、
+  **機械が毎日運ぶ層**を分けた。結果は`content/works/autoSchedule.json`に書く。
+  情報源はデプロイ済みサイトの公開API`/api/season`とAniListの公式GraphQLだけなので
+  **`ANNICT_TOKEN`は要らない**（`track-season.js`と同じ方針）。毎日
+  `.github/workflows/fetch-upcoming.yml`が**1日2回**回すので手で実行する必要は無い。
+  **配信サービス名は運ばない**（AniListのストリーミングリンクは言語・地域の情報を持たず
+  国内配信の証明にならない。実測でCrunchyroll15件/HIDIVE4件/Netflix4件/Prime1件）。
+  詳細は`docs/next-season-coverage.md`
+- `node scripts/check-fetch-upcoming.js` … 上の取得スクリプトのテスト（2026-08-17導入）。
+  HTTPスタブ（サイトのAPI・AniListの両方）を立てて`fetch-upcoming.js`を実際に動かし、
+  **MAL IDでの突き合わせが最優先・食い違いは採用しない・月精度に曜日を付けない・
+  過去の予定日を出さない・取れなかった作品を消さない・1情報源の失敗で残りを巻き添えに
+  しない**ことを固定する。ネットワークには出ない。`fetch-upcoming.js`を触ったら必ず実行する
 - `node scripts/audit-coverage.ts [year] [season]` … 配信データ網羅率の点検（2026-07-12導入）。
   引数省略時は現在のクール。(a)TV放送データはあるが配信サービス0件の作品（注目度順。
   Annict側の登録待ちの疑い）、(b)「その他配信」に落ちた未知チャンネル名（`SERVICES`
@@ -209,6 +226,12 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   （公式が自動取得を明示的に許容）だが、公式ヘルプ自身が**「1週間以上先のデータは
   間違っている可能性が高い」**と明記しており、数ヶ月前を扱うこの用途と前提が合わない。
   **再提案しないこと**（同ドキュメント8-4）。
+  ⑩**放送時期を運ぶ経路は2026-08-17に自動化した**。⑦のとおり放送時期は早く出るのに、
+  Annictの番組表に載るのは遅い（2026-08-17実測で2026秋99作品中3件）。そこで
+  `scripts/fetch-upcoming.js`がAniListから予定日を1日2回運び、変化があればコミットして
+  デプロイする（`content/works/autoSchedule.json`）。**8月の窓でやることは配信情報集めでも
+  放送日の手入力でもなく、取りこぼしの確認だけ**になった。配信サービス名は依然として
+  自動化できない（⑧のとおり各社の特設ページが9月中旬まで出ない）。
 - **Annictへのデータ還元と再配布の相談**は `docs/annict-contribution.md`（2026-08-07導入）。
   `audit-coverage.ts`が出す「配信0件の注目作」「未知チャンネル名」を一次情報で確認してAnnictへ
   登録する手順と、作品データの再配布可否を尋ねる問い合わせ文面。**主目的はサイトの配信網羅率が
@@ -265,6 +288,25 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   ②作品ページの「劇場公開日」行（出典リンク＋確認日）、③JSON-LDの`datePublished`とFAQ「公開日はいつ？」、
   ④公開日からのクール逆算（劇場作品にもシーズンページへの内部リンクが出る）。公開日は延期されるため
   `confirmedDate`を必ず入れ、注目度の高い劇場作品から都度追加する（全作品は追わない）
+- `content/works/autoSchedule.json` + `lib/autoSchedule.ts` + `scripts/lib/upcoming-match.js` …
+  **機械補完した放送/公開の予定日**（2026-08-17導入）。`extraServices.ts`・`releaseDates.ts`が
+  「人が一次情報で確認して足す層」なのに対し、こちらは**GitHub Actionsが1日2回上書きして
+  コミットする層**（生成は`scripts/fetch-upcoming.js`）。次クールの放送日はAnnictの番組表に
+  載るのが遅く、これが無いと開始1〜2ヶ月前の作品は全部「放送時期未定」になる。
+  外してはいけない点が5つある:
+  ①**層の優先順位は Annict実データ > 人力補完 > 機械補完**（`toAnimeItem`の第4引数。上位が
+  あれば`autoSchedule`は`null`になる＝確認済みの事実を未確認の推定で上書きしない）。
+  ②**`broadcastWeekday`/`broadcastTime`/`broadcastStartDate`に流し込まない**。流すと
+  カレンダー・ICS・SNSの「今日放送」に乗り、放送開始1週間前ルールを機械補完の側から破る。
+  ③**JSON-LDに出さない**（`datePublished`もFAQPageも触らない）。撤回した`WatchAction`と同型の
+  「可視テキストに無い主張が機械可読の層にだけ残る」壊れ方になるため。可視テキスト側は必ず
+  「予定」と明示し、出典（AniListの作品ページ）と取得日を添える。
+  ④**月精度（"2026-10"）には曜日・時刻を付けない**（確定した放送枠があるように見える）。
+  ⑤**AniListとの突き合わせは推測でやらない**。`malAnimeId`↔`idMal`（同じMyAnimeListの作品ID）が
+  主で、正規化タイトルの完全一致と公式サイトURL一致が補助。手段どうしが食い違った作品と、
+  同じキーに2作品がぶら下がった曖昧なキーは**採用しない**（誤マッチ＝無関係な作品の日付が
+  サイトに出る事故）。読み込み時に1件ずつ検証して壊れた件だけ捨てる（`lib/autoSchedule.ts`）。
+  検査は`node scripts/check.ts`の「機械補完した放送予定日」節。経緯は`docs/operations.md`
 - `lib/getSeasonData.ts` / `lib/getWorkData.ts` … シーズン一覧・作品個別データの取得ロジック（API route と SSR ページの両方から共有）。`getSeasonData`は**今年**はライブ取得＋`unstable_cache`（15分=900s。cron遅延吸収のため2026-07-21に10分から延長）だが、**過去年**は`content/snapshots/{year}-{season}.json`があればそれを即返す（無ければライブ取得へフォールバック）。API窓口（`app/api/season/route.ts`）はさらに応答に`s-maxage=600, stale-while-revalidate=86400`を付けCDNエッジにもキャッシュする（2026-07-21）。`getWorkData`は年に関わらず常にAnnictへのライブ取得（`fetchWorkById`）を優先するが、それが失敗し、かつ対象作品が`content/archive/index.json`（配信1件以上の過去クール1,961件）に載っていれば、`content/snapshots/`から`credits`（声優のキャラ名対応・監督・製作会社・原作者。スナップショット生成時に作られておらず持っていない）だけ空にした縮退版`AnimeDetail`にフォールバックする（2026-08-06導入。詳細は`docs/operations.md`の⑦-12）。平常時（Annictが生きている間）は今まで通りフルの`credits`つきで返る。
 - `content/snapshots/{year}-{season}.json` + `scripts/snapshot-past-seasons.ts` … 過去年（放送終了済み）シーズンの確定データを固定した静的スナップショット（2026-07-15導入）。過去年をライブ取得＋Vercelデータキャッシュに頼っていた時期は、温めCron成功の翌日でもキャッシュ追い出しで初回5〜10秒コールドを踏んでいた（実測2024夏9.4s/2020冬5.1s）ため、放送済みで動かないデータをリポジトリ同梱JSONに固定し常時0.03秒程度にした。生成は`node scripts/snapshot-past-seasons.ts [fromYear] [toYear] [--force]`（省略で2010〜昨年・既存スキップ）。**年またぎ時は前年分を1回生成する**（例:2027年になったら`node scripts/snapshot-past-seasons.ts 2026 2026`）。詳細は`docs/operations.md`の⑦-4
 - `content/works/{annictId}.json` + `content/works/index.ts` … 作品個別ページの「あらすじ・見どころ・出版社」と、任意の`faq`（「2期から見ても大丈夫？」等のよくある質問。2026-07-27追加。可視テキストとFAQPage構造化データの両方に出る）。Annictに無いデータのため人力で追記する補足コンテンツ（`docs/operations.md`の「⑧作品詳細コンテンツの追記」参照）。`faq`は実測で需要が確認できた作品にだけ付ける（全作品分の維持は続かないため）。未整備の作品は単純に省略表示される

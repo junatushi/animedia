@@ -854,6 +854,15 @@ body {
   white-space: nowrap;
 }
 .card-air-time { color: var(--accent-2); }
+/* 機械補完した放送/公開予定日（AniList由来。content/works/autoSchedule.json）。
+   Annict実データ・人力補完のどちらも無い作品にだけ出る。人力補完のバッジを点線枠で
+   区別しているのと同じ考え方で、**確定した放送枠と見た目で区別する**ために点線の
+   下線を引き、色も控えめにする（文言自体も「予定」と断っている）。 */
+.card-air-planned {
+  color: var(--muted);
+  border-bottom: 1px dotted var(--border-soft);
+  cursor: help;
+}
 .card-cool { color: var(--muted); }
 /* タイトル（全幅・2行まで）。 */
 .card-head { padding: 8px 12px 4px; }
@@ -1505,6 +1514,14 @@ a.detail-cast-name:hover { text-decoration: underline; }
 }
 .detail-release strong { font-weight: 700; }
 .detail-release a { color: var(--accent-2); }
+/* 機械補完した放送/公開の予定日（AniList由来。2026-08-17追加）。人力補完の配信バッジを
+   点線枠にしているのと同じ考え方で、「一次情報で確認した事実ではない」ことを見た目で示す。
+   数字を薄くはしない（探されている情報そのものなので読ませる）。 */
+.detail-release-planned {
+  padding-left: 8px;
+  border-left: 2px dotted var(--border-soft);
+}
+.detail-release-planned strong { border-bottom: 1px dotted var(--border-soft); }
 
 /* 配信情報の確認日（鮮度シグナル）。 */
 .detail-updated {

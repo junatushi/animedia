@@ -80,6 +80,26 @@ function weekdayOfDate(dateStr: string): number {
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
 
+// 機械補完した放送/公開の予定日（AniList由来。content/works/autoSchedule.json）の表示。
+// この値が入っているのは **Annictの実データも人力補完も無い作品だけ**（lib/services.ts の
+// toAnimeItem が保証する）。二次情報なので必ず「予定」と書き、曜日・時刻があっても
+// 「毎週その曜日」の形では出さない（放送開始1週間前ルールと同じ理由＝1話も放送されて
+// いない作品を「今週の金曜」と読ませない）。カレンダーには元から出ない
+// （broadcastWeekday を持たないため）。
+function autoAirLabel(it: AnimeItem): string | null {
+  const auto = it.autoSchedule;
+  if (!auto) return null;
+  if (auto.precision === "month") {
+    const month = Number(auto.date.split("-")[1]);
+    if (!month) return null;
+    return auto.kind === "release" ? `${month}月公開予定` : `${month}月放送予定`;
+  }
+  const wd = WEEKDAY_SHORT[weekdayOfDate(auto.date)] ?? "";
+  return auto.kind === "release"
+    ? `${formatMonthDay(auto.date)}(${wd})公開予定`
+    : `${formatMonthDay(auto.date)}(${wd})〜予定`;
+}
+
 function airLabel(it: AnimeItem): string | null {
   // 劇場公開作品は programs（放送/配信記録）が無く曜日・時刻が出せないため、
   // 人力補完した公開日（content/works/releaseDates.ts）があればそれを出す。
@@ -88,6 +108,8 @@ function airLabel(it: AnimeItem): string | null {
     const wd = WEEKDAY_SHORT[weekdayOfDate(it.releaseDate.date)] ?? "";
     return `${formatMonthDay(it.releaseDate.date)}(${wd})公開`;
   }
+  // Annictにも人力補完にも何も無い作品は、機械補完した予定日（AniList由来）を出す。
+  if (it.broadcastWeekday === null && it.autoSchedule) return autoAirLabel(it);
   if (it.broadcastWeekday === null) return null;
   const wd = WEEKDAY_SHORT[it.broadcastWeekday] ?? "";
   if (it.broadcastStartDate && isFarBeforePremiere(it)) {
@@ -1161,7 +1183,16 @@ export default function SeasonExplorer({
               <span className="slash" aria-hidden="true" />
               {/* 上部バー：放送タイミング（左）＋クール（右）。 */}
               <div className="card-topbar">
-                <span className="card-air-time">{airLabel(it) ?? "放送時期未定"}</span>
+                <span
+                  className={it.autoSchedule ? "card-air-time card-air-planned" : "card-air-time"}
+                  title={
+                    it.autoSchedule
+                      ? `AniListに登録されている放送/公開予定（${it.autoSchedule.fetchedDate}取得）。Annictに番組表が入り次第そちらに切り替わります`
+                      : undefined
+                  }
+                >
+                  {airLabel(it) ?? "放送時期未定"}
+                </span>
                 <span className="card-cool">{currentSeasonLabel}</span>
               </div>
               {/* タイトル（全幅）。 */}

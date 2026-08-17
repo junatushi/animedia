@@ -3,8 +3,14 @@ import { fetchWorkById } from "./annict";
 import { toAnimeDetail } from "./services";
 import { EXTRA_SERVICES } from "@/content/works/extraServices";
 import { RELEASE_DATES } from "@/content/works/releaseDates";
+// 機械補完した放送/公開の予定日（AniList由来。scripts/fetch-upcoming.js が1日2回更新）。
+import AUTO_SCHEDULE_FILE from "@/content/works/autoSchedule.json";
+import { parseAutoSchedules } from "./autoSchedule";
 import ARCHIVE_INDEX from "@/content/archive/index.json";
 import type { AnimeDetail, SeasonResponse } from "./types";
+
+// 読み込み時に1回だけ検証する（lib/getSeasonData.ts と同じ）。
+const AUTO_SCHEDULES = parseAutoSchedules(AUTO_SCHEDULE_FILE);
 
 // content/archive/index.json（sitemapに載せている「過去クール・配信1件以上」の
 // 1,961作品の索引）から、作品ID→スナップショットファイル名（"{year}-{season}"）の
@@ -63,6 +69,10 @@ async function loadFromSnapshot(id: number): Promise<AnimeDetail | null> {
       // 劇場公開日はスナップショット生成時に注入されていない
       // （snapshot-past-seasons.ts参照）ため、releaseDates.tsから改めて当てる。
       releaseDate: RELEASE_DATES[id] ?? item.releaseDate ?? null,
+      // スナップショットは過去クール（放送終了済み）なので、予定日の補完は要らない。
+      // 生成時期によってはキー自体が無いため、明示的に null を入れて型と実体を揃える。
+      autoSchedule: item.autoSchedule ?? null,
+      malAnimeId: item.malAnimeId ?? null,
       credits: { casts: [], director: null, productionCompany: null, originalCreators: [] },
     };
   } catch {
@@ -77,7 +87,7 @@ export async function getWorkData(id: number): Promise<AnimeDetail | null> {
   if (token) {
     try {
       const w = await fetchWorkById(id, token);
-      if (w) return toAnimeDetail(w, EXTRA_SERVICES[id], RELEASE_DATES[id]);
+      if (w) return toAnimeDetail(w, EXTRA_SERVICES[id], RELEASE_DATES[id], AUTO_SCHEDULES[id]);
       // w === null: Annictにこのidが存在しない（確認済みの404）。
       // 下でスナップショットにも無ければ本当の404として扱う。
     } catch (e) {

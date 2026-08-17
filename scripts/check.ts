@@ -47,6 +47,17 @@ import printDigest from "./print-digest.js";
 import seasonPrep from "./lib/build-season-prep.js";
 // 視聴プランの集合被覆（2026-08-07追加）。純粋関数のみ。
 import { buildServicePlan } from "../lib/servicePlan.ts";
+// 機械補完した放送/公開予定日（2026-08-17導入）。読み込み時の検証（lib/autoSchedule.ts）と、
+// AniListとの突き合わせロジック（scripts/lib/upcoming-match.js。ネットワークにも時計にも
+// 触らない純粋関数だけを置いてある）をここから直接テストする。
+import { parseAutoScheduleEntry, parseAutoSchedules } from "../lib/autoSchedule.ts";
+import {
+  isUpcoming,
+  matchWork,
+  buildEntry,
+  mergeWorks,
+  buildAniListIndex,
+} from "./lib/upcoming-match.js";
 // Discordスラッシュコマンド（2026-08-07追加）。
 import { generateKeyPairSync, sign as cryptoSign } from "node:crypto";
 import {
@@ -3519,6 +3530,345 @@ let llmsNg = 0;
 console.log(`結果（公開APIの告知）: ${llmsNg === 0 ? "全件OK" : `${llmsNg} 件NG`}`);
 
 // ─────────────────────────────────────────────
+// 機械補完した放送予定日（2026-08-17追加）
+//
+// 次クールの放送日はAnnictの programs（番組表）に載るのが遅い。2026-08-17の実測で
+// 2026秋はAnnictの99作品中 programs を持つのが3件だけ（＝96件が「放送時期未定」）で、
+// 同じ日にAniListは38件の日付と28件の放送時刻を持っていた。そこで AniList から
+// 機械が毎日運ぶ層（content/works/autoSchedule.json）を足した。
+//
+// この層は**人が確認していない二次情報**なので、壊れ方が3種類ある。全部ここで見張る:
+//   (1) 層の順番が逆転する … Annictの実データや人力補完（extraServices/releaseDates）を
+//       機械補完が上書きしたら、確認済みの事実が未確認の推定で潰される。
+//   (2) 「予定」が「確定した放送枠」に化ける … 曜日・時刻を broadcastWeekday/
+//       broadcastTime に流し込むと、カレンダー・ICS・SNSの「今日放送」に乗ってしまう
+//       （＝放送開始1週間前ルールを機械補完の側から破る）。月精度（"2026-10"）の作品に
+//       曜日が付くのも同じ事故。
+//   (3) 可視テキストに無い主張がJSON-LDにだけ残る … WatchAction を撤回したときと同型。
+//       予定日は datePublished / FAQPage に出さない（lib/types.ts の注記）。
+// 生成側（scripts/fetch-upcoming.js）自体の回帰テストは scripts/check-fetch-upcoming.js。
+// ─────────────────────────────────────────────
+console.log("\n── 機械補完した放送予定日 ──");
+let autoNg = 0;
+{
+  const okEntry = {
+    date: "2026-10-02",
+    precision: "day",
+    weekday: 5,
+    time: "23:00",
+    kind: "broadcast",
+    sourceUrl: "https://anilist.co/anime/12345",
+    fetchedDate: "2026-08-17",
+    matchedBy: "mal",
+  };
+  const judge = (name: string, ok: boolean, detail: string) => {
+    if (!ok) autoNg++;
+    console.log(`${ok ? "✓" : "✗"}  ${name.padEnd(40)} → ${detail}`);
+  };
+
+  // (1) 層の順番。toAnimeItem に同じ予定日を渡し、上位の層があるときは無視されること。
+  const auto = parseAutoScheduleEntry(okEntry)!;
+  const annictData = toAnimeItem(
+    work([{ channel: "dアニメストア", startedAt: "2026-10-02T23:00:00+09:00" }]),
+    [],
+    undefined,
+    auto
+  );
+  judge(
+    "Annictの実データが機械補完より強い",
+    annictData.autoSchedule === null && annictData.broadcastWeekday === 5,
+    annictData.autoSchedule === null
+      ? "programsがあるとautoScheduleはnull"
+      : "機械補完が残っている（実データと二重に出る）"
+  );
+
+  const manualRelease = toAnimeItem(
+    work([]),
+    [],
+    { date: "2026-10-09", sourceUrl: "https://example.com/news", confirmedDate: "2026-08-17" },
+    auto
+  );
+  judge(
+    "人力補完が機械補完より強い",
+    manualRelease.autoSchedule === null && manualRelease.releaseDate?.date === "2026-10-09",
+    manualRelease.autoSchedule === null
+      ? "releaseDateがあるとautoScheduleはnull"
+      : "一次情報で確認した日付を未確認の推定が上書きしている"
+  );
+
+  const autoOnly = toAnimeItem(work([]), [], undefined, auto);
+  judge(
+    "どちらも無いときだけ機械補完が効く",
+    autoOnly.autoSchedule?.date === "2026-10-02",
+    autoOnly.autoSchedule ? `${autoOnly.autoSchedule.date}（${autoOnly.autoSchedule.precision}）` : "効いていない"
+  );
+
+  // (2) 予定日が「確定した放送枠」の側へ漏れないこと。曜日・時刻を持つ予定日を渡しても
+  //     broadcast* は null のまま＝カレンダー・ICS・SNSの「今日放送」には絶対に入らない。
+  const leaked =
+    autoOnly.broadcastWeekday !== null ||
+    autoOnly.broadcastTime !== null ||
+    autoOnly.broadcastStartDate !== null;
+  judge(
+    "予定日をbroadcast*に流し込まない",
+    !leaked,
+    leaked
+      ? `漏れている: weekday=${autoOnly.broadcastWeekday} time=${autoOnly.broadcastTime} start=${autoOnly.broadcastStartDate}`
+      : "weekday/time/startDateはnullのまま"
+  );
+
+  const calendarSrc = readFileSync(new URL("../lib/calendar.ts", import.meta.url), "utf8");
+  judge(
+    "カレンダー生成が機械補完を参照しない",
+    !calendarSrc.includes("autoSchedule"),
+    calendarSrc.includes("autoSchedule") ? "lib/calendar.ts が autoSchedule を見ている" : "参照なし"
+  );
+
+  // (3) 読み込み時の検証。おかしい形は「そのエントリだけ捨てる」こと。
+  const badCases: [string, unknown][] = [
+    ["precisionが不正", { ...okEntry, precision: "week" }],
+    ["day精度なのに月までの日付", { ...okEntry, date: "2026-10" }],
+    ["month精度なのに日付入り", { ...okEntry, precision: "month", date: "2026-10-02" }],
+    ["kindが不正", { ...okEntry, kind: "stream" }],
+    ["出典がAniListでない", { ...okEntry, sourceUrl: "https://example.com/anime/1" }],
+    ["出典がhttp", { ...okEntry, sourceUrl: "http://anilist.co/anime/1" }],
+    ["取得日の形が不正", { ...okEntry, fetchedDate: "2026-8-17" }],
+    ["突き合わせ手段が不正", { ...okEntry, matchedBy: "guess" }],
+    ["オブジェクトでない", null],
+  ];
+  const survived = badCases.filter(([, raw]) => parseAutoScheduleEntry(raw) !== null).map(([n]) => n);
+  judge(
+    "壊れたエントリを捨てる",
+    survived.length === 0,
+    survived.length === 0 ? `${badCases.length}種すべて拒否` : `通ってしまった: ${survived.join(" / ")}`
+  );
+
+  const monthEntry = parseAutoScheduleEntry({
+    ...okEntry,
+    precision: "month",
+    date: "2026-10",
+  });
+  judge(
+    "月精度には曜日・時刻を付けない",
+    monthEntry !== null && monthEntry.weekday === undefined && monthEntry.time === undefined,
+    monthEntry === null
+      ? "月精度そのものが捨てられている"
+      : monthEntry.weekday === undefined && monthEntry.time === undefined
+        ? "曜日・時刻を落として月だけにする"
+        : `曜日/時刻が残っている: ${monthEntry.weekday}/${monthEntry.time}`
+  );
+
+  const halfSlot = parseAutoScheduleEntry({ ...okEntry, time: undefined });
+  judge(
+    "曜日と時刻は対で扱う",
+    halfSlot !== null && halfSlot.weekday === undefined,
+    halfSlot === null
+      ? "エントリごと捨てられている（日付だけは残すべき）"
+      : halfSlot.weekday === undefined
+        ? "時刻が無ければ曜日も落とす"
+        : "曜日だけが残っている（毎週その曜日と誤読される）"
+  );
+
+  // 実ファイル。生成側が壊れた形を書いたら、ここで件数が減って見える。
+  const autoFileRaw = JSON.parse(
+    readFileSync(new URL("../content/works/autoSchedule.json", import.meta.url), "utf8")
+  );
+  const rawIds = Object.keys(autoFileRaw.works ?? {});
+  const parsedAll = parseAutoSchedules(autoFileRaw);
+  const parsedIds = Object.keys(parsedAll);
+  judge(
+    "autoSchedule.jsonが全件検証を通る",
+    rawIds.length > 0 && parsedIds.length === rawIds.length,
+    rawIds.length === 0
+      ? "1件も入っていない（生成が空振りしている疑い）"
+      : parsedIds.length === rawIds.length
+        ? `${parsedIds.length}件すべて有効`
+        : `${rawIds.length}件中${rawIds.length - parsedIds.length}件が無効`
+  );
+  const monthCount = parsedIds.filter((id) => parsedAll[Number(id)].precision === "month").length;
+  console.log(`ℹ  ${"予定日の精度".padEnd(40)} → 日まで${parsedIds.length - monthCount}件 / 月まで${monthCount}件`);
+
+  // (4) 突き合わせロジック。誤マッチは「無関係な作品の日付がサイトに出る」事故なので、
+  //     迷ったら採用しない側に倒っていることを固定する。
+  const mediaA = {
+    id: 100,
+    idMal: 5000,
+    title: { native: "作品A", romaji: "Sakuhin A" },
+    startDate: { year: 2026, month: 10, day: 2 },
+    externalLinks: [{ site: "Official Site", url: "https://a.example.com/" }],
+  };
+  const mediaB = {
+    id: 200,
+    idMal: 6000,
+    title: { native: "作品B", romaji: "Sakuhin B" },
+    startDate: { year: 2026, month: 10, day: 9 },
+    externalLinks: [{ site: "Official Site", url: "https://b.example.com/" }],
+  };
+  const index = buildAniListIndex([mediaA, mediaB]);
+
+  const byMal = matchWork(
+    { malAnimeId: 5000, title: "全然ちがう題名", officialSiteUrl: null },
+    index
+  );
+  judge(
+    "MALのIDが最優先で使われる",
+    byMal?.media?.id === 100 && byMal?.matchedBy === "mal",
+    byMal ? `id=${byMal.media?.id} matchedBy=${byMal.matchedBy}` : "一致しなかった"
+  );
+
+  const conflicted = matchWork(
+    { malAnimeId: 5000, title: null, officialSiteUrl: "https://b.example.com/" },
+    index
+  );
+  judge(
+    "手段どうしが食い違ったら採用しない",
+    conflicted?.conflict === true && conflicted?.media === undefined,
+    conflicted?.conflict ? "conflictとして落とす" : `採用してしまった: ${JSON.stringify(conflicted)}`
+  );
+
+  const ambiguous = buildAniListIndex([
+    { id: 300, idMal: null, title: { native: "同名作品", romaji: null }, startDate: {}, externalLinks: [] },
+    { id: 400, idMal: null, title: { native: "同名作品", romaji: null }, startDate: {}, externalLinks: [] },
+  ]);
+  judge(
+    "同名が2件ある索引は使わない",
+    matchWork({ malAnimeId: null, title: "同名作品", officialSiteUrl: null }, ambiguous) === null,
+    "曖昧なキーは引き当てない"
+  );
+
+  const movieEntry = buildEntry(
+    { media: "MOVIE", title: "劇場作品" },
+    { ...mediaA, airingSchedule: { nodes: [{ episode: 1, airingAt: 1791234000 }] } },
+    "mal",
+    "2026-08-17"
+  );
+  judge(
+    "劇場作品に放送枠を作らない",
+    movieEntry?.kind === "release" && movieEntry?.time === undefined,
+    movieEntry ? `kind=${movieEntry.kind} time=${movieEntry.time}` : "組み立てられなかった"
+  );
+
+  const monthOnly = buildEntry(
+    { media: "TV", title: "月だけ判明" },
+    { id: 500, startDate: { year: 2026, month: 10, day: null } },
+    "title",
+    "2026-08-17"
+  );
+  judge(
+    "日が未定なら月精度に落とす",
+    monthOnly?.precision === "month" && monthOnly?.date === "2026-10" && monthOnly?.weekday === undefined,
+    monthOnly ? `${monthOnly.date}（${monthOnly.precision}）` : "組み立てられなかった"
+  );
+
+  // (5) 過去の日付を「予定」として出さない。現在クールの作品はAniListのstartDateが
+  //     数週間前を指す（2026-08-17実測で2026夏の9件が該当）。
+  const upcomingCases: [string, unknown, string, boolean][] = [
+    ["当日は出す", { date: "2026-08-17", precision: "day" }, "2026-08-17", true],
+    ["前日は出さない", { date: "2026-08-16", precision: "day" }, "2026-08-17", false],
+    ["同月は出す", { date: "2026-08", precision: "month" }, "2026-08-17", true],
+    ["前月は出さない", { date: "2026-07", precision: "month" }, "2026-08-17", false],
+  ];
+  const upcomingBad = upcomingCases.filter(([, e, today, want]) => isUpcoming(e, today) !== want);
+  judge(
+    "過去の日付を予定として出さない",
+    upcomingBad.length === 0,
+    upcomingBad.length === 0 ? `${upcomingCases.length}件の境界すべて期待通り` : `不一致: ${upcomingBad.map((c) => c[0]).join(" / ")}`
+  );
+
+  // (6) 揺れを持ち込まない。取れなかった作品を消すと、サイトの表示が日替わりで
+  //     出たり消えたりする（lib/serviceAdditions.ts / scripts/track-season.js と同じ原則）。
+  const merged = mergeWorks(
+    {
+      "1": { date: "2026-10-02", precision: "day", kind: "broadcast" },
+      "2": { date: "2026-11-01", precision: "day", kind: "broadcast" },
+      "3": { date: "2025-01-05", precision: "day", kind: "broadcast" },
+    },
+    { "2": { date: "2026-11-08", precision: "day", kind: "broadcast" } },
+    { today: "2026-08-17" }
+  );
+  const keptMissing = merged["1"]?.date === "2026-10-02";
+  const replaced = merged["2"]?.date === "2026-11-08";
+  const prunedOld = merged["3"] === undefined;
+  judge(
+    "取れなかった作品を消さない",
+    keptMissing && replaced && prunedOld,
+    `残す=${keptMissing} 置き換える=${replaced} 古いものは落とす=${prunedOld}`
+  );
+
+  // (7) 可視テキストに無い主張をJSON-LDに残さない。
+  const workPageSrc = readFileSync(
+    new URL("../app/anime/[id]/page.tsx", import.meta.url),
+    "utf8"
+  );
+  const ldAssignments = workPageSrc
+    .split("\n")
+    .filter((l) => l.includes("workLd.") && l.includes("="));
+  const ldLeak = ldAssignments.filter((l) => /\bauto\b/.test(l));
+  judge(
+    "予定日をJSON-LDに出さない",
+    ldAssignments.length > 0 && ldLeak.length === 0,
+    ldAssignments.length === 0
+      ? "workLdへの代入が見つからない（検査が空振りしている）"
+      : ldLeak.length === 0
+        ? `workLdへの代入${ldAssignments.length}行に予定日は現れない`
+        : `混入: ${ldLeak.map((l) => l.trim()).join(" / ")}`
+  );
+  const faqStart = workPageSrc.indexOf("const faqLd");
+  const faqEnd = workPageSrc.indexOf("__html", faqStart);
+  const faqBlock = faqStart >= 0 && faqEnd > faqStart ? workPageSrc.slice(faqStart, faqEnd) : "";
+  judge(
+    "予定日をFAQPageに出さない",
+    faqBlock.length > 0 && !/\bauto\b/.test(faqBlock),
+    faqBlock.length === 0
+      ? "faqLdの範囲を特定できない（検査が空振りしている）"
+      : /\bauto\b/.test(faqBlock)
+        ? "FAQに予定日が混入している"
+        : "混入なし"
+  );
+
+  // (8) 可視テキスト側は逆に、出典と取得日を必ず添える（断定しないための最低条件）。
+  const visibleOk =
+    workPageSrc.includes("auto.sourceUrl") &&
+    workPageSrc.includes("auto.fetchedDate") &&
+    /(放送開始予定|公開予定)/.test(workPageSrc);
+  judge(
+    "予定日には出典と取得日を添える",
+    visibleOk,
+    visibleOk ? "出典リンク＋取得日＋「予定」の表記あり" : "作品ページの表示に出典・取得日・「予定」のいずれかが無い"
+  );
+
+  // (9) 取得ワークフロー。シークレットを要らないままに保つ（要るようにすると
+  //     フォーク・別環境で回らなくなり、x-growth.yml と同じ方針から外れる）。
+  //     時刻の判定はスクリプト側にあるので、YAMLから今日の日付を渡さない。
+  const wfUrl = new URL("../.github/workflows/fetch-upcoming.yml", import.meta.url);
+  const wfSrc = existsSync(wfUrl) ? readFileSync(wfUrl, "utf8") : "";
+  const wfSecrets = [...wfSrc.matchAll(/secrets\.([A-Z_]+)/g)]
+    .map((m) => m[1])
+    .filter((n) => n !== "GITHUB_TOKEN");
+  judge(
+    "取得ワークフローがシークレットに依存しない",
+    wfSrc.length > 0 && wfSecrets.length === 0,
+    wfSrc.length === 0
+      ? ".github/workflows/fetch-upcoming.yml が無い"
+      : wfSecrets.length === 0
+        ? "GITHUB_TOKEN以外のシークレットを使わない"
+        : `依存している: ${[...new Set(wfSecrets)].join(" / ")}`
+  );
+  // コメントで「渡していない」と書いてあるのは正常なので、コメント行を除いて見る。
+  const wfCode = wfSrc
+    .split("\n")
+    .filter((l) => !/^\s*#/.test(l))
+    .join("\n");
+  const noToday = !/UPCOMING_TODAY/.test(wfCode);
+  judge(
+    "YAMLから日付を渡さない",
+    noToday,
+    noToday ? "UPCOMING_TODAY を渡していない" : "YAMLが日付を決めている（テスト用の抜け道が本番経路になる）"
+  );
+}
+console.log(`結果（機械補完した放送予定日）: ${autoNg === 0 ? "全件OK" : `${autoNg} 件NG`}`);
+
+// ─────────────────────────────────────────────
 // 検査を回す環境（2026-08-11追加）
 //
 // 2026-08-11、CIに入っているのに**手元では必ず失敗する**検査が2本、数セッションに
@@ -3599,6 +3949,7 @@ let ciNg = 0;
 }
 
 if (
+  autoNg > 0 ||
   datasetNg > 0 ||
   llmsNg > 0 ||
   creditNg > 0 ||
