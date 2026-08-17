@@ -18,6 +18,31 @@ const SEASON_LABEL: Record<string, string> = {
 
 type Params = { name: string; year: string; season: string };
 
+// 声優ページのISR（2026-08-11導入。app/anime/[id]/page.tsx・app/service/... と同じ型）。
+//
+// なぜここだけ抜けていたか: 声優ページは2026-07-13に作ったあと、2026-08-07に
+// 過去クールぶん（4,483ページ）へ広げたが、その間どちらの回でもISR化していなかった。
+// 結果として **sitemapに載っている面のうち、声優ページだけが毎リクエスト動的描画**
+// という状態が残っていた（`/anime/[id]`=900秒、`/service/...`=600秒はISR済み）。
+// これは実測で最も成績の良い面（2026-08-08のGSCで平均5.8位・CTR9.5%。
+// 作品ページは22.3位・1.3%）が、いちばん遅く返る面でもあったということ。
+//
+// 値は getSeasonData の今期キャッシュ（900s）と揃える。作品ページで測った効果は
+// 初回0.81秒 → 2回目以降0.010秒（app/anime/[id]/page.tsx のコメント参照）。
+export const revalidate = 900;
+
+// generateStaticParams が無いと revalidate を書いてもルートが prerender-manifest に
+// 載らず動的のまま（作品ページ・サービス別ページと同じ罠）。空配列＝ビルド時には
+// 1件も焼かず、アクセスされたものから順にISRキャッシュに載せる。
+// 声優ページは4,483件あるのでビルド時に全部焼くのは現実的でない。
+//
+// このページは出演2作品未満で notFound() を返すので、**loading.tsx を置かないこと**。
+// 置くとストリーミングでヘッダが先に確定し、404が200（ソフト404）で返るようになる
+// （app/anime/[id]/page.tsx で実測済み）。
+export function generateStaticParams() {
+  return [];
+}
+
 function findWorks(items: AnimeItem[], name: string): AnimeItem[] {
   return items.filter((it) => it.castNames.includes(name));
 }

@@ -69,3 +69,28 @@ export function attributionHtml(): string {
 export function attributionMarkdown(): string {
   return `配信情報: [${SITE_NAME}](${attributionUrl()}) / データ元: [${DATA_PROVIDER}](${DATA_PROVIDER_URL})`;
 }
+
+// ───────────────────────────────────────────────────────────────
+// 配信サービス名寄せ表（lib/serviceDataset.ts）専用の出典表記（2026-08-13追加）。
+//
+// 上の attribution*() は「Annict由来の配信情報を使ったとき」の表記で、データ元として
+// Annict を併記する。名寄せ表は**本サイトが自前で書いたもので Annict のデータを1件も
+// 含まない**ため、同じ文面を使うと ①事実として誤ったデータ出所の表明になり
+// ②被リンクを得るために公開しているのにクレジットとリンクが Annict へ流れる（狙いと真逆）。
+// そのためデータセット側は Annict を名乗らない別の文面を持つ。
+// scripts/check.ts の「配信サービス名寄せ表の公開」節が、応答の出典表記に Annict が
+// 現れないことを機械的に見張る。
+// ───────────────────────────────────────────────────────────────
+export const DATASET_CREDIT_LABEL = "配信サービス名寄せ表";
+
+export function datasetAttributionText(): string {
+  return `${DATASET_CREDIT_LABEL}: ${SITE_NAME}（${siteUrl}）`;
+}
+
+export function datasetAttributionHtml(): string {
+  return `<p>${DATASET_CREDIT_LABEL}: <a href="${attributionUrl()}">${SITE_NAME}</a></p>`;
+}
+
+export function datasetAttributionMarkdown(): string {
+  return `${DATASET_CREDIT_LABEL}: [${SITE_NAME}](${attributionUrl()})`;
+}

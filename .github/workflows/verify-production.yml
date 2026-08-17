@@ -38,6 +38,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # verify-production.sh はJSONの取り出しに node（scripts/lib/json-pick.js）を使う。
+      # 以前は jq を使っていたが、jq は ubuntu ランナーに最初から入っている一方で
+      # Windows の開発機には無く、「CIは緑なのに手元では必ず失敗する」状態だった
+      # （2026-08-11に置き換え。docs/operations.md の㉔）。
+      # ランナー画像に node は同梱されているが、暗黙に頼らず版を明示しておく。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: 本番HTMLを取って検査する
         run: bash scripts/verify-production.sh
 

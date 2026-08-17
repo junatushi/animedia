@@ -1,0 +1,96 @@
+name: クール別の初出日の記録
+
+# 【なぜ要るか・2026-08-12】
+# 「作品名 ＋ ○年○月放送」という情報を、どの情報源が最初に持つのかがどこにも
+# 記録されていない。content/snapshots/ はクール終了後の最終状態しか持たず、
+# audit-coverage.ts は実行した瞬間の値を標準出力に出すだけで消える。
+# **後追いでは絶対に取れないデータ**（毎日の変化そのものが答えなので、記録を始めた日より
+# 前には遡れない）なので、先に記録を始める。
+#
+# 取得内容は scripts/track-season.js（YAMLに条件を書かない。ローカルからも
+# `node scripts/track-season.js` でそのまま回せる）。仕組みは
+# docs/next-season-coverage.md の7章。
+#
+# 【シークレット不要】Annict側はデプロイ済みサイトの公開API /api/season から、
+# AniList側は公式GraphQL（キー不要）から取る。ANNICT_TOKEN を Secrets に足さない
+# （x-growth.yml と同じ方針）。
+
+on:
+  schedule:
+    # 1日1回。02:00 UTC = 11:00 JST に置いてあるのは、GitHub Actions の schedule が
+    # 数時間遅れる（このリポジトリの実測で最大6.4時間）前提で、遅れても**JSTの日付を
+    # またがない**ようにするため（CLAUDE.md の基本ルール）。
+    # 日付の判定は script 側（jstToday）が持ち、YAMLには書かない。
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: track-season
+  cancel-in-progress: false
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 初出日を記録する
+        id: track
+        run: node scripts/track-season.js
+
+      # 片方の情報源が落ちた日でも、取れた分は残したい（track-season.js は部分成功でも
+      # 書き出したうえで終了コード1を返す）ので always() で回す。
+      - name: 記録をコミットする
+        if: always()
+        run: |
+          if [ -z "$(git status --porcelain content/coverage)" ]; then
+            echo "差分なし。コミットしません。"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add content/coverage
+          git commit -m "クール別の初出日の記録（$(date -u +%Y-%m-%d)）"
+          git push
+
+      # 失敗をログの中だけで終わらせない（gsc-snapshot.yml と同じ考え方）。
+      # ただし**記録の空白は取り返しがつかない**ので、ここは特に見落とさないこと。
+      - name: 失敗したらIssueに出す
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = "クール別の初出日の記録が失敗しました";
+            const { data: open } = await github.rest.issues.listForRepo({
+              ...context.repo, state: "open", labels: "track-season", per_page: 10,
+            });
+            const body = [
+              `日次の記録が失敗しました。`,
+              ``,
+              `- ログ: ${url}`,
+              `- 取得内容: \`scripts/track-season.js\` / 仕組み: \`docs/next-season-coverage.md\` の7章`,
+              ``,
+              `**この記録は後追いで取り返せません**（毎日の変化そのものが測定対象のため、`,
+              `落ちた日のぶんは永久に空白になります）。数日続くようなら手当てしてください。`,
+              ``,
+              `よくある原因:`,
+              `- 本番サイトの \`/api/season\` が落ちている（Annict障害・Vercelのデプロイ失敗）`,
+              `- AniList側のレート制限（90req/分）や仕様変更`,
+              ``,
+              `一時的なエラー（429・5xx）は指数バックオフで再試行済みなので、ここまで来た失敗は恒久的なものの可能性が高いです。`,
+              `手で回すときは \`node scripts/track-season.js\`（シークレット不要）。`,
+            ].join("\n");
+            if (open.length > 0) {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: open[0].number, body });
+            } else {
+              await github.rest.issues.create({ ...context.repo, title, body, labels: ["track-season"] });
+            }

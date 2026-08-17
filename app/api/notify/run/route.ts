@@ -3,7 +3,8 @@
 //
 // 処理の流れ:
 //  1. notify_requestsから重複無しのwork_id一覧を取得（service-role clientでRLSを越える）
-//  2. 各作品をfetchWorkByIdで個別取得し、programsの中から「今日（JST）・再放送でない」
+//  2. 各作品をfetchWorkById（話数が要るので withEpisode: true）で個別取得し、
+//     programsの中から「今日（JST）・再放送でない」
 //     番組を探す（曜日の推測ではなく実際のstartedAtの日付で照合するため、特番週・休止週
 //     での誤爆が無い）。見つかった作品だけが「今日配信がある」対象になる
 //  3. 対象作品ごとにnotify_requestsを引き、購読ユーザーを集める→ユーザー単位で
@@ -72,7 +73,11 @@ export async function POST(request: Request) {
   // 2. 各作品を個別取得し、今日配信があるかを実日付で判定する
   const todayAiring: TodayAiringWork[] = [];
   for (const workId of workIds) {
-    const work = await fetchWorkById(workId, annictToken);
+    // withEpisode: true はこの通知バッチ専用。話数（「第5話」）を本文に出すために
+    // episode を要求する2本目のクエリを投げ、取れた分だけ重ねる（lib/annict.ts の
+    // mergeEpisodeInfo）。episode を最初のクエリで要求すると program ノードごと
+    // 消えて配信サービスまで失うため、この形でなければならない（2026-08-16）。
+    const work = await fetchWorkById(workId, annictToken, { withEpisode: true });
     await sleep(FETCH_DELAY_MS);
     if (!work) continue;
 

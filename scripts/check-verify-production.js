@@ -20,7 +20,34 @@ const { spawn } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
 
-const SCRIPT = path.join(__dirname, "verify-production.sh");
+// スクリプトは**リポジトリ相対**で渡す（cwd はこの下で repo ルートに固定する）。
+// Windows の絶対パス（C:\...）を渡すと、bash の実体によっては解決できず bash が
+// 127（command not found）を返し、検査が「全項目NG」に見えてしまう。
+const SCRIPT = "scripts/verify-production.sh";
+const REPO_ROOT = path.join(__dirname, "..");
+
+// 使う bash を明示的に選ぶ（2026-08-11追加）。
+//
+// Windows には bash が複数ある。PowerShell から `bash` を呼ぶと PATH の先頭にある
+// C:\Windows\System32\bash.exe＝**WSL** が選ばれるが、WSL からは Windows 側の
+// 127.0.0.1 で待っているスタブサーバーに到達できず、パスの意味も変わる。
+// 一方 Claude Code の Bash ツールや Git Bash 端末からは Git 同梱の bash が選ばれ、
+// こちらは正常に動く。つまり**同じコマンドが呼び出し元のシェル次第で通ったり
+// 落ちたりする**状態だった（しかも CI＝ubuntu では永久に再現しない）。
+// Git 同梱の bash があればそれを優先し、無ければ PATH の bash に任せる。
+function resolveBash() {
+  if (process.platform !== "win32") return "bash";
+  const candidates = [
+    process.env.ProgramFiles && path.join(process.env.ProgramFiles, "Git", "bin", "bash.exe"),
+    process.env["ProgramFiles(x86)"] &&
+      path.join(process.env["ProgramFiles(x86)"], "Git", "bin", "bash.exe"),
+    process.env.LOCALAPPDATA &&
+      path.join(process.env.LOCALAPPDATA, "Programs", "Git", "bin", "bash.exe"),
+  ].filter(Boolean);
+  return candidates.find((p) => fs.existsSync(p)) ?? "bash";
+}
+
+const BASH = resolveBash();
 
 // 過去クールの検査対象は content/archive/index.json の「最新クールの先頭ID」から選ばれる。
 // スタブ側も同じ値を使わないと、スクリプトが選んだIDとスタブの応答がズレる。
@@ -118,8 +145,8 @@ function startStub(broken) {
 
 function runScript(port) {
   return new Promise((resolve) => {
-    const child = spawn("bash", [SCRIPT], {
-      cwd: path.join(__dirname, ".."),
+    const child = spawn(BASH, [SCRIPT], {
+      cwd: REPO_ROOT,
       env: {
         ...process.env,
         BASE: `http://127.0.0.1:${port}`,

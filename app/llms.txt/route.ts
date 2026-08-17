@@ -28,13 +28,15 @@ export function GET() {
 - [${year}年${label}アニメ 配信情報一覧](${siteUrl}/season/${year}/${season}): 今クールのシーズン別ページ（作品ごとの個別ページへリンク）
 - 作品個別ページ: ${siteUrl}/anime/{Annictの作品ID} — 作品のあらすじ・配信サービス・声優・監督・製作会社・原作を掲載
 - [更新履歴フィード (RSS)](${siteUrl}/feed.xml)
-- [配信先ウィジェット・公開API](${siteUrl}/developers): 配信先をブログに貼れる無料の埋め込みと、APIキー不要のJSON API の使い方
+- [配信先ウィジェット・公開API](${siteUrl}/developers): 配信先をブログに貼れる無料の埋め込みと、APIキー不要のJSON API、配信サービス名寄せ表（CSV/JSON）の使い方
 - [サイトマップ](${siteUrl}/sitemap.xml)
 
 ## 公開API（APIキー不要・CORS許可済み）
 - \`GET ${siteUrl}/api/work/{作品ID}\`: 作品1件の配信サービス・放送開始日
 - \`GET ${siteUrl}/api/season?year=${year}&season=${season}\`: そのクールの全作品と配信サービス
 - \`GET ${siteUrl}/api/search-index\`: 直近3年ぶんの作品ID・タイトル・読み仮名の索引
+- \`GET ${siteUrl}/api/services\`: 放送・配信チャンネルの生の名前から国内配信サービスを特定するための名寄せ表（\`?format=csv\` でCSV）。本サイトが自前で作った表で、作品ごとの配信実績は含まない
+- \`GET ${siteUrl}/api/service-additions\`: 直近14日に「配信情報にサービスが追加された」と確定した作品の一覧（保存先が未設定の間は \`{"items":[],"configured":false}\` を返す）
 
 ## データについて
 - 配信情報の元データは Annict（コミュニティ更新ベース）のため網羅率は100%ではなく、新作は配信欄が反映待ちになることがある。

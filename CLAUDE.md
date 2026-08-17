@@ -15,6 +15,13 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `npm install` … 依存をインストール（初回のみ）
 - `npm run dev` … 開発サーバー起動 → http://localhost:3000
 - `npm run build` … 本番ビルド
+- `npm run check` … **コミット前はこれ1本**（2026-08-11導入）。下の検査スクリプトを
+  CIと同じ順で全部回す（`tsc --noEmit` → `check.ts` → `check-threads.js` →
+  `check-verify-production.js` → `check-gsc.js` → `check-probe-series.js` →
+  `check-track-season.js`）。
+  検査が6コマンドに分かれていると実際には全部は回されず、2件が数セッション赤いまま
+  放置された（`docs/operations.md`の㉔追記2）。CIの`run:`とこのコマンドが同じ検査を
+  並べていることは`node scripts/check.ts`が突き合わせる。ネットワークには出ない
 - `node scripts/check.ts` … 配信判定ロジックのテスト（全件OKになること）
 - `node scripts/check-threads.js` … Threads自動投稿のテスト（2026-08-05導入）。APIのスタブを
   立てて`scripts/post-threads.js`を実際に動かし、コンテナの状態待ち・一時エラーの再試行・
@@ -40,11 +47,12 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   約1〜1.5ヶ月前（8/11/2/5月の下旬）ならIssue本文をstdoutに出し、窓の外なら**何も出さない**。
   `.github/workflows/season-prep.yml`が毎日呼ぶ。窓の定義は`scripts/lib/build-season-prep.js`
   **だけ**が持ち、YAMLに月日を書かない（`node scripts/check.ts`が検査する）。ネットワーク不要
-- `node scripts/build-studio-index.ts` … 制作会社・監督の索引（2026-08-07導入・**データは再生成待ち**）。
-  スナップショットの`roleCredits`から`content/archive/studios.json`を作る。いまのスナップショットは
-  旧形式で`roleCredits`を持たないため**空の索引になる**（落ちずに警告を出す）。実データを入れるには
-  `ANNICT_TOKEN`のある環境で`node scripts/snapshot-past-seasons.ts <年> <年> --force`から回す。
-  詳細は`docs/operations.md`の⑱-11
+- `node scripts/build-studio-index.ts` … 制作会社・監督の索引。スナップショットの`roleCredits`から
+  `content/archive/studios.json`を作る。ネットワーク不要。
+  **スナップショットを追加・再生成したら必ず実行する**。
+  2026-08-11のスナップショット再生成でデータが入った（制作会社165社・監督378人）。
+  導入時（2026-08-07）は旧形式のスナップショットに`roleCredits`が無く空の索引だったが、
+  **その状態はもう解消している**（`docs/operations.md`の⑱-11の「データ待ち」は済み）
 - `node scripts/probe-series.ts` … Annictの`seriesList`が使えるかの「探り」（2026-08-11導入）。
   `content/works/series.ts`の人力対応表を自動化できるかを判断するための読み取り専用スクリプト。
   **本番のクエリ（`lib/annict.ts`）は一切触らない**。フィールド名を決め打ちせず、まず
@@ -66,7 +74,27 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   `.github/workflows/gsc-snapshot.yml`が毎日呼び、`content/analytics/gsc/<日付>.json`に保存する。
   **GSCはログインが要るためセッションからは読めない**（通知メールも節目と問題の検出しか届かない）
   ので、外向き通信ができるGitHub Actions側で取ってリポジトリに置き、セッションは
-  コミット済みのJSONを読む。セットアップは`docs/gsc-setup.md`、要`GSC_SERVICE_ACCOUNT_JSON`
+  コミット済みのJSONを読む。セットアップは`docs/gsc-setup.md`、要`GSC_SERVICE_ACCOUNT_JSON`。
+  **2026-08-11に`weeklyByType`（面ごとの週次推移）を追加**。従来は date/query/page を別々の軸で
+  取っており「面ごとの時系列」が存在しなかったため、「作品ページはクールの進行で落ちるが
+  声優ページは落ちない」といった問いに答えられなかった。GSCは16ヶ月保持しているので
+  `date`×`page`を長期（既定480日）で取り、`scripts/lib/gsc-page-type.js`が「週×面」へ畳んでから
+  書き出す（生の行をそのままコミットするとファイルが肥大化するため）。面の分類は
+  そのファイル**だけ**が持つ
+- `node scripts/track-season.js` … クール別の「初出日」の記録（2026-08-12導入）。
+  **AnnictとAniListを毎日並べて記録し、どちらが先に「作品名＋○年○月放送」を持つかを測る**。
+  現在クール＋先の2クールが対象で、①作品がそのクールに初めて現れた日 ②配信サービスが
+  初めて現れた日 ③日ごとの総数 を`content/coverage/first-seen.json`に書く。
+  Annict側はデプロイ済みサイトの公開API`/api/season`、AniList側は公式GraphQL（キー不要）から
+  取るので**`ANNICT_TOKEN`は要らない**（`x-growth.yml`と同じ方針）。毎日
+  `.github/workflows/track-season.yml`が回すので手で実行する必要は無い。
+  **落ちた日のデータは後追いで取り返せない**（毎日の変化そのものが測定対象）。
+  詳細は`docs/next-season-coverage.md`の7章
+- `node scripts/check-track-season.js` … 上の記録スクリプトのテスト（2026-08-12導入）。
+  HTTPスタブ（Annict・AniListの両方）を立てて`track-season.js`を実際に動かし、
+  **firstSeenを上書きしない・消えたものを消さない・初回に`seeded`印を付ける・
+  1情報源の失敗で残りを巻き添えにしない**ことを固定する。ネットワークには出ない。
+  `track-season.js`を触ったら必ず実行する
 - `node scripts/audit-coverage.ts [year] [season]` … 配信データ網羅率の点検（2026-07-12導入）。
   引数省略時は現在のクール。(a)TV放送データはあるが配信サービス0件の作品（注目度順。
   Annict側の登録待ちの疑い）、(b)「その他配信」に落ちた未知チャンネル名（`SERVICES`
@@ -133,10 +161,56 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   そこに書いてある。却下した施策（はてブ狙い・Wikipedia自リンク・Product Hunt等）も
   理由つきで載せてあるので、**再提案の前に読むこと**。出典URL付きの生データは
   `docs/research-2026-08/`。
+- **AI検索・エージェント時代を見据えた追補は `docs/ai-era-strategy-2026-08-13.md`**（2026-08-13）。
+  `docs/growth-strategy-2026-08.md`を踏まえ、収益規模の逆算・AI検索の実測・JustWatch型
+  （消費者向け入口＋B2Bデータライセンス）を出典URL付きで検討している。却下・保留にした施策は
+  `docs/growth-strategy-2026-08.md`6章の表に反映済みなので**再提案の前に読むこと**。
+  関連調査は`docs/chatgpt-app-directory.md`（ChatGPT App Directoryの提出要件）。
+  **導入した施策の効果はまだ未測定**（判定条件・時期は同書6章）。経緯は`docs/operations.md`の㉖
 - **次クール準備の前倒し**（2026-08-07導入）: 検索需要はクール開始の約1ヶ月前から立ち上がり、
   山は年に4回しか来ない。`.github/workflows/season-prep.yml`が8/11/2/5月の下旬にGitHub Issueで
   チェックリスト（`audit-coverage`の点検→`extraServices.ts`の補完→`spotlight.js`の入れ替え→
   年またぎ時のスナップショット生成）を出す。同じクールで二重起票しない。
+  **次クールの網羅は`docs/next-season-coverage.md`**（2026-08-12調査）。要点は
+  ①注目作についてはAnnict単独でほぼ埋まり、人力で足すべきは「TV放送データはあるのに
+  配信0件」のクールあたり4〜9件だけ（上位50作品の穴はほぼ劇場作品＝配信が存在しない）、
+  ②**作品ごとに検索して公式サイトを当たるのは非効率**（Annictが`officialSiteUrl`を
+  既に持っている＝探す作業が重複。かつ公式サイトに配信情報がある層＝継続作は
+  Annictでも既に埋まっているので巡回の増分価値が小さい。**「公式サイトは配信欄が
+  空だから遅い」という当初の説明は2026-08-12に誤りとして訂正済み**＝新作は遅いが
+  継続作は8月中旬でも出ている。この節の証拠は弱いので断定に使わないこと）、
+  ③代わりに**配信サービス側の
+  クール別ラインナップページ**を見る（dアニメ単独で79%・5社で98.5%。サービス自身の
+  発表なので`extraServices.ts`の`sourceUrl`に使える一次情報）、④配信先の発表は
+  9月中旬〜10月上旬に集中するので8月下旬の窓だけでは終わらない。
+  ⑤**新作の配信先を「もっと早く」知る情報源は無い**（2026-08-12調査）。最速の一次情報は
+  配信サービス自身の個別プレスリリース（PR TIMES）だが、それでも**放送開始の1〜3週間前**
+  （実測7〜16日前）。放送局・放送日は数ヶ月前に出るのに配信は数週間前という2段階構造で、
+  情報源を替えても上限は動かない。しょぼいカレンダーは機械可読性が高いがAnnict自身が
+  「配信が手薄」を理由に依存をやめた経緯があり、AniList/MALは国内配信サービス名を持たない。
+  **動かせるのは「発表→サイトに載る」の遅れだけで、その実測はまだ無い**（測り方は同ドキュメント6章。
+  `/api/season`を毎日記録するだけでよく`ANNICT_TOKEN`は不要。**窓は9月中旬〜10月上旬**）。
+  ⑥**「作品名＋○月放送」の粒度なら、AniListが2027年冬＝約5ヶ月先の作品を既に持っている**
+  （2026-08-12確認。公式GraphQL・無料・キー不要・`season`/`seasonYear`/`status`を持つ）。
+  ただし**Annictが未放送作品をどれだけ早く登録するかは実測も評判も無く、優劣は不明**。
+  推測できないので`scripts/track-season.js`で**両方を毎日記録して比べる計測を開始した**
+  （2026-08-12〜）。結論が出るまで「AniListのほうが速い」と書かないこと。
+  AniListの規約はデータの大量収集・退蔵を禁じているので、取得は1クール1日1回・
+  保存はID/タイトル/初出日だけに留める（詳細は`docs/next-season-coverage.md`の7章）。
+  ⑦**放送時期（○年○月）は放送開始の3〜11ヶ月前・中央値およそ8ヶ月前に出る**
+  （2026-08-12実測。2026年10月期の注目作11本。同ドキュメント8章）。配信サービス名の
+  7〜16日前と**桁が2つ違う**。だから**「次クールに何があるか」は今すぐ埋まり、「どこで
+  見られるか」だけが直前まで埋まらない**。8月にやるべきは配信情報集めではなく作品の
+  取りこぼし確認で、配信の窓は9月中旬に開く。発表の山は**AnimeJapan（3月下旬）と
+  前作の最終回**が作っており、ニュースサイトは各社ほぼ同日に載せるので
+  **どこを監視するかで速さは変わらない**（公式Xを見ても数時間）。
+  ⑧**配信サービスのクール別ラインナップ特設ページは、8月時点では8社すべて未公開**
+  （2026-08-12実測）。U-NEXTは5年連続で9月中〜下旬（09-16〜09-26）、DMM TVも9月下旬、
+  ABEMAに至っては10月中旬＝クール開始後。③を実行できるのは9月中旬以降である。
+  ⑨**しょぼいカレンダーを早期の情報源に使う案は不採用**（2026-08-12）。規約は最良
+  （公式が自動取得を明示的に許容）だが、公式ヘルプ自身が**「1週間以上先のデータは
+  間違っている可能性が高い」**と明記しており、数ヶ月前を扱うこの用途と前提が合わない。
+  **再提案しないこと**（同ドキュメント8-4）。
 - **Annictへのデータ還元と再配布の相談**は `docs/annict-contribution.md`（2026-08-07導入）。
   `audit-coverage.ts`が出す「配信0件の注目作」「未知チャンネル名」を一次情報で確認してAnnictへ
   登録する手順と、作品データの再配布可否を尋ねる問い合わせ文面。**主目的はサイトの配信網羅率が
@@ -171,7 +245,7 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `lib/logEvent.ts` … クライアント行動ログの共通ヘルパー（SeasonExplorer/ServiceMarksが使用。
   イベント名は`app/api/track/route.ts`のALLOWED_EVENTSで許可制）
 - `lib/services.ts` … 配信サービスの正準リスト `SERVICES` と判定 `classifyChannel`、`AnnictWork`→`AnimeItem`変換 `toAnimeItem`、`AnnictWork`→`AnimeDetail`変換 `toAnimeDetail`（声優・監督・製作会社・原作者を導出）。`AnimeItem.hasBroadcastData`はAnnictにprograms（TV含む）が1件でもあるかのフラグで、配信サービス0件のときUI（`ServiceMarks`）が「配信情報なし」（データ自体なし）と「TV放送のみ（配信情報は未登録の可能性）」を出し分けるのに使う
-- `lib/annict.ts` … Annict GraphQL クエリ（サーバー側専用）。シーズン一括取得 `fetchSeasonWorks` と単一作品取得 `fetchWorkById`。どちらも programs（放送/配信）と casts/staffs（声優・スタッフ）を取得する。programsが1ページ(300件)を超える作品の追い取得は、一覧用（`PROGRAMS_QUERY_LIST`、episodeフィールド無し）と作品個別/通知機能用（`PROGRAMS_QUERY`、episode/rebroadcast付き）を分けている（後者だとepisode未紐付けprogramがnon-nullフィールド違反で丸ごと消えるため）
+- `lib/annict.ts` … Annict GraphQL クエリ（サーバー側専用）。シーズン一括取得 `fetchSeasonWorks` と単一作品取得 `fetchWorkById`。どちらも programs（放送/配信）と casts/staffs（声優・スタッフ）を取得する。**【重要】どのクエリでも `episode` を要求しないこと**（2026-08-16修正・重大度高）。Annictの`Program.episode`はnon-nullなのに話数未紐付けのprogramが実在し、要求するとGraphQLのnull伝播で**programノードが丸ごとnullになりchannel＝配信サービスごと消える**。2026-07-12に「300件超の追い取得」だけを直したが、1ページ目を取る`WORK_QUERY`が要求したままで、**一覧（/api/season）には出るのに作品ページだけ「配信情報なし」**という食い違いが残っていた（実例: 17359 スティール・ボール・ランはprograms11件が11件ともnull）。programsのフィールドは用途別の3定数（`PROGRAM_FIELDS_LIST`／`PROGRAM_FIELDS_DETAIL`＝＋rebroadcast／`PROGRAM_FIELDS_EPISODE`＝＋episode）にまとめてあり、episodeを含むのは配信開始通知メールの話数表示専用の`PROGRAMS_QUERY_EPISODE`**だけ**。通知は`fetchWorkById(id, token, { withEpisode: true })`で2本目を投げ、`mergeEpisodeInfo`がchannel名＋startedAtを鍵に話数だけを重ねる（baseのノードは絶対に減らさない）。`node scripts/check.ts`が「episodeを書いてよいのは1箇所だけ」「withEpisodeを使うのは通知バッチだけ」を機械的に検査するので消さないこと。経緯は`docs/operations.md`の㉙
 - `scripts/audit-coverage.ts` … 配信データ網羅率の点検スクリプト（`node scripts/audit-coverage.ts [year] [season]`）。season-updater/service-mapperエージェントが使う
 - `scripts/demand-scan.js` + `scripts/lib/demand-analyze.js` + `content/demand/` … 配信の需要シグナル収集・集計（2026-07-16導入）。`queries.js`が収集用の正準クエリ、`raw/<日付>.jsonl`が入力（WebSearchで収集）、`out/`が集計JSON。集計ロジック（直近N日フィルタ・重複排除・需要分類・作品/サービス抽出・スコア）は`demand-analyze.js`に純粋関数で分離。詳細は`docs/demand-scan.md`
 - `scripts/lead-finder.js` … 流入リード発掘（2026-07-16導入）。`demand-scan`と同じ`raw/<日付>.jsonl`（任意で`status:open|closed`付き）を入力に、ガイドを必要としている個人の投稿を抽出し、作品を`/api/search-index`で`/anime/{id}`に解決して返信下書き付きの`docs/leads-<日付>.md`を出力。分類は`demand-analyze.js`を流用。リンクの`?ref=<媒体>`で流入実測。開/閉判定はnodeから不可のため収集時にClaudeがWebFetchで`status`を記録する設計。本命は同エンジンのX リーチ枠への転用（`docs/x-growth-playbook.md`）。詳細は`docs/demand-scan.md`後半
@@ -255,9 +329,19 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `lib/studioIndex.ts` + `content/archive/studios.json` + `scripts/build-studio-index.ts` …
   制作会社・監督の横断索引（2026-08-07導入）。`lib/personIndex.ts`と同じ流儀・同じ収録方針
   （配信情報が1件以上ある作品だけ・2作品以上の会社/監督だけ）で、表示側の表現の制約も同じ
-  （「配信情報がある」までに留める）。**スナップショットが`roleCredits`を持つまで索引は空**で、
-  ページ（`app/studio/...`）はまだ作っていない。`creditNames`から名前の見た目で
+  （「配信情報がある」までに留める）。`creditNames`から名前の見た目で
   制作会社と人名を推測して分けることは**しない**（誤判定が嘘のページになるため）
+- `app/studio/[name]/page.tsx` + `app/director/[name]/page.tsx` + `components/CreditPage.tsx` …
+  制作会社ページ・監督ページ（2026-08-12導入）。上の索引だけで完結する静的ページで、
+  **クールで割らない**（声優ページがクール別なのは今期のライブ取得を使うためで、こちらは
+  静的JSONだけなので割る理由が無い）。165社＋378人を**全件事前生成**するので`revalidate`は不要
+  （`generateStaticParams`が索引のキーを返す）。中身は`CreditPage.tsx`が1箇所で持ち、
+  2ページで表現がズレないようにしてある。**`loading.tsx`を置かないこと**（ソフト404になる）。
+  作品ページの「監督」「製作会社」欄からのリンクが唯一の入口で、リンク側は`hasCreditPage`で
+  門番する（索引に無い名前は素のテキストのまま＝404へのリンクを配らない）。
+  `node scripts/check.ts`の「制作会社・監督ページ」「孤立ページを作らない」が検査する。
+  **監督名・制作会社名での検索需要は未実測**（声優ページの実績からの推測で作った面）。
+  効果は`weeklyByType`で後から判定する
 - `lib/embed.ts` + `app/embed/anime/[id]/route.ts` + `components/EmbedSnippet.tsx` + `app/developers/page.tsx`
   … 配信先ウィジェット（2026-08-06導入）。他サイトに貼ってもらうための埋め込み。作品ページの
   「ブログ・サイトに貼る」からHTML/iframeの貼り付けコードをコピーできる。**被リンク獲得が目的**
@@ -269,12 +353,45 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   APIキー不要）。`/api/season`・`/api/search-index`にもCORSヘッダを追加して公開API化した。
   `airingStatus`（`airing`/`finished`）も返し、二次利用側が過去作を「配信中」と書かずに
   済むようにしている。仕様と利用条件は`/developers`
+- `lib/serviceDataset.ts` + `app/api/services/route.ts` … 配信サービス名寄せ表（`lib/services.ts`の
+  `SERVICES`の正規化ロジック）を配布する公開API（2026-08-13導入。`GET /api/services`＝JSON既定・
+  `?format=csv`＝RFC4180・BOM無し）。**作品ごとの配信実績（Annict由来）は含めない**
+  （再配布可否が未確認。`docs/annict-contribution.md`）。帰属義務（出典表記・リンク）はJSON応答
+  自体と`/developers`の両方に付ける。`.ts`に置いてあるのは`lib/embed.ts`と同じ理由で
+  `node scripts/check.ts`から検査するため（`route.ts`は`next/server`依存でNodeから直接importできない）。
+  検査は「配信サービス名寄せ表の公開」節。背景は`docs/operations.md`の㉖。
+  外してはいけない点が4つある: ①**`SERVICES`だけでなく`TV_PATTERN`（放送局の除外）も
+  `matching.broadcastPattern`として配る**。これが無いと二次利用側はTOKYO MX・AT-X・BS11を
+  「その他配信」＝配信サービスとして扱い、本サイトの判定を再現できない（TVerが`^tv`で
+  TV枠に入るのも**仕様どおり**。ここを弄らない）。②**出典表記にAnnictを出さない**
+  （このAPIはAnnictに一度も触れないうえ、被リンクを得るための公開なのにクレジットが
+  Annictへ流れる）。③**応答に日付を持たせない**（`s-maxage=86400`とズレる）。
+  ④CSVの`Link: rel="license"`は`Access-Control-Expose-Headers: Link`が無いと
+  ブラウザの`fetch`から読めない（`curl`では届くので気づけない）
 - `lib/workAvailability.ts` … 「その作品が今も配信されているか」を断定してよい範囲で表現する
   ロジック（2026-08-06導入）。`airingStatus`（クール判定）と、作品ページ・ウィジェットが共用する
   文面生成（`buildWatchAnswer`/`buildWatchDescription`/`availabilityLabel`）を持つ。
   **文面を変えるときはここを直す**（`app/anime/[id]/page.tsx`や`lib/embed.ts`に直書きしない。
   直書きすると`node scripts/check.ts`の検査をすり抜ける）。素の`.ts`なのは検査から
-  importするため。経緯は`docs/operations.md`の⑰
+  importするため。経緯は`docs/operations.md`の⑰。2026-08-13に`buildStreamingProperties`（作品ページ
+  JSON-LDの`additionalProperty`）/`buildDataProvenance`（取得元・取得日の構造化データ）を追加。
+  可視テキストと同じ制約（「確認日」と書かない・アフィリエイトリンクを渡す口を作らない）を
+  機械可読側でも守る。検査は「配信情報の構造化データ」節。経緯は同書の㉖。
+  **`WatchAction`/`potentialAction`は使わない（同日に一度実装してから撤回した。再提案しない）**:
+  ①「ここで見られる」という現在形の主張なので、放送開始前の作品（`airingStatus`は`airing`）に
+  出てしまい「放送開始1週間前ルール」を機械可読の層で破る、②`target`に入れられるのは各サービスの
+  公式トップページだけで作品への直リンクが無い＝「リンクの見た目＝遷移先」を人の目に触れない層で
+  犯す、③見放題かレンタルかを表す`Offer`を付けられない。代わりに`additionalProperty`
+  （`PropertyValue`）で**事実だけ**（「このサービスの配信情報がある」）を述べる。事実は放送前・
+  放送中・放送終了のどれでも真なので**状態で分岐しない**＝分岐の抜けで壊れる形が構造的に無い。
+  URLを一切持たないので広告リンクの混入経路も存在しない。逆戻りは`node scripts/check.ts`が
+  機械的に禁じている（生成箇所に`WatchAction`/`potentialAction`/`EntryPoint`/`urlTemplate`が
+  現れないことを検査する）ので、この検査を消さないこと。
+  **`buildDataProvenance`は作品ノードに混ぜず、独立した`WebPage`ノードとして出す**
+  （2026-08-16修正）。`citation`は`CreativeWork`の「**その作品が**参照している著作物」という
+  意味なので、`TVSeries`に付けると「このアニメがAnnictを引用している」という事実でない主張に
+  なる＝可視テキストに無い嘘が機械可読の層にだけ残る（撤回した`WatchAction`と同じ型）。
+  参照しているのは作品ではなくページ。`Object.assign(workLd, ...)`への逆戻りも検査済み
 - `app/api/season/route.ts` … `GET /api/season?year=2026&season=spring`（トップページのクライアント側フェッチ用）
 - `app/api/search-index/route.ts` … クール横断キーワード検索用の軽量インデックス（直近数年分の作品ID・タイトル・読み仮名・年・季節のみ。programs/castsは含めない）。日次キャッシュ（`revalidate=86400`）。検索欄で表示中クール以外の作品もヒットさせるのに使う
 - `app/page.tsx` … トップページ（サーバーコンポーネント。2026-07-21にISR化＝`revalidate=900`。

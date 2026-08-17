@@ -1,8 +1,16 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { classifyChannel, toAnimeItem } from "../lib/services.ts";
-import { PROGRAMS_QUERY, PROGRAMS_QUERY_LIST } from "../lib/annict.ts";
+import { classifyChannel, toAnimeItem, SERVICES } from "../lib/services.ts";
+import {
+  SEASON_QUERY,
+  WORK_QUERY,
+  PROGRAMS_QUERY_LIST,
+  PROGRAMS_QUERY_DETAIL,
+  PROGRAMS_QUERY_EPISODE,
+  mergeEpisodeInfo,
+  type ProgramNodes,
+} from "../lib/annict.ts";
 import type { AnnictWork } from "../lib/types.ts";
 import {
   buildEmbedSnippet,
@@ -20,7 +28,12 @@ import {
   buildWatchDescription,
   availabilityLabel,
   jstToday,
+  buildStreamingProperties,
+  buildDataProvenance,
+  STREAMING_PROPERTY_NAME,
 } from "../lib/workAvailability.ts";
+// 構造化データの出典（Annict）の正準定義。作品ページのJSON-LDが同じ値を使っているかを見る。
+import { DATA_PROVIDER, DATA_PROVIDER_URL } from "../lib/attribution.ts";
 import {
   toSingleHashtagText,
   SLOTS,
@@ -31,6 +44,8 @@ import {
   slotForNow,
   dueSlots,
   jstParts,
+  bodyIncludesUrl,
+  pickDailyXPost,
 } from "./lib/build-digest.js";
 import { xPostUrl, xSearchUrl } from "./lib/x-intent.js";
 // 日次の下書きIssueの本文組み立て（--issue）。require.main ガードがあるので
@@ -56,6 +71,18 @@ import { currentSeasonKey, currentYearSeason } from "../lib/resolveSeasonParams.
 import { applySightings } from "../lib/serviceAdditions.ts";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
 import { renderGrowthKit } from "./lib/build-growth-kit.js";
+// 配信サービス名寄せ表の公開データセット（2026-08-13追加）。純粋関数のみ。
+import {
+  buildServiceDataset,
+  parseFormat,
+  serviceDatasetEntries,
+  toCsv,
+  CSV_COLUMNS,
+  type ServiceDatasetEntry,
+} from "../lib/serviceDataset.ts";
+// アフィリエイトのリンクが公開データセットに混入していないかを見るために読む
+// （型だけの import は Node の型ストリッピングで消えるので実行時には services.ts に依存しない）。
+import { AFFILIATE_PROGRAMS } from "../content/affiliate/programs.ts";
 
 
 // ディレクトリ配下の .ts/.tsx を再帰的に列挙する（行動ログの配線検査で使う）。
@@ -74,6 +101,28 @@ function listSourceFiles(dir: URL): URL[] {
     else if (/\.tsx?$/.test(name)) out.push(child);
   }
   return out;
+}
+
+// アフィリエイトASPのドメイン一覧（2026-08-13にここへ集約）。
+// 「第三者に配るデータに広告リンクを混ぜない」検査が2箇所（配信情報の構造化データ／
+// 配信サービス名寄せ表の公開）にあるので、定義はここ**だけ**が持つ。両方に同じ配列を
+// 書くと、ASPを増やした日に片方だけ古くなって検査が静かに骨抜きになる。
+// 登録済みリンク（content/affiliate/programs.ts）から起こしたホストに、まだ提携して
+// いないASPのドメインも足す（登録が空になった日に検査が無力化するのを防ぐ）。
+const KNOWN_ASP_HOSTS = [
+  "px.a8.net",
+  "t.afi-b.com",
+  "ck.jp.ap.valuecommerce.com",
+  "sjv.io",
+  "h.accesstrade.net",
+  "af.moshimo.com",
+  "rentracks.jp",
+];
+function affiliateHosts(): string[] {
+  const registered = Object.values(AFFILIATE_PROGRAMS)
+    .flatMap((programs) => programs ?? [])
+    .map((p) => new URL(p.url).host);
+  return [...new Set([...registered, ...KNOWN_ASP_HOSTS])];
 }
 
 const samples: Array<[string, string]> = [
@@ -318,10 +367,17 @@ console.log(`結果（人力補完マージ）: ${extraOk} 件OK / ${extraNg} �
 // クエリ（PROGRAMS_QUERY）を使っていたため、Annictがepisode未紐付けprogramで
 // 返すnon-nullフィールド違反によりノードが丸ごとnullになり、配信サービス側の
 // programが失われて「配信情報なし」に見えていた。シーズン一覧の追い取得
-// （fetchSeasonWorks → fetchRemainingPrograms）はepisodeを使わないPROGRAMS_QUERY_LIST
+// （fetchSeasonWorks → fetchProgramsPaged）はepisodeを使わないPROGRAMS_QUERY_LIST
 // を使うべきで、これが再び episode を含む形に統合されないよう固定する。
 let queryOk = 0;
 let queryNg = 0;
+// 「その方針を説明している注釈そのもの」を検査対象に拾わないよう、行頭コメントを落とす。
+function stripCommentLines(src: string): string {
+  return src
+    .split(String.fromCharCode(10))
+    .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+    .join(String.fromCharCode(10));
+}
 function checkQueryField(name: string, query: string, field: string, shouldContain: boolean) {
   const contains = query.includes(field);
   const pass = contains === shouldContain;
@@ -332,7 +388,126 @@ function checkQueryField(name: string, query: string, field: string, shouldConta
   );
 }
 checkQueryField("PROGRAMS_QUERY_LIST（シーズン一覧の追い取得）", PROGRAMS_QUERY_LIST, "episode", false);
-checkQueryField("PROGRAMS_QUERY（作品個別/通知機能）", PROGRAMS_QUERY, "episode", true);
+
+// ── 作品個別クエリの episode 要求の回帰テスト（2026-08-16導入・重大度高） ──
+// 上の2026-07-12の修正は「300件を超えた分の追い取得」だけを直しており、**1ページ目を
+// 取る WORK_QUERY 自体が episode を要求したまま**だった。そのため programs が数十件
+// しかない作品でも、話数が未紐付けなら program ノードが丸ごとnullになり、
+// 一覧（/api/season）には配信サービスが出るのに**作品ページだけ「配信情報なし」**に
+// なっていた（利用者からの指摘で発覚）。
+// 実測（2026-08-16・Annict本番）: 17359 スティール・ボール・ランは programs 11件が
+// 11件ともnullでNetflixが消滅。2026-autumn 99作品中2件・2026-summer 148作品中2件が
+// 一覧と食い違っていた。影響は作品ページ本体だけでなく、公開API /api/work/[id]・
+// 他人のサイトに貼られる埋め込みウィジェット・JSON-LD にも同じ嘘が載る
+// （CLAUDE.mdの「放送が終わった作品に『いま配信中』と書かない」と同じ重大度）。
+// episode を要求してよいのは配信開始通知メールの話数表示だけなので、その1本
+// （PROGRAMS_QUERY_EPISODE）以外に episode が復活しないことを固定する。
+checkQueryField("SEASON_QUERY（シーズン一覧）", SEASON_QUERY, "episode", false);
+checkQueryField("WORK_QUERY（作品個別の1ページ目）", WORK_QUERY, "episode", false);
+checkQueryField("PROGRAMS_QUERY_DETAIL（作品個別の追い取得）", PROGRAMS_QUERY_DETAIL, "episode", false);
+checkQueryField("PROGRAMS_QUERY_EPISODE（通知の話数取得）", PROGRAMS_QUERY_EPISODE, "episode", true);
+// 通知バッチは「今日・再放送でない」番組を探すので rebroadcast は要る。episode を
+// 外した副作用で rebroadcast まで落ちると、再放送の日に誤って通知が飛ぶ
+// （rebroadcast は nullable なので要求してもノードは消えない＝落とす理由が無い）。
+checkQueryField("WORK_QUERY（再放送の判定に必要）", WORK_QUERY, "rebroadcast", true);
+checkQueryField("PROGRAMS_QUERY_DETAIL（再放送の判定に必要）", PROGRAMS_QUERY_DETAIL, "rebroadcast", true);
+
+// クエリ本文を別の場所に手書きされると上の検査をすり抜けるので、lib/annict.ts の中で
+// episode フィールドを書いてよい場所を1箇所（PROGRAM_FIELDS_EPISODE）に固定する。
+{
+  const annictSrc = readFileSync(new URL("../lib/annict.ts", import.meta.url), "utf8");
+  const body = stripCommentLines(annictSrc);
+  const occurrences = body.split("episode { number numberText }").length - 1;
+  const onlyInFieldConst =
+    /const PROGRAM_FIELDS_EPISODE = [^\n]*episode \{ number numberText \}/.test(body);
+  const ok = occurrences === 1 && onlyInFieldConst;
+  if (ok) queryOk++; else queryNg++;
+  console.log(
+    `${ok ? "✓" : "✗"}  ${"episodeを書くのはPROGRAM_FIELDS_EPISODEだけ".padEnd(40)} → ` +
+      (ok
+        ? "1箇所のみ"
+        : `${occurrences}箇所（そこ以外にepisodeを足すと、その経路の配信サービスが丸ごと消える）`)
+  );
+}
+
+// episode を要求する取得（withEpisode）を使ってよいのは配信開始通知バッチだけ。
+// 作品ページ・公開API・埋め込みの経路が話数欲しさにこれを立てると、増えたリクエストと
+// 引き換えに「配信情報なし」を復活させることになる。
+{
+  const root = new URL("../", import.meta.url).pathname;
+  const callers: string[] = [];
+  const walk = (dir: URL) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const child = new URL(`${e.name}${e.isDirectory() ? "/" : ""}`, dir);
+      if (e.isDirectory()) walk(child);
+      else if (/\.(ts|tsx)$/.test(e.name)) {
+        if (/withEpisode\s*:\s*true/.test(stripCommentLines(readFileSync(child, "utf8")))) {
+          callers.push(decodeURIComponent(child.pathname).replace(decodeURIComponent(root), ""));
+        }
+      }
+    }
+  };
+  for (const r of ["app", "lib", "components"]) walk(new URL(`../${r}/`, import.meta.url));
+  const ok = callers.length === 1 && callers[0] === "app/api/notify/run/route.ts";
+  if (ok) queryOk++; else queryNg++;
+  console.log(
+    `${ok ? "✓" : "✗"}  ${"withEpisodeを使うのは通知バッチだけ".padEnd(40)} → ` +
+      (ok ? callers[0] : `${JSON.stringify(callers)}（通知以外がepisodeを要求してはいけない）`)
+  );
+}
+
+// mergeEpisodeInfo は「話数だけ」を重ねる。episode側でnullになったノードを理由に
+// base側を削る/差し替えるように書き換えると、episodeを直接要求したのと同じ事故
+// （配信サービスの消滅）になるため、その振る舞いを固定する。
+{
+  const base: ProgramNodes = [
+    { channel: { name: "Netflix" }, startedAt: "2026-10-05T12:00:00Z", rebroadcast: false },
+    { channel: { name: "TOKYO MX" }, startedAt: "2026-10-05T13:00:00Z", rebroadcast: false },
+  ];
+  // Annictは episode 未紐付けの program をノードごとnullで返す（1件目がそれ）。
+  const withEpisode: ProgramNodes = [
+    null,
+    {
+      channel: { name: "TOKYO MX" },
+      startedAt: "2026-10-05T13:00:00Z",
+      rebroadcast: false,
+      episode: { number: 1, numberText: "第1話" },
+    },
+  ];
+  mergeEpisodeInfo(base, withEpisode);
+
+  const allNull: ProgramNodes = [
+    { channel: { name: "Netflix" }, startedAt: "2026-10-05T12:00:00Z", rebroadcast: false },
+  ];
+  mergeEpisodeInfo(allNull, [null, null]);
+
+  const mergeCases: { label: string; ok: boolean; detail: string }[] = [
+    {
+      label: "baseのノードを減らさない",
+      ok: base.length === 2 && base.every(Boolean),
+      detail: `${base.length}件・null ${base.filter((p) => !p).length}件`,
+    },
+    {
+      label: "話数が取れた番組には重ねる",
+      ok: base[1]?.episode?.numberText === "第1話",
+      detail: String(base[1]?.episode?.numberText),
+    },
+    {
+      label: "episode側がnullでもチャンネルは残る",
+      ok: base[0]?.channel?.name === "Netflix" && !base[0]?.episode,
+      detail: `${base[0]?.channel?.name} / 話数${base[0]?.episode ? "有" : "無"}`,
+    },
+    {
+      label: "episode側が全滅でもチャンネルは残る",
+      ok: allNull.length === 1 && allNull[0]?.channel?.name === "Netflix",
+      detail: "17359（programs全件がnull）の形",
+    },
+  ];
+  for (const c of mergeCases) {
+    if (c.ok) queryOk++; else queryNg++;
+    console.log(`${c.ok ? "✓" : "✗"}  ${c.label.padEnd(40)} → ${c.detail}`);
+  }
+}
 console.log(`結果（追い取得クエリ）: ${queryOk} 件OK / ${queryNg} 件NG`);
 
 // ── Threadsのハッシュタグ1個制限の回帰テスト ──
@@ -1359,7 +1534,9 @@ let xIntentNg = 0;
     count: 1,
     drafts: [{ label: "テスト", text: "本文\n#今期アニメ" }],
     queries: ["今期アニメ どこで見れる"],
-    replies: ["テスト返信"],
+    // pinnedDraft は2026-08-16に {text, replyUrl} 形式へ変わった。ここが古い形のままだと
+    // renderGrowthKit が落ちる（＝この検査自体が動かなくなる）ので、実物と同じ形で渡す。
+    pinnedDraft: { text: "固定ポスト本文", replyUrl: null },
   });
   const hasPost = md.includes("https://x.com/intent/post?text=");
   const hasSearch = md.includes("https://x.com/search?q=");
@@ -1389,6 +1566,135 @@ let xIntentNg = 0;
   );
 }
 console.log(`結果（Xの手動運用リンク）: ${xIntentNg === 0 ? 4 : 0} 件OK / ${xIntentNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// Xの投稿方針の検査（2026-08-16追加・シャドウバン対応）
+//
+// 2026-08-07に @animedia0705 の Search Ban が判明し、推定原因は
+// 「同一に近い文面 × 高頻度 × 毎回リンク × 無会話」だった（docs/handoff.md）。
+// 打ち手として「頻度を1日1回以下・本文からリンクを外す・タグを減らす・本文を毎回変える」を
+// 決めたが、**9日間コードに入らないまま**だった。さらに悪いことに、2026-08-06に
+// 「毎週同じ文面をやめた」修正を入れたときXだけが対象外（文面パターンが1つ）で、
+// 対策が入っているつもりで入っていない状態になっていた。
+//
+// 同じ取り違えが起きないよう、Xについてだけ次の4点を機械的に固定する。
+// **他の3つ（Bluesky/Mastodon/Threads）には適用しない**（シャドウバンの対象ではなく、
+// 本文リンクで問題なく届いているため。ここを一律にすると別の投稿先の運用まで壊す）。
+// ─────────────────────────────────────────────
+console.log("\n── Xの投稿方針（シャドウバン対応・2026-08-16）──");
+let xPolicyNg = 0;
+{
+  // (1) 1日1投稿。3種類そろう日でも1件しか返さないこと、そして狙った種別がその日に
+  //     無くても0件にならない（＝黙って投稿が消えない）ことの両方を見る。
+  const all = [{ kind: "top5" }, { kind: "airing" }, { kind: "spotlight" }];
+  const perDay = [0, 1, 2, 3, 4, 5, 6].map((w) => pickDailyXPost(all, w));
+  const oneEach = perDay.every((posts) => posts.length === 1);
+  // 週のうちに3種類とも登場すること（1種類に偏ると「毎日同じ投稿」に逆戻りする）。
+  const kindsInWeek = [...new Set(perDay.flat().map((p) => p.kind))].sort();
+  const coversAll = JSON.stringify(kindsInWeek) === JSON.stringify(["airing", "spotlight", "top5"]);
+  // 狙った種別が無い日のフォールバック（水曜=airing だが airing が作られなかった場合）。
+  const fallback = pickDailyXPost([{ kind: "top5" }, { kind: "spotlight" }], 3);
+  const fallbackOk = fallback.length === 1;
+  const p1 = oneEach && coversAll && fallbackOk;
+  if (!p1) xPolicyNg++;
+  console.log(
+    `${p1 ? "✓" : "✗"}  ${"Xは1日1投稿（0件にも2件以上にもならない）".padEnd(40)} → 各日1件=${oneEach} 週内に3種=${coversAll} 欠けた日の代替=${fallbackOk}`
+  );
+
+  // (2) 本文にURLを載せない（Xだけ）。他の投稿先は従来どおり載せる。
+  const p2 = bodyIncludesUrl("x") === false && ["bluesky", "mastodon", "threads"].every((pf) => bodyIncludesUrl(pf) === true);
+  if (!p2) xPolicyNg++;
+  console.log(
+    `${p2 ? "✓" : "✗"}  ${"本文のURLはXだけ外す（他は従来どおり）".padEnd(40)} → x=${bodyIncludesUrl("x")} bluesky=${bodyIncludesUrl("bluesky")}`
+  );
+
+  // (3) 本文からURLを外したなら、必ずリプライ用のURLを対で出す。
+  //     ここが抜けると「リンクを外した」だけになり、流入経路が丸ごと消える。
+  //     本文生成は実データが要るので、Issue本文の組み立て側で対を検査する。
+  const withReply = printDigest.renderIssue([
+    { kind: "top5", text: "【テスト】本文", replyUrl: "https://example.test/season/2026/summer" },
+  ]);
+  const withoutReply = printDigest.renderIssue([{ kind: "top5", text: "【テスト】本文" }]);
+  const p3 =
+    withReply.includes("https://example.test/season/2026/summer") &&
+    withReply.includes("リプライ") &&
+    !withoutReply.includes("リプライ"); // replyUrlが無い投稿先には出さない
+  if (!p3) xPolicyNg++;
+  console.log(
+    `${p3 ? "✓" : "✗"}  ${"URLを外した投稿はリプライ用URLを対で出す".padEnd(40)} → 出る=${withReply.includes("リプライ")} 無い時は出ない=${!withoutReply.includes("リプライ")}`
+  );
+
+  // (4) 文面のパターン数。Xだけ1パターンに戻ると「毎週一字一句同じ」に逆戻りする。
+  //     ソースを読んで x の配列の要素数を数える（テーブルが増えても自動で対象になる）。
+  //     行ベースで数える（複数行にまたがる正規表現は書き方に依存して静かに0件になり、
+  //     「検査しているつもりで何も見ていない」状態になるため使わない）。
+  //     この表は「1要素1行」で書く決まりなので、開き `  x: [` と閉じ `  ],` の間の
+  //     実質的な行数がそのまま要素数になる。
+  const src = readFileSync(new URL("./lib/build-digest.js", import.meta.url), "utf8");
+  // このリポジトリのファイルはCRLFで保存されているものがある（build-digest.jsもCRLF）。
+  // 素の split("\n") だと各行の末尾に \r が残り、`line === "  x: ["` が永久に偽になって
+  // **0件検出＝素通り**になる。実際この検査を書いた初回はそれで緑に見えていた。
+  const srcLines = src.split("\n").map((l) => l.replace(/\r$/, ""));
+  const tables: { name: string; count: number }[] = [];
+  srcLines.forEach((line, i) => {
+    if (line !== "  x: [") return;
+    // 直前でいちばん近い `const NAME = {` をこの表の名前とする。
+    let name = "(不明)";
+    for (let j = i; j >= 0; j--) {
+      const m = srcLines[j].match(/^const ([A-Z0-9_]+) = \{$/);
+      if (m) {
+        name = m[1];
+        break;
+      }
+    }
+    let count = 0;
+    for (let j = i + 1; j < srcLines.length && srcLines[j] !== "  ],"; j++) {
+      const t = srcLines[j].trim();
+      if (t !== "" && !t.startsWith("//")) count++;
+    }
+    tables.push({ name, count });
+  });
+  const thin = tables.filter((t) => t.count < 3);
+  const p4 = tables.length >= 4 && thin.length === 0;
+  if (!p4) xPolicyNg++;
+  console.log(
+    `${p4 ? "✓" : "✗"}  ${"Xの文面も3パターン以上ある".padEnd(40)} → ${tables.map((t) => `${t.name}=${t.count}`).join(" ")}` +
+      (p4 ? "" : `  (不足: ${JSON.stringify(thin)})`)
+  );
+
+  // (5) 週次X成長キットも同じ方針で出す（2026-08-16追加）。
+  //     【なぜ両方見るのか】2026-08-05に日次側のリンク先を /season/ 形式へ直したとき、
+  //     当時の検査が build-digest.js しか見ていなかったため**週次キットだけ直し漏れて
+  //     1日も気づかれなかった**（⑫の経緯）。「Xの投稿はこう出す」という同じ不変条件を
+  //     持つファイルは、最初から全部ここで見る。
+  const kitWith = renderGrowthKit({
+    year: 2026,
+    label: "夏",
+    todayStr: "2026-08-16",
+    count: 1,
+    drafts: [{ label: "① テスト", text: "【テスト】本文", replyUrl: "https://example.test/season/2026/summer" }],
+    queries: ["テスト"],
+    pinnedDraft: { text: "【テスト】固定", replyUrl: "https://example.test/season/2026/summer" },
+  });
+  const p5 = kitWith.includes("https://example.test/season/2026/summer") && kitWith.includes("リプライ");
+  if (!p5) xPolicyNg++;
+  console.log(
+    `${p5 ? "✓" : "✗"}  ${"週次キットもリプライ用URLを出す".padEnd(40)} → URL=${kitWith.includes("https://example.test/season/2026/summer")} 文言=${kitWith.includes("リプライ")}`
+  );
+
+  // (6) 週次キットの本文組み立てが bodyIncludesUrl を共有していること。
+  //     ここで独自に判定を書き直されると、日次だけ直して週次が取り残される形に戻る。
+  const kitSrc = readFileSync(new URL("./lib/build-growth-kit.js", import.meta.url), "utf8");
+  const sharesPolicy = /bodyIncludesUrl/.test(kitSrc) && /require\("\.\/build-digest"\)/.test(kitSrc);
+  // 死んだ生成物を残さない（replyDrafts は2026-08-16に方針変更で削除済み）。
+  const noDeadReplies = !/function replyDrafts/.test(kitSrc);
+  const p6 = sharesPolicy && noDeadReplies;
+  if (!p6) xPolicyNg++;
+  console.log(
+    `${p6 ? "✓" : "✗"}  ${"週次キットは判定を日次と共有する".padEnd(40)} → bodyIncludesUrlを使う=${sharesPolicy} 死んだリプ下書き無し=${noDeadReplies}`
+  );
+}
+console.log(`結果（Xの投稿方針）: ${6 - xPolicyNg} 件OK / ${xPolicyNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // SSRの中身が空にならないことの検査（2026-08-05追加・重大度高）
@@ -1903,6 +2209,277 @@ let availNg = 0;
   }
 }
 console.log(`結果（放送終了作品の表現）: ${availNg === 0 ? "全件OK" : `${availNg} 件NG`}`);
+
+// ─────────────────────────────────────────────
+// 配信情報の構造化データ（2026-08-13追加。同日に設計をWatchActionから入れ替え）
+//
+// 【なぜ要るか】作品ページの JSON-LD は声優・監督・製作会社・原作者を持っていたのに、
+// このサイトの中心的な事実である「どこで配信されているか」は可視テキストにしか無く、
+// AI検索・生成AIが読む機械可読の層から落ちていた。そこへ載せるにあたり、可視テキストで
+// 既に守っている制約を機械可読側でも同じ強さで守る必要がある。
+//
+// 【WatchAction を復活させない】最初の実装は potentialAction に WatchAction を並べて
+// いたが、①放送開始前の作品を弾けない（status は finished しか見ない＝1話も配信されて
+// いない作品に「見られる」と配る）②target に入れられるのはサービスの公式トップページ
+// だけで作品への直リンクが無い（「リンクの見た目＝遷移先」を人の目に触れない層で犯す）
+// ③見放題／レンタルを表す Offer を付けられない、の3点で撤回した。代わりに
+// additionalProperty（PropertyValue）で事実だけを述べる。
+// この節は「事実だけを述べる形から、行為を主張する形へ逆戻りしていないこと」を見張る。
+// 見張るのは5点:
+//   (1) 出すのは PropertyValue だけ。WatchAction / potentialAction / EntryPoint が
+//       lib/workAvailability.ts と作品ページの生成箇所のどちらにも復活していない
+//   (2) URL を1つも持たない（＝広告リンクが混入する経路が存在しない）
+//   (3) 配信の現在の可否を主張する語（配信中・視聴できます等）を property 名に使わない
+//   (4) 0件のときは additionalProperty ごと出さない／重複を出さない
+//   (5) 取得元・取得日を「確認日」と書かない（Annictからデータを取った日であって、
+//       配信の可否を誰かが確認した日ではない。docs/operations.md の⑰）
+// ─────────────────────────────────────────────
+console.log("\n── 配信情報の構造化データ ──");
+let ldNg = 0;
+{
+  function ldCheck(name: string, pass: boolean, detail: string) {
+    if (!pass) ldNg++;
+    console.log(`${pass ? "✓" : "✗"}  ${name.padEnd(38)} → ${detail}`);
+  }
+
+  // 実データ（SERVICES 全件）で作る。提携済みのサービス（ABEMA・Prime・Hulu等）が
+  // 必ず含まれるので、(2)の検査が「たまたま提携が無いから通る」状態にならない。
+  const sampleServices = SERVICES.map((s) => ({ name: s.name }));
+  const props = buildStreamingProperties(sampleServices);
+  const propsJson = JSON.stringify(props);
+
+  // (1) 形。PropertyValue 以外の @type を出さない。
+  ldCheck(
+    "サービスの数だけPropertyValueが出る",
+    props.length === SERVICES.length,
+    `${props.length}件（SERVICES ${SERVICES.length}件）`
+  );
+  const shapeBad = props.filter(
+    (a) =>
+      a["@type"] !== "PropertyValue" ||
+      a.name !== STREAMING_PROPERTY_NAME ||
+      typeof a.value !== "string" ||
+      Object.keys(a).length !== 3
+  );
+  ldCheck(
+    "PropertyValue（name/value）だけ",
+    shapeBad.length === 0,
+    shapeBad.length === 0
+      ? `全件 PropertyValue（name="${STREAMING_PROPERTY_NAME}"）`
+      : `${shapeBad.length}件が期待の形でない: ${JSON.stringify(shapeBad.slice(0, 2))}`
+  );
+  // 配列同士の比較。区切り文字を挟む方式は、区切り文字を含むサービス名が現れたときに
+  // 誤判定しうる。さらに生のNULバイトをソースへ置くと grep/ripgrep がこのファイルを
+  // バイナリ扱いし、他の検査が使っている目印の探索まで止まる。JSONで比べる。
+  const valuesOk =
+    JSON.stringify(props.map((a) => a.value)) ===
+    JSON.stringify(SERVICES.map((s) => s.name));
+  ldCheck(
+    "valueはサービスの表示名",
+    valuesOk,
+    valuesOk ? "SERVICES の name と一致" : `不一致: ${JSON.stringify(props.slice(0, 3))}`
+  );
+
+  // (2) URLを1つも持たないこと。ここが守られている限り、広告リンクの混入は
+  //     「入れ忘れ」ではなく「入れる場所が無い」状態になる。
+  const urlHit = /https?:\/\//.test(propsJson);
+  ldCheck(
+    "構造化データにURLが無い",
+    !urlHit,
+    urlHit ? `URLが含まれる: ${propsJson.slice(0, 120)}` : "0件（広告リンクの混入経路が存在しない）"
+  );
+  const aspHosts = affiliateHosts();
+  const adHits = aspHosts.filter((h) => propsJson.includes(h));
+  ldCheck(
+    "広告リンクのドメインが無い",
+    adHits.length === 0,
+    adHits.length === 0
+      ? `${aspHosts.length}ドメインすべて不在`
+      : `混入: ${JSON.stringify(adHits)}（構造化データは第三者の機械に配られる）`
+  );
+
+  // (3) property 名が現在形を主張しないこと。放送終了クールの作品にも同じものを出す＝
+  //     ここに「配信中」の語が入ると、可視テキストで禁じていることを機械可読側で犯す。
+  const presentTenseWords = ["配信中", "視聴できます", "見られます", "配信されています"];
+  const tenseHits = presentTenseWords.filter((w) => propsJson.includes(w));
+  ldCheck(
+    "現在形で断定する語が無い",
+    tenseHits.length === 0,
+    tenseHits.length === 0
+      ? `property名は「${STREAMING_PROPERTY_NAME}」`
+      : `混入: ${JSON.stringify(tenseHits)}（放送終了クールの作品にも同じものが出る）`
+  );
+
+  // (4) 0件・重複・空白。
+  const emptyProps = buildStreamingProperties([]);
+  ldCheck(
+    "0件なら空配列",
+    emptyProps.length === 0,
+    emptyProps.length === 0
+      ? "0件（additionalPropertyごと出さない）"
+      : `${emptyProps.length}件出ている`
+  );
+  const dup = buildStreamingProperties([
+    { name: "dアニメストア" },
+    { name: "dアニメストア" },
+    { name: "  " },
+  ]);
+  ldCheck(
+    "重複と空名を落とす",
+    dup.length === 1 && dup[0].value === "dアニメストア",
+    dup.length === 1 ? "1件に畳まれる" : `${dup.length}件: ${JSON.stringify(dup)}`
+  );
+
+  // (5) 取得元と取得日。schema.org の語彙で機械可読になっていること。
+  const provPageUrl = `${siteUrl}/anime/12345`;
+  const provenance = buildDataProvenance("2026-08-13", provPageUrl);
+  const citation = provenance.citation as { name?: string; url?: string } | undefined;
+  const sdPublisher = provenance.sdPublisher as { url?: string } | undefined;
+  const provOk =
+    provenance.sdDatePublished === "2026-08-13" &&
+    citation?.name === DATA_PROVIDER &&
+    citation?.url === DATA_PROVIDER_URL &&
+    typeof sdPublisher?.url === "string" &&
+    sdPublisher.url.startsWith(siteUrl);
+  ldCheck(
+    "取得元と取得日が機械可読",
+    provOk,
+    provOk
+      ? `sdDatePublished=2026-08-13 / citation=${DATA_PROVIDER}`
+      : `期待の形でない: ${JSON.stringify(provenance)}`
+  );
+
+  // (5-2) 出所は **作品ノードではなく WebPage ノード**であること。
+  // citation は CreativeWork の「その作品が参照している著作物」なので、TVSeries/Movie に
+  // 付けると「このアニメがAnnictを引用している」という事実でない主張になる。可視テキストに
+  // 無い嘘が機械可読の層にだけ残る型の事故（⑰・撤回した WatchAction と同じ）。
+  const provNodeOk =
+    provenance["@type"] === "WebPage" &&
+    provenance["@id"] === provPageUrl &&
+    provenance.url === provPageUrl;
+  ldCheck(
+    "出所はWebPageノードで出す（作品ノードに混ぜない）",
+    provNodeOk,
+    provNodeOk
+      ? `@type=WebPage / @id=${provPageUrl}`
+      : `作品ノードに混ざる形に戻っている: ${JSON.stringify(provenance)}`
+  );
+
+  // 実装レベルの担保（lib/embed.ts・公開データセットと同じ流儀）。
+  // 生成箇所そのものを読んで、迂回・直書き・設計の逆戻りを押さえる。
+  const libSrc = readFileSync(new URL("../lib/workAvailability.ts", import.meta.url), "utf8");
+  // 注意書きとして禁止語そのものを書いているコメント行は除いてから探す。
+  const stripComments = (text: string) =>
+    text
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join("\n");
+  const libBody = stripComments(libSrc);
+  ldCheck(
+    "workAvailabilityはアフィリエイトを参照しない",
+    !/affiliate/i.test(libBody),
+    /affiliate/i.test(libBody) ? "参照している（広告リンクを渡せる口を作らない）" : "参照なし"
+  );
+  // 撤回した設計の名残・逆戻りを禁じる。コメントでの言及（＝なぜ使わないかの記録）は残す。
+  const revertWords = ["WatchAction", "potentialAction", "EntryPoint", "urlTemplate"];
+  const libRevert = revertWords.filter((w) => libBody.includes(w));
+  ldCheck(
+    "WatchActionが復活していない(lib)",
+    libRevert.length === 0,
+    libRevert.length === 0
+      ? `${revertWords.length}語すべてコード上に無い`
+      : `復活: ${JSON.stringify(libRevert)}（撤回した理由は同ファイルの注記）`
+  );
+
+  const pageSrc = readFileSync(new URL("../app/anime/[id]/page.tsx", import.meta.url), "utf8");
+  // 構造化データの生成箇所＝workLd の組み立てから、JSON-LDを書き出す <script> まで。
+  // 目印を動かしたら、この検査の目印も更新すること（検査を消さない）。
+  const ldStart = pageSrc.indexOf("const workLd: Record<string, unknown> = {");
+  const ldEnd = pageSrc.indexOf('type="application/ld+json"', ldStart);
+  const ldRegion = ldStart >= 0 && ldEnd > ldStart ? pageSrc.slice(ldStart, ldEnd) : null;
+  if (!ldRegion) {
+    ldNg++;
+    console.log("✗  作品ページのJSON-LD生成箇所（workLd〜application/ld+json）を特定できない");
+    console.log("   → 構造を変えたなら、この検査の目印も更新すること（検査を消さない）");
+  } else {
+    // additionalProperty は buildStreamingProperties の結果だけから来ること。直書きに
+    // 戻ると上の (1)〜(4) の検査を丸ごと素通りできてしまう。
+    const assignLines = ldRegion
+      .split("\n")
+      .filter((l) => l.includes("additionalProperty") && !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .map((l) => l.trim());
+    const wiredOk =
+      ldRegion.includes("buildStreamingProperties(") &&
+      assignLines.length === 1 &&
+      assignLines[0] === "workLd.additionalProperty = streamingProperties;";
+    ldCheck(
+      "additionalPropertyはworkAvailability由来",
+      wiredOk,
+      wiredOk ? "buildStreamingPropertiesの結果のみ" : `直書きの疑い: ${JSON.stringify(assignLines)}`
+    );
+    ldCheck(
+      "取得元・取得日もworkAvailability由来",
+      ldRegion.includes("buildDataProvenance("),
+      ldRegion.includes("buildDataProvenance(") ? "buildDataProvenanceを使う" : "直書きに戻っている"
+    );
+    // 出所を作品ノードに畳み込む書き方（Object.assign(workLd, ...) や workLd.citation = ...）に
+    // 戻っていないこと。戻ると (5-2) の検査は通ったまま作品ノードに citation が乗る。
+    const ldRegionBody = stripComments(ldRegion);
+    const mergedIntoWork =
+      /Object\.assign\(\s*workLd/.test(ldRegionBody) ||
+      /workLd\.(citation|sdDatePublished|sdPublisher)\s*=/.test(ldRegionBody);
+    ldCheck(
+      "出所を作品ノードに畳み込んでいない",
+      !mergedIntoWork,
+      mergedIntoWork
+        ? "workLdへ merge している（citationは作品のプロパティなので嘘になる）"
+        : "WebPageノードとして別に出している"
+    );
+    // 書き出す <script> の配列に WebPage ノードが載っていること（作らせただけで
+    // 出力に入れ忘れる、という抜けを塞ぐ）。
+    const emitTail = pageSrc.slice(ldEnd, ldEnd + 400);
+    const emitted = emitTail.includes("provenanceLd");
+    ldCheck(
+      "WebPageノードをJSON-LDに出力している",
+      emitted,
+      emitted ? "JSON.stringify の配列に含まれる" : `出力に無い: ${JSON.stringify(emitTail.slice(0, 200))}`
+    );
+    const ldBody = stripComments(ldRegion);
+    const pageRevert = revertWords.filter((w) => ldBody.includes(w));
+    ldCheck(
+      "WatchActionが復活していない(作品ページ)",
+      pageRevert.length === 0,
+      pageRevert.length === 0
+        ? `${revertWords.length}語すべてコード上に無い`
+        : `復活: ${JSON.stringify(pageRevert)}`
+    );
+    const pageAdHits = [...aspHosts, "pickAffiliate"].filter((h) => ldRegion.includes(h));
+    ldCheck(
+      "生成箇所が広告リンクに触れない",
+      pageAdHits.length === 0,
+      pageAdHits.length === 0 ? "参照なし" : `参照している: ${JSON.stringify(pageAdHits)}`
+    );
+    // (5) 「確認日」の語。Annictから取った日を「確認日」と呼ぶと、二次利用側が
+    //     「その日に配信を確認した」と読んでしまう（可視テキスト側は2026-08-06に
+    //     「取得日」へ直した。同じ間違いを機械可読側で繰り返さない）。
+    const provJson = JSON.stringify(provenance);
+    const wordHits: string[] = [
+      ["生成される構造化データ", provJson],
+      ["lib/workAvailability.ts", libBody],
+      ["作品ページの生成箇所", ldBody],
+    ]
+      .filter(([, text]) => text.includes("確認日"))
+      .map(([where]) => where);
+    ldCheck(
+      "構造化データに「確認日」が現れない",
+      wordHits.length === 0,
+      wordHits.length === 0
+        ? "3箇所すべて不在"
+        : `混入: ${JSON.stringify(wordHits)}（Annictから取得した日であって確認した日ではない）`
+    );
+  }
+}
+console.log(`結果（配信情報の構造化データ）: ${ldNg === 0 ? "全件OK" : `${ldNg} 件NG`}`);
 
 // ─────────────────────────────────────────────
 // 行動ログの配線が途中で切れていないことの検査（2026-08-06追加）
@@ -2451,6 +3028,25 @@ let orphanNg = 0;
       needle: "otherSeasonWorks",
       label: "声優ページ → 他クールの出演作",
     },
+    // 2026-08-12: 制作会社ページ165件・監督ページ378件をsitemapに載せた。その入口は
+    // 作品ページの「監督」「製作会社」欄のリンクだけで、一覧・トップからは辿れない。
+    // ここが消えると543ページがまるごと孤立する（サービス別ページで踏んだ穴と同じ形）。
+    {
+      file: "../app/anime/[id]/page.tsx",
+      needle: "/director/${",
+      label: "作品ページ → 監督ページ",
+    },
+    {
+      file: "../app/anime/[id]/page.tsx",
+      needle: "/studio/${",
+      label: "作品ページ → 制作会社ページ",
+    },
+    // 制作会社・監督ページから作品ページ・シーズンページへ戻る導線。
+    {
+      file: "../components/CreditPage.tsx",
+      needle: "/anime/${",
+      label: "制作会社・監督ページ → 作品ページ",
+    },
   ];
   for (const c of cases) {
     const src = readFileSync(new URL(c.file, import.meta.url), "utf8");
@@ -2546,7 +3142,601 @@ let prepNg = 0;
   }
 }
 
+// ─────────────────────────────────────────────
+// 制作会社・監督ページ（2026-08-12追加）
+//
+// content/archive/studios.json から作る静的なページ（/studio/[name]・/director/[name]）。
+// 見張るのは3点:
+//   (1) 索引に載っている名前が全部ページになること（sitemapに404を載せない）
+//   (2) 表現が「配信情報がある」に留まっていること。ここに並ぶのは過去クールの記録で、
+//       いま配信されている保証は無い（CLAUDE.mdの基本ルール／lib/workAvailability.ts）
+//   (3) sitemapが両方の索引を載せていること
+// ─────────────────────────────────────────────
+console.log("\n── 制作会社・監督ページ ──");
+let creditNg = 0;
+{
+  const studioIndex = JSON.parse(
+    readFileSync(new URL("../content/archive/studios.json", import.meta.url), "utf8")
+  ) as { studios: Record<string, unknown[]>; directors: Record<string, unknown[]> };
+
+  // (1) 事前生成が索引の全キーを返すこと。Object.keys(creditMap(...)) の形を確かめる
+  //     （件数を直書きすると索引が増えたときに嘘になるので、生成の「作り方」を見る）。
+  for (const [role, file] of [
+    ["studio", "../app/studio/[name]/page.tsx"],
+    ["director", "../app/director/[name]/page.tsx"],
+  ] as const) {
+    const src = readFileSync(new URL(file, import.meta.url), "utf8");
+    const genOk =
+      /generateStaticParams/.test(src) &&
+      src.includes(`Object.keys(creditMap(INDEX, "${role}"))`) &&
+      src.includes("encodeURIComponent");
+    // notFound() が無いと索引に無い名前で空ページを返してしまう。
+    const guardOk = src.includes("notFound()");
+    const ok = genOk && guardOk;
+    if (!ok) creditNg++;
+    console.log(
+      `${ok ? "✓" : "✗"}  ${`${role}ページが索引の全件を事前生成`.padEnd(40)} → ` +
+        (ok
+          ? `${Object.keys(role === "studio" ? studioIndex.studios : studioIndex.directors).length}件`
+          : !genOk
+            ? "generateStaticParams が索引のキーから作られていない"
+            : "notFound() が無い（索引に無い名前で空ページを返す）")
+    );
+  }
+
+  // (2) 未確認の断定をしていないこと。放送終了作品の表現と同じ禁止語。
+  const creditSrc = readFileSync(new URL("../components/CreditPage.tsx", import.meta.url), "utf8");
+  // コメント行（注意書きとして禁止語そのものを書いている）は除いてから探す。
+  const body = creditSrc
+    .split("\n")
+    .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+    .join("\n");
+  const banned = ["視聴できます", "配信中", "配信しています", "見られます"].filter((w) =>
+    body.includes(w)
+  );
+  const wordOk = banned.length === 0 && body.includes("配信情報がある");
+  if (!wordOk) creditNg++;
+  console.log(
+    `${wordOk ? "✓" : "✗"}  ${"表現が「配信情報がある」に留まっている".padEnd(40)} → ` +
+      (wordOk
+        ? "断定表現なし"
+        : banned.length > 0
+          ? `未確認の断定が入っている（${banned.join("・")}）`
+          : "「配信情報がある」が無い")
+  );
+
+  // (3) sitemapが両方を載せていること。
+  const sitemapSrc = readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+  const mapOk =
+    sitemapSrc.includes("/studio/${encodeURIComponent(name)}") &&
+    sitemapSrc.includes("/director/${encodeURIComponent(name)}");
+  if (!mapOk) creditNg++;
+  console.log(
+    `${mapOk ? "✓" : "✗"}  ${"sitemapが制作会社・監督ページを載せる".padEnd(40)} → ${mapOk ? "両方あり" : "片方または両方が無い"}`
+  );
+}
+
+// ─────────────────────────────────────────────
+// 配信サービス名寄せ表の公開（2026-08-13追加）
+//
+// docs/growth-strategy-2026-08.md の4章の結論は「一覧そのものには差別化余地が無く、
+// 差別化があるのは正規化のほう」だった。lib/services.ts の名寄せ表を /api/services で
+// 機械可読に公開し、帰属義務（出典表記＋リンク）を付ける（同5章①・駅データ.jp型）。
+//
+// 【法務上の切り分け】名寄せ表そのものは本サイトの著作物なので公開できる。一方
+// Annict由来の「作品ごとの配信実績」は再配布の可否が未確認なので**含めない**。
+// また埋め込みウィジェットと同じ重大度で、公開データに広告リンクを混ぜない
+// （第三者のアプリの中に自分のアフィリエイトリンクが紛れ込む形になるため）。
+// 見張るのは次の7点:
+//   (1) 公開されるキー集合と順序が SERVICES と完全一致すること（ズレ＝データの嘘）。
+//       CSVとJSONの両方を見る（片方だけ古い、が起きうる）
+//   (2) 出力に Annict 由来の作品データを示すキーが現れないこと
+//   (3) 出力にアフィリエイトASPのドメインが現れないこと
+//   (4) /developers に帰属義務の文言とデータセットへのリンクがあること
+//   (5) **ラウンドトリップ**＝公開した情報「だけ」で本サイトと同じ判定が再現できること
+//       （2026-08-13追加。放送局の除外パターンが公開されておらず、手順どおりに実装すると
+//        TOKYO MX / AT-X / BS11 / テレビ東京 が配信サービス扱いになっていた）
+//   (6) 出典表記に Annict が現れないこと（2026-08-13追加。この表は本サイトの著作物で
+//       Annictのデータを1件も含まないのに「データ元: Annict」と名乗っており、
+//       事実として誤っているうえ、被リンク目的の公開なのにクレジットがAnnictへ流れていた）
+//   (7) 応答が決定的＝日付を含まないこと（2026-08-13追加。「Annictからの取得日」を
+//       名乗っていたが、このAPIはAnnictに触れない。s-maxage=86400 なので配られる値も最大8日ずれる）
+// ─────────────────────────────────────────────
+console.log("\n── 配信サービス名寄せ表の公開 ──");
+let datasetNg = 0;
+{
+  function datasetCheck(name: string, pass: boolean, detail: string) {
+    if (!pass) datasetNg++;
+    console.log(`${pass ? "✓" : "✗"}  ${name.padEnd(38)} → ${detail}`);
+  }
+
+  const json = buildServiceDataset();
+  const jsonText = JSON.stringify(json);
+  const csv = toCsv(serviceDatasetEntries());
+  const csvLines = csv.replace(/\r\n$/, "").split("\r\n");
+
+  // (1) キー集合＋順序。順序は classifyChannel の判定優先順そのもので、
+  //     データセット側も「配列の先頭から順に当てる」と説明している＝意味を持つ。
+  const want = SERVICES.map((s) => s.key);
+  const gotJson = json.services.map((s) => s.key);
+  datasetCheck(
+    "JSONのキーがSERVICESと完全一致",
+    gotJson.length === want.length && gotJson.every((k, i) => k === want[i]),
+    gotJson.length === want.length && gotJson.every((k, i) => k === want[i])
+      ? `${want.length}件（順序も一致）`
+      : `期待 ${JSON.stringify(want)} / 実際 ${JSON.stringify(gotJson)}`
+  );
+
+  // CSVは key が第1列で、キーは英小文字と _ だけなので引用符・カンマを含まない
+  //（含む値のクォートは下の (4) で別途固定する）。
+  const gotCsv = csvLines.slice(1).map((l) => l.split(",")[0]);
+  datasetCheck(
+    "CSVのキーがSERVICESと完全一致",
+    gotCsv.length === want.length && gotCsv.every((k, i) => k === want[i]),
+    gotCsv.length === want.length && gotCsv.every((k, i) => k === want[i])
+      ? `${want.length}行（順序も一致）`
+      : `期待 ${JSON.stringify(want)} / 実際 ${JSON.stringify(gotCsv)}`
+  );
+
+  // CSVの体裁。BOMを付けると先頭列名がBOM込みで読まれるパーサがある。
+  const headerOk = csvLines[0] === CSV_COLUMNS.join(",");
+  const bomOk = !csv.startsWith("﻿");
+  datasetCheck(
+    "CSVはBOM無し・ヘッダが列定義と一致",
+    headerOk && bomOk,
+    !bomOk ? "先頭にBOMが付いている" : headerOk ? csvLines[0] : `ヘッダが違う: ${csvLines[0]}`
+  );
+
+  // (4-a) RFC4180のクォート。実データには今のところカンマも引用符も現れないが、
+  //       サービス名に入った瞬間に列がズレる（＝黙って壊れる）ので合成データで固定する。
+  const nasty: ServiceDatasetEntry = {
+    key: "test_key",
+    name: 'カンマ, と "引用符" が入る名前',
+    short: "改行\r\n入り",
+    kana: null,
+    officialUrl: "https://example.com/",
+    channelPattern: "a|b",
+    channelPatternFlags: "",
+  };
+  const wantRow =
+    'test_key,"カンマ, と ""引用符"" が入る名前","改行\r\n入り",,https://example.com/,a|b,';
+  const nastyCsv = toCsv([nasty]);
+  datasetCheck(
+    "CSVがRFC4180のクォートに従う",
+    nastyCsv.includes(wantRow),
+    nastyCsv.includes(wantRow)
+      ? "カンマ・引用符・改行を含む値を正しく囲む"
+      : `期待の行が出ない: ${JSON.stringify(nastyCsv)}`
+  );
+
+  // (5) ラウンドトリップ。公開した情報**だけ**を使って本サイトと同じ判定を再現する。
+  //     二次利用者の立場で、matching.normalization の手順（日本語の説明文）を実装し直し、
+  //     services[].channelPattern → matching.broadcastPattern の順に当てる。
+  //     2026-08-13まで broadcastPattern が JSON にもCSVにも入っておらず、公開手順どおりに
+  //     実装すると TOKYO MX / AT-X / BS11 / テレビ東京 が「その他配信」＝配信サービスとして
+  //     残った。Annictの生チャンネル名は放送局が大半なので、二次利用側はほぼ全作品で
+  //     地上波局を配信サービスとして表示することになる（差別化の本体である正規化が、
+  //     まるごと再現できていなかった）。
+  //     期待値は上の samples（classifyChannel の回帰テストと同じ表）をそのまま使う＝
+  //     「公開データで本物と同じ答えが出る」ことを実データ表記込みで固定する。
+  const normalizeAsPublished = (raw: string) =>
+    raw
+      // 「小文字にする」
+      .toLowerCase()
+      // 「空白文字をすべて取り除く」
+      .replace(/\s+/g, "")
+      // 「長音・ダッシュ類（ー／－／―／‐）を半角ハイフン - に統一する」
+      .replace(/[ー－―‐]/g, "-")
+      // 「全角の英数字を半角にする」
+      .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+
+  const classifyAsPublished = (raw: string): string => {
+    const n = normalizeAsPublished(raw);
+    for (const s of json.services) {
+      if (new RegExp(s.channelPattern, s.channelPatternFlags).test(n)) return `service:${s.key}`;
+    }
+    if (
+      new RegExp(json.matching.broadcastPattern, json.matching.broadcastPatternFlags).test(n)
+    ) {
+      return "tv";
+    }
+    return "other";
+  };
+
+  const rtBad = samples.filter(([input, expect]) => classifyAsPublished(input) !== expect);
+  datasetCheck(
+    "公開情報だけで判定を再現できる",
+    rtBad.length === 0,
+    rtBad.length === 0
+      ? `${samples.length}件すべて本サイトと同じ判定（放送局の除外パターン込み）`
+      : `再現できない: ${JSON.stringify(
+          rtBad.map(([i, e]) => `${i}: 期待 ${e} / 公開情報では ${classifyAsPublished(i)}`)
+        )}`
+  );
+
+  // 上のラウンドトリップが「たまたま通る」形（除外パターンが空・全部にマッチ）で
+  // 壊れていないことを別途固定する。放送局の判定が公開されていることが要件そのもの。
+  const bcOk =
+    typeof json.matching.broadcastPattern === "string" &&
+    json.matching.broadcastPattern.length > 0 &&
+    classifyAsPublished("TOKYO MX") === "tv" &&
+    classifyAsPublished("dアニメストア") === "service:d_anime";
+  datasetCheck(
+    "放送局の除外パターンを公開している",
+    bcOk,
+    bcOk
+      ? "matching.broadcastPattern あり（TOKYO MX→tv / dアニメストア→サービス）"
+      : "broadcastPattern が無い、または放送局を落とせない（公開手順どおりに実装すると放送局が配信サービスになる）"
+  );
+
+  // (2) Annict由来の作品データが混ざっていないこと。ここを開けると、再配布の可否が
+  //     未確認のデータを公開したことになる（docs/annict-contribution.md）。
+  const workDataKeys = ["annictId", "programs", "casts", "works", "episodes", "castNames"];
+  const leaked = workDataKeys.filter((k) => jsonText.includes(k) || csv.includes(k));
+  datasetCheck(
+    "作品データのキーが現れない",
+    leaked.length === 0,
+    leaked.length === 0
+      ? `${workDataKeys.length}語すべて不在`
+      : `混入: ${JSON.stringify(leaked)}（Annict由来の作品データは再配布の可否が未確認）`
+  );
+
+  // (3) アフィリエイトのASPドメイン。登録済みのリンク（content/affiliate/programs.ts）から
+  //     起こしたホスト＋既知のASPドメイン。一覧はファイル冒頭の affiliateHosts() が持つ
+  //     （構造化データ側の同じ検査と定義を共有するため。2026-08-13にそちらへ移動）。
+  const aspHosts = affiliateHosts();
+  const adHits = aspHosts.filter((h) => jsonText.includes(h) || csv.includes(h));
+  datasetCheck(
+    "アフィリエイトのドメインが現れない",
+    adHits.length === 0,
+    adHits.length === 0
+      ? `${aspHosts.length}ドメインすべて不在`
+      : `混入: ${JSON.stringify(adHits)}（公開データに広告リンクを入れない）`
+  );
+
+  // 実装レベルの担保（lib/embed.ts と同じ流儀）。参照が無ければ混ざりようがない。
+  for (const [label, file] of [
+    ["lib/serviceDataset.ts", "../lib/serviceDataset.ts"],
+    ["app/api/services/route.ts", "../app/api/services/route.ts"],
+  ] as const) {
+    const src = readFileSync(new URL(file, import.meta.url), "utf8");
+    // コメント行（この方針そのものを注意書きとして書いている）は除いてから探す。
+    // URL中の `//` を巻き込まないよう、行頭がコメントの行だけを落とす。
+    const body = src
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join("\n");
+    const uses = /affiliate/i.test(body);
+    datasetCheck(
+      `${label}はアフィリエイトを参照しない`,
+      !uses,
+      uses ? "参照している（公開データに広告リンクを入れてはいけない）" : "参照なし"
+    );
+  }
+
+  // 帰属義務。使う側がレスポンスを読むだけで出典を書けること＝この施策の目的そのもの。
+  const attributionOk =
+    typeof json.license?.url === "string" &&
+    json.license.url.startsWith(siteUrl) &&
+    typeof json.license.name === "string" &&
+    json.license.name !== "" &&
+    [json.attribution.text, json.attribution.html, json.attribution.markdown].every(
+      (s) => typeof s === "string" && s.includes(siteUrl)
+    ) &&
+    json.attribution.url.startsWith(siteUrl);
+  datasetCheck(
+    "JSONに利用条件と出典表記が入る",
+    attributionOk,
+    attributionOk
+      ? `license=${json.license.url} / text・html・markdown すべてに ${siteUrl} へのリンク`
+      : "license か attribution（text/html/markdown/url）が欠けている、またはサイトURLを含まない"
+  );
+
+  // (6) 出典表記に Annict が現れないこと。この表は本サイトが自前で書いたもので Annict の
+  //     データを1件も含まない。にもかかわらず /api/work・/api/season と同じ出典
+  //     （apiSource → "データ元: Annict"）を載せていたため、①誤ったデータ出所の表明
+  //     ②被リンクを得るための公開なのにクレジットとリンクが Annict へ流れる、が同時に
+  //     起きていた。同じ応答の note が「Annict由来のデータは含まない」と書いており自己矛盾。
+  //     ※ description・note が説明として Annict に言及するのは正しいので、見るのは
+  //       「出典として名乗っている場所」＝attribution / license / creator と、
+  //       クレジットのリンク先になる annict.com のURL。
+  const creditFields: Array<[string, string]> = [
+    ["attribution.text", json.attribution.text],
+    ["attribution.html", json.attribution.html],
+    ["attribution.markdown", json.attribution.markdown],
+    ["attribution.url", json.attribution.url],
+    ["license.name", json.license.name],
+    ["license.url", json.license.url],
+    ["creator.name", json.creator.name],
+    ["creator.url", json.creator.url],
+  ];
+  const annictCredits = creditFields.filter(([, v]) => /annict/i.test(v)).map(([k]) => k);
+  const annictUrlHits = [
+    ...(/annict\.com/i.test(jsonText) ? ["JSON本文"] : []),
+    ...(/annict\.com/i.test(csv) ? ["CSV本文"] : []),
+  ];
+  const noAnnictCredit = annictCredits.length === 0 && annictUrlHits.length === 0;
+  datasetCheck(
+    "出典表記にAnnictが現れない",
+    noAnnictCredit,
+    noAnnictCredit
+      ? "attribution / license / creator は本サイトのみ・annict.com へのリンク無し"
+      : `Annictを名乗っている: ${JSON.stringify([...annictCredits, ...annictUrlHits])}` +
+        "（この表にAnnictのデータは含まれない）"
+  );
+
+  // (6') 作品データ用の source フィールドを持たないこと。持つと上の (6) が復活する。
+  const hasSource = Object.prototype.hasOwnProperty.call(json, "source");
+  datasetCheck(
+    "作品API用のsourceを持たない",
+    !hasSource,
+    hasSource
+      ? "source がある（apiSource は「Annictから取得した」ことを表す出典情報。このAPIはAnnictに触れない）"
+      : "source 無し（出典は attribution が持つ）"
+  );
+
+  // (7) 応答が決定的＝日付を含まないこと。checkedAt（Annictからの取得日）を名乗っていたが
+  //     このAPIはAnnictに一度も触れない。しかも s-maxage=86400 でCDNに載るため、
+  //     配られる日付は最大8日ずれる。中身は SERVICES と TV_PATTERN だけから決まるので、
+  //     日付を持たないのがいちばん素直（キャッシュとも整合する）。
+  const dates = [...new Set(jsonText.match(/\d{4}-\d{2}-\d{2}/g) ?? [])];
+  const dateKeys = ["checkedAt", "generatedAt", "updatedAt"].filter((k) => jsonText.includes(k));
+  const deterministic = dates.length === 0 && dateKeys.length === 0;
+  datasetCheck(
+    "応答が決定的（日付を含まない）",
+    deterministic,
+    deterministic
+      ? "日付なし＝毎リクエスト同じJSON（s-maxage=86400 のキャッシュとも整合）"
+      : `日付が入っている: ${JSON.stringify([...dates, ...dateKeys])}`
+  );
+
+  // 公開API（第三者が直接叩く）としての最低条件。既存の /api/* と同じ形。
+  const routeSrc = readFileSync(
+    new URL("../app/api/services/route.ts", import.meta.url),
+    "utf8"
+  );
+  const corsOk =
+    routeSrc.includes('"Access-Control-Allow-Origin": "*"') &&
+    routeSrc.includes("Cache-Control") &&
+    routeSrc.includes("text/csv");
+  datasetCheck(
+    "APIがCORS・キャッシュ・CSVを備える",
+    corsOk,
+    corsOk ? "Allow-Origin: * / Cache-Control / text/csv" : "いずれかが欠けている"
+  );
+
+  // CSVは本文に利用条件を書けないので Link: rel="license" で示している。ところが
+  // CORSで既定で読める応答ヘッダに Link は含まれないため、expose しないと
+  // **ブラウザの fetch で取る二次利用者にだけ利用条件が届かない**（curl では届くので
+  // 気づけない）。帰属表記＝被リンクが目的のデータセットなので、この1行を消さないこと。
+  const exposeOk =
+    /"Access-Control-Expose-Headers":\s*"[^"]*Link/.test(routeSrc) &&
+    routeSrc.includes('rel="license"');
+  datasetCheck(
+    "CSVの利用条件がブラウザからも読める（Linkをexpose）",
+    exposeOk,
+    exposeOk
+      ? 'Access-Control-Expose-Headers: Link / Link: rel="license"'
+      : "Expose-Headers に Link が無い（fetchで取る二次利用者に利用条件が届かない）"
+  );
+
+  // ?format= の解釈。元の実装は `searchParams.get("format") ?? "json"` で、`??` は
+  // null しか拾わないため `?format=`（値なし・空文字）が 400 になっていた。
+  // 大文字（`?format=CSV`）も同様。未指定・空文字・大文字はすべて正しく通すこと。
+  const formatCases: Array<[string | null, "json" | "csv" | null]> = [
+    [null, "json"], // 未指定
+    ["", "json"], // ?format=（値なし）
+    ["json", "json"],
+    ["JSON", "json"],
+    ["csv", "csv"],
+    ["CSV", "csv"], // 大文字
+    ["Csv", "csv"],
+    ["xml", null], // 未対応は 400
+  ];
+  const formatBad = formatCases.filter(([raw, want]) => parseFormat(raw) !== want);
+  datasetCheck(
+    "?format= の解釈（空文字・大文字も通る）",
+    formatBad.length === 0,
+    formatBad.length === 0
+      ? `${formatCases.length}通り（未指定・空文字・大小文字・未対応）`
+      : `期待と違う: ${JSON.stringify(
+          formatBad.map(([raw, want]) => `${JSON.stringify(raw)} → 期待 ${want} / 実際 ${parseFormat(raw)}`)
+        )}`
+  );
+
+  // 上のテストが本番と同じ経路であること。route.ts が自前で解釈に戻ると検査が空振りする。
+  const routeUsesParse =
+    routeSrc.includes("parseFormat(") && !/searchParams\.get\("format"\)\s*\?\?/.test(routeSrc);
+  datasetCheck(
+    "route.tsがparseFormatを使う",
+    routeUsesParse,
+    routeUsesParse
+      ? "解釈は lib/serviceDataset.ts の1箇所（検査と本番が同じ経路）"
+      : "route.ts が自前で format を解釈している（検査をすり抜ける）"
+  );
+
+  // (4) /developers（データセットの唯一の入口）。リンクが消えると、人にも
+  //     クローラーにも存在しないのと同じになる（「孤立ページを作らない」と同じ穴）。
+  const devSrc = readFileSync(
+    new URL("../app/developers/page.tsx", import.meta.url),
+    "utf8"
+  );
+  const linkOk =
+    devSrc.includes("@/lib/serviceDataset") &&
+    devSrc.includes("DATASET_JSON_URL") &&
+    devSrc.includes("DATASET_CSV_URL") &&
+    devSrc.includes("名寄せ表");
+  datasetCheck(
+    "/developers にデータセットへのリンク",
+    linkOk,
+    linkOk
+      ? "JSON・CSV の両方（URLは lib/serviceDataset.ts から）"
+      : "節が無い、またはURLを直書きしている（正準定義とズレると機械が読む側にだけ嘘が残る）"
+  );
+
+  const creditOk =
+    devSrc.includes("出典表記") &&
+    devSrc.includes("attributionHtml()") &&
+    devSrc.includes("attributionMarkdown()") &&
+    devSrc.includes("attributionText()");
+  datasetCheck(
+    "/developers に帰属義務とコピペ用の出典",
+    creditOk,
+    creditOk ? "文言＋HTML/Markdown/テキストの3形式" : "文言かコピペ用スニペットが欠けている"
+  );
+
+  const ldOk =
+    devSrc.includes('"@type": "Dataset"') &&
+    (devSrc.match(/"DataDownload"/g) ?? []).length === 2 &&
+    devSrc.includes("isAccessibleForFree") &&
+    devSrc.includes("DATASET_LICENSE.url");
+  datasetCheck(
+    "/developers にDatasetの構造化データ",
+    ldOk,
+    ldOk ? "DataDownload×2（JSON・CSV）＋license＋無料の明示" : "Dataset の JSON-LD が欠けている"
+  );
+}
+console.log(`結果（配信サービス名寄せ表）: ${datasetNg === 0 ? "全件OK" : `${datasetNg} 件NG`}`);
+
+// ─────────────────────────────────────────────
+// 公開APIの告知（/llms.txt）（2026-08-13追加）
+//
+// /api/services を足したとき、/llms.txt の「公開API」一覧に載せ忘れた。llms.txt は
+// 生成AIにサイトの構造を伝えるための唯一の目録で、載っていないAPIは「無いのと同じ」
+// （sitemapに載せたページをサイト内からリンクし忘れる＝「孤立ページを作らない」と同じ穴）。
+// AI検索経由の露出を狙って置いているファイルなので、取りこぼすと施策そのものが空振りする。
+// 手順書に書いても次にAPIを足す日には忘れるので、機械に見張らせる:
+//   CORSヘッダ（＝第三者が直接叩ける公開API）を持つ app/api/**/route.ts は、
+//   app/llms.txt/route.ts にそのURLが載っていること。
+// 動的セグメント（[id] など）はURLに実IDが入るので、その手前までを突き合わせる。
+// ─────────────────────────────────────────────
+console.log("\n── 公開APIの告知（/llms.txt） ──");
+let llmsNg = 0;
+{
+  const llmsSrc = readFileSync(
+    new URL("../app/llms.txt/route.ts", import.meta.url),
+    "utf8"
+  );
+  const apiRoutes = listSourceFiles(new URL("../app/api/", import.meta.url)).filter((u) =>
+    /\/route\.tsx?$/.test(u.pathname)
+  );
+
+  const listed: string[] = [];
+  const missing: string[] = [];
+  for (const url of apiRoutes) {
+    const src = readFileSync(url, "utf8");
+    // CORS を返していない＝サイト内部専用。目録に載せる対象ではない。
+    if (!src.includes("Access-Control-Allow-Origin")) continue;
+    const rel = decodeURIComponent(url.pathname)
+      .split("/app/api/")[1]
+      .replace(/\/route\.tsx?$/, "");
+    const segs: string[] = [];
+    for (const seg of rel.split("/")) {
+      if (seg.startsWith("[") || seg.startsWith("(")) break; // 動的セグメントの手前まで
+      segs.push(seg);
+    }
+    const path = `/api/${segs.join("/")}`;
+    (llmsSrc.includes(path) ? listed : missing).push(path);
+  }
+
+  const allListed = missing.length === 0 && listed.length > 0;
+  if (!allListed) llmsNg++;
+  console.log(
+    `${allListed ? "✓" : "✗"}  ${"CORS付きの公開APIが/llms.txtに載っている".padEnd(40)} → ` +
+      (allListed
+        ? `${listed.length}本（${listed.join(" / ")}）`
+        : listed.length === 0
+          ? "CORS付きのAPIが1本も見つからない（検査が空振りしている）"
+          : `載っていない: ${JSON.stringify(missing)}`)
+  );
+}
+console.log(`結果（公開APIの告知）: ${llmsNg === 0 ? "全件OK" : `${llmsNg} 件NG`}`);
+
+// ─────────────────────────────────────────────
+// 検査を回す環境（2026-08-11追加）
+//
+// 2026-08-11、CIに入っているのに**手元では必ず失敗する**検査が2本、数セッションに
+// わたって赤いまま放置されていたことが分かった（docs/operations.md の㉔）。
+//   - scripts/probe-series.ts … Windows では process.exit() が書き込み途中の stdout を
+//     巻き込んで異常終了する（0xC0000409）
+//   - scripts/verify-production.sh … jq に依存していた（ubuntu ランナーには同梱、
+//     Windows の開発機には無い）
+// どちらも ubuntu だけで回している限り**原理的に検知できない**壊れ方で、検査を
+// 増やしても環境が1つでは同じことが起きる。そこで見張るのは次の2点:
+//   (1) CI が ubuntu と windows の両方で回っていること（matrixを消させない）
+//   (2) `npm run check` が CI と同じ検査を並べていること
+//       （手元の1コマンドとCIがズレると、手元で緑でもCIで落ちる／その逆が起きる）
+// ─────────────────────────────────────────────
+console.log("\n── 検査を回す環境 ──");
+let ciNg = 0;
+{
+  const ciYml = readFileSync(
+    new URL("../.github/workflows/ci.yml", import.meta.url),
+    "utf8"
+  );
+
+  // (1) 開発機（Windows）とCI（ubuntu）の両方。片方だけに戻すと上記の穴が復活する。
+  const oses = ["ubuntu-latest", "windows-latest"].filter((os) => ciYml.includes(os));
+  const osOk = oses.length === 2;
+  if (!osOk) ciNg++;
+  console.log(
+    `${osOk ? "✓" : "✗"}  ${"CIがubuntuとwindowsの両方で回る".padEnd(40)} → ` +
+      (osOk
+        ? oses.join(" / ")
+        : `${JSON.stringify(oses)} しかない。開発機と同じOSを外すと「CIは緑なのに手元では必ず落ちる」検査に気づけなくなる`)
+  );
+
+  // (2) CIの run: が呼ぶ検査スクリプトと、package.json の "check" が呼ぶものを突き合わせる。
+  //     ビルド（npm run build）は Windows では回さない＝`npm run check` にも入れないので
+  //     比較の対象から外す。
+  const scriptsIn = (src: string) =>
+    new Set([...src.matchAll(/node (scripts\/check[\w-]*\.(?:ts|js))/g)].map((m) => m[1]));
+  const pkg = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8")
+  ) as { scripts?: Record<string, string> };
+  const checkCmd = pkg.scripts?.check ?? "";
+  const ciScripts = scriptsIn(ciYml);
+  const pkgScripts = scriptsIn(checkCmd);
+  const missing = [...ciScripts].filter((s) => !pkgScripts.has(s));
+  const extra = [...pkgScripts].filter((s) => !ciScripts.has(s));
+  const sameOk = checkCmd !== "" && missing.length === 0 && extra.length === 0;
+  if (!sameOk) ciNg++;
+  console.log(
+    `${sameOk ? "✓" : "✗"}  ${"npm run check がCIと同じ検査を並べている".padEnd(40)} → ` +
+      (sameOk
+        ? `${ciScripts.size}本が一致`
+        : checkCmd === ""
+          ? `package.json に "check" が無い`
+          : `CIにあって check に無い=${JSON.stringify(missing)} / check にあってCIに無い=${JSON.stringify(extra)}`)
+  );
+
+  // (3) シェルスクリプトがLFで展開されること。core.autocrlf=true のWindows機では
+  //     .gitattributes が無いと *.sh がCRLFになり、bashが行末のCRを引数に含めて読むため
+  //     スクリプトが1行も動かない（`$'\r': command not found`）。Git同梱のbashは許容し、
+  //     CI（ubuntu）はLFで展開するので、**特定のシェルからだけ必ず落ちる**形になる。
+  const attrs = existsSync(new URL("../.gitattributes", import.meta.url))
+    ? readFileSync(new URL("../.gitattributes", import.meta.url), "utf8")
+    : "";
+  const shOk = /^\*\.sh\s+.*eol=lf/m.test(attrs);
+  if (!shOk) ciNg++;
+  console.log(
+    `${shOk ? "✓" : "✗"}  ${".gitattributesが*.shをLFに固定している".padEnd(40)} → ` +
+      (shOk ? "*.sh text eol=lf" : "指定が無い。Windowsの作業ツリーで *.sh がCRLFになり bash が実行できなくなる")
+  );
+
+  // (2') 型チェックも手元の1コマンドに含める（CIの最初のゲート）。
+  const tscOk = checkCmd.includes("tsc --noEmit");
+  if (!tscOk) ciNg++;
+  console.log(
+    `${tscOk ? "✓" : "✗"}  ${"npm run check に型チェックが入っている".padEnd(40)} → ${tscOk ? "tsc --noEmit" : "見つからない"}`
+  );
+}
+
 if (
+  datasetNg > 0 ||
+  llmsNg > 0 ||
+  creditNg > 0 ||
+  ciNg > 0 ||
   addNg > 0 ||
   seriesNg > 0 ||
   spotlightNg > 0 ||
@@ -2571,7 +3761,13 @@ if (
   slotNg > 0 ||
   embedNg > 0 ||
   availNg > 0 ||
+  ldNg > 0 ||
   xIntentNg > 0 ||
+  xPolicyNg > 0 ||
   trackNg > 0
 )
-  process.exit(1);
+  // process.exit() ではなく exitCode。Windows では stdout がパイプされていると
+  // process.exit() が書き込み途中のバッファを巻き込んでプロセスを異常終了させ、
+  // 終了コードが 1 ではなく 3221226505 (0xC0000409) になる。CI（ubuntu）では
+  // 起きないので気づきにくいが、手元で失敗したときに原因の切り分けを難しくする。
+  process.exitCode = 1;

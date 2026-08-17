@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { getSeasonData } from "@/lib/getSeasonData";
 import ARCHIVE_INDEX from "@/content/archive/index.json";
 import PEOPLE_INDEX from "@/content/archive/people.json";
+import STUDIO_INDEX from "@/content/archive/studios.json";
 import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
 
 import { siteUrl } from "@/lib/siteUrl";
@@ -197,6 +198,36 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     entries.push({
       url: `${siteUrl}/person/${encodeURIComponent(p.name)}/${p.year}/${p.season}`,
       changeFrequency: "yearly",
+      priority: 0.4,
+    });
+  }
+
+  // 制作会社ページ・監督ページ（2026-08-12追加）。/studio/[name]・/director/[name]
+  //
+  // 【なぜ追加するか】content/archive/studios.json（制作会社165社・監督378人）は
+  // 2026-08-07に索引だけ作って、ページが無いまま置かれていた。声優ページが実測で
+  // 突出して強い（2026-08-08のGSCで平均5.8位・CTR9.5%。作品ページは22.3位・1.3%）ことから、
+  // 同じ「人・組織の軸」である監督も見込みがあると考えて面を作った。
+  // ただし**監督名・制作会社名での検索需要は未実測**であり、そこは推測。
+  // 効果は weeklyByType（面ごとの週次推移）で後から判定する。
+  //
+  // 収録の基準は声優索引と同じで、索引の時点で絞られている:
+  //   ・配信情報が1件以上ある作品だけ（content/archive/index.json と同じ方針）
+  //   ・2作品以上の会社・監督だけ（lib/studioIndex.ts の MIN_WORKS。1作品だと
+  //     作品ページと中身が同じ薄いページになる）
+  // Annictへの追加取得は発生しない（リポジトリ同梱の静的JSONのみ）。
+  // ページ側は全件を事前生成しているので、ここに載るURLは必ず200で返る。
+  for (const name of Object.keys(STUDIO_INDEX.studios)) {
+    entries.push({
+      url: `${siteUrl}/studio/${encodeURIComponent(name)}`,
+      changeFrequency: "monthly",
+      priority: 0.4,
+    });
+  }
+  for (const name of Object.keys(STUDIO_INDEX.directors)) {
+    entries.push({
+      url: `${siteUrl}/director/${encodeURIComponent(name)}`,
+      changeFrequency: "monthly",
       priority: 0.4,
     });
   }

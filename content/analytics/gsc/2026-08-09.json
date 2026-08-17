@@ -1,26 +1,17 @@
 {
-  "fetchedAt": "2026-08-11T22:23:48.855Z",
+  "fetchedAt": "2026-08-12T22:23:40.401Z",
   "siteUrl": "https://animedia-khaki.vercel.app/",
   "range": {
-    "startDate": "2026-07-12",
-    "endDate": "2026-08-08"
+    "startDate": "2026-07-13",
+    "endDate": "2026-08-09"
   },
   "totals": {
-    "clicks": 16,
-    "impressions": 678,
-    "ctr": 0.02359882005899705,
-    "position": 20.612094395280234
+    "clicks": 17,
+    "impressions": 707,
+    "ctr": 0.024045261669024046,
+    "position": 20.468175388967467
   },
   "daily": [
-    {
-      "keys": [
-        "2026-07-12"
-      ],
-      "clicks": 0,
-      "impressions": 2,
-      "ctr": 0,
-      "position": 3
-    },
     {
       "keys": [
         "2026-07-13"
@@ -263,6 +254,15 @@
       "impressions": 30,
       "ctr": 0.06666666666666667,
       "position": 18.266666666666666
+    },
+    {
+      "keys": [
+        "2026-08-09"
+      ],
+      "clicks": 1,
+      "impressions": 31,
+      "ctr": 0.03225806451612903,
+      "position": 16.193548387096776
     }
   ],
   "queries": [
@@ -271,17 +271,17 @@
         "悠木碧 2026"
       ],
       "clicks": 2,
-      "impressions": 21,
-      "ctr": 0.09523809523809523,
-      "position": 6.285714285714286
+      "impressions": 24,
+      "ctr": 0.08333333333333333,
+      "position": 6.166666666666667
     },
     {
       "keys": [
         "アニアキングダム ドラゴン島の戦い編"
       ],
       "clicks": 1,
-      "impressions": 2,
-      "ctr": 0.5,
+      "impressions": 3,
+      "ctr": 0.3333333333333333,
       "position": 7
     },
     {
@@ -298,9 +298,9 @@
         "site:vercel.app"
       ],
       "clicks": 0,
-      "impressions": 3,
+      "impressions": 1,
       "ctr": 0,
-      "position": 22
+      "position": 60
     },
     {
       "keys": [
@@ -370,9 +370,9 @@
         "アニアキングダムドラゴン島の戦い編"
       ],
       "clicks": 0,
-      "impressions": 8,
+      "impressions": 9,
       "ctr": 0,
-      "position": 7.875
+      "position": 7.888888888888889
     },
     {
       "keys": [
@@ -406,18 +406,27 @@
         "クレバテスii魔獣の王と偽りの勇者伝承 アニメ"
       ],
       "clicks": 0,
-      "impressions": 6,
+      "impressions": 7,
       "ctr": 0,
-      "position": 36.5
+      "position": 36.42857142857143
     },
     {
       "keys": [
         "クレバテスii魔獣の王と偽りの勇者伝承 配信"
       ],
       "clicks": 0,
-      "impressions": 20,
+      "impressions": 21,
       "ctr": 0,
-      "position": 26.15
+      "position": 25.80952380952381
+    },
+    {
+      "keys": [
+        "クレバテスⅱ"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 57
     },
     {
       "keys": [
@@ -559,9 +568,9 @@
         "乙女ゲー世界はモブに厳しい世界です2 配信"
       ],
       "clicks": 0,
-      "impressions": 16,
+      "impressions": 17,
       "ctr": 0,
-      "position": 38.5
+      "position": 37.294117647058826
     },
     {
       "keys": [
@@ -727,12 +736,21 @@
     },
     {
       "keys": [
-        "逃げ上手の若君 第二期"
+        "逃げ上手の若君 アニメ ネットフリックス"
       ],
       "clicks": 0,
       "impressions": 1,
       "ctr": 0,
-      "position": 60
+      "position": 8
+    },
+    {
+      "keys": [
+        "逃げ上手の若君 第二期"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 44.5
     },
     {
       "keys": [
@@ -811,18 +829,18 @@
         "逃げ若 2期 配信"
       ],
       "clicks": 0,
-      "impressions": 8,
+      "impressions": 9,
       "ctr": 0,
-      "position": 32.75
+      "position": 32.66666666666667
     },
     {
       "keys": [
         "鎧真伝サムライトルーパー 第2クール 配信"
       ],
       "clicks": 0,
-      "impressions": 9,
+      "impressions": 10,
       "ctr": 0,
-      "position": 49.44444444444444
+      "position": 49.1
     },
     {
       "keys": [
@@ -847,9 +865,9 @@
         "闇芝居 十七期 配信"
       ],
       "clicks": 0,
-      "impressions": 20,
+      "impressions": 21,
       "ctr": 0,
-      "position": 25.25
+      "position": 24.714285714285715
     },
     {
       "keys": [
@@ -875,10 +893,10 @@
       "keys": [
         "https://animedia-khaki.vercel.app/person/%E6%82%A0%E6%9C%A8%E7%A2%A7/2026/summer"
       ],
-      "clicks": 5,
-      "impressions": 47,
-      "ctr": 0.10638297872340426,
-      "position": 5.9361702127659575
+      "clicks": 6,
+      "impressions": 53,
+      "ctr": 0.11320754716981132,
+      "position": 5.679245283018868
     },
     {
       "keys": [
@@ -894,18 +912,18 @@
         "https://animedia-khaki.vercel.app/anime/17941"
       ],
       "clicks": 2,
-      "impressions": 25,
-      "ctr": 0.08,
-      "position": 8.24
+      "impressions": 27,
+      "ctr": 0.07407407407407407,
+      "position": 8.185185185185185
     },
     {
       "keys": [
         "https://animedia-khaki.vercel.app/"
       ],
       "clicks": 1,
-      "impressions": 6,
-      "ctr": 0.16666666666666666,
-      "position": 13.833333333333334
+      "impressions": 4,
+      "ctr": 0.25,
+      "position": 19.25
     },
     {
       "keys": [
@@ -930,9 +948,9 @@
         "https://animedia-khaki.vercel.app/anime/17343"
       ],
       "clicks": 1,
-      "impressions": 18,
-      "ctr": 0.05555555555555555,
-      "position": 8.277777777777779
+      "impressions": 19,
+      "ctr": 0.05263157894736842,
+      "position": 8.263157894736842
     },
     {
       "keys": [
@@ -966,18 +984,18 @@
         "https://animedia-khaki.vercel.app/anime/10352"
       ],
       "clicks": 0,
-      "impressions": 27,
+      "impressions": 30,
       "ctr": 0,
-      "position": 33.629629629629626
+      "position": 31.433333333333334
     },
     {
       "keys": [
         "https://animedia-khaki.vercel.app/anime/14132"
       ],
       "clicks": 0,
-      "impressions": 184,
+      "impressions": 187,
       "ctr": 0,
-      "position": 15.891304347826088
+      "position": 16.00534759358289
     },
     {
       "keys": [
@@ -993,9 +1011,9 @@
         "https://animedia-khaki.vercel.app/anime/15724"
       ],
       "clicks": 0,
-      "impressions": 5,
+      "impressions": 8,
       "ctr": 0,
-      "position": 26.4
+      "position": 22.5
     },
     {
       "keys": [
@@ -1038,18 +1056,18 @@
         "https://animedia-khaki.vercel.app/anime/16396"
       ],
       "clicks": 0,
-      "impressions": 2,
+      "impressions": 3,
       "ctr": 0,
-      "position": 9.5
+      "position": 9
     },
     {
       "keys": [
         "https://animedia-khaki.vercel.app/anime/16555"
       ],
       "clicks": 0,
-      "impressions": 38,
+      "impressions": 43,
       "ctr": 0,
-      "position": 28.789473684210527
+      "position": 28.72093023255814
     },
     {
       "keys": [
@@ -1074,18 +1092,18 @@
         "https://animedia-khaki.vercel.app/anime/16734"
       ],
       "clicks": 0,
-      "impressions": 62,
+      "impressions": 63,
       "ctr": 0,
-      "position": 13.225806451612904
+      "position": 13.142857142857142
     },
     {
       "keys": [
         "https://animedia-khaki.vercel.app/anime/16792"
       ],
       "clicks": 0,
-      "impressions": 9,
+      "impressions": 11,
       "ctr": 0,
-      "position": 49.44444444444444
+      "position": 45.27272727272727
     },
     {
       "keys": [
@@ -1173,18 +1191,18 @@
         "https://animedia-khaki.vercel.app/anime/17370"
       ],
       "clicks": 0,
-      "impressions": 8,
+      "impressions": 9,
       "ctr": 0,
-      "position": 8.5
+      "position": 8.777777777777779
     },
     {
       "keys": [
         "https://animedia-khaki.vercel.app/anime/17514"
       ],
       "clicks": 0,
-      "impressions": 8,
+      "impressions": 9,
       "ctr": 0,
-      "position": 23.125
+      "position": 27.88888888888889
     },
     {
       "keys": [
@@ -1209,9 +1227,9 @@
         "https://animedia-khaki.vercel.app/anime/17812"
       ],
       "clicks": 0,
-      "impressions": 37,
+      "impressions": 38,
       "ctr": 0,
-      "position": 27.2972972972973
+      "position": 26.94736842105263
     },
     {
       "keys": [
@@ -1248,6 +1266,15 @@
       "impressions": 1,
       "ctr": 0,
       "position": 8
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/person/%E6%A3%AE%E5%B7%9D%E6%99%BA%E4%B9%8B/2026/summer"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 4
     },
     {
       "keys": [
