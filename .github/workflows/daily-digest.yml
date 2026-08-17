@@ -274,6 +274,35 @@ jobs:
           echo "=== 枠: $DIGEST_SLOT として投稿されるはずの本文（投稿先ごと） ==="
           node scripts/print-digest.js --platform=all
 
+      # 【2026-08-17追加】投稿先ごとの「この枠は投げ済み」印を引く。
+      #
+      # なぜ要るか: 2026-08-17の夕方枠で Bluesky が一時的な通信エラー
+      # （TypeError: fetch failed）で落ち、Threads だけ成功した。ところが
+      # 「投稿済みの印」は Bluesky/Threads で1つを共有しており、**どちらか1つでも
+      # 成功すれば枠ごと投稿済み**になる作りだったため、次の起動で枠が丸ごとスキップされ、
+      # **Bluesky の夕方枠はその日ぶんが永久に落ちた**。
+      # Issue本文が「全滅した回は印を残さないので次の起動が再試行します」と案内していたが、
+      # それが当てはまるのは全滅した回だけで、今回のような**部分失敗には効かない**。
+      #
+      # 印を投稿先ごとに分けると、再試行しても成功済みの側は自分の印で止まるので
+      # 二重投稿にならない（2026-08-05に実際に起こした事故なので、ここは必ず守る）。
+      - name: Blueskyはこの枠を投げ済みか
+        id: posted_bs
+        if: ${{ steps.gate.outputs.go == 'true' }}
+        uses: actions/cache/restore@v4
+        with:
+          path: .posted-bluesky
+          key: posted-bluesky-${{ steps.gate.outputs.slot }}-${{ steps.when.outputs.date }}
+          lookup-only: true
+      - name: Threadsはこの枠を投げ済みか
+        id: posted_th
+        if: ${{ steps.gate.outputs.go == 'true' }}
+        uses: actions/cache/restore@v4
+        with:
+          path: .posted-threads
+          key: posted-threads-${{ steps.gate.outputs.slot }}-${{ steps.when.outputs.date }}
+          lookup-only: true
+
       - name: スクリーンショット撮影用にChromiumをインストール
         if: ${{ steps.gate.outputs.go == 'true' || steps.gate.outputs.mastodon_go == 'true' }}
         run: npx playwright install --with-deps chromium
@@ -296,7 +325,8 @@ jobs:
       # 失敗したステップ自体はfailureのまま残し、最後の通知ステップで拾う。
       - name: Blueskyへ自動投稿（無料・Secrets未設定ならスキップ）
         id: bluesky
-        if: ${{ !cancelled() && steps.gate.outputs.go == 'true' }}
+        if: ${{ !cancelled() && steps.gate.outputs.go == 'true'
+          && steps.posted_bs.outputs.cache-hit != 'true' }}
         run: node scripts/post-bluesky.js
         env:
           BLUESKY_IDENTIFIER: ${{ secrets.BLUESKY_IDENTIFIER }}
@@ -316,7 +346,8 @@ jobs:
 
       - name: Threadsへ自動投稿（無料・Secrets未設定ならスキップ）
         id: threads
-        if: ${{ !cancelled() && steps.gate.outputs.go == 'true' }}
+        if: ${{ !cancelled() && steps.gate.outputs.go == 'true'
+          && steps.posted_th.outputs.cache-hit != 'true' }}
         run: node scripts/post-threads.js
         env:
           THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
@@ -326,7 +357,7 @@ jobs:
       # 全部の枠＋Mastodonに印を付けるので、その日はもう自動投稿されない。
       - name: 今日の分を投稿済みとして印だけ残す（mark_only）
         if: ${{ inputs.mark_only }}
-        run: date -u +%FT%TZ | tee .posted .posted-mastodon
+        run: date -u +%FT%TZ | tee .posted .posted-mastodon .posted-bluesky .posted-threads
       - uses: actions/cache/save@v4
         if: ${{ inputs.mark_only }}
         with:
@@ -348,14 +379,48 @@ jobs:
           path: .posted-mastodon
           key: posted-mastodon-${{ steps.when.outputs.date }}
 
-      # 「この枠は今日もう投げた」印を残す。1つでも投稿できた回だけ保存するので、
-      # 全滅した回は印が残らず、同じ時間帯の次の起動が自動で再試行になる。
-      # Bluesky/Threads（時間帯の枠）とMastodon（1日1回のまとめ）は別々の印にする。
-      # 片方だけ失敗した日に、もう片方の再試行まで止めてしまわないため。
+      # 【2026-08-17変更】印を「投稿先ごと」と「枠ぜんぶ」の2段に分けた。
+      #
+      #   投稿先ごと（posted-bluesky-<枠>-<日付> / posted-threads-<枠>-<日付>）
+      #     … その投稿先が成功したときだけ残す。再試行時に成功済みの側を止める役。
+      #   枠ぜんぶ（posted-<枠>-<日付>）
+      #     … **失敗が1つも無かったとき**だけ残す。1つでも失敗していれば残さないので、
+      #       次の起動が同じ枠をもう一度拾い、失敗した投稿先だけが再試行される。
+      #
+      # 以前は枠の印を「どちらか1つでも成功したら」残していたため、部分失敗の日に
+      # 失敗した側が二度と投げられなかった（2026-08-17に実際に発生）。
+      # 逆に枠の印だけを「全部成功したとき」に変えると、再試行で成功済みの側まで
+      # もう一度投げてしまう（2026-08-05の二重投稿事故と同じ形）。**2段にして初めて成立する。**
+      - name: 投稿済みの印を残す（Bluesky）
+        id: mark_bs
+        if: ${{ !cancelled() && steps.gate.outputs.go == 'true' && steps.gate.outputs.slot != 'all'
+          && steps.bluesky.outcome == 'success' }}
+        run: date -u +%FT%TZ > .posted-bluesky
+      - uses: actions/cache/save@v4
+        if: ${{ !cancelled() && steps.mark_bs.outcome == 'success' }}
+        with:
+          path: .posted-bluesky
+          key: posted-bluesky-${{ steps.gate.outputs.slot }}-${{ steps.when.outputs.date }}
+
+      - name: 投稿済みの印を残す（Threads）
+        id: mark_th
+        if: ${{ !cancelled() && steps.gate.outputs.go == 'true' && steps.gate.outputs.slot != 'all'
+          && steps.threads.outcome == 'success' }}
+        run: date -u +%FT%TZ > .posted-threads
+      - uses: actions/cache/save@v4
+        if: ${{ !cancelled() && steps.mark_th.outcome == 'success' }}
+        with:
+          path: .posted-threads
+          key: posted-threads-${{ steps.gate.outputs.slot }}-${{ steps.when.outputs.date }}
+
+      # 枠ぜんぶの印。**失敗が1つも無く、かつ何か1つは成功している**ときだけ残す。
+      # skipped（自分の印で止まった側）は失敗ではないので、再試行の回でも成立する。
       - name: 投稿済みの印を残す（Bluesky/Threadsの枠）
         id: mark
         if: ${{ !cancelled() && steps.gate.outputs.go == 'true' && steps.gate.outputs.slot != 'all'
-          && (steps.bluesky.outcome == 'success' || steps.threads.outcome == 'success') }}
+          && steps.bluesky.outcome != 'failure' && steps.threads.outcome != 'failure'
+          && (steps.bluesky.outcome == 'success' || steps.threads.outcome == 'success'
+              || steps.posted_bs.outputs.cache-hit == 'true' || steps.posted_th.outputs.cache-hit == 'true') }}
         run: date -u +%FT%TZ > .posted
       - uses: actions/cache/save@v4
         if: ${{ !cancelled() && steps.mark.outcome == 'success' }}
@@ -416,8 +481,9 @@ jobs:
 
           実行ログ: ${RUN_URL}
 
-          全滅した回は投稿済みの印を残さないので、同じ時間帯の次の起動（1時間後）が
-          自動で再試行します。時間帯を過ぎても直らない場合だけ手当てが要ります。
+          失敗した投稿先は、同じ時間帯の次の起動（1時間後）が自動で再試行します
+          （成功済みの投稿先は投稿先ごとの印で止まるので、二重投稿にはなりません）。
+          時間帯を過ぎても直らない場合だけ手当てが要ります。
 
           直ったらこのIssueを閉じてください（次に失敗したときは新しいIssueが立ちます）。
           EOF
