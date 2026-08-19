@@ -279,6 +279,40 @@ $b = New-Object byte[] 32
 
 ---
 
+## 手順5. **書き込み側**が届いているかを確かめる（ここまでやって初めて完了）
+
+手順4までで確かめられるのは**読み出し**（Actions → 本番 → JSON）だけで、
+**ブラウザ → `/api/track` → Supabase** の書き込みが生きているかは分からない。
+`/api/track` は計測の失敗でユーザー体験を壊さないよう、**挿入に失敗しても
+静かに握りつぶす**（`{ ok: false }` を返すだけ）ので、壊れていても画面には何も出ない。
+
+そのため `rowCount: 0` は2つの意味を持つ:
+
+| 状況 | `rowCount: 0` の意味 |
+|---|---|
+| テーブルを作った直後 | **正常**。テーブルが無かった間の操作は記録されていないので、0から積み上がる |
+| 数日経っても0のまま | **書き込みが届いていない**。手順1のDDLの列名がコードとズレている疑い（`event_name` / `event_data` / `created_at`） |
+
+切り分けは10秒でできる:
+
+1. 本番サイト（https://animedia-khaki.vercel.app/ ）を開く
+2. 作品カードの**配信サービスのバッジを1つ押す**
+   （`official_link_click` か `affiliate_click` が飛ぶ）
+3. Actions → 「サイト行動ログ集計の日次取得」→ **Run workflow**
+4. `content/analytics/site/<日付>.json` の `rowCount` が **0 → 1以上**になっていれば完了
+
+なっていなければ Supabase の Table Editor で `analytics_events` の列名を見る。
+`app/api/track/route.ts` が挿入するのは `event_name`（text）と `event_data`（jsonb）で、
+`created_at` は**デフォルト値（`now()`）が要る**（コード側は渡していない）。
+
+### 2026-08-19 時点の実測
+
+- 手順4までは**通っている**（`configured: true` / `rowCount: 0` / Actionsは成功）
+  ＝トークン一致・Supabase接続・テーブル存在まで確認済み
+- `rowCount: 0` はテーブルを作った当日のため。**上の切り分けはまだ未実施**
+
+---
+
 ## 完了後
 
 - 以後、毎日 **07:10 JST 前後**に自動取得される
