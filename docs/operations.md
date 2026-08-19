@@ -1108,6 +1108,40 @@ Vercel Proに課金せず、既に導入済みのSupabase（無料枠のPostgres
    404（存在しないページと同じ扱い。不一致の理由は教えない）。
 4. `robots.txt`で`/admin`はクロール除外済み、ページ自体にも`noindex`を設定済み。
 
+**【2026-08-19追加】機械から読めるようにした（`/api/admin/analytics` ＋ 日次取得）**
+
+上の手順を踏んでも、集計を読めるのは**ブラウザで画面を開いた人だけ**だった。
+そのためセッション（Claude）は自前計測の数字を一度も読めておらず、
+`docs/affiliate-setup.md`の「順番を決め直すときの一次情報」＝
+**「未提携サービスへのクリックが多い順に提携する」という判断が、
+ユーザーが手で数字を書き写すまで進まない**状態が続いていた。
+
+GSC（`scripts/fetch-gsc.js`）とまったく同じ形に載せた:
+
+| 役割 | 実体 |
+|---|---|
+| 集計本体（画面とJSONで共有） | `lib/adminAnalytics.ts` |
+| 画面 | `app/admin/analytics/page.tsx` |
+| JSON窓口（運営者専用） | `app/api/admin/analytics/route.ts` |
+| 日次取得 | `scripts/fetch-site-analytics.js` ＋ `.github/workflows/site-analytics.yml` |
+| 保存先 | `content/analytics/site/<日付>.json`（コミットされる） |
+| 回帰テスト | `node scripts/check-site-analytics.js`（`npm run check`とCIに入っている） |
+
+**外してはいけない点が4つある**:
+1. **集計は`lib/adminAnalytics.ts`の1箇所だけ**。画面かJSONのどちらかに集計を書き戻すと、
+   同じ画面の数字が2通りになり、どちらが正か分からなくなる。
+2. **トークンはクエリではなく`x-admin-token`ヘッダーで送る**（機械から叩く経路では
+   URLに秘密を載せない＝ログ・リファラに残さない）。画面は従来どおり`?token=`のまま。
+3. **書き出すJSONにトークンを混ぜない**。`content/analytics/`は**コミットされる＝公開される**
+   ので、混入は即漏洩になる。`assertNoSecrets`が書き出す直前に本文を検査し、
+   混じっていたら**書かずに落とす**。
+4. **未設定なら静かにスキップする**（トークン未登録／Supabase未設定のどちらでも、
+   ファイルを作らず成功扱いで終える）。ここで失敗させると、セットアップが済むまで
+   毎日Issueが積み上がる。
+
+**有効化に必要なもの**（上の手順1〜2に加えて）: GitHub Secrets の `ADMIN_DASHBOARD_TOKEN`
+（Vercelの環境変数と**同じ値**にする。食い違うと404になり、ワークフローが毎日Issueを立てる）。
+
 **記録している内容**: `event_name`（`share_site`等、コード側でホワイトリスト済みの8種のみ）と
 `event_data`（`service`名等の付随情報）のみ。IPアドレス・Cookie・ユーザーIDは一切記録しない。
 

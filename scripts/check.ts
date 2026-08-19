@@ -2505,7 +2505,9 @@ console.log(`結果（配信情報の構造化データ）: ${ldNg === 0 ? "全�
 // 行動ログは3箇所の名前が揃って初めて機能する:
 //   1. 呼び出し側      … logEvent("名前", ...)
 //   2. サーバーの許可制 … app/api/track/route.ts の ALLOWED_EVENTS
-//   3. 表示            … app/admin/analytics/page.tsx の EVENT_LABELS
+//   3. 表示            … lib/adminAnalytics.ts の EVENT_LABELS
+//      （2026-08-19に page.tsx から lib へ移した。画面とJSON窓口
+//      〈app/api/admin/analytics/route.ts〉が同じ集計を通るようにするため）
 // どこか1つが欠けると「送っているのに保存されない」「保存されているのに見えない」に
 // なる。dアニメストアの提携待ちの間はこの実測値が唯一の判断材料になるので、
 // ズレを機械的に止める。
@@ -2515,7 +2517,7 @@ let trackNg = 0;
 {
   const trackSrc = readFileSync(new URL("../app/api/track/route.ts", import.meta.url), "utf8");
   const labelSrc = readFileSync(
-    new URL("../app/admin/analytics/page.tsx", import.meta.url),
+    new URL("../lib/adminAnalytics.ts", import.meta.url),
     "utf8"
   );
 
