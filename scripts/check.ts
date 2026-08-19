@@ -2999,6 +2999,73 @@ let planNg = 0;
 }
 
 // ─────────────────────────────────────────────
+// 通称・略称が検索エンジンに見える形で出ているか（2026-08-19追加）
+//
+// 経緯: `content/works/aliases.ts` には44作品の略称が出典つきで登録されていたのに、
+// 使われていたのは `components/SeasonExplorer.tsx` の**サイト内検索の絞り込みだけ**で、
+// レンダリング後のHTMLには1回も出ていなかった。2026-08-19に本番ビルドを起動して実測:
+// `/anime/9733` のHTMLに「シャングリラ」33回に対し「シャンフロ」0回・「鳥頭」0回、
+// JSON-LDの `alternateName` は0箇所。**検索エンジンから見ると略称の語彙が存在しない**
+// のと同じ状態だった（GSCには「逃げ若 2期 配信」14表示31.6位のように略称クエリが実在する）。
+//
+// 「データはあるのに出力に出ていない」は画面を見ても気づけないので機械的に見張る。
+// ─────────────────────────────────────────────
+console.log("\n── 通称・略称の露出 ──");
+let aliasNg = 0;
+{
+  const aliasSrc = readFileSync(new URL("../content/works/aliases.ts", import.meta.url), "utf8");
+  const pageSrc = readFileSync(
+    new URL("../app/anime/[id]/page.tsx", import.meta.url),
+    "utf8"
+  );
+
+  const t = (label: string, cond: boolean, detail: string) => {
+    if (cond) console.log(`\u2713  ${label.padEnd(40)} \u2192 ${detail}`);
+    else {
+      console.log(`\u2717  ${label.padEnd(40)} \u2192 ${detail}`);
+      aliasNg += 1;
+    }
+  };
+
+  // 作品ページが略称を読み込んでいること。
+  t(
+    "作品ページが略称を読み込む",
+    /from "@\/content\/works\/aliases"/.test(pageSrc),
+    "WORK_ALIASES を import している"
+  );
+
+  // JSON-LD に alternateName を出していること（schema.orgの別名フィールド）。
+  t(
+    "JSON-LDにalternateNameを出す",
+    /alternateName/.test(pageSrc),
+    "workLd.alternateName がある"
+  );
+
+  // 可視テキストにも出していること。**機械可読だけに出すのは禁止**
+  // （撤回した WatchAction と同じ「可視テキストに無い主張が機械可読の層にだけ残る」形）。
+  t(
+    "可視テキストにも通称を出す",
+    /detail-alias/.test(pageSrc),
+    ".detail-alias がある"
+  );
+
+  // 出典と確認日を添えること（人力補完の他ファイルと同じ扱い）。
+  t(
+    "通称に出典と確認日を添える",
+    /alias\.sourceUrl/.test(pageSrc) && /alias\.confirmedDate/.test(pageSrc),
+    "sourceUrl と confirmedDate を表示している"
+  );
+
+  // データ側が出典を構造化して持っていること（コメントに書くだけに戻さない）。
+  t(
+    "略称データが出典を構造化して持つ",
+    /sourceUrl:/.test(aliasSrc) && /confirmedDate:/.test(aliasSrc),
+    "sourceUrl / confirmedDate フィールドがある"
+  );
+}
+console.log(`結果（通称・略称の露出）: ${aliasNg === 0 ? "全件OK" : `${aliasNg} 件NG`}`);
+
+
 // 孤立ページを作らない（2026-08-07追加）
 //
 // 経緯: `/service/[key]/[year]/[season]`（サービス別ページ）は実装済みで sitemap にも
@@ -4128,7 +4195,8 @@ if (
   ldNg > 0 ||
   xIntentNg > 0 ||
   xPolicyNg > 0 ||
-  trackNg > 0
+  trackNg > 0 ||
+  aliasNg > 0
 )
   // process.exit() ではなく exitCode。Windows では stdout がパイプされていると
   // process.exit() が書き込み途中のバッファを巻き込んでプロセスを異常終了させ、

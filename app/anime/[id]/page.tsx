@@ -20,6 +20,7 @@ import { hasCreditPage, type StudioIndex } from "@/lib/studioIndex";
 import studioIndexJson from "@/content/archive/studios.json";
 import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
+import { WORK_ALIASES } from "@/content/works/aliases";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import { seriesFor } from "@/content/works/series";
 import FollowLinks from "@/components/FollowLinks";
@@ -213,6 +214,20 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         ? `「${item.title}」の配信情報（${serviceNames.join("・")}）。${checkedDate}時点のAnnictデータ。`
         : `「${item.title}」は ${serviceNames.join("・")} で配信中。`
       : `「${item.title}」の配信状況をアニメ視聴ガイドで確認できます。`);
+  // 通称・略称（2026-08-19追加）。
+  //
+  // 【なぜ要るか】content/works/aliases.ts には44作品の略称が出典つきで登録済みだったが、
+  // 使われていたのは components/SeasonExplorer.tsx の**サイト内検索の絞り込みだけ**で、
+  // レンダリング後のHTMLには1回も出ていなかった（2026-08-19実測: /anime/9733 の本番HTMLで
+  // 「シャングリラ」33回に対し「シャンフロ」0回・「鳥頭」0回、JSON-LDの alternateName は0箇所）。
+  // 検索エンジンから見ると略称の語彙が存在しないのと同じ状態で、GSCには
+  // 「逃げ若 2期 配信」14表示31.6位のように略称クエリが実際に出ている。
+  //
+  // 【可視テキストと機械可読の両方に出す】片方だけに出すのは、このリポジトリが
+  // WatchAction を撤回した理由（可視テキストに無い主張が機械可読の層にだけ残る）と
+  // 同じ壊れ方になる。alternateName は schema.org が別名のために用意しているフィールド。
+  const alias = WORK_ALIASES[item.id];
+
   const workLd: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": item.media === "MOVIE" ? "Movie" : "TVSeries",
@@ -221,6 +236,10 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
     inLanguage: "ja",
     description: jsonLdDescription,
   };
+  if (alias && alias.names.length > 0) {
+    // 可視テキスト側（下の .detail-alias）と必ず同じ内容にする。
+    workLd.alternateName = alias.names;
+  }
   if (credits.casts.length > 0) {
     workLd.actor = credits.casts.map((c) => ({
       "@type": "Person",
@@ -451,6 +470,18 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         <div className="brandrow">
           <h1 className="brand">{item.title}</h1>
         </div>
+        {/* 通称・略称（2026-08-19追加）。JSON-LDの alternateName と同じ内容を可視テキストにも
+            出す。出典リンクは「何のリンクか分かる文言」を付ける（記号だけのリンクにしない＝
+            CLAUDE.mdの基本ルール）。 */}
+        {alias && alias.names.length > 0 && (
+          <p className="detail-alias">
+            通称: <strong>{alias.names.join("・")}</strong>{" "}
+            <a href={alias.sourceUrl} target="_blank" rel="noopener noreferrer">
+              出典 ↗
+            </a>{" "}
+            <span className="detail-sub">（{alias.confirmedDate}確認）</span>
+          </p>
+        )}
         <div className="meta">
           <Link href="/" className="official">
             ← アニメ視聴ガイドのトップに戻る
