@@ -68,7 +68,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add content/analytics
           git commit -m "サイト行動ログ集計の取得（$(date -u +%Y-%m-%d)）"
-          git push
+          # 毎日コミットするワークフローが他にもあり（track-season.yml・gsc-snapshot.yml・fetch-upcoming.yml）、
+          # scheduleの遅延で実行が重なるとpushが弾かれる。触るファイルは互いに違うので
+          # rebaseして1回だけ再試行する（衝突しうる変更ではない）。
+          git push || (git pull --rebase --autostash && git push)
 
       # 失敗をログの中だけで終わらせない（gsc-snapshot.yml と同じ考え方）。
       - name: 失敗したらIssueに出す

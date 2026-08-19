@@ -272,6 +272,7 @@ $b = New-Object byte[] 32
 | `書き出し: .../content/analytics/site/2026-08-19.json` | **成功**。以後は毎日自動で回る |
 | `ADMIN_DASHBOARD_TOKEN が未登録のためスキップします` | 手順4の登録ができていない |
 | `サイト側が未設定のためスキップします: Supabaseが未設定です` | 手順0の環境変数が欠けている |
+| `! [rejected] main -> main (fetch first)` | **取得自体は成功していて、コミットのpushだけが弾かれた**。毎日コミットするワークフロー（`track-season` / `gsc-snapshot` / `fetch-upcoming` / `site-analytics`）の実行が重なったレース。2026-08-19に4本すべて`git push \|\| (git pull --rebase --autostash && git push)`に揃えたので、以後は自動で1回再試行する。**Run workflowをもう一度押せば取り直せる**（その日の集計は取り直しが効く） |
 | `恒久的なエラー: HTTP 404` | 原因は2つ。①**Vercel側とGitHub側でトークンが食い違っている** ②`/api/admin/analytics` がまだ本番に無い（マージ直後でデプロイが終わっていない）。**先に`/admin/analytics`の画面が開けるか**を見れば切り分けられる（開けるならトークンは正しい＝②） |
 
 4. 成功していれば、リポジトリに `content/analytics/site/<日付>.json` が
@@ -310,6 +311,8 @@ $b = New-Object byte[] 32
 - 手順4までは**通っている**（`configured: true` / `rowCount: 0` / Actionsは成功）
   ＝トークン一致・Supabase接続・テーブル存在まで確認済み
 - `rowCount: 0` はテーブルを作った当日のため。**上の切り分けはまだ未実施**
+- 直後の実行で**pushが弾かれる別の問題**が出た（取得は成功。他の日次ワークフローと
+  実行が重なったレース）。4本すべてに再試行を入れて解消済み
 
 ---
 
