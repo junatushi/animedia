@@ -187,16 +187,34 @@ $b = New-Object byte[] 32
 
 ## 手順3. Vercel に環境変数を追加する
 
-1. https://vercel.com/dashboard → 本サイトのプロジェクト
+> **【注意】「チーム階層」と「プロジェクト階層」に同名の画面がある。**
+> 左サイドバーの **Environment Variables**（チーム`animedi`の直下）は
+> 全プロジェクトの変数を**一覧するだけの集約ビュー**で、**追加ボタンが無い**。
+> 上部に「All Projects ⌄」と出ていたらそちら＝間違い。
+> チーム側の「Shared」タブからも追加はできるが、全プロジェクト共有になるので**使わない**。
+
+1. https://vercel.com/dashboard → 左サイドバー **Projects** → **`animedia`**
+   （直接行くなら `https://vercel.com/animedi/animedia/settings/environment-variables`）
 2. 上部タブ **Settings** → 左メニュー **Environment Variables**
-3. **Add New**
+3. **Add New**（＝「Add Environment Variable」ダイアログが開く）
    - Key: `ADMIN_DASHBOARD_TOKEN`
    - Value: 手順2で作った文字列
-   - Environment: **Production** にチェック（Preview・Developmentは任意）
+   - **Sensitive: ON**（推奨。保存後は値を読み出せなくなる）
+   - Environments: **Production and Preview**（既存の変数に合わせる。Productionだけでも動く）
+   - Branch: 空のまま（カスタムプレビュー用の任意項目）
 4. **Save**
-5. **必ず再デプロイする**: 上部タブ **Deployments** → 最新デプロイの右端「…」→ **Redeploy**
 
-> **手順5を飛ばすと反映されない。** 環境変数は保存しただけでは既に動いている
+> **Sensitive を ON にすると、保存後は値を二度と表示できない。**
+> 手順4で同じ値をGitHubにも貼るので、Saveを押す前に
+> Value欄の 👁 アイコンで **64文字・末尾に空白や改行が無いこと**を目視し、
+> パスワード管理ソフトに保存しておく。
+
+5. **必ず再デプロイする**: 上部タブ **Deployments** → 最新デプロイの右端「…」→ **Redeploy**
+   - Choose Environment: **Production**
+   - 対象は `main` の最新（Current と表示されているもの）
+   - 「Use existing Build Cache」はどちらでもよい
+
+> **再デプロイを飛ばすと反映されない。** 環境変数は保存しただけでは既に動いている
 > デプロイに適用されない。再デプロイして初めて `/admin/analytics` が
 > 「未設定です」表示から本来の画面に変わる。
 
@@ -213,7 +231,19 @@ $b = New-Object byte[] 32
 
 ---
 
-## 手順4. GitHub Secrets に**同じ値**を登録する
+## 手順4. PRをマージして GitHub Secrets に**同じ値**を登録する
+
+### 4-1. まずマージする
+
+`/api/admin/analytics`（窓口）と `.github/workflows/site-analytics.yml`（日次取得）は
+**mainに入って初めて存在する**。マージしていないと:
+
+- Actions タブに **「サイト行動ログ集計の日次取得」が現れない**（`Run workflow` を押せない）
+- 仮に叩けても `/api/admin/analytics` が本番に無いので **404**
+
+**マージ → mainへの自動デプロイ完了（1〜2分）を待つ** → 4-2へ。
+
+### 4-2. GitHub Secrets に登録する
 
 ここまでで画面は見られるようになったが、**セッション（Claude）はまだ読めない**
 （本番ドメインへの外向き通信が遮断されているため）。
@@ -231,7 +261,7 @@ $b = New-Object byte[] 32
 > `site-analytics` ラベルのIssueを立てる。コピー&ペーストの際に末尾の改行や
 > 空白が混ざるのがよくある原因。
 
-### 動作確認（待たずに今すぐ試せる）
+### 4-3. 動作確認（毎日の実行を待たずに試せる）
 
 1. GitHub → 上部タブ **Actions** → 左の一覧から **「サイト行動ログ集計の日次取得」**
 2. 右上の **Run workflow** → **Run workflow**（緑ボタン）
@@ -242,7 +272,7 @@ $b = New-Object byte[] 32
 | `書き出し: .../content/analytics/site/2026-08-19.json` | **成功**。以後は毎日自動で回る |
 | `ADMIN_DASHBOARD_TOKEN が未登録のためスキップします` | 手順4の登録ができていない |
 | `サイト側が未設定のためスキップします: Supabaseが未設定です` | 手順0の環境変数が欠けている |
-| `恒久的なエラー: HTTP 404` | **Vercel側とGitHub側でトークンが食い違っている** |
+| `恒久的なエラー: HTTP 404` | 原因は2つ。①**Vercel側とGitHub側でトークンが食い違っている** ②`/api/admin/analytics` がまだ本番に無い（マージ直後でデプロイが終わっていない）。**先に`/admin/analytics`の画面が開けるか**を見れば切り分けられる（開けるならトークンは正しい＝②） |
 
 4. 成功していれば、リポジトリに `content/analytics/site/<日付>.json` が
    自動コミットされている（`git pull` で手元にも降りてくる）
