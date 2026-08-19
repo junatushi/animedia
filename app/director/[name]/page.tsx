@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { siteUrl } from "@/lib/siteUrl";
-import { CreditPage, creditPageDescription, creditPageTitle } from "@/components/CreditPage";
+import { CreditPage, creditPageDescription } from "@/components/CreditPage";
+import { creditPageTitle } from "@/lib/pageMeta";
+import { titleText } from "@/lib/pageTitle";
 import { creditMap, creditWorks, type StudioIndex } from "@/lib/studioIndex";
 import studioIndexJson from "@/content/archive/studios.json";
 
@@ -33,8 +35,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, type: "website" },
-    twitter: { card: "summary_large_image", title, description },
+    openGraph: { title: titleText(title), description, url, type: "website" },
+    twitter: { card: "summary_large_image", title: titleText(title), description },
   };
 }
 

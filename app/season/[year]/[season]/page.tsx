@@ -7,6 +7,9 @@ import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import type { SeasonResponse } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
+import { seasonPageTitle } from "@/lib/pageMeta";
+import { titleText } from "@/lib/pageTitle";
+
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -42,7 +45,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   if (!isValidYear(year) || !isValidSeason(season)) return {};
 
   const label = SEASON_LABEL[season];
-  const title = `${year}年${label}アニメ 配信情報一覧`;
+  const title = seasonPageTitle(year, season);
   const description = `${year}年${label}アニメが、dアニメ・ABEMA・Netflix等どの配信サービスで見られるか一覧。アニメ視聴ガイドでサービス別に絞り込みできます。`;
   const url = `${siteUrl}/season/${year}/${season}`;
 
@@ -50,8 +53,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, type: "website" },
-    twitter: { card: "summary_large_image", title, description },
+    openGraph: { title: titleText(title), description, url, type: "website" },
+    twitter: { card: "summary_large_image", title: titleText(title), description },
   };
 }
 

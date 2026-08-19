@@ -1446,6 +1446,241 @@ let titleNg = 0;
 console.log(`結果（titleの幅）: ${titleNg === 0 ? 4 : 0} 件OK / ${titleNg} 件NG`);
 
 // ─────────────────────────────────────────────
+// 作品ページ以外の title の幅の検査（2026-08-19追加）
+//
+// 幅の予算は2026-08-05に作ったが、**効いていたのは作品ページだけ**だった。
+// 他の面は generateMetadata がテンプレートリテラルを直書きし、さらにレイアウトの
+// template（"%s | アニメ視聴ガイド"）でブランド名が自動で足されるため、幅を
+// 誰も見ていなかった。導入前の実測（2026-08-19）:
+//   制作会社  165件中45件（27%）超過・最長42.0
+//   声優    1,531件中44件（3%）超過・最長37.5
+//   サービス別・ランキング は名前の長さに関係なく常に超過
+// 作品ページで直したのと同じ壊れ方（入れたはずの語が表示前に切られる）が
+// そのまま残っていた。
+//
+// 【何を落とすか】名前の長さはデータ側（Annict）で決まるので、「予算を超えたら落ちる」に
+// すると無関係なPRが赤くなる。そこで落とすのは**組み立て方の誤り**だけにする:
+//   ・より短い候補があったのに、それを選ばずに予算を超えた
+//   ・ブランド名を落とせば収まるのに、落とさずに予算を超えた
+// 削りようがない超過（人名・会社名そのものが長い）は警告だけにして件数を出す。
+// ─────────────────────────────────────────────
+console.log("\n── ページtitleの幅（作品ページ以外） ──");
+let pageTitleNg = 0;
+{
+  const { fitPageTitle, titleWidth, BRAND_SUFFIX, BRAND_SUFFIX_WIDTH } = await import(
+    "../lib/pageTitle.ts"
+  );
+  const { displayWidth: width, TITLE_WIDTH_BUDGET: BUDGET } = await import("../lib/workTitle.ts");
+  const meta = await import("../lib/pageMeta.ts");
+
+  // ① レイアウトの template と BRAND_SUFFIX がズレていないこと。
+  // ズレると「ブランド名を落とせば収まる」という計算が実物と合わなくなる。
+  {
+    const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+    // layout.tsx は `%s | ${title}` と変数で書いているので、その title の値を
+    // 同じファイルから拾って埋めてから比べる。
+    const siteName = layout.match(/^const title = "([^"]+)";/m)?.[1] ?? "";
+    const m = layout.match(/template:\s*`%s([^`]*)`/);
+    const resolved = m ? m[1].replace(/\$\{title\}/g, siteName) : null;
+    const pass = resolved !== null && resolved === BRAND_SUFFIX;
+    if (!pass) pageTitleNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"レイアウトのtemplateと一致する".padEnd(34)} → ${JSON.stringify(resolved)}` +
+        (pass ? `（幅${BRAND_SUFFIX_WIDTH}）` : `  (期待: ${JSON.stringify(BRAND_SUFFIX)})`)
+    );
+  }
+
+  // ② fitPageTitle の性質: 予算を超える結果を返すのは「どの候補もブランド名を
+  //    落としてなお収まらない」ときだけ。
+  {
+    const cases: Array<[string[], string]> = [
+      [["短い"], "ブランド名込みで収まるならブランド名も出す"],
+      [["あ".repeat(30), "あ".repeat(20)], "ブランド名を落とせば収まるなら落とす"],
+      [["あ".repeat(60), "あ".repeat(40)], "どれも収まらなければ最短の候補"],
+    ];
+    let ng = 0;
+    for (const [cands, label] of cases) {
+      const t = fitPageTitle(cands);
+      const w = titleWidth(t);
+      // 期待される最善手を総当たりで求める。
+      let best: string | { absolute: string } | null = null;
+      for (const c of cands) {
+        if (width(c) + BRAND_SUFFIX_WIDTH <= BUDGET) { best = c; break; }
+        if (width(c) <= BUDGET) { best = { absolute: c }; break; }
+      }
+      if (best === null) best = { absolute: cands[cands.length - 1] };
+      const pass = JSON.stringify(t) === JSON.stringify(best);
+      if (!pass) ng++;
+      console.log(`${pass ? "✓" : "✗"}  ${label.padEnd(34)} → 幅${w}  ${JSON.stringify(t)}`);
+    }
+    if (ng > 0) pageTitleNg++;
+  }
+
+  // ③ 実データ全件。面ごとに「削れる超過（＝組み立ての誤り）」と
+  //    「削れない超過（＝名前そのものが長い）」を分けて数える。
+  {
+    const { SEASON_LABEL } = await import("../lib/resolveSeasonParams.ts");
+    const seasons = Object.keys(SEASON_LABEL);
+    const studioIdx = JSON.parse(
+      readFileSync(new URL("../content/archive/studios.json", import.meta.url), "utf8")
+    ) as { studios: Record<string, unknown[]>; directors: Record<string, unknown[]> };
+    const peopleIdx = JSON.parse(
+      readFileSync(new URL("../content/archive/people.json", import.meta.url), "utf8")
+    ) as { people: Record<string, unknown[]> };
+    const { SERVICES: SVCS } = await import("../lib/services.ts");
+
+    type Row = { face: string; total: number; over: number; worst: number; worstTitle: string };
+    const rows: Row[] = [];
+    let fixable = 0;
+    const fixableSamples: string[] = [];
+
+    const measure = (face: string, items: Array<[string[], () => unknown]>) => {
+      const row: Row = { face, total: 0, over: 0, worst: 0, worstTitle: "" };
+      for (const [cands, build] of items) {
+        const t = build() as string | { absolute: string };
+        const w = titleWidth(t);
+        row.total++;
+        if (w > BUDGET) {
+          row.over++;
+          // 他に収まる候補があったなら、それは組み立ての誤り＝落とす。
+          const couldFit = cands.some((c) => width(c) <= BUDGET);
+          if (couldFit) {
+            fixable++;
+            if (fixableSamples.length < 3) fixableSamples.push(`${face}: ${JSON.stringify(t)}`);
+          }
+          if (w > row.worst) {
+            row.worst = w;
+            row.worstTitle = typeof t === "string" ? t + BRAND_SUFFIX : t.absolute;
+          }
+        }
+      }
+      rows.push(row);
+    };
+
+    const Y = String(new Date().getFullYear());
+    measure(
+      "シーズン",
+      seasons.map((se) => [
+        [`${Y}年${SEASON_LABEL[se]}アニメ 配信情報一覧`, `${Y}年${SEASON_LABEL[se]}アニメ 配信一覧`],
+        () => meta.seasonPageTitle(Y, se),
+      ])
+    );
+    measure(
+      "独占",
+      seasons.map((se) => [
+        [`${Y}年${SEASON_LABEL[se]}アニメ 独占配信まとめ`],
+        () => meta.exclusivePageTitle(Y, se),
+      ])
+    );
+    measure(
+      "ランキング",
+      seasons.map((se) => [
+        [
+          `${Y}年${SEASON_LABEL[se]}アニメ 配信サービス勢力図・ランキング`,
+          `${Y}年${SEASON_LABEL[se]}アニメ 配信サービスランキング`,
+        ],
+        () => meta.rankingsPageTitle(Y, se),
+      ])
+    );
+    measure(
+      "サービス別",
+      SVCS.flatMap((sv) =>
+        seasons.map(
+          (se) =>
+            [
+              [
+                `${Y}年${SEASON_LABEL[se]}アニメ ${sv.name}で見れる作品一覧`,
+                `${Y}年${SEASON_LABEL[se]}アニメ ${sv.short}で見れる作品一覧`,
+                `${Y}年${SEASON_LABEL[se]}アニメ ${sv.short}で見れる作品`,
+              ],
+              () => meta.servicePageTitle(sv.name, sv.short, Y, se),
+            ] as [string[], () => unknown]
+        )
+      )
+    );
+    measure(
+      "制作会社",
+      Object.keys(studioIdx.studios).map(
+        (n) =>
+          [
+            [`${n}が制作したアニメの配信情報一覧`, `${n}が制作したアニメ一覧`, `${n}の制作作品`],
+            () => meta.creditPageTitle("studio", n),
+          ] as [string[], () => unknown]
+      )
+    );
+    measure(
+      "監督",
+      Object.keys(studioIdx.directors).map(
+        (n) =>
+          [
+            [`${n}が監督したアニメの配信情報一覧`, `${n}が監督したアニメ一覧`, `${n}の監督作品`],
+            () => meta.creditPageTitle("director", n),
+          ] as [string[], () => unknown]
+      )
+    );
+    // 声優ページは代表作の有無で文型が変わるので両方を測る。
+    measure(
+      "声優",
+      Object.keys(peopleIdx.people).flatMap((n) =>
+        [true, false].map(
+          (f) =>
+            [
+              f
+                ? [`${n}の代表作・${Y}年夏アニメ出演作一覧`, `${n}の代表作・${Y}年夏アニメ`, `${n}の${Y}年夏アニメ出演作`]
+                : [`${n}が出演する${Y}年夏アニメ一覧`, `${n}の${Y}年夏アニメ出演作`],
+              () => meta.personPageTitle(n, Y, "summer", f),
+            ] as [string[], () => unknown]
+        )
+      )
+    );
+
+    for (const r of rows) {
+      const mark = r.over === 0 ? "✓" : "⚠";
+      const detail =
+        r.over === 0
+          ? `${r.total}件すべて予算内`
+          : `${r.total}件中 超過${r.over}件（最長${r.worst}: ${r.worstTitle}）`;
+      console.log(`${mark}  ${r.face.padEnd(30)} → ${detail}`);
+    }
+
+    const pass = fixable === 0;
+    if (!pass) pageTitleNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"削れる超過が残っていない".padEnd(34)} → ${fixable}件` +
+        (pass ? "" : `  (例: ${fixableSamples.join(" / ")})`)
+    );
+  }
+
+  // ④ 逆戻り防止: 各ページの generateMetadata が title を直書きしないこと。
+  //    直書きに戻ると③の検査を素通りする（検査は lib/pageMeta.ts しか見ないため）。
+  {
+    const pages = [
+      "../app/season/[year]/[season]/page.tsx",
+      "../app/person/[name]/[year]/[season]/page.tsx",
+      "../app/service/[key]/[year]/[season]/page.tsx",
+      "../app/exclusive/[year]/[season]/page.tsx",
+      "../app/rankings/[year]/[season]/page.tsx",
+      "../app/studio/[name]/page.tsx",
+      "../app/director/[name]/page.tsx",
+    ];
+    const bad: string[] = [];
+    for (const p of pages) {
+      const src = readFileSync(new URL(p, import.meta.url), "utf8");
+      if (/const title = `/.test(src)) bad.push(p.replace("../app/", ""));
+    }
+    const pass = bad.length === 0;
+    if (!pass) pageTitleNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"titleを直書きせずlib/pageMeta.tsを通す".padEnd(33)} → ${pages.length}ページ中 直書き${bad.length}件` +
+        (pass ? "" : `  (${bad.join(", ")})`)
+    );
+  }
+}
+console.log(
+  `結果（ページtitleの幅）: ${pageTitleNg === 0 ? 4 : 0} 件OK / ${pageTitleNg} 件NG`
+);
+
+// ─────────────────────────────────────────────
 // SNS投稿に貼るリンクの検査（2026-08-05追加）
 //
 // 投稿本文のリンクは `/?year=&season=` ではなく `/season/{year}/{season}` を指すこと。
@@ -4277,6 +4512,7 @@ if (
   prepNg > 0 ||
   archiveNg > 0 ||
   titleNg > 0 ||
+  pageTitleNg > 0 ||
   linkNg > 0 ||
   ssrNg > 0 ||
   ng > 0 ||

@@ -7,6 +7,8 @@ import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import type { AnimeItem, ServiceTag } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
+import { exclusivePageTitle } from "@/lib/pageMeta";
+import { titleText } from "@/lib/pageTitle";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -54,7 +56,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   if (!isValidYear(year) || !isValidSeason(season)) return {};
 
   const label = SEASON_LABEL[season];
-  const title = `${year}年${label}アニメ 独占配信まとめ`;
+  const title = exclusivePageTitle(year, season);
   const description = `${year}年${label}アニメのうち、見放題配信サービスが1社だけの「独占配信」作品を、サービス別に一覧でまとめました。アニメ視聴ガイドで確認できます。`;
   const url = `${siteUrl}/exclusive/${year}/${season}`;
 
@@ -62,8 +64,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, type: "website" },
-    twitter: { card: "summary_large_image", title, description },
+    openGraph: { title: titleText(title), description, url, type: "website" },
+    twitter: { card: "summary_large_image", title: titleText(title), description },
   };
 }
 

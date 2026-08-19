@@ -10,6 +10,8 @@ import CalendarSubscribeLink from "@/components/CalendarSubscribeLink";
 import { currentYearSeason } from "@/lib/resolveSeasonParams";
 
 import { siteUrl } from "@/lib/siteUrl";
+import { servicePageTitle } from "@/lib/pageMeta";
+import { titleText } from "@/lib/pageTitle";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -54,7 +56,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   if (!service || !isValidYear(year) || !isValidSeason(season)) return {};
 
   const label = SEASON_LABEL[season];
-  const title = `${year}年${label}アニメ ${service.name}で見れる作品一覧`;
+  const title = servicePageTitle(service.name, service.short, year, season);
   const description = `${year}年${label}アニメのうち、${service.name}で配信されている作品を一覧でまとめました。アニメ視聴ガイドで確認できます。`;
   const url = `${siteUrl}/service/${key}/${year}/${season}`;
 
@@ -62,8 +64,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, type: "website" },
-    twitter: { card: "summary_large_image", title, description },
+    openGraph: { title: titleText(title), description, url, type: "website" },
+    twitter: { card: "summary_large_image", title: titleText(title), description },
   };
 }
 
