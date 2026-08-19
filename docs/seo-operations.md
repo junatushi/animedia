@@ -136,7 +136,79 @@ node scripts/seo-report.js
 
 ---
 
-## 4. このファイルと他のドキュメントの関係
+## 4. ページ品質の基準（機械が守る）
+
+「毎日改善する」の**改善の中身**にあたる基準。人が覚えておく形にすると守られないので、
+`node scripts/check.ts` が実データ全件に対して機械的に検査する。ここは**その基準の
+根拠と数値の出どころ**を書く場所で、数値そのものはコードが持つ（転記しない）。
+
+### 4-1. title（検索結果のタイトルリンク）
+
+| 項目 | 決めたこと | 実装 |
+|---|---|---|
+| 幅の上限 | 全角32（`TITLE_WIDTH_BUDGET`） | `lib/workTitle.ts` |
+| 超えたときの削り方 | ①ブランド名を落とす ②短い文型に落とす ③主キーワードは削らない | `lib/pageTitle.ts` の `fitPageTitle` |
+| 組み立て場所 | 作品ページは `lib/workTitle.ts`、他は `lib/pageMeta.ts`。**ページに直書きしない** | `scripts/check.ts`「ページtitleの幅」 |
+
+根拠（2026-08-19調査。**すべて非公式の観測値**で、Google は具体的な数値を公表していない）:
+
+- 打ち切りは文字数ではなく**ピクセル幅**（PC 約600px）で判定されるという説が広く支持されている。
+  [検索順位の海賊](https://search-engine-pirates.co.jp/column/on-page/number-of-characters-title-tag/) /
+  [Zyppy](https://zyppy.com/title-tags/meta-title-tag-length/)
+- 日本語では**全角32文字以下ならPC・スマホどちらでもほぼ確実に完全表示される**という点で
+  複数の記事が一致する。[Nobilista](https://co.nobilista.com/ja/column/seo/title-length/)
+- ブランド名を末尾に書く必要性は下がっている。Google は2022年10月から
+  モバイル検索結果で**サイト名を title とは別の要素として自動表示**するようになった。
+  [Google公式](https://developers.google.com/search/docs/appearance/site-names?hl=ja) /
+  [鈴木謙一](https://www.suzukikenichi.com/blog/google-officially-introduces-site-names-on-mobile-search-results/)
+- **反証**: ブランド名を入れるとCTRが上がるという主張もある。ただし根拠は単発事例と定性的な
+  説明にとどまり、統計的な実測は見つからなかった。かつ「一定の知名度があるブランドなら」
+  という条件付きの主張なので、本サイトには当てはまらないと判断した。
+- **反証**: title が切られても**順位そのものには影響しない**（タイトル生成は順位決定の後）。
+  [鈴木謙一](https://www.suzukikenichi.com/blog/googles-rewriting-title-doesnt-impact-on-rankings/)
+  つまりここで直しているのはCTRであって順位ではない。⑤(a)で順位とCTRを切り分けること。
+
+### 4-2. description（スニペット）
+
+title と**同じ考え方では扱わない**。見るのは幅そのものより「差別化情報が先頭にあるか」。
+
+| 項目 | 決めたこと | 実装 |
+|---|---|---|
+| 差別化する語の位置 | 先頭 全角55 以内（`DESCRIPTION_LEAD_BUDGET`） | `scripts/check.ts`「descriptionの基準」 |
+| 全体の上限 | 全角105（`DESCRIPTION_WIDTH_BUDGET`） | `lib/pageMeta.ts` |
+| 超えたときの削り方 | 作品ページはサービス名を減らす（`fitDescServices`）。主キーワードは削らない | `lib/workAvailability.ts` |
+| 重複 | 同じ面の中で同一の文を作らない | `scripts/check.ts` |
+
+根拠（2026-08-19調査）:
+
+- スニペットの打ち切り幅を Google は公表していない。非公式の観測値は
+  **PC 全角105前後・スマホ 全角55前後**で、業界の助言は「冒頭50〜70文字に要点」。
+  [weblab](https://www.weblab.co.jp/blog/staff/seo/11257.html) /
+  [Google公式（プレビュー長は変わりうる）](https://developers.google.com/search/blog/2019/09/more-controls-on-search?hl=ja)
+- Google は meta description の**62〜71%を書き換える**。
+  [Ahrefs 62.78%](https://ahrefs.com/blog/meta-description-study/) /
+  [Portent 68〜71%](https://portent.com/blog/seo/how-often-google-ignores-our-meta-descriptions.htm)
+- **反証**: 「大半が書き換えられるから書く意味が無い」は成り立たない。3割前後はそのまま
+  使われ、CTR改善の報告もある（ただし二次引用で再現性は保証されない）。だから**書く**。
+- テンプレートで機械生成すること自体は、2024年3月の
+  [scaled content abuse ポリシー](https://developers.google.com/search/blog/2024/03/core-update-spam-policies)
+  の対象ではない。あちらが見ているのは方式（自動生成か否か）ではなく
+  **主目的が順位操作か・固有の価値があるか**。ただし変数部分が効かず完全に同一の文になると
+  重複として書き換えられやすくなるので、そこだけ機械的に見張る。
+
+### 4-3. 面（ページ種別）への登録
+
+新しいページ種別を作って sitemap に載せたら、`scripts/lib/gsc-page-type.js` の
+`PAGE_TYPE_PREFIXES` にも足す。足さないと `seo-report.js` の③④で黙って「その他」に落ち、
+**どの面に投資するかの表に一度も現れない**。面を増やしたくないなら理由を書いて
+`SITEMAP_OTHER_PATHS` に登録する。`scripts/check.ts`「面（ページ種別）の分類」が
+sitemap と機械的に突き合わせ、どちらもしていないパスがあれば落ちる。
+
+これは「孤立ページを作らない」（人とクローラーから辿れるか）の**計測版**にあたる。
+
+---
+
+## 5. このファイルと他のドキュメントの関係
 
 | ファイル | 役割 | このファイルとの関係 |
 |---|---|---|
@@ -149,8 +221,13 @@ node scripts/seo-report.js
 
 ---
 
-## 5. 変更履歴
+## 6. 変更履歴
 
+- **2026-08-19（追記2）** 4節「ページ品質の基準（機械が守る）」を新設。
+  それまで**基準そのものが存在せず**、幅の予算は作品ページにしか効いていなかった
+  （制作会社ページは165件中45件＝27%が予算超過、最長42.0）。title・description・面の
+  3つを `scripts/check.ts` が実データ全件で検査する形にし、根拠の出典と**反証**を
+  4節に置いた。数値はコード側が持ち、ここには書き写さない。
 - **2026-08-19（追記）** `seo-report.js` に⑥「通称・略称クエリ」を追加し、
   3節の判定表に略称の2行を足した。**判定条件を先に測れる形にしてから施策を判定表に載せる**
   （埋め込み・公開APIが「測定手段が無い」まま未判定で残っている反省）。

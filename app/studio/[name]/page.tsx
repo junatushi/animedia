@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { siteUrl } from "@/lib/siteUrl";
-import { CreditPage, creditPageDescription } from "@/components/CreditPage";
-import { creditPageTitle } from "@/lib/pageMeta";
+import { CreditPage } from "@/components/CreditPage";
+import { creditPageTitle, creditPageDescription } from "@/lib/pageMeta";
 import { titleText } from "@/lib/pageTitle";
 import { creditMap, creditWorks, type StudioIndex } from "@/lib/studioIndex";
 import studioIndexJson from "@/content/archive/studios.json";

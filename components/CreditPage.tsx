@@ -30,11 +30,6 @@ const SEASON_LABEL: Record<string, string> = {
   autumn: "秋",
 };
 
-export function creditPageDescription(role: CreditRole, name: string, count: number): string {
-  const verb = role === "studio" ? "制作" : "監督";
-  return `${name}が${verb}したアニメ${count}作品を新しい順にまとめました。各作品の配信サービスはアニメ視聴ガイドで確認できます。`;
-}
-
 export function CreditPage({
   role,
   name,

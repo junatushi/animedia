@@ -1772,6 +1772,232 @@ let faceNg = 0;
 console.log(`結果（面の分類）: ${faceNg === 0 ? 4 : 0} 件OK / ${faceNg} 件NG`);
 
 // ─────────────────────────────────────────────
+// description（スニペット）の基準の検査（2026-08-19追加）
+//
+// title には2026-08-05に幅の予算を作ったのに、description は幅も内容も
+// 誰も見ていなかった。作品ページは実データ465件で中央80.0・最長148.5（全角換算）
+// あり、PCの観測値105を超える分は**誰にも読まれないのに書かれていた**。
+//
+// 【なぜ title と同じ扱いにしないか・2026-08-19に調べた事実】
+//   ① Google はスニペットの打ち切り幅を公表していない（非公式の観測値のみ）。
+//   ② Google は meta description の62〜71%を書き換える
+//      （Ahrefs 62.78% / Portent 68〜71%）。裏を返すと3割前後はそのまま使われる
+//      ので「書かない」は選ばない。
+//   ③ テンプレートで機械生成すること自体はスパムポリシー（scaled content abuse）の
+//      対象ではない。あちらが見ているのは方式ではなく主目的と価値。ただし変数部分が
+//      効かず同一の文になると重複として書き換えられやすい。
+// そこで見るのは幅そのものより「差別化情報が先頭にあるか」と「重複していないか」。
+// 出典は docs/seo-operations.md 4節。
+// ─────────────────────────────────────────────
+console.log("\n── descriptionの基準 ──");
+let descNg = 0;
+{
+  const meta = await import("../lib/pageMeta.ts");
+  const { DESCRIPTION_WIDTH_BUDGET: DW, DESCRIPTION_LEAD_BUDGET: DL } = meta;
+  const { displayWidth: width } = await import("../lib/workTitle.ts");
+  const { SEASON_LABEL } = await import("../lib/resolveSeasonParams.ts");
+  const { buildWatchDescription: watchDesc, fitDescServices } = await import(
+    "../lib/workAvailability.ts"
+  );
+
+  // face（面）ごとに [description, 差別化する語, 最短形の幅] を集める。
+  // 最短形＝その面の組み立てで削れるものを全部削ったときの幅。これが上限を超えるなら
+  // 削りようがない（作品名・人名そのものが長い）ので、落とさず警告に留める。
+  type DescRow = [string, string, number];
+  const faces: Array<{ face: string; rows: DescRow[] }> = [];
+  const Y = String(new Date().getFullYear());
+  const seasons = Object.keys(SEASON_LABEL);
+  const cool = (se: string) => `${Y}年${SEASON_LABEL[se]}アニメ`;
+
+  // 面ごとに文型が1つしか無いものは、削れる余地が無いので最短形＝そのもの。
+  const fixed = (d: string, key: string): DescRow => [d, key, width(d)];
+  faces.push({
+    face: "シーズン",
+    rows: seasons.map((se) => fixed(meta.seasonPageDescription(Y, se), cool(se))),
+  });
+  faces.push({
+    face: "独占",
+    rows: seasons.map((se) => fixed(meta.exclusivePageDescription(Y, se), cool(se))),
+  });
+  faces.push({
+    face: "ランキング",
+    rows: seasons.map((se) => fixed(meta.rankingsPageDescription(Y, se), cool(se))),
+  });
+  {
+    const { SERVICES: SVCS } = await import("../lib/services.ts");
+    faces.push({
+      face: "サービス別",
+      rows: SVCS.flatMap((sv) =>
+        seasons.map((se) => fixed(meta.servicePageDescription(sv.name, Y, se), sv.name))
+      ),
+    });
+  }
+  {
+    const idx = JSON.parse(
+      readFileSync(new URL("../content/archive/studios.json", import.meta.url), "utf8")
+    ) as { studios: Record<string, unknown[]>; directors: Record<string, unknown[]> };
+    for (const [face, role, src] of [
+      ["制作会社", "studio", idx.studios],
+      ["監督", "director", idx.directors],
+    ] as Array<[string, "studio" | "director", Record<string, unknown[]>]>) {
+      faces.push({
+        face,
+        rows: Object.entries(src).map(([n, ws]) =>
+          fixed(meta.creditPageDescription(role, n, ws.length), n)
+        ),
+      });
+    }
+  }
+  {
+    const idx = JSON.parse(
+      readFileSync(new URL("../content/archive/people.json", import.meta.url), "utf8")
+    ) as { people: Record<string, unknown[]> };
+    faces.push({
+      face: "声優",
+      rows: Object.keys(idx.people).flatMap((n) =>
+        [true, false].map((f) => fixed(meta.personPageDescription(n, Y, "summer", f), n))
+      ),
+    });
+  }
+  {
+    // 作品ページは lib/workAvailability.ts が組み立てる（面ごとに置き場所が違うので
+    // ここで両方を同じ基準にかける）。
+    const { readSnapshots: readSnaps } = await import("./build-archive-index.ts");
+    const rows: DescRow[] = [];
+    for (const { data } of readSnaps()) {
+      for (const it of data.items) {
+        const shorts = it.services.map((sv) => sv.short);
+        if (shorts.length === 0) continue;
+        const descServices = fitDescServices({
+          title: it.title,
+          serviceShorts: shorts,
+          releaseLead: "",
+          status: "finished",
+          budget: DW,
+        });
+        // 作品ページで削れるのはサービス名だけ。最短形＝1件だけ並べた形
+        // （0件だと「配信情報があるのは 。」という壊れた文になるため）。
+        const minimal = watchDesc({
+          title: it.title,
+          descServices: shorts[0],
+          releaseLead: "",
+          status: "finished",
+        });
+        rows.push([
+          watchDesc({ title: it.title, descServices, releaseLead: "", status: "finished" }),
+          it.title,
+          width(minimal),
+        ]);
+      }
+    }
+    faces.push({ face: "作品", rows });
+  }
+
+  // ① 差別化する語が先頭 DESCRIPTION_LEAD_BUDGET 以内から始まること。
+  //    後半は切られて読まれないので、そこに置いた語は無いのと同じ。
+  {
+    let ng = 0;
+    const samples: string[] = [];
+    for (const { face, rows } of faces) {
+      let faceNgCount = 0;
+      for (const [desc, key] of rows) {
+        const at = desc.indexOf(key);
+        const ok = at >= 0 && width(desc.slice(0, at)) <= DL;
+        if (!ok) {
+          faceNgCount++;
+          if (samples.length < 3) samples.push(`${face}: ${desc.slice(0, 40)}…（${key}）`);
+        }
+      }
+      ng += faceNgCount;
+    }
+    const pass = ng === 0;
+    if (!pass) descNg++;
+    const total = faces.reduce((a, f) => a + f.rows.length, 0);
+    console.log(
+      `${pass ? "✓" : "✗"}  ${`差別化する語が先頭${DL}全角以内に出る`.padEnd(31)} → ${total}件中 違反${ng}件` +
+        (pass ? "" : `  (${samples.join(" / ")})`)
+    );
+  }
+
+  // ② 幅。主キーワード（作品名）自体が長い場合は削れないので警告に留め、
+  //    「サービス名を足したせいで超えた」＝組み立ての誤りだけを落とす。
+  {
+    let fixable = 0;
+    for (const { face, rows } of faces) {
+      const over = rows.filter(([d]) => width(d) > DW);
+      const worst = rows.reduce((a, [d]) => Math.max(a, width(d)), 0);
+      // 最短形でも超えるなら削りようがない（作品名・人名そのものが長い）。
+      const irreducible = over.filter(([, , minW]) => minW > DW).length;
+      fixable += over.length - irreducible;
+      console.log(
+        `${over.length === 0 ? "✓" : "⚠"}  ${face.padEnd(30)} → ${rows.length}件中 超過${over.length}件（うち削れない${irreducible}件・最長${worst}）`
+      );
+    }
+    const pass = fixable === 0;
+    if (!pass) descNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${`削れる超過が残っていない（上限${DW}）`.padEnd(30)} → ${fixable}件`
+    );
+  }
+
+  // ③ 同じ面の中で description が重複しないこと（変数部分が効いていること）。
+  //    完全に同一の文が並ぶと重複として書き換えられやすくなる。
+  {
+    let ng = 0;
+    const samples: string[] = [];
+    for (const { face, rows } of faces) {
+      const seen = new Map<string, number>();
+      for (const [d] of rows) seen.set(d, (seen.get(d) ?? 0) + 1);
+      const dup = [...seen.entries()].filter(([, n]) => n > 1);
+      ng += dup.length;
+      if (dup.length > 0 && samples.length < 2) samples.push(`${face}: ${dup[0][0].slice(0, 36)}…×${dup[0][1]}`);
+    }
+    const pass = ng === 0;
+    if (!pass) descNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"同じ面の中で重複しない".padEnd(34)} → 重複${ng}種` +
+        (pass ? "" : `  (${samples.join(" / ")})`)
+    );
+  }
+
+  // ④ 逆戻り防止。ページ側で description を直書きしない。
+  {
+    const pages = [
+      "../app/season/[year]/[season]/page.tsx",
+      "../app/person/[name]/[year]/[season]/page.tsx",
+      "../app/service/[key]/[year]/[season]/page.tsx",
+      "../app/exclusive/[year]/[season]/page.tsx",
+      "../app/rankings/[year]/[season]/page.tsx",
+      "../app/studio/[name]/page.tsx",
+      "../app/director/[name]/page.tsx",
+    ];
+    const bad = pages.filter((f) =>
+      /const description = `/.test(readFileSync(new URL(f, import.meta.url), "utf8"))
+    );
+    const pass = bad.length === 0;
+    if (!pass) descNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"descriptionを直書きしない".padEnd(34)} → ${pages.length}ページ中 直書き${bad.length}件` +
+        (pass ? "" : `  (${bad.map((f) => f.replace("../app/", "")).join(", ")})`)
+    );
+
+    // 作品ページは幅の調整を fitDescServices に任せること。以前のように
+    // slice(0, 5) で件数を決め打ちすると、②の検査（lib 側を直接測る）を素通りして
+    // 予算超過が復活する。
+    const workSrc = readFileSync(new URL("../app/anime/[id]/page.tsx", import.meta.url), "utf8");
+    const usesFit = workSrc.includes("fitDescServices(");
+    const hardCoded = /serviceShorts\.slice\(/.test(workSrc);
+    const pass2 = usesFit && !hardCoded;
+    if (!pass2) descNg++;
+    console.log(
+      `${pass2 ? "✓" : "✗"}  ${"作品ページは幅の調整をlibに任せる".padEnd(33)} → ` +
+        `fitDescServices=${usesFit ? "あり" : "なし"} / 件数の決め打ち=${hardCoded ? "あり" : "なし"}`
+    );
+  }
+}
+console.log(`結果（descriptionの基準）: ${descNg === 0 ? 5 : 0} 件OK / ${descNg} 件NG`);
+
+// ─────────────────────────────────────────────
 // SNS投稿に貼るリンクの検査（2026-08-05追加）
 //
 // 投稿本文のリンクは `/?year=&season=` ではなく `/season/{year}/{season}` を指すこと。
@@ -4605,6 +4831,7 @@ if (
   titleNg > 0 ||
   pageTitleNg > 0 ||
   faceNg > 0 ||
+  descNg > 0 ||
   linkNg > 0 ||
   ssrNg > 0 ||
   ng > 0 ||

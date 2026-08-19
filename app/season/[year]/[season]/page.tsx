@@ -7,7 +7,7 @@ import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import type { SeasonResponse } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
-import { seasonPageTitle } from "@/lib/pageMeta";
+import { seasonPageTitle, seasonPageDescription } from "@/lib/pageMeta";
 import { titleText } from "@/lib/pageTitle";
 
 const SEASON_LABEL: Record<string, string> = {
@@ -46,7 +46,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
   const label = SEASON_LABEL[season];
   const title = seasonPageTitle(year, season);
-  const description = `${year}年${label}アニメが、dアニメ・ABEMA・Netflix等どの配信サービスで見られるか一覧。アニメ視聴ガイドでサービス別に絞り込みできます。`;
+  const description = seasonPageDescription(year, season);
   const url = `${siteUrl}/season/${year}/${season}`;
 
   return {

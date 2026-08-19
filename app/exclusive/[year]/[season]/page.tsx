@@ -7,7 +7,7 @@ import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import type { AnimeItem, ServiceTag } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
-import { exclusivePageTitle } from "@/lib/pageMeta";
+import { exclusivePageTitle, exclusivePageDescription } from "@/lib/pageMeta";
 import { titleText } from "@/lib/pageTitle";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
@@ -57,7 +57,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
   const label = SEASON_LABEL[season];
   const title = exclusivePageTitle(year, season);
-  const description = `${year}年${label}アニメのうち、見放題配信サービスが1社だけの「独占配信」作品を、サービス別に一覧でまとめました。アニメ視聴ガイドで確認できます。`;
+  const description = exclusivePageDescription(year, season);
   const url = `${siteUrl}/exclusive/${year}/${season}`;
 
   return {

@@ -10,7 +10,7 @@ import CalendarSubscribeLink from "@/components/CalendarSubscribeLink";
 import { currentYearSeason } from "@/lib/resolveSeasonParams";
 
 import { siteUrl } from "@/lib/siteUrl";
-import { servicePageTitle } from "@/lib/pageMeta";
+import { servicePageTitle, servicePageDescription } from "@/lib/pageMeta";
 import { titleText } from "@/lib/pageTitle";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
@@ -57,7 +57,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
   const label = SEASON_LABEL[season];
   const title = servicePageTitle(service.name, service.short, year, season);
-  const description = `${year}年${label}アニメのうち、${service.name}で配信されている作品を一覧でまとめました。アニメ視聴ガイドで確認できます。`;
+  const description = servicePageDescription(service.name, year, season);
   const url = `${siteUrl}/service/${key}/${year}/${season}`;
 
   return {

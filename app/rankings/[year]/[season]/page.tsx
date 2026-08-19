@@ -7,7 +7,7 @@ import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import type { AnimeItem, ServiceTag } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
-import { rankingsPageTitle } from "@/lib/pageMeta";
+import { rankingsPageTitle, rankingsPageDescription } from "@/lib/pageMeta";
 import { titleText } from "@/lib/pageTitle";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
@@ -79,7 +79,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
   const label = SEASON_LABEL[season];
   const title = rankingsPageTitle(year, season);
-  const description = `${year}年${label}アニメの配信サービス別対応本数・独占配信数・先行配信ランキングをAnnictの実データからまとめました。アニメ視聴ガイドで確認できます。`;
+  const description = rankingsPageDescription(year, season);
   const url = `${siteUrl}/rankings/${year}/${season}`;
 
   return {

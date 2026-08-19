@@ -14,7 +14,7 @@ import personIndexJson from "@/content/archive/people.json";
 import type { AnimeItem } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
-import { personPageTitle } from "@/lib/pageMeta";
+import { personPageTitle, personPageDescription } from "@/lib/pageMeta";
 import { titleText } from "@/lib/pageTitle";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
@@ -71,9 +71,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const label = SEASON_LABEL[season];
   const filmography = PERSON_FILMOGRAPHY[name];
   const title = personPageTitle(name, year, season, Boolean(filmography));
-  const description = filmography
-    ? `${name}さんの代表作（役名付き）と、${year}年${label}アニメの出演作をまとめました。配信サービスもあわせてアニメ視聴ガイドで確認できます。`
-    : `${name}さんが出演する${year}年${label}アニメを一覧でまとめました。配信サービスもあわせてアニメ視聴ガイドで確認できます。`;
+  const description = personPageDescription(name, year, season, Boolean(filmography));
   const url = `${siteUrl}/person/${encodeURIComponent(name)}/${year}/${season}`;
 
   return {

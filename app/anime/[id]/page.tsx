@@ -5,6 +5,7 @@ import { getWorkData } from "@/lib/getWorkData";
 import { getSeasonData } from "@/lib/getSeasonData";
 import { splitRentalServices, getServiceKana, sortServicesForMetadata } from "@/lib/services";
 import { buildServiceLabel } from "@/content/services/aliases";
+import { DESCRIPTION_WIDTH_BUDGET } from "@/lib/pageMeta";
 import { buildWorkTitle } from "@/lib/workTitle";
 import { seasonKeyForMonth, SEASON_LABEL } from "@/lib/resolveSeasonParams";
 import {
@@ -12,6 +13,7 @@ import {
   jstToday,
   buildWatchAnswer,
   buildWatchDescription,
+  fitDescServices,
   availabilityLabel,
   buildStreamingProperties,
   buildDataProvenance,
@@ -123,8 +125,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const title = buildWorkTitle(item.title, serviceShorts);
   // 配信が1件も無い作品に「配信中」と読める説明文を出すと誤誘導になるため、
   // 「まだ確認できていない」と正直に書く（CLAUDE.mdの推測で埋めない方針と同じ）。
-  const descServices =
-    serviceShorts.slice(0, 5).join("・") + (serviceShorts.length > 5 ? "ほか" : "");
+  // スニペットの幅に収まる分だけサービス名を並べる（超えた分は表示前に切られる）。
+  // 幅の考え方は lib/pageMeta.ts の DESCRIPTION_WIDTH_BUDGET のコメントを参照。
   // 劇場公開日が判明している作品（＝配信がまだ無い劇場作品が大半）は、公開日を
   // description の先頭に出す。「{作品名} 公開日」は劇場作品で最も検索される問いで、
   // 配信の有無だけを書いた説明文よりスニペットが検索意図に一致する。
@@ -132,6 +134,13 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   // 放送が終わったクールの作品に「配信している」と現在形で書かない（lib/workAvailability.ts）。
   // Annictのデータは放送当時の番組表であって、いま配信中である確認ではない。
   const status = airingStatus(item.broadcastStartDate ?? item.releaseDate?.date ?? null, jstToday());
+  const descServices = fitDescServices({
+    title: item.title,
+    serviceShorts,
+    releaseLead,
+    status,
+    budget: DESCRIPTION_WIDTH_BUDGET,
+  });
   const description = serviceShorts.length
     ? buildWatchDescription({ title: item.title, descServices, releaseLead, status })
     : `${releaseLead}「${item.title}」の配信サービスは現時点で確認できていません。判明し次第このページに反映します。今期アニメの配信状況はアニメ視聴ガイドで確認できます。`;
