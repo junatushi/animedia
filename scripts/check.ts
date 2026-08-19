@@ -1681,6 +1681,97 @@ console.log(
 );
 
 // ─────────────────────────────────────────────
+// 面（ページ種別）の分類と sitemap の突き合わせ（2026-08-19追加）
+//
+// `scripts/lib/gsc-page-type.js` は「どの面に投資するか」を決める唯一の材料
+// （seo-report.js の③1ページあたりクリック・④面別の週次推移）の土台だが、
+// **sitemap との対応を誰も突き合わせていなかった**。そのため新しいページ種別を
+// 作って sitemap に載せても、分類は黙って「その他」に落とすだけで、面別の表に
+// 一度も現れない。表に出ないページは効果を測られず、作られたことすら忘れられる。
+// これは「孤立ページを作らない」（人とクローラーから辿れるか）の**計測版**で、
+// あちらが導線を見張るのに対しこちらは投資判断の土俵に乗るかを見張る。
+//
+// 2026-08-05に踏んだ「画面を見ている限り気づけない」壊れ方と同じ形なので、
+// 人の注意ではなく機械で止める。
+// ─────────────────────────────────────────────
+console.log("\n── 面（ページ種別）の分類 ──");
+let faceNg = 0;
+{
+  const gsc = (await import("./lib/gsc-page-type.js")).default as {
+    PAGE_TYPES: string[];
+    PAGE_TYPE_PREFIXES: Array<[string, string]>;
+    SITEMAP_OTHER_PATHS: string[];
+    pageType: (url: string) => string;
+  };
+  const { PAGE_TYPES: TYPES, PAGE_TYPE_PREFIXES: PREFIXES, SITEMAP_OTHER_PATHS: OTHERS, pageType: classify } = gsc;
+
+  // sitemap が実際に出すパスを、テンプレートリテラルから拾う。
+  // `url: siteUrl` はトップ、`url: `${siteUrl}/xxx/${...}`` は各面。
+  const src = readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+  const paths = new Set<string>();
+  if (/url:\s*siteUrl\s*,/.test(src)) paths.add("/");
+  for (const m of src.matchAll(/url:\s*`\$\{siteUrl\}([^`]*)`/g)) {
+    // ${year} 等の埋め込みは適当な値に潰す（分類は接頭辞しか見ないため）。
+    paths.add(m[1].replace(/\$\{[^}]*\}/g, "x") || "/");
+  }
+
+  // ① sitemap に載る全パスが、面か「面として数えない」宣言のどちらかに当たること。
+  {
+    const stray = [...paths].filter((p) => classify(`https://example.com${p}`) === "その他" && !OTHERS.includes(p));
+    const pass = paths.size > 0 && stray.length === 0;
+    if (!pass) faceNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"sitemapの全パスが面に分類される".padEnd(34)} → ${paths.size}種中 未分類${stray.length}件` +
+        (pass
+          ? ""
+          : `  (${stray.join(", ")} … scripts/lib/gsc-page-type.js の PAGE_TYPE_PREFIXES に面を足すか、` +
+            `面として数えない理由を書いて SITEMAP_OTHER_PATHS に登録してください)`)
+    );
+  }
+
+  // ② 逆向き。面として数えているのに sitemap がそのパスを1つも出していない
+  //    ＝ 消えたページ種別が集計だけ残っている状態を検知する。
+  {
+    const dead = PREFIXES.filter(([, prefix]) => ![...paths].some((p) => p.startsWith(prefix)));
+    const pass = dead.length === 0;
+    if (!pass) faceNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"面が実在するページを指している".padEnd(34)} → ${PREFIXES.length}面中 実体なし${dead.length}件` +
+        (pass ? "" : `  (${dead.map(([t, p]) => `${t}=${p}`).join(", ")})`)
+    );
+  }
+
+  // ③ 「面として数えない」宣言が、実際に sitemap にあるパスだけであること
+  //    （消えたパスの宣言が残ると、次に同じパスを作ったとき①をすり抜ける）。
+  {
+    const stale = OTHERS.filter((p) => !paths.has(p));
+    const pass = stale.length === 0;
+    if (!pass) faceNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"数えない宣言が現存パスだけ".padEnd(34)} → ${OTHERS.length}件中 実体なし${stale.length}件` +
+        (pass ? "" : `  (${stale.join(", ")})`)
+    );
+  }
+
+  // ④ PAGE_TYPES（表示順）と PAGE_TYPE_PREFIXES がズレていないこと。
+  //    seo-report.js は PAGE_TYPES の順で表を出すので、ここがズレると
+  //    集計にはあるのに表に出ない面ができる。
+  {
+    const missing = PREFIXES.map(([t]) => t).filter((t) => !TYPES.includes(t));
+    const pass = missing.length === 0 && TYPES[0] === "トップ" && TYPES[TYPES.length - 1] === "その他";
+    if (!pass) faceNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"面の一覧と表示順が揃っている".padEnd(34)} → ${TYPES.join("/")}` +
+        (pass ? "" : `  (漏れ: ${missing.join(", ")})`)
+    );
+  }
+
+  // ⑤ 面の内訳を出す（新しい面を足したときに、そこが本当に0でないかを人が見るため）。
+  console.log(`ℹ  sitemapが出すパス: ${[...paths].sort().join(" ")}`);
+}
+console.log(`結果（面の分類）: ${faceNg === 0 ? 4 : 0} 件OK / ${faceNg} 件NG`);
+
+// ─────────────────────────────────────────────
 // SNS投稿に貼るリンクの検査（2026-08-05追加）
 //
 // 投稿本文のリンクは `/?year=&season=` ではなく `/season/{year}/{season}` を指すこと。
@@ -4513,6 +4604,7 @@ if (
   archiveNg > 0 ||
   titleNg > 0 ||
   pageTitleNg > 0 ||
+  faceNg > 0 ||
   linkNg > 0 ||
   ssrNg > 0 ||
   ng > 0 ||
