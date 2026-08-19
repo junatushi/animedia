@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
-import { SERVICES, splitRentalServices } from "@/lib/services";
+import { SERVICES, splitRentalServices, getServiceKana } from "@/lib/services";
+import { buildServiceLabel } from "@/content/services/aliases";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import ServiceMarks from "@/components/ServiceMarks";
 import CalendarSubscribeLink from "@/components/CalendarSubscribeLink";
@@ -96,6 +97,15 @@ export default async function ServicePage({ params }: { params: Params }) {
   }
   const exclusiveItems = items.filter((it) => it.exclusive);
 
+  // 「ネトフリ アニメ」のようにサービス名を口語形で書く検索がある（GSC実測）。
+  // ページ内が正式名称だけだとその語彙を持たないため、導入文で一度だけ併記する
+  // （h1・title・descriptionには入れない＝詰め込みはしない）。表現は
+  // content/services/aliases.ts の buildServiceLabel に集約してある。
+  const serviceLabel = buildServiceLabel(
+    service.name,
+    getServiceKana(service.key),
+    service.key
+  );
   const checkedDate = new Date().toISOString().slice(0, 10);
   // /calendar.ics は常に「今期」を返す（year/season を受け取らない）ので、
   // 購読の案内は今期のページでだけ出す。
@@ -172,8 +182,9 @@ export default async function ServicePage({ params }: { params: Params }) {
             <section className="detail-section">
               <h2 className="detail-heading">この一覧について</h2>
               <p className="detail-text">
-                {year}年{label}アニメのうち、{service.name}で配信されている作品を人気順（注目度順）でまとめています
-                （{checkedDate}時点）。配信情報は網羅率100%ではなく、新作は反映が遅れることがあります。
+                {year}年{label}アニメのうち、{serviceLabel}
+                で配信されている作品を人気順（注目度順）でまとめています （{checkedDate}
+                時点）。配信情報は網羅率100%ではなく、新作は反映が遅れることがあります。
               </p>
               {/* このページの主役サービスへのリンク。提携済みならアフィリエイト（PR表示付き）、
                   未提携なら公式サイトへリンクする（ServiceMarksの単一サービス表示として再利用）。 */}

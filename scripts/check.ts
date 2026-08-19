@@ -3065,6 +3065,104 @@ let aliasNg = 0;
 }
 console.log(`結果（通称・略称の露出）: ${aliasNg === 0 ? "全件OK" : `${aliasNg} 件NG`}`);
 
+// ─────────────────────────────────────────────
+// 配信サービスの口語形（2026-08-19導入）
+//
+// 口語形（Netflix→「ネトフリ」）は lib/services.ts の `kana` とは**別の層**に置く。
+// `kana` は lib/serviceDataset.ts から公開API（GET /api/services）で配っている
+// 名寄せ用データなので、観測にすぎない口語形を混ぜると二次利用側が
+// チャンネル名の正規表記だと受け取りうる。層が混ざる方向への逆戻りを機械的に禁じる。
+// ─────────────────────────────────────────────
+console.log("\n── 配信サービスの口語形 ──");
+let svcAliasNg = 0;
+{
+  const aliasSrc = readFileSync(
+    new URL("../content/services/aliases.ts", import.meta.url),
+    "utf8"
+  );
+  const servicesSrc = readFileSync(
+    new URL("../lib/services.ts", import.meta.url),
+    "utf8"
+  );
+  const workPageSrc = readFileSync(
+    new URL("../app/anime/[id]/page.tsx", import.meta.url),
+    "utf8"
+  );
+  const svcPageSrc = readFileSync(
+    new URL("../app/service/[key]/[year]/[season]/page.tsx", import.meta.url),
+    "utf8"
+  );
+
+  const t = (label: string, cond: boolean, detail: string) => {
+    if (cond) console.log(`\u2713  ${label.padEnd(40)} \u2192 ${detail}`);
+    else {
+      console.log(`\u2717  ${label.padEnd(40)} \u2192 ${detail}`);
+      svcAliasNg += 1;
+    }
+  };
+
+  t(
+    "口語形データが出典を構造化して持つ",
+    /sourceUrl:/.test(aliasSrc) && /confirmedDate:/.test(aliasSrc),
+    "sourceUrl / confirmedDate フィールドがある"
+  );
+
+  // 登録されている口語形をデータから読み出す（テスト側に文字列を書き写さない）。
+  const aliasWords = [...aliasSrc.matchAll(/names:\s*\[([^\]]*)\]/g)]
+    .flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
+  t(
+    "口語形が1件以上登録されている",
+    aliasWords.length > 0,
+    `${aliasWords.length} 件: ${aliasWords.join("・")}`
+  );
+
+  // 層を混ぜない。口語形が lib/services.ts に現れたら、kana に流し込まれた疑い。
+  const leaked = aliasWords.filter((w) => servicesSrc.includes(w));
+  t(
+    "口語形をlib/services.tsに混ぜない",
+    leaked.length === 0,
+    leaked.length === 0
+      ? "SERVICES / kana に口語形は入っていない"
+      : `混入: ${leaked.join("・")}`
+  );
+
+  // 表現を1箇所に集約する（2ページに直書きすると片方だけ直してズレる）。
+  t(
+    "作品ページが口語形の表現を共有する",
+    /buildServiceLabel/.test(workPageSrc),
+    "buildServiceLabel を使っている"
+  );
+  t(
+    "サービス別ページが口語形を出す",
+    /buildServiceLabel/.test(svcPageSrc),
+    "buildServiceLabel を使っている"
+  );
+
+  // title・description には入れない（kana と同じ扱い。検索語の詰め込みをしない）。
+  const metaBlock = svcPageSrc.slice(
+    svcPageSrc.indexOf("export async function generateMetadata"),
+    svcPageSrc.indexOf("export default async function")
+  );
+  t(
+    "口語形をtitle/descriptionに入れない",
+    metaBlock.length > 0 &&
+      !/buildServiceLabel|serviceLabel/.test(metaBlock) &&
+      !aliasWords.some((w) => metaBlock.includes(w)),
+    "generateMetadata は正式名称だけを使っている"
+  );
+
+  // 素の挙動（口語形もカナも無いサービスは、余計な括弧を付けない）。
+  const { buildServiceLabel } = await import("../content/services/aliases.ts");
+  t(
+    "カナも口語形も無ければ括弧を付けない",
+    buildServiceLabel("dアニメ", undefined, "d_anime") === "dアニメ",
+    "buildServiceLabel('dアニメ', undefined, 'd_anime') === 'dアニメ'"
+  );
+}
+console.log(
+  `結果（配信サービスの口語形）: ${svcAliasNg === 0 ? "全件OK" : `${svcAliasNg} 件NG`}`
+);
+
 
 // 孤立ページを作らない（2026-08-07追加）
 //
@@ -4196,7 +4294,8 @@ if (
   xIntentNg > 0 ||
   xPolicyNg > 0 ||
   trackNg > 0 ||
-  aliasNg > 0
+  aliasNg > 0 ||
+  svcAliasNg > 0
 )
   // process.exit() ではなく exitCode。Windows では stdout がパイプされていると
   // process.exit() が書き込み途中のバッファを巻き込んでプロセスを異常終了させ、

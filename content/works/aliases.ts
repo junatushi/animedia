@@ -330,4 +330,1146 @@ export const WORK_ALIASES: Record<number, WorkAlias> = {
     sourceUrl: "https://ja.wikipedia.org/wiki/負けヒロインが多すぎる!",
     confirmedDate: "2026-08-07",
   }, // 1st season（2024夏）
+  // ここから追加登録（2026-08-19）: **既に出典つきで登録済みのシリーズ**の、
+  // まだ登録されていない作品IDに同じ略称を広げた（85件）。
+  //
+  // なぜ必要か: 略称は作品IDではなく**シリーズ**に付くものなのに、この表は
+  // 作品IDごとの登録だった。そのため「リゼロ」は6作品に付いているのに
+  // 劇場版・OVA・第1期には付いておらず、同じ検索語で来た人がどのページに
+  // 着地するかで略称が出たり出なかったりしていた。
+  //
+  // 追加の手順（新しく外部を確認したものは1件も無い）:
+  //  1. 登録済みシリーズごとに**人が基底タイトルを決める**（例:「リゼロ」→
+  //     "Re:ゼロから始める異世界生活"）。作品名から「◯期」を推測して繋ぐことはしない
+  //     （series.ts と同じ禁止事項）
+  //  2. content/snapshots と content/coverage のタイトルから、その基底タイトルを
+  //     含む作品IDを機械的に集める
+  //  3. **出てきた一覧を1件ずつ目で見て**、独自の略称を持つスピンオフ
+  //     （マギアレコード＝「マギレコ」）・コラボ企画・タイトルに既に略称が
+  //     入っている作品（転スラ日記）を落とす
+  //
+  // そのため `sourceUrl` と `confirmedDate` は**初出のエントリのものをそのまま
+  // 引き継いでいる**（今日確認したのは「この作品IDがそのシリーズか」だけで、
+  // 「その略称が使われているか」を今日確認し直したわけではないため、
+  // confirmedDate を今日の日付に書き換えない）。
+
+  // Re:ゼロから始める異世界生活: 「リゼロ」
+  4636: {
+    names: ["リゼロ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/Re:ゼロから始める異世界生活",
+    confirmedDate: "2026-07-11",
+  }, // Re:ゼロから始める異世界生活
+  5485: {
+    names: ["リゼロ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/Re:ゼロから始める異世界生活",
+    confirmedDate: "2026-07-11",
+  }, // Re:ゼロから始める異世界生活 Memory Snow
+  6457: {
+    names: ["リゼロ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/Re:ゼロから始める異世界生活",
+    confirmedDate: "2026-07-11",
+  }, // Re:ゼロから始める異世界生活 氷結の絆
+  7187: {
+    names: ["リゼロ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/Re:ゼロから始める異世界生活",
+    confirmedDate: "2026-07-11",
+  }, // Re:ゼロから始める異世界生活 新編集版
+  13150: {
+    names: ["リゼロ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/Re:ゼロから始める異世界生活",
+    confirmedDate: "2026-07-11",
+  }, // Re:ゼロから始める異世界生活 3rd season 劇場型悪意
+
+  // 転生したらスライムだった件: 「転スラ」
+  6805: {
+    names: ["転スラ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/転生したらスライムだった件",
+    confirmedDate: "2026-07-11",
+  }, // 転生したらスライムだった件 OAD 外伝：Mの悲劇？
+  7160: {
+    names: ["転スラ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/転生したらスライムだった件",
+    confirmedDate: "2026-07-11",
+  }, // 転生したらスライムだった件 OAD 外伝：HEY！尻！
+  7161: {
+    names: ["転スラ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/転生したらスライムだった件",
+    confirmedDate: "2026-07-11",
+  }, // 転生したらスライムだった件 OAD 外伝：リムルの華麗な教師生活 その1
+  7641: {
+    names: ["転スラ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/転生したらスライムだった件",
+    confirmedDate: "2026-07-11",
+  }, // 転生したらスライムだった件 OAD 外伝：リムルの華麗な教師生活 その2
+  7642: {
+    names: ["転スラ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/転生したらスライムだった件",
+    confirmedDate: "2026-07-11",
+  }, // 転生したらスライムだった件 OAD 外伝：リムルの華麗な教師生活 その3
+  8940: {
+    names: ["転スラ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/転生したらスライムだった件",
+    confirmedDate: "2026-07-11",
+  }, // 劇場版 転生したらスライムだった件 紅蓮の絆編
+  10602: {
+    names: ["転スラ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/転生したらスライムだった件",
+    confirmedDate: "2026-07-11",
+  }, // 転生したらスライムだった件 コリウスの夢
+  12819: {
+    names: ["転スラ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/転生したらスライムだった件",
+    confirmedDate: "2026-07-11",
+  }, // 転生したらスライムだった件 閑話：ディアブロ日記
+  17632: {
+    names: ["転スラ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/転生したらスライムだった件",
+    confirmedDate: "2026-07-11",
+  }, // 転生したらスライムだった件 ショートストーリー「救われるラミリス」
+
+  // 呪術廻戦: 「呪術」
+  8181: {
+    names: ["呪術"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/呪術廻戦",
+    confirmedDate: "2026-07-11",
+  }, // 劇場版 呪術廻戦 0
+  13831: {
+    names: ["呪術"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/呪術廻戦",
+    confirmedDate: "2026-07-11",
+  }, // 劇場版総集編 呪術廻戦 懐玉・玉折
+  16506: {
+    names: ["呪術"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/呪術廻戦",
+    confirmedDate: "2026-07-11",
+  }, // 劇場版 呪術廻戦 渋谷事変 特別編集版 × 死滅回游 先行上映
+
+  // 僕のヒーローアカデミア: 「ヒロアカ」
+  4616: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア
+  5642: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア (第3期)
+  5643: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア THE MOVIE ～2人の英雄～
+  5899: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア OVA
+  6282: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア (第4期)
+  6602: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア THE MOVIE ヒーローズ：ライジング
+  7625: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア 生き残れ！決死のサバイバル訓練
+  7820: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア THE MOVIE ワールド ヒーローズ ミッション
+  9187: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア THE MOVIE ワールド ヒーローズ ミッション 《旅立ち》
+  9687: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア 『ALL MIGHT：RISING』THE ANIMATION
+  9688: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア HLB/笑え！地獄のように
+  11079: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア THE MOVIE ユアネクスト
+  11171: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア 雄英ヒーローズ・バトル
+  12107: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア Memories
+  14148: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア FINAL SEASON
+  14795: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア THE MOVIE ヒーローズ・ライジング エピローグ・プラス《夢を現実に》
+  14796: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // 僕のヒーローアカデミア THE MOVIE ユアネクスト 《A PIECE OF CAKE》
+  14990: {
+    names: ["ヒロアカ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/僕のヒーローアカデミア",
+    confirmedDate: "2026-07-11",
+  }, // ヴィジランテ -僕のヒーローアカデミア ILLEGALS-
+
+  // シャングリラ・フロンティア: 「シャンフロ」「鳥頭」
+  15804: {
+    names: ["シャンフロ", "鳥頭"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/シャングリラ・フロンティア〜クソゲーハンター、神ゲーに挑まんとす〜",
+    confirmedDate: "2026-07-11",
+  }, // シャングリラ・フロンティア〜クソゲーハンター、神ゲーに挑まんとす〜 3rd season
+
+  // 逃げ上手の若君: 「逃げ若」
+  10591: {
+    names: ["逃げ若"],
+    sourceUrl: "https://dic.pixiv.net/a/逃げ若",
+    confirmedDate: "2026-07-12",
+  }, // 逃げ上手の若君
+
+  // 君のことが大大大大大好きな100人の彼女: 「100カノ」
+  10567: {
+    names: ["100カノ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/君のことが大大大大大好きな100人の彼女",
+    confirmedDate: "2026-07-12",
+  }, // 君のことが大大大大大好きな100人の彼女
+  12224: {
+    names: ["100カノ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/君のことが大大大大大好きな100人の彼女",
+    confirmedDate: "2026-07-12",
+  }, // 君のことが大大大大大好きな100人の彼女 第2期
+
+  // 魔法少女まどか☆マギカ: 「まどマギ」
+  3697: {
+    names: ["まどマギ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/魔法少女まどか☆マギカ",
+    confirmedDate: "2026-08-07",
+  }, // 劇場版 魔法少女まどか☆マギカ  [前編] 始まりの物語
+  3698: {
+    names: ["まどマギ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/魔法少女まどか☆マギカ",
+    confirmedDate: "2026-08-07",
+  }, // 劇場版 魔法少女まどか☆マギカ [後編] 永遠の物語 
+  3699: {
+    names: ["まどマギ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/魔法少女まどか☆マギカ",
+    confirmedDate: "2026-08-07",
+  }, // 劇場版 魔法少女まどか☆マギカ [新編] 叛逆の物語
+  8410: {
+    names: ["まどマギ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/魔法少女まどか☆マギカ",
+    confirmedDate: "2026-08-07",
+  }, // 劇場版 魔法少女まどか☆マギカ〈ワルプルギスの廻天〉
+  16343: {
+    names: ["まどマギ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/魔法少女まどか☆マギカ",
+    confirmedDate: "2026-08-07",
+  }, // 魔法少女まどか☆マギカ 始まりの物語／永遠の物語 TV Edition
+
+  // この素晴らしい世界に祝福を！: 「このすば」
+  5847: {
+    names: ["このすば"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/この素晴らしい世界に祝福を!",
+    confirmedDate: "2026-08-07",
+  }, // この素晴らしい世界に祝福を！2 OVA
+  6141: {
+    names: ["このすば"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/この素晴らしい世界に祝福を!",
+    confirmedDate: "2026-08-07",
+  }, // この素晴らしい世界に祝福を！紅伝説
+  8781: {
+    names: ["このすば"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/この素晴らしい世界に祝福を!",
+    confirmedDate: "2026-08-07",
+  }, // この素晴らしい世界に祝福を！3
+  13998: {
+    names: ["このすば"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/この素晴らしい世界に祝福を!",
+    confirmedDate: "2026-08-07",
+  }, // この素晴らしい世界に祝福を！3 ーBONUS STAGEー
+
+  // ソードアート・オンライン: 「SAO」
+  1166: {
+    names: ["SAO"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ソードアート・オンライン",
+    confirmedDate: "2026-08-07",
+  }, // ソードアート・オンライン
+  4027: {
+    names: ["SAO"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ソードアート・オンライン",
+    confirmedDate: "2026-08-07",
+  }, // ソードアート・オンライン Extra Edition
+  4709: {
+    names: ["SAO"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ソードアート・オンライン",
+    confirmedDate: "2026-08-07",
+  }, // 劇場版 ソードアート・オンライン -オーディナル・スケール-
+  5550: {
+    names: ["SAO"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ソードアート・オンライン",
+    confirmedDate: "2026-08-07",
+  }, // ソードアート・オンライン アリシゼーション
+  5553: {
+    names: ["SAO"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ソードアート・オンライン",
+    confirmedDate: "2026-08-07",
+  }, // ソードアート・オンライン オルタナティブ ガンゲイル・オンライン
+  7234: {
+    names: ["SAO"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ソードアート・オンライン",
+    confirmedDate: "2026-08-07",
+  }, // ソードアート・オンライン アリシゼーション War of Underworld ‐THE LAST SEASON‐
+  7669: {
+    names: ["SAO"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ソードアート・オンライン",
+    confirmedDate: "2026-08-07",
+  }, // 劇場版 ソードアート・オンライン -プログレッシブ- 星なき夜のアリア
+  9061: {
+    names: ["SAO"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ソードアート・オンライン",
+    confirmedDate: "2026-08-07",
+  }, // 劇場版 ソードアート・オンライン -プログレッシブ- 冥き夕闇のスケルツォ
+  11027: {
+    names: ["SAO"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ソードアート・オンライン",
+    confirmedDate: "2026-08-07",
+  }, // ソードアート・オンライン オルタナティブ ガンゲイル・オンラインII
+  14073: {
+    names: ["SAO"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ソードアート・オンライン",
+    confirmedDate: "2026-08-07",
+  }, // ソードアート・オンライン オルタナティブ ガンゲイル･オンライン 12.5話「GALA」
+
+  // やはり俺の青春ラブコメはまちがっている。: 「俺ガイル」
+  2255: {
+    names: ["俺ガイル"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/やはり俺の青春ラブコメはまちがっている。",
+    confirmedDate: "2026-08-07",
+  }, // やはり俺の青春ラブコメはまちがっている。
+  4244: {
+    names: ["俺ガイル"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/やはり俺の青春ラブコメはまちがっている。",
+    confirmedDate: "2026-08-07",
+  }, // やはり俺の青春ラブコメはまちがっている。続
+  7919: {
+    names: ["俺ガイル"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/やはり俺の青春ラブコメはまちがっている。",
+    confirmedDate: "2026-08-07",
+  }, // やはり俺の青春ラブコメはまちがっている。完 OVA「だから、思春期は終わらずに、青春は続いていく。」
+
+  // ダンジョンに出会いを求めるのは間違っているだろうか: 「ダンまち」
+  4247: {
+    names: ["ダンまち"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ダンジョンに出会いを求めるのは間違っているだろうか",
+    confirmedDate: "2026-08-07",
+  }, // ダンジョンに出会いを求めるのは間違っているだろうか
+  5137: {
+    names: ["ダンまち"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ダンジョンに出会いを求めるのは間違っているだろうか",
+    confirmedDate: "2026-08-07",
+  }, // ソード・オラトリア ダンジョンに出会いを求めるのは間違っているだろうか外伝
+  5253: {
+    names: ["ダンまち"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ダンジョンに出会いを求めるのは間違っているだろうか",
+    confirmedDate: "2026-08-07",
+  }, // ダンジョンに出会いを求めるのは間違っているだろうか OVA
+  5751: {
+    names: ["ダンまち"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ダンジョンに出会いを求めるのは間違っているだろうか",
+    confirmedDate: "2026-08-07",
+  }, // 劇場版 ダンジョンに出会いを求めるのは間違っているだろうか  ─ オリオンの矢 ─
+  6963: {
+    names: ["ダンまち"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ダンジョンに出会いを求めるのは間違っているだろうか",
+    confirmedDate: "2026-08-07",
+  }, // ダンジョンに出会いを求めるのは間違っているだろうかⅡ OVA
+  6964: {
+    names: ["ダンまち"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ダンジョンに出会いを求めるのは間違っているだろうか",
+    confirmedDate: "2026-08-07",
+  }, // ダンジョンに出会いを求めるのは間違っているだろうかⅢ
+  7875: {
+    names: ["ダンまち"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ダンジョンに出会いを求めるのは間違っているだろうか",
+    confirmedDate: "2026-08-07",
+  }, // ダンジョンに出会いを求めるのは間違っているだろうかⅢ OVA「オラリオに温泉を求めるのは間違っているだろうか 〜おふろの神様フォーエバー〜」
+  7906: {
+    names: ["ダンまち"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ダンジョンに出会いを求めるのは間違っているだろうか",
+    confirmedDate: "2026-08-07",
+  }, // ダンジョンに出会いを求めるのは間違っているだろうかⅣ 新章 迷宮篇
+  10107: {
+    names: ["ダンまち"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ダンジョンに出会いを求めるのは間違っているだろうか",
+    confirmedDate: "2026-08-07",
+  }, // ダンジョンに出会いを求めるのは間違っているだろうかⅣ 深章 厄災篇
+  11504: {
+    names: ["ダンまち"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ダンジョンに出会いを求めるのは間違っているだろうか",
+    confirmedDate: "2026-08-07",
+  }, // ダンジョンに出会いを求めるのは間違っているだろうかⅤ 豊穣の女神篇
+
+  // とある科学の超電磁砲: 「レールガン」
+  1420: {
+    names: ["レールガン"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/とある科学の超電磁砲",
+    confirmedDate: "2026-08-07",
+  }, // とある科学の超電磁砲S
+  2870: {
+    names: ["レールガン"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/とある科学の超電磁砲",
+    confirmedDate: "2026-08-07",
+  }, // とある科学の超電磁砲 OVA
+  9545: {
+    names: ["レールガン"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/とある科学の超電磁砲",
+    confirmedDate: "2026-08-07",
+  }, // とある科学の超電磁砲S OVA
+
+  // ようこそ実力至上主義の教室へ: 「よう実」
+  5322: {
+    names: ["よう実"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ようこそ実力至上主義の教室へ",
+    confirmedDate: "2026-08-07",
+  }, // ようこそ実力至上主義の教室へ
+  9413: {
+    names: ["よう実"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ようこそ実力至上主義の教室へ",
+    confirmedDate: "2026-08-07",
+  }, // ようこそ実力至上主義の教室へ 3rd Season
+
+  // 東京リベンジャーズ: 「東リベ」
+  9220: {
+    names: ["東リベ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/東京卍リベンジャーズ",
+    confirmedDate: "2026-08-07",
+  }, // 東京リベンジャーズ 聖夜決戦編
+  10664: {
+    names: ["東リベ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/東京卍リベンジャーズ",
+    confirmedDate: "2026-08-07",
+  }, // 東京リベンジャーズ 天竺編
+  13286: {
+    names: ["東リベ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/東京卍リベンジャーズ",
+    confirmedDate: "2026-08-07",
+  }, // 東京リベンジャーズ 三天戦争編
+
+  // 約束のネバーランド: 「約ネバ」
+  6592: {
+    names: ["約ネバ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/約束のネバーランド",
+    confirmedDate: "2026-08-07",
+  }, // 約束のネバーランド Season 2
+
+  // ゴブリンスレイヤー: 「ゴブスレ」
+  6601: {
+    names: ["ゴブスレ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ゴブリンスレイヤー",
+    confirmedDate: "2026-08-07",
+  }, // ゴブリンスレイヤー -GOBLIN’S CROWN-
+  7904: {
+    names: ["ゴブスレ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ゴブリンスレイヤー",
+    confirmedDate: "2026-08-07",
+  }, // ゴブリンスレイヤーⅡ
+
+  // リコリス・リコイル: 「リコリコ」
+  13720: {
+    names: ["リコリコ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/リコリス・リコイル",
+    confirmedDate: "2026-08-07",
+  }, // リコリス・リコイル Friends are thieves of time.
+
+  // ぼっち・ざ・ろっく！: 「ぼざろ」
+  10865: {
+    names: ["ぼざろ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ぼっち・ざ・ろっく!_(アニメ)",
+    confirmedDate: "2026-08-07",
+  }, // 劇場総集編ぼっち・ざ・ろっく！ Re:
+  11308: {
+    names: ["ぼざろ"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ぼっち・ざ・ろっく!_(アニメ)",
+    confirmedDate: "2026-08-07",
+  }, // 劇場総集編ぼっち・ざ・ろっく！ Re:Re:
+  // ここから新しいシリーズの追加（2026-08-19。121件）。
+  //
+  // 【この回の確認方法と、その限界】この作業環境は外向きのページ取得が遮断されており
+  // （ja.wikipedia.org も含めて egress proxy が 403）、**出典ページを開いて読むことが
+  // できなかった**。確認に使えたのは検索そのものだけなので、次の3段で採否を決めている。
+  //   1. 検索結果に「略称は『◯◯』」の明示か、独立した複数の結果で実際にその略称が
+  //      その作品を指して使われていることが出ているものだけを候補にした
+  //   2. 機械的に落とす: 正式タイトルに既にその略称が含まれる作品（「薬屋のひとりごと」→
+  //      「薬屋」、「響け！ユーフォニアム」→「ユーフォ」）は、ページに既にその語が
+  //      あるので登録しない
+  //   3. 目で落とす: 独自の名前を持つ派生ブランド（アルゴナビス）とコラボ企画
+  //      （トリコ×ONE PIECE×ドラゴンボールZ）を外した
+  // 証拠が「どう略すのが正しいか」を尋ねる質問だけのもの（SAKAMOTO DAYS→「サカデイ」）と、
+  // 投稿1件しか無いもの（塩対応の佐藤さん→「塩甘」）は**採用していない**。
+  //
+  // 出典ページを直接読めていない以上、ここは他の人力補完より確認が一段弱い。
+  // 外向き通信のある環境（PC作業）で `sourceUrl` を開き直せるよう、URLは
+  // **検索結果に実際に出てきたもの**だけを書いている（見ていないURLを書かない）。
+
+  // 青春ブタ野郎: 「青ブタ」
+  5792: {
+    names: ["青ブタ"],
+    sourceUrl: "https://otajo.jp/115348",
+    confirmedDate: "2026-08-19",
+  }, // 青春ブタ野郎はバニーガール先輩の夢を見ない
+  6257: {
+    names: ["青ブタ"],
+    sourceUrl: "https://otajo.jp/115348",
+    confirmedDate: "2026-08-19",
+  }, // 青春ブタ野郎はゆめみる少女の夢を見ない
+  10098: {
+    names: ["青ブタ"],
+    sourceUrl: "https://otajo.jp/115348",
+    confirmedDate: "2026-08-19",
+  }, // 青春ブタ野郎はおでかけシスターの夢を見ない
+  10099: {
+    names: ["青ブタ"],
+    sourceUrl: "https://otajo.jp/115348",
+    confirmedDate: "2026-08-19",
+  }, // 青春ブタ野郎はランドセルガールの夢を見ない
+  11852: {
+    names: ["青ブタ"],
+    sourceUrl: "https://otajo.jp/115348",
+    confirmedDate: "2026-08-19",
+  }, // 青春ブタ野郎はサンタクロースの夢を見ない
+  16586: {
+    names: ["青ブタ"],
+    sourceUrl: "https://otajo.jp/115348",
+    confirmedDate: "2026-08-19",
+  }, // 青春ブタ野郎はディアフレンドの夢を見ない
+
+  // ガールズ&パンツァー: 「ガルパン」
+  424: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ&パンツァー
+  4130: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ&パンツァー OVA これが本当のアンツィオ戦です!
+  4377: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ&パンツァー 劇場版
+  4874: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ&パンツァー 劇場版 OVA
+  5534: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ&パンツァー 最終章 第1話
+  6185: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ&パンツァー 最終章 第2話
+  6186: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ&パンツァー 第63回戦車道全国高校生大会 総集編
+  7681: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ&パンツァー 最終章 第3話
+  8252: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ&パンツァー 最終章 第4話
+  9038: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ&パンツァー OVA タイヤキ・ウォー！
+  9039: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ＆パンツァーOVA ダイコン・ウォー！
+  9536: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ&パンツァー 映像特典
+  12828: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ＆パンツァー OVA タイチョウ･ウォー！
+  12887: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ＆パンツァー 不肖・秋山優花里の戦車講座
+  15713: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ＆パンツァー もっとらぶらぶ作戦です！第１幕
+  16716: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ&パンツァー 最終章 第5話
+  17851: {
+    names: ["ガルパン"],
+    sourceUrl: "https://www.weblio.jp/content/ガールズ%26パンツァー",
+    confirmedDate: "2026-08-19",
+  }, // ガールズ＆パンツァー もっとらぶらぶ作戦です！
+
+  // ブラッククローバー: 「ブラクロ」
+  5371: {
+    names: ["ブラクロ"],
+    sourceUrl: "https://news.ganma.jp/contents/bclover/",
+    confirmedDate: "2026-08-19",
+  }, // ブラッククローバー
+  6784: {
+    names: ["ブラクロ"],
+    sourceUrl: "https://news.ganma.jp/contents/bclover/",
+    confirmedDate: "2026-08-19",
+  }, // むぎゅっと！ブラッククローバー
+  8452: {
+    names: ["ブラクロ"],
+    sourceUrl: "https://news.ganma.jp/contents/bclover/",
+    confirmedDate: "2026-08-19",
+  }, // 劇場版 ブラッククローバー 魔法帝の剣
+  14159: {
+    names: ["ブラクロ"],
+    sourceUrl: "https://news.ganma.jp/contents/bclover/",
+    confirmedDate: "2026-08-19",
+  }, // ブラッククローバー(ジャンプスペシャルアニメフェスタ2016)
+  14161: {
+    names: ["ブラクロ"],
+    sourceUrl: "https://news.ganma.jp/contents/bclover/",
+    confirmedDate: "2026-08-19",
+  }, // ブラッククローバー オール魔法騎士感謝祭
+  16301: {
+    names: ["ブラクロ"],
+    sourceUrl: "https://news.ganma.jp/contents/bclover/",
+    confirmedDate: "2026-08-19",
+  }, // ブラッククローバー 2nd Season
+
+  // 乙女ゲー世界はモブに厳しい世界です: 「モブせか」
+  9130: {
+    names: ["モブせか"],
+    sourceUrl: "https://gcnovels.jp/mobuseka/",
+    confirmedDate: "2026-08-19",
+  }, // 乙女ゲー世界はモブに厳しい世界です
+  10352: {
+    names: ["モブせか"],
+    sourceUrl: "https://gcnovels.jp/mobuseka/",
+    confirmedDate: "2026-08-19",
+  }, // 乙女ゲー世界はモブに厳しい世界です2
+
+  // 探偵はもう、死んでいる。: 「たんもし」
+  7973: {
+    names: ["たんもし"],
+    sourceUrl: "https://www.animatetimes.com/tag/details.php?id=11589",
+    confirmedDate: "2026-08-19",
+  }, // 探偵はもう、死んでいる。
+  9753: {
+    names: ["たんもし"],
+    sourceUrl: "https://www.animatetimes.com/tag/details.php?id=11589",
+    confirmedDate: "2026-08-19",
+  }, // 探偵はもう、死んでいる。Season2
+
+  // BanG Dream!: 「バンドリ」
+  4992: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream!
+  5435: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! OVA
+  6038: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! 2nd Season
+  6039: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! 3rd Season
+  6040: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! ガルパ☆ピコ
+  6591: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! FILM LIVE
+  7406: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! ガルパ☆ピコ～大盛り～
+  7495: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! Episode of Roselia I:約束
+  7496: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! Episode of Roselia II:Song I am.
+  7497: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! ぽっぴん'どりーむ！
+  8928: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! ガルパ☆ピコ ふぃーばー！
+  9313: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! ガールズバンドパーティ！5th Anniversary Animation -CiRCLE THANKS PARTY!-
+  9685: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! Morfonication
+  10686: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! It's MyGO!!!!!
+  11126: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! Ave Mujica
+  12363: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // 劇場版 BanG Dream! It's MyGO!!!!! 前編 : 春の陽だまり、迷い猫
+  12364: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // 劇場版 BanG Dream! It's MyGO!!!!! 後編 : うたう、僕らになれるうた & FILM LIVE
+  14936: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! Ave Mujica 劇場先行上映
+  15793: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // 「BanG Dream! It's MyGO!!!!! / BanG Dream! Ave Mujica」アニメ続編シリーズ
+  16454: {
+    names: ["バンドリ"],
+    sourceUrl: "https://bang-dream.com/about/",
+    confirmedDate: "2026-08-19",
+  }, // BanG Dream! Ave Mujica prima aurora
+
+  // 刀剣乱舞: 「とうらぶ」
+  4809: {
+    names: ["とうらぶ"],
+    sourceUrl: "https://dic.pixiv.net/a/とうらぶ",
+    confirmedDate: "2026-08-19",
+  }, // 刀剣乱舞-花丸-
+  5098: {
+    names: ["とうらぶ"],
+    sourceUrl: "https://dic.pixiv.net/a/とうらぶ",
+    confirmedDate: "2026-08-19",
+  }, // 活撃 刀剣乱舞
+  5457: {
+    names: ["とうらぶ"],
+    sourceUrl: "https://dic.pixiv.net/a/とうらぶ",
+    confirmedDate: "2026-08-19",
+  }, // 続 刀剣乱舞-花丸-
+  5543: {
+    names: ["とうらぶ"],
+    sourceUrl: "https://dic.pixiv.net/a/とうらぶ",
+    confirmedDate: "2026-08-19",
+  }, // 刀剣乱舞-花丸- ～幕間回想録～
+  8132: {
+    names: ["とうらぶ"],
+    sourceUrl: "https://dic.pixiv.net/a/とうらぶ",
+    confirmedDate: "2026-08-19",
+  }, // 特「刀剣乱舞-花丸-」～雪月華～ 雪ノ巻
+  9408: {
+    names: ["とうらぶ"],
+    sourceUrl: "https://dic.pixiv.net/a/とうらぶ",
+    confirmedDate: "2026-08-19",
+  }, // 特「刀剣乱舞-花丸-」～雪月華～ 月ノ巻
+  9409: {
+    names: ["とうらぶ"],
+    sourceUrl: "https://dic.pixiv.net/a/とうらぶ",
+    confirmedDate: "2026-08-19",
+  }, // 特「刀剣乱舞-花丸-」～雪月華～ 華ノ巻
+  12426: {
+    names: ["とうらぶ"],
+    sourceUrl: "https://dic.pixiv.net/a/とうらぶ",
+    confirmedDate: "2026-08-19",
+  }, // 刀剣乱舞 廻 -虚伝 燃ゆる本能寺-
+  12427: {
+    names: ["とうらぶ"],
+    sourceUrl: "https://dic.pixiv.net/a/とうらぶ",
+    confirmedDate: "2026-08-19",
+  }, // わんぱく！刀剣乱舞
+  13023: {
+    names: ["とうらぶ"],
+    sourceUrl: "https://dic.pixiv.net/a/とうらぶ",
+    confirmedDate: "2026-08-19",
+  }, // 刀剣乱舞 廻 -々伝 近し侍らうものら-
+
+  // ONE PIECE: 「ワンピ」「ワンピース」
+  3781: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE FILM Z
+  4596: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE 〜アドベンチャー オブ ネブランディア〜
+  4845: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE FILM GOLD
+  5735: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE エピソードオブ東の海 〜ルフィと4人の仲間の大冒険!!〜
+  6061: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE 3D 麦わらチェイス
+  6395: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE STAMPEDE
+  7136: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE 〜ハートオブゴールド〜
+  7137: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE “3D2Y” エースの死を越えて! ルフィ仲間との誓い
+  7138: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE エピソードオブサボ 〜3兄弟の絆 奇跡の再会と受け継がれる意志〜
+  7139: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE エピソードオブナミ 〜航海士の涙と仲間の絆〜
+  7140: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE エピソードオブルフィ 〜ハンドアイランドの冒険〜
+  7141: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE エピソードオブ空島
+  7142: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE エピソードオブメリー 〜もうひとりの仲間の物語〜
+  9121: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE FILM RED
+  11305: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE FILM STRONG WORLD EPISODE:0
+  12123: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // THE ONE PIECE
+  14192: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE 魚人島編 SPECIAL EDITED VERSION
+  14193: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE FAN LETTER
+  15815: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // 「ONE PIECE」オリジナルエピソード／ルフィ、ロー
+  16440: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE HEROINES
+  16921: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // ONE PIECE FILM Z GLORIOUS ISLAND
+  17390: {
+    names: ["ワンピ", "ワンピース"],
+    sourceUrl: "https://dic.pixiv.net/a/ワンピ",
+    confirmedDate: "2026-08-19",
+  }, // LEGO ONE PIECE
+
+  // 魔入りました！入間くん: 「魔入間」
+  6542: {
+    names: ["魔入間"],
+    sourceUrl: "https://dic.pixiv.net/a/魔入間",
+    confirmedDate: "2026-08-19",
+  }, // 魔入りました！入間くん
+  7374: {
+    names: ["魔入間"],
+    sourceUrl: "https://dic.pixiv.net/a/魔入間",
+    confirmedDate: "2026-08-19",
+  }, // 魔入りました！入間くん 第2シリーズ
+  8883: {
+    names: ["魔入間"],
+    sourceUrl: "https://dic.pixiv.net/a/魔入間",
+    confirmedDate: "2026-08-19",
+  }, // 魔入りました！入間くん 第3シリーズ
+  17091: {
+    names: ["魔入間"],
+    sourceUrl: "https://dic.pixiv.net/a/魔入間",
+    confirmedDate: "2026-08-19",
+  }, // 魔入りました！入間くん if Episode of 魔フィア
+
+  // ラブライブ！虹ヶ咲学園スクールアイドル同好会: 「ニジガク」
+  7204: {
+    names: ["ニジガク"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ラブライブ!虹ヶ咲学園スクールアイドル同好会",
+    confirmedDate: "2026-08-19",
+  }, // ラブライブ！虹ヶ咲学園スクールアイドル同好会
+  8478: {
+    names: ["ニジガク"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ラブライブ!虹ヶ咲学園スクールアイドル同好会",
+    confirmedDate: "2026-08-19",
+  }, // ラブライブ！虹ヶ咲学園スクールアイドル同好会 (第2期)
+  10200: {
+    names: ["ニジガク"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ラブライブ!虹ヶ咲学園スクールアイドル同好会",
+    confirmedDate: "2026-08-19",
+  }, // ラブライブ！虹ヶ咲学園スクールアイドル同好会 NEXT SKY
+  10962: {
+    names: ["ニジガク"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ラブライブ!虹ヶ咲学園スクールアイドル同好会",
+    confirmedDate: "2026-08-19",
+  }, // 映画 ラブライブ！虹ヶ咲学園スクールアイドル同好会 完結編 第1章
+  10963: {
+    names: ["ニジガク"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ラブライブ!虹ヶ咲学園スクールアイドル同好会",
+    confirmedDate: "2026-08-19",
+  }, // 映画 ラブライブ！虹ヶ咲学園スクールアイドル同好会 完結編 第2章
+  10964: {
+    names: ["ニジガク"],
+    sourceUrl: "https://ja.wikipedia.org/wiki/ラブライブ!虹ヶ咲学園スクールアイドル同好会",
+    confirmedDate: "2026-08-19",
+  }, // 映画 ラブライブ！虹ヶ咲学園スクールアイドル同好会 完結編 最終章
+
+  // スーパーの裏でヤニ吸うふたり: 「ヤニすう」
+  16391: {
+    names: ["ヤニすう"],
+    sourceUrl: "https://www.animatetimes.com/tag/details.php?id=26460",
+    confirmedDate: "2026-08-19",
+  }, // スーパーの裏でヤニ吸うふたり
+
+  // ここは俺に任せて先に行けと言ってから10年がたったら伝説になっていた。: 「ここ俺」
+  16606: {
+    names: ["ここ俺"],
+    sourceUrl: "https://www.animate-onlineshop.jp/animetitle/?aid=15665",
+    confirmedDate: "2026-08-19",
+  }, // ここは俺に任せて先に行けと言ってから10年がたったら伝説になっていた。
+
+  // 転生したら剣でした: 「転剣」
+  8946: {
+    names: ["転剣"],
+    sourceUrl: "https://renote.net/articles/331504",
+    confirmedDate: "2026-08-19",
+  }, // 転生したら剣でした
+  10258: {
+    names: ["転剣"],
+    sourceUrl: "https://renote.net/articles/331504",
+    confirmedDate: "2026-08-19",
+  }, // 転生したら剣でしたII
+
+  // ゴールデンカムイ: 「金カム」
+  5407: {
+    names: ["金カム"],
+    sourceUrl: "https://dic.pixiv.net/a/金カム",
+    confirmedDate: "2026-08-19",
+  }, // ゴールデンカムイ
+  6144: {
+    names: ["金カム"],
+    sourceUrl: "https://dic.pixiv.net/a/金カム",
+    confirmedDate: "2026-08-19",
+  }, // ゴールデンカムイ OAD 茨戸の用心棒/怪奇！謎の巨大鳥
+  6145: {
+    names: ["金カム"],
+    sourceUrl: "https://dic.pixiv.net/a/金カム",
+    confirmedDate: "2026-08-19",
+  }, // ゴールデンカムイ 第2期
+  6799: {
+    names: ["金カム"],
+    sourceUrl: "https://dic.pixiv.net/a/金カム",
+    confirmedDate: "2026-08-19",
+  }, // ゴールデンカムイ 第3期
+  9186: {
+    names: ["金カム"],
+    sourceUrl: "https://dic.pixiv.net/a/金カム",
+    confirmedDate: "2026-08-19",
+  }, // ゴールデンカムイ 第4期
+  16171: {
+    names: ["金カム"],
+    sourceUrl: "https://dic.pixiv.net/a/金カム",
+    confirmedDate: "2026-08-19",
+  }, // ゴールデンカムイ OAD 稲妻強盗と蝮のお銀/シマエナガ
+  16345: {
+    names: ["金カム"],
+    sourceUrl: "https://dic.pixiv.net/a/金カム",
+    confirmedDate: "2026-08-19",
+  }, // 劇場先行版 ゴールデンカムイ 札幌ビール工場編【前編】
+  16346: {
+    names: ["金カム"],
+    sourceUrl: "https://dic.pixiv.net/a/金カム",
+    confirmedDate: "2026-08-19",
+  }, // 劇場先行版 ゴールデンカムイ 札幌ビール工場編【後編】
+  17000: {
+    names: ["金カム"],
+    sourceUrl: "https://dic.pixiv.net/a/金カム",
+    confirmedDate: "2026-08-19",
+  }, // ゴールデンカムイ OAD 恋をしたから脱獄することにした/恐怖の猛毒大死闘！北海道奥地に巨大蛇は存在した！
+  17001: {
+    names: ["金カム"],
+    sourceUrl: "https://dic.pixiv.net/a/金カム",
+    confirmedDate: "2026-08-19",
+  }, // ゴールデンカムイ OAD モンスター
+  17002: {
+    names: ["金カム"],
+    sourceUrl: "https://dic.pixiv.net/a/金カム",
+    confirmedDate: "2026-08-19",
+  }, // ゴールデンカムイ OAD 支遁動物記
+  17365: {
+    names: ["金カム"],
+    sourceUrl: "https://dic.pixiv.net/a/金カム",
+    confirmedDate: "2026-08-19",
+  }, // ゴールデンカムイ 暴走列車編
+
+  // メイドインアビス: 「メイアビ」
+  5121: {
+    names: ["メイアビ"],
+    sourceUrl: "https://dic.pixiv.net/a/メイアビ",
+    confirmedDate: "2026-08-19",
+  }, // メイドインアビス
+  5822: {
+    names: ["メイアビ"],
+    sourceUrl: "https://dic.pixiv.net/a/メイアビ",
+    confirmedDate: "2026-08-19",
+  }, // メイドインアビス 劇場版総集編 【前編】旅立ちの夜明け
+  5823: {
+    names: ["メイアビ"],
+    sourceUrl: "https://dic.pixiv.net/a/メイアビ",
+    confirmedDate: "2026-08-19",
+  }, // メイドインアビス 劇場版総集編 【後編】放浪する黄昏
+  6607: {
+    names: ["メイアビ"],
+    sourceUrl: "https://dic.pixiv.net/a/メイアビ",
+    confirmedDate: "2026-08-19",
+  }, // メイドインアビス 深き魂の黎明
+  7266: {
+    names: ["メイアビ"],
+    sourceUrl: "https://dic.pixiv.net/a/メイアビ",
+    confirmedDate: "2026-08-19",
+  }, // メイドインアビス 烈日の黄金郷
+  10404: {
+    names: ["メイアビ"],
+    sourceUrl: "https://dic.pixiv.net/a/メイアビ",
+    confirmedDate: "2026-08-19",
+  }, // メイドインアビス 目覚める神秘
+
+  // 千歳くんはラムネ瓶のなか: 「チラムネ」
+  13763: {
+    names: ["チラムネ"],
+    sourceUrl: "https://mahoyaku.net/archives/6962",
+    confirmedDate: "2026-08-19",
+  }, // 千歳くんはラムネ瓶のなか
+  17367: {
+    names: ["チラムネ"],
+    sourceUrl: "https://mahoyaku.net/archives/6962",
+    confirmedDate: "2026-08-19",
+  }, // 千歳くんはラムネ瓶のなか 第2クール
+
+  // 黒岩メダカに私の可愛いが通じない: 「メダかわ」
+  12960: {
+    names: ["メダかわ"],
+    sourceUrl: "https://www.animate-onlineshop.jp/animetitle/?aid=17102",
+    confirmedDate: "2026-08-19",
+  }, // 黒岩メダカに私の可愛いが通じない
+  15775: {
+    names: ["メダかわ"],
+    sourceUrl: "https://www.animate-onlineshop.jp/animetitle/?aid=17102",
+    confirmedDate: "2026-08-19",
+  }, // 黒岩メダカに私の可愛いが通じない Season2
 };

@@ -54,6 +54,51 @@ function byPageType(pages) {
   return acc;
 }
 
+// content/works/aliases.ts（作品の通称）と content/services/aliases.ts（配信サービスの
+// 口語形）に登録済みの語を読む。`require` ではなく正規表現で抜くのは、TSファイルを
+// 読み込むとNodeの型ストリッピング警告がレポートの出力に混ざるため。
+// ファイルが無い環境（テストの一時ディレクトリ）では空を返す。
+function loadAliasWords() {
+  const out = { work: [], service: [] };
+  const files = [
+    ["work", path.join(__dirname, "..", "content", "works", "aliases.ts")],
+    ["service", path.join(__dirname, "..", "content", "services", "aliases.ts")],
+  ];
+  for (const [kind, file] of files) {
+    if (!fs.existsSync(file)) continue;
+    const src = fs.readFileSync(file, "utf8");
+    for (const m of src.matchAll(/names:\s*\[([^\]]*)\]/g)) {
+      for (const w of m[1].matchAll(/"([^"]+)"/g)) out[kind].push(w[1]);
+    }
+  }
+  out.work = [...new Set(out.work)];
+  out.service = [...new Set(out.service)];
+  return out;
+}
+
+// 登録済みの略称を含むクエリだけを集める。「略称を出したことで検索に拾われ始めたか」を
+// 判定するための入力（docs/seo-operations.md 3節の判定表）。
+// 判定条件は**測れるものだけ**にする、というのがこの節を足した理由
+// （測れない指標を効果の見かたとして掲げない）。
+function aliasQueryStats(queries, words) {
+  const hit = [];
+  for (const q of queries || []) {
+    const text = (q.keys && q.keys[0]) || "";
+    const matched = words.filter((w) => text.includes(w));
+    if (matched.length > 0) hit.push({ ...q, matched });
+  }
+  const clicks = hit.reduce((a, q) => a + q.clicks, 0);
+  const impressions = hit.reduce((a, q) => a + q.impressions, 0);
+  const weighted = hit.reduce((a, q) => a + q.position * q.impressions, 0);
+  return {
+    queries: hit,
+    count: hit.length,
+    clicks,
+    impressions,
+    position: impressions ? weighted / impressions : 0,
+  };
+}
+
 function pad(s, n) {
   // 全角を2幅として数える（そろえないと表が崩れる）
   const width = [...String(s)].reduce((w, c) => w + (/[\x00-\x7F]/.test(c) ? 1 : 2), 0);
@@ -87,6 +132,18 @@ function main() {
             position: v.impressions ? v.weighted / v.impressions : 0,
             clicksPerPage: v.pages ? v.clicks / v.pages : 0,
           })),
+          alias: (() => {
+            const w = loadAliasWords();
+            const st = aliasQueryStats(d.queries, [...w.work, ...w.service]);
+            return {
+              registeredWork: w.work.length,
+              registeredService: w.service.length,
+              queries: st.count,
+              clicks: st.clicks,
+              impressions: st.impressions,
+              position: st.position,
+            };
+          })(),
         },
         null,
         2
@@ -261,6 +318,42 @@ function main() {
           9
         )}${q.keys[0]}`
       );
+    }
+  }
+
+  // ── ⑥ 通称・略称クエリ ─────────────────────────
+  // 2026-08-19に「登録済みの略称がレンダリング後のHTMLに1回も出ていない」のを直した。
+  // その効果を後から判定できるように、略称を含むクエリだけを切り出して見る。
+  {
+    const w = loadAliasWords();
+    const words = [...w.work, ...w.service];
+    console.log("\n── ⑥ 通称・略称クエリ（2026-08-19の施策の判定用） ──");
+    if (words.length === 0) {
+      console.log("  登録済みの略称がありません（content/works/aliases.ts）。");
+    } else {
+      const st = aliasQueryStats(d.queries, words);
+      console.log(
+        `  登録済み: 作品の通称 ${w.work.length}種 / サービスの口語形 ${w.service.length}種`
+      );
+      console.log(
+        `  略称を含むクエリ: ${st.count}種  ${st.clicks}クリック  ${st.impressions}表示  ` +
+          (st.impressions ? `平均${st.position.toFixed(1)}位` : "—")
+      );
+      if (st.count === 0) {
+        console.log("  → まだ1件も拾えていない。索引され直すまで数週間かかる。");
+      } else {
+        for (const q of st.queries
+          .sort((a, b) => b.impressions - a.impressions)
+          .slice(0, 8)) {
+          console.log(
+            `    ${pad(q.impressions + "表示", 10)}${pad(q.position.toFixed(1) + "位", 9)}${pad(
+              q.clicks + "click",
+              9
+            )}${q.keys[0]}  [${q.matched.join("・")}]`
+          );
+        }
+      }
+      console.log("  → 判定期日は docs/seo-operations.md 3節の表");
     }
   }
 

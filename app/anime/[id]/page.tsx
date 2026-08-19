@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getWorkData } from "@/lib/getWorkData";
 import { getSeasonData } from "@/lib/getSeasonData";
 import { splitRentalServices, getServiceKana, sortServicesForMetadata } from "@/lib/services";
+import { buildServiceLabel } from "@/content/services/aliases";
 import { buildWorkTitle } from "@/lib/workTitle";
 import { seasonKeyForMonth, SEASON_LABEL } from "@/lib/resolveSeasonParams";
 import {
@@ -190,11 +191,15 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   // 「ユーネクスト」「ネットフリックス」を含むクエリが表示回数の上位を占めていた）。
   // ページ内に英字表記しか無いとこの表記ゆれを拾えないため、FAQの回答文でだけ
   // 「U-NEXT（ユーネクスト）」と一度併記する（title・descriptionには入れず、詰め込みはしない）。
+  //
+  // さらに口語形（Netflix→「ネトフリ」）も併記する（2026-08-19追加）。カタカナ表記だけでは
+  // 「ネトフリ」を拾えない。GSCの8断面で「ネトフリ」を含むクエリが6種類・のべ111表示あるのに
+  // サイト側にその文字が1つも無かった。口語形は lib/services.ts の kana とは別の層
+  // （content/services/aliases.ts）に持つ＝公開APIで配る名寄せデータを汚さない。
   const serviceLabels = [
-    ...streamingServices.map((s) => {
-      const kana = getServiceKana(s.key);
-      return kana ? `${s.short}（${kana}）` : s.short;
-    }),
+    ...streamingServices.map((s) =>
+      buildServiceLabel(s.short, getServiceKana(s.key), s.key)
+    ),
     ...item.otherServices,
   ];
   // 配信情報はAnnictからライブ取得（revalidateの範囲）なので、取得日を鮮度シグナルとして出す。

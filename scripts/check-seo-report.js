@@ -32,10 +32,27 @@ function check(label, cond, detail) {
 }
 
 /** 仮のGSCスナップショットを書いて seo-report.js を走らせ、出力を返す。 */
-function runWith(snapshots, args = []) {
+function runWith(snapshots, args = [], aliases = null) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "seo-report-"));
   const gscDir = path.join(dir, "content", "analytics", "gsc");
   fs.mkdirSync(gscDir, { recursive: true });
+  // 略称ファイル（任意）。seo-report.js は content/works/aliases.ts と
+  // content/services/aliases.ts を __dirname 基準で探すので、同じ相対関係で置く。
+  if (aliases) {
+    for (const [rel, words] of Object.entries(aliases)) {
+      const f = path.join(dir, rel);
+      fs.mkdirSync(path.dirname(f), { recursive: true });
+      const body = words
+        .map(
+          (w, i) =>
+            `  ${i + 1}: { names: [${w
+              .map((x) => JSON.stringify(x))
+              .join(", ")}], sourceUrl: "https://example.test", confirmedDate: "2026-08-19" },`
+        )
+        .join("\n");
+      fs.writeFileSync(f, `export const X = {\n${body}\n};\n`);
+    }
+  }
   for (const [date, data] of Object.entries(snapshots)) {
     fs.writeFileSync(path.join(gscDir, `${date}.json`), JSON.stringify(data));
   }
@@ -228,6 +245,95 @@ console.log("── seo-report.js の回帰テスト ──\n");
     "--json に面別の1ページあたりが入る",
     parsed?.byType?.[0]?.clicksPerPage === 2,
     parsed ? `clicksPerPage=${parsed.byType[0].clicksPerPage}` : "パース失敗"
+  );
+}
+
+// ─────────────────────────────────────────────
+// ⑧ ⑥通称・略称クエリ（2026-08-19導入）
+//
+// この節は「略称をページに出した施策が効いたか」を判定する唯一の入力なので、
+// 数え間違えると判定そのものが狂う。落ちるのではなく静かに間違える方向を止める。
+// ─────────────────────────────────────────────
+{
+  const snap = {
+    "2026-08-15": {
+      totals: { clicks: 0, impressions: 30, ctr: 0, position: 20 },
+      range: { startDate: "2026-07-19", endDate: "2026-08-15" },
+      daily: [],
+      queries: [
+        { keys: ["逃げ若 2期 配信"], clicks: 0, impressions: 14, ctr: 0, position: 30 },
+        { keys: ["逃げ若 ネトフリ"], clicks: 1, impressions: 6, ctr: 0.16, position: 10 },
+        { keys: ["まったく無関係な検索語"], clicks: 5, impressions: 100, ctr: 0.05, position: 3 },
+      ],
+      pages: [page("/anime/1", 0, 30, 20)],
+    },
+  };
+  const aliases = {
+    "content/works/aliases.ts": [["逃げ若"], ["逃げ若"]], // 同じ語の重複登録
+    "content/services/aliases.ts": [["ネトフリ"]],
+  };
+  const out = runWith(snap, [], aliases);
+
+  // 重複登録を種類として二重に数えない（作品ごとに同じ略称を登録するのが普通のため）。
+  check(
+    "登録済みの略称を重複排除して数える",
+    /作品の通称 1種 \/ サービスの口語形 1種/.test(out),
+    (out.match(/登録済み:.*/) || ["(出力なし)"])[0].trim()
+  );
+
+  // 略称を含むクエリだけを拾い、無関係なクエリを混ぜない。
+  check(
+    "略称を含むクエリだけを集計する",
+    /略称を含むクエリ: 2種  1クリック  20表示/.test(out),
+    (out.match(/略称を含むクエリ:.*/) || ["(出力なし)"])[0].trim()
+  );
+
+  // 平均順位は表示回数で重み付けする（単純平均だと20位になる）。
+  check(
+    "略称クエリの平均順位を表示回数で重み付けする",
+    /平均24\.0位/.test(out),
+    "(14×30 + 6×10) / 20 = 24.0"
+  );
+
+  // どの語で拾ったかを出す（複数該当も両方出す）。
+  check(
+    "どの略称で拾ったかを出す",
+    /\[逃げ若・ネトフリ\]/.test(out),
+    "「逃げ若 ネトフリ」は2語に該当"
+  );
+
+  // 該当ゼロを黙らない（「まだ効いていない」と「壊れている」を混同させない）。
+  const zero = runWith(snap, [], {
+    "content/works/aliases.ts": [["どのクエリにも出てこない語"]],
+  });
+  check(
+    "該当ゼロのときにそう言う",
+    /略称を含むクエリ: 0種/.test(zero) && /まだ1件も拾えていない/.test(zero),
+    "0件でも節ごと消えない"
+  );
+
+  // 略称ファイルが無い環境でも落ちない。
+  const none = runWith(snap);
+  check(
+    "略称ファイルが無くても落ちない",
+    /登録済みの略称がありません/.test(none),
+    "空を返して続行する"
+  );
+
+  // --json にも同じ数字を出す（別の道具から判定できるように）。
+  const j = runWith(snap, ["--json"], aliases);
+  let parsed = null;
+  try {
+    parsed = JSON.parse(j);
+  } catch {
+    /* noop */
+  }
+  check(
+    "--json に略称クエリの数字が入る",
+    parsed?.alias?.queries === 2 &&
+      parsed?.alias?.clicks === 1 &&
+      parsed?.alias?.impressions === 20,
+    parsed ? JSON.stringify(parsed.alias) : "パース失敗"
   );
 }
 
