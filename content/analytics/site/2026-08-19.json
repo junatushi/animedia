@@ -1,9 +1,9 @@
 {
-  "fetchedAt": "2026-08-19T08:00:27.838Z",
+  "fetchedAt": "2026-08-19T10:53:15.990Z",
   "source": "https://animedia-khaki.vercel.app/api/admin/analytics",
   "configured": true,
   "windowDays": 30,
-  "rowCount": 0,
+  "rowCount": 1,
   "truncated": false,
   "events": [
     {
@@ -81,8 +81,8 @@
     {
       "event": "official_link_click",
       "label": "公式サイトへ（未提携）",
-      "last7": 0,
-      "last30": 0
+      "last7": 1,
+      "last30": 1
     },
     {
       "event": "embed_copy",
@@ -92,6 +92,11 @@
     }
   ],
   "filterService": [],
-  "officialClicks": [],
+  "officialClicks": [
+    [
+      "d_anime",
+      1
+    ]
+  ],
   "affiliateClicks": []
 }
