@@ -18,7 +18,7 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `npm run check` … **コミット前はこれ1本**（2026-08-11導入）。下の検査スクリプトを
   CIと同じ順で全部回す（`tsc --noEmit` → `check.ts` → `check-threads.js` →
   `check-verify-production.js` → `check-gsc.js` → `check-probe-series.js` →
-  `check-track-season.js` → `check-fetch-upcoming.js`）。
+  `check-track-season.js` → `check-fetch-upcoming.js` → `check-site-analytics.js`）。
   検査が6コマンドに分かれていると実際には全部は回されず、2件が数セッション赤いまま
   放置された（`docs/operations.md`の㉔追記2）。CIの`run:`とこのコマンドが同じ検査を
   並べていることは`node scripts/check.ts`が突き合わせる。ネットワークには出ない
@@ -112,6 +112,22 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   **MAL IDでの突き合わせが最優先・食い違いは採用しない・月精度に曜日を付けない・
   過去の予定日を出さない・取れなかった作品を消さない・1情報源の失敗で残りを巻き添えに
   しない**ことを固定する。ネットワークには出ない。`fetch-upcoming.js`を触ったら必ず実行する
+- `node scripts/fetch-site-analytics.js` … **サイト自身の行動ログ集計の取得**（2026-08-19導入）。
+  自前計測（Supabaseの`analytics_events`）は`/admin/analytics?token=...`の**画面にしか無く、
+  ブラウザで開く以外に読む方法が無かった**。そのためセッションは実測値を一度も読めず、
+  `docs/affiliate-setup.md`の「未提携サービスへのクリックが多い順に提携する」という判断が
+  ユーザーの手入力待ちで止まっていた。GSCと同じ形（外向き通信ができるGitHub Actionsから取り、
+  リポジトリにJSONを置き、セッションはコミット済みのJSONを読む）に載せた。
+  結果は`content/analytics/site/<日付>.json`。毎日`.github/workflows/site-analytics.yml`が
+  回すので手で実行する必要は無い。要`ADMIN_DASHBOARD_TOKEN`（VercelとGitHub Secretsで**同じ値**）。
+  集計本体は`lib/adminAnalytics.ts`にあり、**画面とJSON窓口（`app/api/admin/analytics/route.ts`）が
+  同じ集計を通る**（どちらかに書き戻すと数字が2通りになる）。手順は`docs/operations.md`の「計測の見かた」
+- `node scripts/check-site-analytics.js` … 上の取得スクリプトのテスト（2026-08-19導入）。
+  HTTPスタブを立てて`fetch-site-analytics.js`を実際に動かし、**トークンをURLに載せない・
+  書き出すJSONにトークンが混入しない・404（トークン不一致）は再試行せず即失敗・
+  一時エラー（429/5xx）は再試行・未設定なら静かにスキップしてファイルを作らない・
+  打ち切りを黙らない**ことを固定する。ネットワークには出ない。
+  `fetch-site-analytics.js`を触ったら必ず実行する
 - `node scripts/audit-coverage.ts [year] [season]` … 配信データ網羅率の点検（2026-07-12導入）。
   引数省略時は現在のクール。(a)TV放送データはあるが配信サービス0件の作品（注目度順。
   Annict側の登録待ちの疑い）、(b)「その他配信」に落ちた未知チャンネル名（`SERVICES`
