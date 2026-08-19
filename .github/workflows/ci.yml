@@ -114,6 +114,12 @@ jobs:
       - name: 行動ログ取得スクリプトの検査（HTTPスタブ。ネットワークには出ない）
         run: node scripts/check-site-analytics.js
 
+      # SEO実測レポート。「毎日SEOを改善する」運用で判断の入力になる唯一の道具なので
+      # （docs/seo-operations.md）、落ちるのではなく**数字を静かに間違える**方向に
+      # 壊れると、間違った面に投資し続けることになる。仮のGSC JSONを相手に集計を固定する。
+      - name: SEO実測レポートの検査（一時ファイル。ネットワークには出ない）
+        run: node scripts/check-seo-report.js
+
       # ビルドはプラットフォーム差がほとんど出ない一方でいちばん時間が掛かるので、
       # Windows では回さない（上の strategy のコメント参照）。
       - name: 本番ビルド
