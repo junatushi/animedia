@@ -1998,6 +1998,146 @@ let descNg = 0;
 console.log(`結果（descriptionの基準）: ${descNg === 0 ? 5 : 0} 件OK / ${descNg} 件NG`);
 
 // ─────────────────────────────────────────────
+// ページの厚み（薄いページを作らない）の検査（2026-08-19追加）
+//
+// 【なぜ文字数で決めないか・2026-08-19に調べた事実】
+// Google に「内容の薄いページ」の**文字数の閾値は無い**。John Mueller は
+// word count は thin content の指標ではないと明言しており、公式ガイドラインから
+// 最低文字数の記述も削除されている。2024年3月の scaled content abuse ポリシーが
+// 見ているのも量や生成方法ではなく「主目的が順位操作か・固有の価値があるか」。
+// noindex にすべきかどうかにも公式の一律基準は無く、実務上は
+// 「被リンク・アクセスがほぼ無い最薄のページから個別に判断」が落としどころ。
+// 出典は docs/seo-operations.md 4節。
+//
+// したがってここで機械が守るのは「何文字あるか」ではなく次の2つ:
+//   ① 索引・ページ・sitemap・内部リンクが**同じ閾値**を通ること
+//      （どこか1つがズレると、404へのリンクを配るか、閾値未満の薄いページを
+//        検索エンジンに登録するかのどちらかが起きる）
+//   ② 閾値ちょうどのページがどれだけあるかを**毎回表示する**こと
+//      （2026-08-19の実測で監督ページの45%が2作品ちょうどだった。この事実は
+//        どこにも出ておらず、実際に3セッション気づかれなかった）
+// 閾値を上げるかどうかは表示回数で判定する。期日つきの判定表は
+// docs/seo-operations.md 3節。
+// ─────────────────────────────────────────────
+console.log("\n── ページの厚み ──");
+let thinNg = 0;
+{
+  const { MIN_WORKS: STUDIO_MIN } = await import("../lib/studioIndex.ts");
+  const { MIN_WORKS: PERSON_MIN } = await import("../lib/personIndex.ts");
+  const { PERSON_PAGE_MIN_APPEARANCES: SEASON_MIN } = await import("../lib/personPage.ts");
+
+  const studioIdx = JSON.parse(
+    readFileSync(new URL("../content/archive/studios.json", import.meta.url), "utf8")
+  ) as { studios: Record<string, unknown[]>; directors: Record<string, unknown[]> };
+  const peopleIdx = JSON.parse(
+    readFileSync(new URL("../content/archive/people.json", import.meta.url), "utf8")
+  ) as { people: Record<string, unknown[]> };
+
+  // ① 閾値未満のエントリが索引に1件も無いこと（＝ページ・sitemapにも出ない）。
+  {
+    const groups: Array<[string, Record<string, unknown[]>, number]> = [
+      ["制作会社", studioIdx.studios, STUDIO_MIN],
+      ["監督", studioIdx.directors, STUDIO_MIN],
+      ["声優（他クール索引）", peopleIdx.people, PERSON_MIN],
+    ];
+    let ng = 0;
+    const detail: string[] = [];
+    for (const [label, src, min] of groups) {
+      const under = Object.entries(src).filter(([, ws]) => ws.length < min);
+      ng += under.length;
+      if (under.length > 0) detail.push(`${label}: ${under.slice(0, 3).map(([n]) => n).join(", ")}`);
+    }
+    const pass = ng === 0;
+    if (!pass) thinNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"索引に閾値未満のページが無い".padEnd(34)} → 違反${ng}件` +
+        (pass ? `（下限 制作会社/監督=${STUDIO_MIN} 声優=${PERSON_MIN}）` : `  (${detail.join(" / ")})`)
+    );
+  }
+
+  // ② 閾値の数値を直書きしないこと。sitemap・ページ・リンク判定が定数を通ること。
+  //    数値を書き写すと、上げ下げしたときに片方だけ動いて404を配る。
+  {
+    const files: Array<[string, string, RegExp]> = [
+      ["app/sitemap.ts", "../app/sitemap.ts", /PERSON_PAGE_MIN_APPEARANCES/],
+      [
+        "app/person/[name]/[year]/[season]/page.tsx",
+        "../app/person/[name]/[year]/[season]/page.tsx",
+        /PERSON_PAGE_MIN_APPEARANCES/,
+      ],
+      ["lib/studioIndex.ts", "../lib/studioIndex.ts", /MIN_WORKS/],
+      ["scripts/build-studio-index.ts", "./build-studio-index.ts", /MIN_WORKS/],
+      ["scripts/build-person-index.ts", "./build-person-index.ts", /MIN_WORKS/],
+    ];
+    const bad: string[] = [];
+    for (const [label, rel, needle] of files) {
+      const src = readFileSync(new URL(rel, import.meta.url), "utf8");
+      // 定数を参照していない、または「2作品以上」を数値で判定している箇所があればNG。
+      const usesConst = needle.test(src);
+      // 「> 0」「=== 0」は空判定なので閾値ではない。閾値として直書きされうるのは
+      // 2以上の比較だけ（下限は2）。
+      const hardCoded = /(?:length|count)\s*[<>]=?\s*[2-9]/.test(src);
+      if (!usesConst || hardCoded) bad.push(label);
+    }
+    const pass = bad.length === 0;
+    if (!pass) thinNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"閾値を数値で直書きしない".padEnd(34)} → ${files.length}箇所中 違反${bad.length}件` +
+        (pass ? "" : `  (${bad.join(", ")})`)
+    );
+  }
+
+  // ③ sitemap が載せる面はすべて、閾値の門番を通った集合から作られていること。
+  //    制作会社・監督は索引そのもの（①で担保）、声優は定数で絞っている。
+  {
+    const sm = readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+    const guards = [
+      ["声優（今期）", /castCounts[\s\S]{0,400}?PERSON_PAGE_MIN_APPEARANCES/],
+      ["声優（過去クール）", /personCounts[\s\S]{0,400}?PERSON_PAGE_MIN_APPEARANCES/],
+      ["サービス別", /serviceKeys/],
+    ] as Array<[string, RegExp]>;
+    const missing = guards.filter(([, re]) => !re.test(sm)).map(([l]) => l);
+    const pass = missing.length === 0;
+    if (!pass) thinNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"sitemapが門番を通した集合だけ載せる".padEnd(33)} → ${guards.length}面中 門番なし${missing.length}件` +
+        (pass ? "" : `  (${missing.join(", ")})`)
+    );
+  }
+
+  // ④ 厚みの分布を毎回出す。閾値を上げるかどうかの判断材料で、落とすためのものではない
+  //    （何作品あれば十分かに公式の基準は無く、表示回数で判定するしかない）。
+  {
+    const groups: Array<[string, Record<string, unknown[]>, number]> = [
+      ["制作会社", studioIdx.studios, STUDIO_MIN],
+      ["監督", studioIdx.directors, STUDIO_MIN],
+      ["声優（他クール索引）", peopleIdx.people, PERSON_MIN],
+    ];
+    for (const [label, src, min] of groups) {
+      const counts = Object.values(src).map((w) => w.length);
+      const total = counts.length;
+      const atFloor = counts.filter((c) => c === min).length;
+      const thin = counts.filter((c) => c <= min + 1).length;
+      const max = counts.reduce((a, c) => Math.max(a, c), 0);
+      console.log(
+        `ℹ  ${label.padEnd(30)} → 全${total}件  ${min}作品ちょうど ${atFloor}件（${((atFloor / total) * 100).toFixed(0)}%）  ` +
+          `${min + 1}作品以下 ${thin}件（${((thin / total) * 100).toFixed(0)}%）  最大${max}作品`
+      );
+    }
+    // 作品ページは「配信情報が1件以上」が門番（0件だと『配信情報なし』としか言えない）。
+    const archive = JSON.parse(
+      readFileSync(new URL("../content/archive/index.json", import.meta.url), "utf8")
+    ) as { seasons: Array<{ total: number; workIds: number[] }> };
+    const listed = archive.seasons.reduce((a, x) => a + x.workIds.length, 0);
+    const all = archive.seasons.reduce((a, x) => a + x.total, 0);
+    console.log(
+      `ℹ  ${"作品（過去クール索引）".padEnd(30)} → 全${all}件中 ${listed}件を掲載（門番＝配信情報が1件以上）`
+    );
+  }
+}
+console.log(`結果（ページの厚み）: ${thinNg === 0 ? 3 : 0} 件OK / ${thinNg} 件NG`);
+
+// ─────────────────────────────────────────────
 // SNS投稿に貼るリンクの検査（2026-08-05追加）
 //
 // 投稿本文のリンクは `/?year=&season=` ではなく `/season/{year}/{season}` を指すこと。
@@ -4832,6 +4972,7 @@ if (
   pageTitleNg > 0 ||
   faceNg > 0 ||
   descNg > 0 ||
+  thinNg > 0 ||
   linkNg > 0 ||
   ssrNg > 0 ||
   ng > 0 ||
