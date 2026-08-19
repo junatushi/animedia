@@ -1,3 +1,67 @@
+# 引き継ぎメモ（2026-08-19・日次巡回）
+
+## ⚠️ 最優先: `docs/daily-ops.md` が存在しない（この日次巡回のRoutine設定と食い違う）
+
+日次巡回のRoutine設定（スケジュール実行のプロンプト）は「2026-08-19より手順の正本は
+`docs/daily-ops.md`。読む順番はCLAUDE.md→`docs/daily-ops.md`→`docs/seo-operations.md`→
+`docs/handoff.md`」「この設定に手順を書き戻さないでください」と明記しているが、
+**このリポジトリに`docs/daily-ops.md`は存在しない**（`docs/seo-operations.md`・
+`scripts/seo-report.js`も同様。git履歴を`--all`で遡っても一度もコミットされたことが無く、
+関連するオープンPR・Issueも無い）。つまりRoutine設定側は「移行済み」を前提に書き換えられて
+いるが、**移行の実体（ファイル作成・PR）が実際には行われていない**。
+
+このズレはCLAUDE.mdが警告している「手順が2箇所に分散すると必ずズレる」の実例そのもの。
+**Routine設定は書き戻さない**（指示どおり）が、今のままでは毎日この食い違いが起きるので、
+利用者に次のどちらかの対応を依頼したい:
+1. `docs/daily-ops.md`（＋`docs/seo-operations.md`・`scripts/seo-report.js`）を実際に作成してPRで導入する
+2. まだ作っていないなら、Routine設定の記述を「正本はまだ無い。従来どおり`docs/operations.md`の
+   運用カレンダーと`docs/handoff.md`を読む」に戻す
+
+## 今日やったこと（フォールバック: 上記が読めないため`docs/operations.md`の運用カレンダーと
+前回までの`docs/handoff.md`の型に従って巡回した。コード変更なし）
+
+- `git fetch origin main && git checkout -B claude/daily-ops-2026-08-19 origin/main` → 最新
+- 外向き通信: 本番ドメイン・Annictともに到達不可（`curl`が接続確立せず`000`）。`.env.local`も無い。
+  GitHub MCP経由のGitHub APIのみ到達可能（従来と同じ制約）。
+- `npm ci && npm run check` 全件OK（`⚠`無し。スナップショット切断率5.4%・予定日は日まで35件/月まで71件、
+  いずれも既知の範囲）。`rm -rf .next && npm run build`も成功。
+- **GitHub側点検**: オープンPRは無し。オープンIssueは3件のみ:
+  - **#84「サイト行動ログ集計の取得が失敗しました」**: ログを実際に読むと**取得自体は成功**
+    しており（`未提携サービスへのクリック 1位: d_anime（1回）`を出力）、失敗の実体は
+    `git push`が`[rejected] (fetch first)`になっただけ（同時刻に別のワークフロー実行が
+    先にpushしていたための単純なrace）。`.github/workflows/site-analytics.yml`が
+    push前に`git pull --rebase`していないための取りこぼしで、**トークン不一致等の恒久障害ではない**。
+    実害は「今日の分がもう1回分反映されなかった」程度（翌日分でまた上書きされる）。
+    直すなら push 前に fetch+rebase を1回はさむだけの小さな修正。**今回は様子見**
+    （1回だけの事象。頻発するようなら次回直す）。
+  - #83（今日のXの投稿下書き）・#76（週次X成長キット）: どちらもコメント無し＝
+    インプレッション・フォロワー数の記入は今回も無し（目標1は引き続き数字待ち）。
+  - `production-check`・`sns-failure`ラベルのオープンIssueは無し＝本番SSR検査・SNS自動投稿は
+    直近失敗なし。
+- **サイト行動ログ集計（2026-08-19導入・PR #82）が初めてデータを持った**:
+  `content/analytics/site/2026-08-19.json`は`configured: true`だが`rowCount: 0`
+  （直近30日の各イベントも全部0）。ただし上記#84のログにだけ
+  「未提携サービスへのクリック1位: d_anime（1回）」という値が出ている
+  （pushがrejectされてファイルには反映されなかった実測）。**n=1でノイズの域を出ないが、
+  向きとしては`docs/affiliate-setup.md`が既に出している優先順位
+  （dアニメが未提携で最多掲載＝521作品）と矛盾しない**。新しいアクションを取るには早すぎる。
+- **GSC実測**: 最新は`content/analytics/gsc/2026-08-15.json`（期間2026-07-19〜08-15の28日累計）
+  クリック**21**・表示回数**854**・平均掲載順位**19.83**。前回（08-14時点:20/842/19.86）から
+  ほぼ横ばい。傾向に変化が無いため新しいアクションは無し。
+- **アフィリエイト（目標2）**: `content/affiliate/programs.ts`は引き続き3サービス
+  （ABEMA・Prime Video・Hulu）のまま。dアニメの申請状況は今回も確認できず（ユーザー作業）。
+- **次クール準備の窓**: `WINDOW_START_DAY`は8/21。今日は8/19で2日前＝まだ窓の外。
+
+## 次回やること候補
+1. **`docs/daily-ops.md`問題の決着**（上記）。利用者からの返答を待つ。
+2. Xアナリティクスの記入待ち（Issue #76/#83）。
+3. dアニメストアの提携申請状況の確認（`docs/affiliate-setup.md`）。
+4. サイト行動ログ集計が2〜3日分溜まったら、`d_anime`クリックが継続して1位かを見る
+   （n=1をn>=3にできてから判断材料にする）。
+5. site-analytics.yml のpush race（#84）が再発するようなら、push前の`git pull --rebase`を追加する。
+
+---
+
 # 引き継ぎメモ（2026-08-19・利用者からの4つの問い合わせ）
 
 ## 何を訊かれたか
