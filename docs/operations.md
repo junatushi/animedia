@@ -1139,8 +1139,11 @@ GSC（`scripts/fetch-gsc.js`）とまったく同じ形に載せた:
    ファイルを作らず成功扱いで終える）。ここで失敗させると、セットアップが済むまで
    毎日Issueが積み上がる。
 
-**有効化に必要なもの**（上の手順1〜2に加えて）: GitHub Secrets の `ADMIN_DASHBOARD_TOKEN`
-（Vercelの環境変数と**同じ値**にする。食い違うと404になり、ワークフローが毎日Issueを立てる）。
+**有効化の手順は `docs/site-analytics-setup.md` にまとめてある**（2026-08-19）。
+要点だけ挙げると、①Supabaseに`analytics_events`テーブル、②`SUPABASE_SERVICE_ROLE_KEY`が
+Vercelに入っていること（通知メール用に設定済みなら流用できる）、③Vercelに
+`ADMIN_DASHBOARD_TOKEN`＋**再デプロイ**、④GitHub Secretsに**同じ値**の
+`ADMIN_DASHBOARD_TOKEN`。④が食い違うと404になり、ワークフローが毎日Issueを立てる。
 
 **記録している内容**: `event_name`（`share_site`等、コード側でホワイトリスト済みの8種のみ）と
 `event_data`（`service`名等の付随情報）のみ。IPアドレス・Cookie・ユーザーIDは一切記録しない。
