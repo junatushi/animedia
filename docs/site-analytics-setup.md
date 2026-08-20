@@ -272,10 +272,63 @@ $b = New-Object byte[] 32
 | `書き出し: .../content/analytics/site/2026-08-19.json` | **成功**。以後は毎日自動で回る |
 | `ADMIN_DASHBOARD_TOKEN が未登録のためスキップします` | 手順4の登録ができていない |
 | `サイト側が未設定のためスキップします: Supabaseが未設定です` | 手順0の環境変数が欠けている |
+| `! [rejected] main -> main (fetch first)` | **取得は成功していて、コミットのpushだけが弾かれた**。原因は2つ。①**「Re-run all jobs」を押した**（後述。これが多い） ②毎日コミットするワークフロー同士で実行が重なったレース。2026-08-19に4本すべて`git push \|\| (git pull --rebase --autostash && git push)`に揃えたので、マージ後はどちらも自動で復帰する |
 | `恒久的なエラー: HTTP 404` | 原因は2つ。①**Vercel側とGitHub側でトークンが食い違っている** ②`/api/admin/analytics` がまだ本番に無い（マージ直後でデプロイが終わっていない）。**先に`/admin/analytics`の画面が開けるか**を見れば切り分けられる（開けるならトークンは正しい＝②） |
 
 4. 成功していれば、リポジトリに `content/analytics/site/<日付>.json` が
    自動コミットされている（`git pull` で手元にも降りてくる）
+
+---
+
+## 手順5. **書き込み側**が届いているかを確かめる（ここまでやって初めて完了）
+
+手順4までで確かめられるのは**読み出し**（Actions → 本番 → JSON）だけで、
+**ブラウザ → `/api/track` → Supabase** の書き込みが生きているかは分からない。
+`/api/track` は計測の失敗でユーザー体験を壊さないよう、**挿入に失敗しても
+静かに握りつぶす**（`{ ok: false }` を返すだけ）ので、壊れていても画面には何も出ない。
+
+そのため `rowCount: 0` は2つの意味を持つ:
+
+| 状況 | `rowCount: 0` の意味 |
+|---|---|
+| テーブルを作った直後 | **正常**。テーブルが無かった間の操作は記録されていないので、0から積み上がる |
+| 数日経っても0のまま | **書き込みが届いていない**。手順1のDDLの列名がコードとズレている疑い（`event_name` / `event_data` / `created_at`） |
+
+切り分けは10秒でできる:
+
+1. 本番サイト（https://animedia-khaki.vercel.app/ ）を開く
+2. 作品カードの**配信サービスのバッジを1つ押す**
+   （`official_link_click` か `affiliate_click` が飛ぶ）
+3. Actions → 「サイト行動ログ集計の日次取得」→ **Run workflow**
+4. `content/analytics/site/<日付>.json` の `rowCount` が **0 → 1以上**になっていれば完了
+
+なっていなければ Supabase の Table Editor で `analytics_events` の列名を見る。
+`app/api/track/route.ts` が挿入するのは `event_name`（text）と `event_data`（jsonb）で、
+`created_at` は**デフォルト値（`now()`）が要る**（コード側は渡していない）。
+
+> ### **「Re-run all jobs」を押さないこと**
+>
+> 失敗した実行を押し直すとき、**Re-run all jobs は使わない**。これは
+> **その実行が始まった当時のコミットを再生する**ため、`main`がその後に進んでいると
+> （＝この4本のワークフローは自分でコミットを積むので、たいてい進んでいる）
+> pushは**何度押しても必ず弾かれる**。ログには「remoteに自分が持っていない変更がある」と出る。
+>
+> 正しい押し直し方は **Actions → 左の一覧からワークフローを選ぶ → 右上の Run workflow**。
+> こちらは**いまの`main`**を取り直すので通る。
+>
+> 2026-08-19に実際にこれを踏んだ（run #2 の attempt 2・3 が同じコミット`ddc7781`を
+> 再生し続け、`main`は既に`4bf84ca`に進んでいた）。
+
+### 2026-08-19: 導入完了（書き込みまで実測確認済み）
+
+- 手順0〜4はすべて通った（`configured: true`）＝トークン一致・Supabase接続・テーブル存在を確認済み
+- 途中で `rowCount: 0` が続いたのは書き込み側が未確認だっただけで、手順5の切り分け
+  （バッジを1つ押す→Run workflow）を実施したところ `rowCount: 1` / `official_link_click: d_anime 1回`
+  が取れ、**ブラウザ→`/api/track`→Supabase→`/api/admin/analytics`→GitHub Actions→リポジトリ
+  の全経路が実測で確認できた**
+- 途中で踏んだ「Re-run all jobs」の罠（前述）と、毎日コミットするワークフロー同士のレースは
+  4本とも rebase 再試行を入れて解消済み
+- 以降は毎日 07:10 JST 前後に自動取得される。**この節から下は今後の参照用**
 
 ---
 
