@@ -4,11 +4,18 @@ import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import { PERSON_PAGE_MIN_APPEARANCES as MIN_APPEARANCES } from "@/lib/personPage";
 import { PERSON_FILMOGRAPHY } from "@/content/people/filmography";
-import { otherSeasonWorks, MAX_WORKS_SHOWN, type PersonIndex } from "@/lib/personIndex";
+import {
+  otherSeasonWorks,
+  otherSeasonPages,
+  MAX_WORKS_SHOWN,
+  type PersonIndex,
+} from "@/lib/personIndex";
 import personIndexJson from "@/content/archive/people.json";
 import type { AnimeItem } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
+import { personPageTitle, personPageDescription } from "@/lib/pageMeta";
+import { titleText } from "@/lib/pageTitle";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -63,20 +70,16 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
   const label = SEASON_LABEL[season];
   const filmography = PERSON_FILMOGRAPHY[name];
-  const title = filmography
-    ? `${name}の代表作・${year}年${label}アニメ出演作一覧`
-    : `${name}が出演する${year}年${label}アニメ一覧`;
-  const description = filmography
-    ? `${name}さんの代表作（役名付き）と、${year}年${label}アニメの出演作をまとめました。配信サービスもあわせてアニメ視聴ガイドで確認できます。`
-    : `${name}さんが出演する${year}年${label}アニメを一覧でまとめました。配信サービスもあわせてアニメ視聴ガイドで確認できます。`;
+  const title = personPageTitle(name, year, season, Boolean(filmography));
+  const description = personPageDescription(name, year, season, Boolean(filmography));
   const url = `${siteUrl}/person/${encodeURIComponent(name)}/${year}/${season}`;
 
   return {
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, type: "website" },
-    twitter: { card: "summary_large_image", title, description },
+    openGraph: { title: titleText(title), description, url, type: "website" },
+    twitter: { card: "summary_large_image", title: titleText(title), description },
   };
 }
 
@@ -117,6 +120,15 @@ export default async function PersonPage({ params }: { params: Params }) {
     Number(year),
     season
   ).slice(0, MAX_WORKS_SHOWN);
+  // 同じ人の他クールのページ（2026-08-19追加）。ページが実在するクールだけが返る
+  // （lib/personIndex.ts の otherSeasonPages が閾値で門番する＝404へのリンクを配らない）。
+  const otherPages = otherSeasonPages(
+    personIndexJson as unknown as PersonIndex,
+    name,
+    Number(year),
+    season,
+    MIN_APPEARANCES
+  );
   const checkedDate = new Date().toISOString().slice(0, 10);
   const structuredLd = !fetchError
     ? [
@@ -249,6 +261,29 @@ export default async function PersonPage({ params }: { params: Params }) {
                       過去クールの記録から、配信情報が登録されている作品だけを新しい順に出しています。
                       現在も配信されているかは各サービスでご確認ください。
                     </p>
+                  </section>
+                )}
+
+                {otherPages.length > 0 && (
+                  <section className="detail-section">
+                    {/* 同じ人の他クールのページへの導線（2026-08-19追加）。
+                        ここが無いと、sitemapに載せた過去クールの声優ページは
+                        「そのクールの作品ページの声優名リンク」1本でしか辿れず、
+                        サイトでいちばん強い面（GSC実測5.7位）から authority が渡らない。
+                        並ぶのは PERSON_PAGE_MIN_APPEARANCES を満たすクールだけなので
+                        404へのリンクにはならない。 */}
+                    <h2 className="detail-heading">
+                      {name}さんの他のクールの出演一覧
+                    </h2>
+                    <ul className="person-season-links">
+                      {otherPages.map((p) => (
+                        <li key={`${p.year}-${p.season}`}>
+                          <Link href={`/person/${encodeURIComponent(name)}/${p.year}/${p.season}`}>
+                            {p.year}年{SEASON_LABEL[p.season]}（{p.count}作品）
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
                   </section>
                 )}
               </>

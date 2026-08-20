@@ -4,6 +4,8 @@ import Link from "next/link";
 import { getWorkData } from "@/lib/getWorkData";
 import { getSeasonData } from "@/lib/getSeasonData";
 import { splitRentalServices, getServiceKana, sortServicesForMetadata } from "@/lib/services";
+import { buildServiceLabel } from "@/content/services/aliases";
+import { DESCRIPTION_WIDTH_BUDGET } from "@/lib/pageMeta";
 import { buildWorkTitle } from "@/lib/workTitle";
 import { seasonKeyForMonth, SEASON_LABEL } from "@/lib/resolveSeasonParams";
 import {
@@ -11,6 +13,7 @@ import {
   jstToday,
   buildWatchAnswer,
   buildWatchDescription,
+  fitDescServices,
   availabilityLabel,
   buildStreamingProperties,
   buildDataProvenance,
@@ -20,6 +23,7 @@ import { hasCreditPage, type StudioIndex } from "@/lib/studioIndex";
 import studioIndexJson from "@/content/archive/studios.json";
 import { WORK_DETAILS } from "@/content/works";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
+import { WORK_ALIASES } from "@/content/works/aliases";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import { seriesFor } from "@/content/works/series";
 import FollowLinks from "@/components/FollowLinks";
@@ -121,8 +125,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const title = buildWorkTitle(item.title, serviceShorts);
   // 配信が1件も無い作品に「配信中」と読める説明文を出すと誤誘導になるため、
   // 「まだ確認できていない」と正直に書く（CLAUDE.mdの推測で埋めない方針と同じ）。
-  const descServices =
-    serviceShorts.slice(0, 5).join("・") + (serviceShorts.length > 5 ? "ほか" : "");
+  // スニペットの幅に収まる分だけサービス名を並べる（超えた分は表示前に切られる）。
+  // 幅の考え方は lib/pageMeta.ts の DESCRIPTION_WIDTH_BUDGET のコメントを参照。
   // 劇場公開日が判明している作品（＝配信がまだ無い劇場作品が大半）は、公開日を
   // description の先頭に出す。「{作品名} 公開日」は劇場作品で最も検索される問いで、
   // 配信の有無だけを書いた説明文よりスニペットが検索意図に一致する。
@@ -130,6 +134,13 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   // 放送が終わったクールの作品に「配信している」と現在形で書かない（lib/workAvailability.ts）。
   // Annictのデータは放送当時の番組表であって、いま配信中である確認ではない。
   const status = airingStatus(item.broadcastStartDate ?? item.releaseDate?.date ?? null, jstToday());
+  const descServices = fitDescServices({
+    title: item.title,
+    serviceShorts,
+    releaseLead,
+    status,
+    budget: DESCRIPTION_WIDTH_BUDGET,
+  });
   const description = serviceShorts.length
     ? buildWatchDescription({ title: item.title, descServices, releaseLead, status })
     : `${releaseLead}「${item.title}」の配信サービスは現時点で確認できていません。判明し次第このページに反映します。今期アニメの配信状況はアニメ視聴ガイドで確認できます。`;
@@ -189,11 +200,15 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   // 「ユーネクスト」「ネットフリックス」を含むクエリが表示回数の上位を占めていた）。
   // ページ内に英字表記しか無いとこの表記ゆれを拾えないため、FAQの回答文でだけ
   // 「U-NEXT（ユーネクスト）」と一度併記する（title・descriptionには入れず、詰め込みはしない）。
+  //
+  // さらに口語形（Netflix→「ネトフリ」）も併記する（2026-08-19追加）。カタカナ表記だけでは
+  // 「ネトフリ」を拾えない。GSCの8断面で「ネトフリ」を含むクエリが6種類・のべ111表示あるのに
+  // サイト側にその文字が1つも無かった。口語形は lib/services.ts の kana とは別の層
+  // （content/services/aliases.ts）に持つ＝公開APIで配る名寄せデータを汚さない。
   const serviceLabels = [
-    ...streamingServices.map((s) => {
-      const kana = getServiceKana(s.key);
-      return kana ? `${s.short}（${kana}）` : s.short;
-    }),
+    ...streamingServices.map((s) =>
+      buildServiceLabel(s.short, getServiceKana(s.key), s.key)
+    ),
     ...item.otherServices,
   ];
   // 配信情報はAnnictからライブ取得（revalidateの範囲）なので、取得日を鮮度シグナルとして出す。
@@ -213,6 +228,20 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         ? `「${item.title}」の配信情報（${serviceNames.join("・")}）。${checkedDate}時点のAnnictデータ。`
         : `「${item.title}」は ${serviceNames.join("・")} で配信中。`
       : `「${item.title}」の配信状況をアニメ視聴ガイドで確認できます。`);
+  // 通称・略称（2026-08-19追加）。
+  //
+  // 【なぜ要るか】content/works/aliases.ts には44作品の略称が出典つきで登録済みだったが、
+  // 使われていたのは components/SeasonExplorer.tsx の**サイト内検索の絞り込みだけ**で、
+  // レンダリング後のHTMLには1回も出ていなかった（2026-08-19実測: /anime/9733 の本番HTMLで
+  // 「シャングリラ」33回に対し「シャンフロ」0回・「鳥頭」0回、JSON-LDの alternateName は0箇所）。
+  // 検索エンジンから見ると略称の語彙が存在しないのと同じ状態で、GSCには
+  // 「逃げ若 2期 配信」14表示31.6位のように略称クエリが実際に出ている。
+  //
+  // 【可視テキストと機械可読の両方に出す】片方だけに出すのは、このリポジトリが
+  // WatchAction を撤回した理由（可視テキストに無い主張が機械可読の層にだけ残る）と
+  // 同じ壊れ方になる。alternateName は schema.org が別名のために用意しているフィールド。
+  const alias = WORK_ALIASES[item.id];
+
   const workLd: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": item.media === "MOVIE" ? "Movie" : "TVSeries",
@@ -221,6 +250,10 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
     inLanguage: "ja",
     description: jsonLdDescription,
   };
+  if (alias && alias.names.length > 0) {
+    // 可視テキスト側（下の .detail-alias）と必ず同じ内容にする。
+    workLd.alternateName = alias.names;
+  }
   if (credits.casts.length > 0) {
     workLd.actor = credits.casts.map((c) => ({
       "@type": "Person",
@@ -451,6 +484,18 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         <div className="brandrow">
           <h1 className="brand">{item.title}</h1>
         </div>
+        {/* 通称・略称（2026-08-19追加）。JSON-LDの alternateName と同じ内容を可視テキストにも
+            出す。出典リンクは「何のリンクか分かる文言」を付ける（記号だけのリンクにしない＝
+            CLAUDE.mdの基本ルール）。 */}
+        {alias && alias.names.length > 0 && (
+          <p className="detail-alias">
+            通称: <strong>{alias.names.join("・")}</strong>{" "}
+            <a href={alias.sourceUrl} target="_blank" rel="noopener noreferrer">
+              出典 ↗
+            </a>{" "}
+            <span className="detail-sub">（{alias.confirmedDate}確認）</span>
+          </p>
+        )}
         <div className="meta">
           <Link href="/" className="official">
             ← アニメ視聴ガイドのトップに戻る

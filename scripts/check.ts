@@ -1446,6 +1446,698 @@ let titleNg = 0;
 console.log(`結果（titleの幅）: ${titleNg === 0 ? 4 : 0} 件OK / ${titleNg} 件NG`);
 
 // ─────────────────────────────────────────────
+// 作品ページ以外の title の幅の検査（2026-08-19追加）
+//
+// 幅の予算は2026-08-05に作ったが、**効いていたのは作品ページだけ**だった。
+// 他の面は generateMetadata がテンプレートリテラルを直書きし、さらにレイアウトの
+// template（"%s | アニメ視聴ガイド"）でブランド名が自動で足されるため、幅を
+// 誰も見ていなかった。導入前の実測（2026-08-19）:
+//   制作会社  165件中45件（27%）超過・最長42.0
+//   声優    1,531件中44件（3%）超過・最長37.5
+//   サービス別・ランキング は名前の長さに関係なく常に超過
+// 作品ページで直したのと同じ壊れ方（入れたはずの語が表示前に切られる）が
+// そのまま残っていた。
+//
+// 【何を落とすか】名前の長さはデータ側（Annict）で決まるので、「予算を超えたら落ちる」に
+// すると無関係なPRが赤くなる。そこで落とすのは**組み立て方の誤り**だけにする:
+//   ・より短い候補があったのに、それを選ばずに予算を超えた
+//   ・ブランド名を落とせば収まるのに、落とさずに予算を超えた
+// 削りようがない超過（人名・会社名そのものが長い）は警告だけにして件数を出す。
+// ─────────────────────────────────────────────
+console.log("\n── ページtitleの幅（作品ページ以外） ──");
+let pageTitleNg = 0;
+{
+  const { fitPageTitle, titleWidth, BRAND_SUFFIX, BRAND_SUFFIX_WIDTH } = await import(
+    "../lib/pageTitle.ts"
+  );
+  const { displayWidth: width, TITLE_WIDTH_BUDGET: BUDGET } = await import("../lib/workTitle.ts");
+  const meta = await import("../lib/pageMeta.ts");
+
+  // ① レイアウトの template と BRAND_SUFFIX がズレていないこと。
+  // ズレると「ブランド名を落とせば収まる」という計算が実物と合わなくなる。
+  {
+    const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+    // layout.tsx は `%s | ${title}` と変数で書いているので、その title の値を
+    // 同じファイルから拾って埋めてから比べる。
+    const siteName = layout.match(/^const title = "([^"]+)";/m)?.[1] ?? "";
+    const m = layout.match(/template:\s*`%s([^`]*)`/);
+    const resolved = m ? m[1].replace(/\$\{title\}/g, siteName) : null;
+    const pass = resolved !== null && resolved === BRAND_SUFFIX;
+    if (!pass) pageTitleNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"レイアウトのtemplateと一致する".padEnd(34)} → ${JSON.stringify(resolved)}` +
+        (pass ? `（幅${BRAND_SUFFIX_WIDTH}）` : `  (期待: ${JSON.stringify(BRAND_SUFFIX)})`)
+    );
+  }
+
+  // ② fitPageTitle の性質: 予算を超える結果を返すのは「どの候補もブランド名を
+  //    落としてなお収まらない」ときだけ。
+  {
+    const cases: Array<[string[], string]> = [
+      [["短い"], "ブランド名込みで収まるならブランド名も出す"],
+      [["あ".repeat(30), "あ".repeat(20)], "ブランド名を落とせば収まるなら落とす"],
+      [["あ".repeat(60), "あ".repeat(40)], "どれも収まらなければ最短の候補"],
+    ];
+    let ng = 0;
+    for (const [cands, label] of cases) {
+      const t = fitPageTitle(cands);
+      const w = titleWidth(t);
+      // 期待される最善手を総当たりで求める。
+      let best: string | { absolute: string } | null = null;
+      for (const c of cands) {
+        if (width(c) + BRAND_SUFFIX_WIDTH <= BUDGET) { best = c; break; }
+        if (width(c) <= BUDGET) { best = { absolute: c }; break; }
+      }
+      if (best === null) best = { absolute: cands[cands.length - 1] };
+      const pass = JSON.stringify(t) === JSON.stringify(best);
+      if (!pass) ng++;
+      console.log(`${pass ? "✓" : "✗"}  ${label.padEnd(34)} → 幅${w}  ${JSON.stringify(t)}`);
+    }
+    if (ng > 0) pageTitleNg++;
+  }
+
+  // ③ 実データ全件。面ごとに「削れる超過（＝組み立ての誤り）」と
+  //    「削れない超過（＝名前そのものが長い）」を分けて数える。
+  {
+    const { SEASON_LABEL } = await import("../lib/resolveSeasonParams.ts");
+    const seasons = Object.keys(SEASON_LABEL);
+    const studioIdx = JSON.parse(
+      readFileSync(new URL("../content/archive/studios.json", import.meta.url), "utf8")
+    ) as { studios: Record<string, unknown[]>; directors: Record<string, unknown[]> };
+    const peopleIdx = JSON.parse(
+      readFileSync(new URL("../content/archive/people.json", import.meta.url), "utf8")
+    ) as { people: Record<string, unknown[]> };
+    const { SERVICES: SVCS } = await import("../lib/services.ts");
+
+    type Row = { face: string; total: number; over: number; worst: number; worstTitle: string };
+    const rows: Row[] = [];
+    let fixable = 0;
+    const fixableSamples: string[] = [];
+
+    const measure = (face: string, items: Array<[string[], () => unknown]>) => {
+      const row: Row = { face, total: 0, over: 0, worst: 0, worstTitle: "" };
+      for (const [cands, build] of items) {
+        const t = build() as string | { absolute: string };
+        const w = titleWidth(t);
+        row.total++;
+        if (w > BUDGET) {
+          row.over++;
+          // 他に収まる候補があったなら、それは組み立ての誤り＝落とす。
+          const couldFit = cands.some((c) => width(c) <= BUDGET);
+          if (couldFit) {
+            fixable++;
+            if (fixableSamples.length < 3) fixableSamples.push(`${face}: ${JSON.stringify(t)}`);
+          }
+          if (w > row.worst) {
+            row.worst = w;
+            row.worstTitle = typeof t === "string" ? t + BRAND_SUFFIX : t.absolute;
+          }
+        }
+      }
+      rows.push(row);
+    };
+
+    const Y = String(new Date().getFullYear());
+    measure(
+      "シーズン",
+      seasons.map((se) => [
+        [`${Y}年${SEASON_LABEL[se]}アニメ 配信情報一覧`, `${Y}年${SEASON_LABEL[se]}アニメ 配信一覧`],
+        () => meta.seasonPageTitle(Y, se),
+      ])
+    );
+    measure(
+      "独占",
+      seasons.map((se) => [
+        [`${Y}年${SEASON_LABEL[se]}アニメ 独占配信まとめ`],
+        () => meta.exclusivePageTitle(Y, se),
+      ])
+    );
+    measure(
+      "ランキング",
+      seasons.map((se) => [
+        [
+          `${Y}年${SEASON_LABEL[se]}アニメ 配信サービス勢力図・ランキング`,
+          `${Y}年${SEASON_LABEL[se]}アニメ 配信サービスランキング`,
+        ],
+        () => meta.rankingsPageTitle(Y, se),
+      ])
+    );
+    measure(
+      "サービス別",
+      SVCS.flatMap((sv) =>
+        seasons.map(
+          (se) =>
+            [
+              [
+                `${Y}年${SEASON_LABEL[se]}アニメ ${sv.name}で見れる作品一覧`,
+                `${Y}年${SEASON_LABEL[se]}アニメ ${sv.short}で見れる作品一覧`,
+                `${Y}年${SEASON_LABEL[se]}アニメ ${sv.short}で見れる作品`,
+              ],
+              () => meta.servicePageTitle(sv.name, sv.short, Y, se),
+            ] as [string[], () => unknown]
+        )
+      )
+    );
+    measure(
+      "制作会社",
+      Object.keys(studioIdx.studios).map(
+        (n) =>
+          [
+            [`${n}が制作したアニメの配信情報一覧`, `${n}が制作したアニメ一覧`, `${n}の制作作品`],
+            () => meta.creditPageTitle("studio", n),
+          ] as [string[], () => unknown]
+      )
+    );
+    measure(
+      "監督",
+      Object.keys(studioIdx.directors).map(
+        (n) =>
+          [
+            [`${n}が監督したアニメの配信情報一覧`, `${n}が監督したアニメ一覧`, `${n}の監督作品`],
+            () => meta.creditPageTitle("director", n),
+          ] as [string[], () => unknown]
+      )
+    );
+    // 声優ページは代表作の有無で文型が変わるので両方を測る。
+    measure(
+      "声優",
+      Object.keys(peopleIdx.people).flatMap((n) =>
+        [true, false].map(
+          (f) =>
+            [
+              f
+                ? [`${n}の代表作・${Y}年夏アニメ出演作一覧`, `${n}の代表作・${Y}年夏アニメ`, `${n}の${Y}年夏アニメ出演作`]
+                : [`${n}が出演する${Y}年夏アニメ一覧`, `${n}の${Y}年夏アニメ出演作`],
+              () => meta.personPageTitle(n, Y, "summer", f),
+            ] as [string[], () => unknown]
+        )
+      )
+    );
+
+    for (const r of rows) {
+      const mark = r.over === 0 ? "✓" : "⚠";
+      const detail =
+        r.over === 0
+          ? `${r.total}件すべて予算内`
+          : `${r.total}件中 超過${r.over}件（最長${r.worst}: ${r.worstTitle}）`;
+      console.log(`${mark}  ${r.face.padEnd(30)} → ${detail}`);
+    }
+
+    const pass = fixable === 0;
+    if (!pass) pageTitleNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"削れる超過が残っていない".padEnd(34)} → ${fixable}件` +
+        (pass ? "" : `  (例: ${fixableSamples.join(" / ")})`)
+    );
+  }
+
+  // ④ 逆戻り防止: 各ページの generateMetadata が title を直書きしないこと。
+  //    直書きに戻ると③の検査を素通りする（検査は lib/pageMeta.ts しか見ないため）。
+  {
+    const pages = [
+      "../app/season/[year]/[season]/page.tsx",
+      "../app/person/[name]/[year]/[season]/page.tsx",
+      "../app/service/[key]/[year]/[season]/page.tsx",
+      "../app/exclusive/[year]/[season]/page.tsx",
+      "../app/rankings/[year]/[season]/page.tsx",
+      "../app/studio/[name]/page.tsx",
+      "../app/director/[name]/page.tsx",
+    ];
+    const bad: string[] = [];
+    for (const p of pages) {
+      const src = readFileSync(new URL(p, import.meta.url), "utf8");
+      if (/const title = `/.test(src)) bad.push(p.replace("../app/", ""));
+    }
+    const pass = bad.length === 0;
+    if (!pass) pageTitleNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"titleを直書きせずlib/pageMeta.tsを通す".padEnd(33)} → ${pages.length}ページ中 直書き${bad.length}件` +
+        (pass ? "" : `  (${bad.join(", ")})`)
+    );
+  }
+}
+console.log(
+  `結果（ページtitleの幅）: ${pageTitleNg === 0 ? 4 : 0} 件OK / ${pageTitleNg} 件NG`
+);
+
+// ─────────────────────────────────────────────
+// 面（ページ種別）の分類と sitemap の突き合わせ（2026-08-19追加）
+//
+// `scripts/lib/gsc-page-type.js` は「どの面に投資するか」を決める唯一の材料
+// （seo-report.js の③1ページあたりクリック・④面別の週次推移）の土台だが、
+// **sitemap との対応を誰も突き合わせていなかった**。そのため新しいページ種別を
+// 作って sitemap に載せても、分類は黙って「その他」に落とすだけで、面別の表に
+// 一度も現れない。表に出ないページは効果を測られず、作られたことすら忘れられる。
+// これは「孤立ページを作らない」（人とクローラーから辿れるか）の**計測版**で、
+// あちらが導線を見張るのに対しこちらは投資判断の土俵に乗るかを見張る。
+//
+// 2026-08-05に踏んだ「画面を見ている限り気づけない」壊れ方と同じ形なので、
+// 人の注意ではなく機械で止める。
+// ─────────────────────────────────────────────
+console.log("\n── 面（ページ種別）の分類 ──");
+let faceNg = 0;
+{
+  const gsc = (await import("./lib/gsc-page-type.js")).default as {
+    PAGE_TYPES: string[];
+    PAGE_TYPE_PREFIXES: Array<[string, string]>;
+    SITEMAP_OTHER_PATHS: string[];
+    pageType: (url: string) => string;
+  };
+  const { PAGE_TYPES: TYPES, PAGE_TYPE_PREFIXES: PREFIXES, SITEMAP_OTHER_PATHS: OTHERS, pageType: classify } = gsc;
+
+  // sitemap が実際に出すパスを、テンプレートリテラルから拾う。
+  // `url: siteUrl` はトップ、`url: `${siteUrl}/xxx/${...}`` は各面。
+  const src = readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+  const paths = new Set<string>();
+  if (/url:\s*siteUrl\s*,/.test(src)) paths.add("/");
+  for (const m of src.matchAll(/url:\s*`\$\{siteUrl\}([^`]*)`/g)) {
+    // ${year} 等の埋め込みは適当な値に潰す（分類は接頭辞しか見ないため）。
+    paths.add(m[1].replace(/\$\{[^}]*\}/g, "x") || "/");
+  }
+
+  // ① sitemap に載る全パスが、面か「面として数えない」宣言のどちらかに当たること。
+  {
+    const stray = [...paths].filter((p) => classify(`https://example.com${p}`) === "その他" && !OTHERS.includes(p));
+    const pass = paths.size > 0 && stray.length === 0;
+    if (!pass) faceNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"sitemapの全パスが面に分類される".padEnd(34)} → ${paths.size}種中 未分類${stray.length}件` +
+        (pass
+          ? ""
+          : `  (${stray.join(", ")} … scripts/lib/gsc-page-type.js の PAGE_TYPE_PREFIXES に面を足すか、` +
+            `面として数えない理由を書いて SITEMAP_OTHER_PATHS に登録してください)`)
+    );
+  }
+
+  // ② 逆向き。面として数えているのに sitemap がそのパスを1つも出していない
+  //    ＝ 消えたページ種別が集計だけ残っている状態を検知する。
+  {
+    const dead = PREFIXES.filter(([, prefix]) => ![...paths].some((p) => p.startsWith(prefix)));
+    const pass = dead.length === 0;
+    if (!pass) faceNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"面が実在するページを指している".padEnd(34)} → ${PREFIXES.length}面中 実体なし${dead.length}件` +
+        (pass ? "" : `  (${dead.map(([t, p]) => `${t}=${p}`).join(", ")})`)
+    );
+  }
+
+  // ③ 「面として数えない」宣言が、実際に sitemap にあるパスだけであること
+  //    （消えたパスの宣言が残ると、次に同じパスを作ったとき①をすり抜ける）。
+  {
+    const stale = OTHERS.filter((p) => !paths.has(p));
+    const pass = stale.length === 0;
+    if (!pass) faceNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"数えない宣言が現存パスだけ".padEnd(34)} → ${OTHERS.length}件中 実体なし${stale.length}件` +
+        (pass ? "" : `  (${stale.join(", ")})`)
+    );
+  }
+
+  // ④ PAGE_TYPES（表示順）と PAGE_TYPE_PREFIXES がズレていないこと。
+  //    seo-report.js は PAGE_TYPES の順で表を出すので、ここがズレると
+  //    集計にはあるのに表に出ない面ができる。
+  {
+    const missing = PREFIXES.map(([t]) => t).filter((t) => !TYPES.includes(t));
+    const pass = missing.length === 0 && TYPES[0] === "トップ" && TYPES[TYPES.length - 1] === "その他";
+    if (!pass) faceNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"面の一覧と表示順が揃っている".padEnd(34)} → ${TYPES.join("/")}` +
+        (pass ? "" : `  (漏れ: ${missing.join(", ")})`)
+    );
+  }
+
+  // ⑤ 面の内訳を出す（新しい面を足したときに、そこが本当に0でないかを人が見るため）。
+  console.log(`ℹ  sitemapが出すパス: ${[...paths].sort().join(" ")}`);
+}
+console.log(`結果（面の分類）: ${faceNg === 0 ? 4 : 0} 件OK / ${faceNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// description（スニペット）の基準の検査（2026-08-19追加）
+//
+// title には2026-08-05に幅の予算を作ったのに、description は幅も内容も
+// 誰も見ていなかった。作品ページは実データ465件で中央80.0・最長148.5（全角換算）
+// あり、PCの観測値105を超える分は**誰にも読まれないのに書かれていた**。
+//
+// 【なぜ title と同じ扱いにしないか・2026-08-19に調べた事実】
+//   ① Google はスニペットの打ち切り幅を公表していない（非公式の観測値のみ）。
+//   ② Google は meta description の62〜71%を書き換える
+//      （Ahrefs 62.78% / Portent 68〜71%）。裏を返すと3割前後はそのまま使われる
+//      ので「書かない」は選ばない。
+//   ③ テンプレートで機械生成すること自体はスパムポリシー（scaled content abuse）の
+//      対象ではない。あちらが見ているのは方式ではなく主目的と価値。ただし変数部分が
+//      効かず同一の文になると重複として書き換えられやすい。
+// そこで見るのは幅そのものより「差別化情報が先頭にあるか」と「重複していないか」。
+// 出典は docs/seo-operations.md 4節。
+// ─────────────────────────────────────────────
+console.log("\n── descriptionの基準 ──");
+let descNg = 0;
+{
+  const meta = await import("../lib/pageMeta.ts");
+  const { DESCRIPTION_WIDTH_BUDGET: DW, DESCRIPTION_LEAD_BUDGET: DL } = meta;
+  const { displayWidth: width } = await import("../lib/workTitle.ts");
+  const { SEASON_LABEL } = await import("../lib/resolveSeasonParams.ts");
+  const { buildWatchDescription: watchDesc, fitDescServices } = await import(
+    "../lib/workAvailability.ts"
+  );
+
+  // face（面）ごとに [description, 差別化する語, 最短形の幅] を集める。
+  // 最短形＝その面の組み立てで削れるものを全部削ったときの幅。これが上限を超えるなら
+  // 削りようがない（作品名・人名そのものが長い）ので、落とさず警告に留める。
+  type DescRow = [string, string, number];
+  const faces: Array<{ face: string; rows: DescRow[] }> = [];
+  const Y = String(new Date().getFullYear());
+  const seasons = Object.keys(SEASON_LABEL);
+  const cool = (se: string) => `${Y}年${SEASON_LABEL[se]}アニメ`;
+
+  // 面ごとに文型が1つしか無いものは、削れる余地が無いので最短形＝そのもの。
+  const fixed = (d: string, key: string): DescRow => [d, key, width(d)];
+  faces.push({
+    face: "シーズン",
+    rows: seasons.map((se) => fixed(meta.seasonPageDescription(Y, se), cool(se))),
+  });
+  faces.push({
+    face: "独占",
+    rows: seasons.map((se) => fixed(meta.exclusivePageDescription(Y, se), cool(se))),
+  });
+  faces.push({
+    face: "ランキング",
+    rows: seasons.map((se) => fixed(meta.rankingsPageDescription(Y, se), cool(se))),
+  });
+  {
+    const { SERVICES: SVCS } = await import("../lib/services.ts");
+    faces.push({
+      face: "サービス別",
+      rows: SVCS.flatMap((sv) =>
+        seasons.map((se) => fixed(meta.servicePageDescription(sv.name, Y, se), sv.name))
+      ),
+    });
+  }
+  {
+    const idx = JSON.parse(
+      readFileSync(new URL("../content/archive/studios.json", import.meta.url), "utf8")
+    ) as { studios: Record<string, unknown[]>; directors: Record<string, unknown[]> };
+    for (const [face, role, src] of [
+      ["制作会社", "studio", idx.studios],
+      ["監督", "director", idx.directors],
+    ] as Array<[string, "studio" | "director", Record<string, unknown[]>]>) {
+      faces.push({
+        face,
+        rows: Object.entries(src).map(([n, ws]) =>
+          fixed(meta.creditPageDescription(role, n, ws.length), n)
+        ),
+      });
+    }
+  }
+  {
+    const idx = JSON.parse(
+      readFileSync(new URL("../content/archive/people.json", import.meta.url), "utf8")
+    ) as { people: Record<string, unknown[]> };
+    faces.push({
+      face: "声優",
+      rows: Object.keys(idx.people).flatMap((n) =>
+        [true, false].map((f) => fixed(meta.personPageDescription(n, Y, "summer", f), n))
+      ),
+    });
+  }
+  {
+    // 作品ページは lib/workAvailability.ts が組み立てる（面ごとに置き場所が違うので
+    // ここで両方を同じ基準にかける）。
+    const { readSnapshots: readSnaps } = await import("./build-archive-index.ts");
+    const rows: DescRow[] = [];
+    for (const { data } of readSnaps()) {
+      for (const it of data.items) {
+        const shorts = it.services.map((sv) => sv.short);
+        if (shorts.length === 0) continue;
+        const descServices = fitDescServices({
+          title: it.title,
+          serviceShorts: shorts,
+          releaseLead: "",
+          status: "finished",
+          budget: DW,
+        });
+        // 作品ページで削れるのはサービス名だけ。最短形＝1件だけ並べた形
+        // （0件だと「配信情報があるのは 。」という壊れた文になるため）。
+        const minimal = watchDesc({
+          title: it.title,
+          descServices: shorts[0],
+          releaseLead: "",
+          status: "finished",
+        });
+        rows.push([
+          watchDesc({ title: it.title, descServices, releaseLead: "", status: "finished" }),
+          it.title,
+          width(minimal),
+        ]);
+      }
+    }
+    faces.push({ face: "作品", rows });
+  }
+
+  // ① 差別化する語が先頭 DESCRIPTION_LEAD_BUDGET 以内から始まること。
+  //    後半は切られて読まれないので、そこに置いた語は無いのと同じ。
+  {
+    let ng = 0;
+    const samples: string[] = [];
+    for (const { face, rows } of faces) {
+      let faceNgCount = 0;
+      for (const [desc, key] of rows) {
+        const at = desc.indexOf(key);
+        const ok = at >= 0 && width(desc.slice(0, at)) <= DL;
+        if (!ok) {
+          faceNgCount++;
+          if (samples.length < 3) samples.push(`${face}: ${desc.slice(0, 40)}…（${key}）`);
+        }
+      }
+      ng += faceNgCount;
+    }
+    const pass = ng === 0;
+    if (!pass) descNg++;
+    const total = faces.reduce((a, f) => a + f.rows.length, 0);
+    console.log(
+      `${pass ? "✓" : "✗"}  ${`差別化する語が先頭${DL}全角以内に出る`.padEnd(31)} → ${total}件中 違反${ng}件` +
+        (pass ? "" : `  (${samples.join(" / ")})`)
+    );
+  }
+
+  // ② 幅。主キーワード（作品名）自体が長い場合は削れないので警告に留め、
+  //    「サービス名を足したせいで超えた」＝組み立ての誤りだけを落とす。
+  {
+    let fixable = 0;
+    for (const { face, rows } of faces) {
+      const over = rows.filter(([d]) => width(d) > DW);
+      const worst = rows.reduce((a, [d]) => Math.max(a, width(d)), 0);
+      // 最短形でも超えるなら削りようがない（作品名・人名そのものが長い）。
+      const irreducible = over.filter(([, , minW]) => minW > DW).length;
+      fixable += over.length - irreducible;
+      console.log(
+        `${over.length === 0 ? "✓" : "⚠"}  ${face.padEnd(30)} → ${rows.length}件中 超過${over.length}件（うち削れない${irreducible}件・最長${worst}）`
+      );
+    }
+    const pass = fixable === 0;
+    if (!pass) descNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${`削れる超過が残っていない（上限${DW}）`.padEnd(30)} → ${fixable}件`
+    );
+  }
+
+  // ③ 同じ面の中で description が重複しないこと（変数部分が効いていること）。
+  //    完全に同一の文が並ぶと重複として書き換えられやすくなる。
+  {
+    let ng = 0;
+    const samples: string[] = [];
+    for (const { face, rows } of faces) {
+      const seen = new Map<string, number>();
+      for (const [d] of rows) seen.set(d, (seen.get(d) ?? 0) + 1);
+      const dup = [...seen.entries()].filter(([, n]) => n > 1);
+      ng += dup.length;
+      if (dup.length > 0 && samples.length < 2) samples.push(`${face}: ${dup[0][0].slice(0, 36)}…×${dup[0][1]}`);
+    }
+    const pass = ng === 0;
+    if (!pass) descNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"同じ面の中で重複しない".padEnd(34)} → 重複${ng}種` +
+        (pass ? "" : `  (${samples.join(" / ")})`)
+    );
+  }
+
+  // ④ 逆戻り防止。ページ側で description を直書きしない。
+  {
+    const pages = [
+      "../app/season/[year]/[season]/page.tsx",
+      "../app/person/[name]/[year]/[season]/page.tsx",
+      "../app/service/[key]/[year]/[season]/page.tsx",
+      "../app/exclusive/[year]/[season]/page.tsx",
+      "../app/rankings/[year]/[season]/page.tsx",
+      "../app/studio/[name]/page.tsx",
+      "../app/director/[name]/page.tsx",
+    ];
+    const bad = pages.filter((f) =>
+      /const description = `/.test(readFileSync(new URL(f, import.meta.url), "utf8"))
+    );
+    const pass = bad.length === 0;
+    if (!pass) descNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"descriptionを直書きしない".padEnd(34)} → ${pages.length}ページ中 直書き${bad.length}件` +
+        (pass ? "" : `  (${bad.map((f) => f.replace("../app/", "")).join(", ")})`)
+    );
+
+    // 作品ページは幅の調整を fitDescServices に任せること。以前のように
+    // slice(0, 5) で件数を決め打ちすると、②の検査（lib 側を直接測る）を素通りして
+    // 予算超過が復活する。
+    const workSrc = readFileSync(new URL("../app/anime/[id]/page.tsx", import.meta.url), "utf8");
+    const usesFit = workSrc.includes("fitDescServices(");
+    const hardCoded = /serviceShorts\.slice\(/.test(workSrc);
+    const pass2 = usesFit && !hardCoded;
+    if (!pass2) descNg++;
+    console.log(
+      `${pass2 ? "✓" : "✗"}  ${"作品ページは幅の調整をlibに任せる".padEnd(33)} → ` +
+        `fitDescServices=${usesFit ? "あり" : "なし"} / 件数の決め打ち=${hardCoded ? "あり" : "なし"}`
+    );
+  }
+}
+console.log(`結果（descriptionの基準）: ${descNg === 0 ? 5 : 0} 件OK / ${descNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// ページの厚み（薄いページを作らない）の検査（2026-08-19追加）
+//
+// 【なぜ文字数で決めないか・2026-08-19に調べた事実】
+// Google に「内容の薄いページ」の**文字数の閾値は無い**。John Mueller は
+// word count は thin content の指標ではないと明言しており、公式ガイドラインから
+// 最低文字数の記述も削除されている。2024年3月の scaled content abuse ポリシーが
+// 見ているのも量や生成方法ではなく「主目的が順位操作か・固有の価値があるか」。
+// noindex にすべきかどうかにも公式の一律基準は無く、実務上は
+// 「被リンク・アクセスがほぼ無い最薄のページから個別に判断」が落としどころ。
+// 出典は docs/seo-operations.md 4節。
+//
+// したがってここで機械が守るのは「何文字あるか」ではなく次の2つ:
+//   ① 索引・ページ・sitemap・内部リンクが**同じ閾値**を通ること
+//      （どこか1つがズレると、404へのリンクを配るか、閾値未満の薄いページを
+//        検索エンジンに登録するかのどちらかが起きる）
+//   ② 閾値ちょうどのページがどれだけあるかを**毎回表示する**こと
+//      （2026-08-19の実測で監督ページの45%が2作品ちょうどだった。この事実は
+//        どこにも出ておらず、実際に3セッション気づかれなかった）
+// 閾値を上げるかどうかは表示回数で判定する。期日つきの判定表は
+// docs/seo-operations.md 3節。
+// ─────────────────────────────────────────────
+console.log("\n── ページの厚み ──");
+let thinNg = 0;
+{
+  const { MIN_WORKS: STUDIO_MIN } = await import("../lib/studioIndex.ts");
+  const { MIN_WORKS: PERSON_MIN } = await import("../lib/personIndex.ts");
+  const { PERSON_PAGE_MIN_APPEARANCES: SEASON_MIN } = await import("../lib/personPage.ts");
+
+  const studioIdx = JSON.parse(
+    readFileSync(new URL("../content/archive/studios.json", import.meta.url), "utf8")
+  ) as { studios: Record<string, unknown[]>; directors: Record<string, unknown[]> };
+  const peopleIdx = JSON.parse(
+    readFileSync(new URL("../content/archive/people.json", import.meta.url), "utf8")
+  ) as { people: Record<string, unknown[]> };
+
+  // ① 閾値未満のエントリが索引に1件も無いこと（＝ページ・sitemapにも出ない）。
+  {
+    const groups: Array<[string, Record<string, unknown[]>, number]> = [
+      ["制作会社", studioIdx.studios, STUDIO_MIN],
+      ["監督", studioIdx.directors, STUDIO_MIN],
+      ["声優（他クール索引）", peopleIdx.people, PERSON_MIN],
+    ];
+    let ng = 0;
+    const detail: string[] = [];
+    for (const [label, src, min] of groups) {
+      const under = Object.entries(src).filter(([, ws]) => ws.length < min);
+      ng += under.length;
+      if (under.length > 0) detail.push(`${label}: ${under.slice(0, 3).map(([n]) => n).join(", ")}`);
+    }
+    const pass = ng === 0;
+    if (!pass) thinNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"索引に閾値未満のページが無い".padEnd(34)} → 違反${ng}件` +
+        (pass ? `（下限 制作会社/監督=${STUDIO_MIN} 声優=${PERSON_MIN}）` : `  (${detail.join(" / ")})`)
+    );
+  }
+
+  // ② 閾値の数値を直書きしないこと。sitemap・ページ・リンク判定が定数を通ること。
+  //    数値を書き写すと、上げ下げしたときに片方だけ動いて404を配る。
+  {
+    const files: Array<[string, string, RegExp]> = [
+      ["app/sitemap.ts", "../app/sitemap.ts", /PERSON_PAGE_MIN_APPEARANCES/],
+      [
+        "app/person/[name]/[year]/[season]/page.tsx",
+        "../app/person/[name]/[year]/[season]/page.tsx",
+        /PERSON_PAGE_MIN_APPEARANCES/,
+      ],
+      ["lib/studioIndex.ts", "../lib/studioIndex.ts", /MIN_WORKS/],
+      ["scripts/build-studio-index.ts", "./build-studio-index.ts", /MIN_WORKS/],
+      ["scripts/build-person-index.ts", "./build-person-index.ts", /MIN_WORKS/],
+    ];
+    const bad: string[] = [];
+    for (const [label, rel, needle] of files) {
+      const src = readFileSync(new URL(rel, import.meta.url), "utf8");
+      // 定数を参照していない、または「2作品以上」を数値で判定している箇所があればNG。
+      const usesConst = needle.test(src);
+      // 「> 0」「=== 0」は空判定なので閾値ではない。閾値として直書きされうるのは
+      // 2以上の比較だけ（下限は2）。
+      const hardCoded = /(?:length|count)\s*[<>]=?\s*[2-9]/.test(src);
+      if (!usesConst || hardCoded) bad.push(label);
+    }
+    const pass = bad.length === 0;
+    if (!pass) thinNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"閾値を数値で直書きしない".padEnd(34)} → ${files.length}箇所中 違反${bad.length}件` +
+        (pass ? "" : `  (${bad.join(", ")})`)
+    );
+  }
+
+  // ③ sitemap が載せる面はすべて、閾値の門番を通った集合から作られていること。
+  //    制作会社・監督は索引そのもの（①で担保）、声優は定数で絞っている。
+  {
+    const sm = readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+    const guards = [
+      ["声優（今期）", /castCounts[\s\S]{0,400}?PERSON_PAGE_MIN_APPEARANCES/],
+      ["声優（過去クール）", /personCounts[\s\S]{0,400}?PERSON_PAGE_MIN_APPEARANCES/],
+      ["サービス別", /serviceKeys/],
+    ] as Array<[string, RegExp]>;
+    const missing = guards.filter(([, re]) => !re.test(sm)).map(([l]) => l);
+    const pass = missing.length === 0;
+    if (!pass) thinNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"sitemapが門番を通した集合だけ載せる".padEnd(33)} → ${guards.length}面中 門番なし${missing.length}件` +
+        (pass ? "" : `  (${missing.join(", ")})`)
+    );
+  }
+
+  // ④ 厚みの分布を毎回出す。閾値を上げるかどうかの判断材料で、落とすためのものではない
+  //    （何作品あれば十分かに公式の基準は無く、表示回数で判定するしかない）。
+  {
+    const groups: Array<[string, Record<string, unknown[]>, number]> = [
+      ["制作会社", studioIdx.studios, STUDIO_MIN],
+      ["監督", studioIdx.directors, STUDIO_MIN],
+      ["声優（他クール索引）", peopleIdx.people, PERSON_MIN],
+    ];
+    for (const [label, src, min] of groups) {
+      const counts = Object.values(src).map((w) => w.length);
+      const total = counts.length;
+      const atFloor = counts.filter((c) => c === min).length;
+      const thin = counts.filter((c) => c <= min + 1).length;
+      const max = counts.reduce((a, c) => Math.max(a, c), 0);
+      console.log(
+        `ℹ  ${label.padEnd(30)} → 全${total}件  ${min}作品ちょうど ${atFloor}件（${((atFloor / total) * 100).toFixed(0)}%）  ` +
+          `${min + 1}作品以下 ${thin}件（${((thin / total) * 100).toFixed(0)}%）  最大${max}作品`
+      );
+    }
+    // 作品ページは「配信情報が1件以上」が門番（0件だと『配信情報なし』としか言えない）。
+    const archive = JSON.parse(
+      readFileSync(new URL("../content/archive/index.json", import.meta.url), "utf8")
+    ) as { seasons: Array<{ total: number; workIds: number[] }> };
+    const listed = archive.seasons.reduce((a, x) => a + x.workIds.length, 0);
+    const all = archive.seasons.reduce((a, x) => a + x.total, 0);
+    console.log(
+      `ℹ  ${"作品（過去クール索引）".padEnd(30)} → 全${all}件中 ${listed}件を掲載（門番＝配信情報が1件以上）`
+    );
+  }
+}
+console.log(`結果（ページの厚み）: ${thinNg === 0 ? 3 : 0} 件OK / ${thinNg} 件NG`);
+
+// ─────────────────────────────────────────────
 // SNS投稿に貼るリンクの検査（2026-08-05追加）
 //
 // 投稿本文のリンクは `/?year=&season=` ではなく `/season/{year}/{season}` を指すこと。
@@ -2999,6 +3691,171 @@ let planNg = 0;
 }
 
 // ─────────────────────────────────────────────
+// 通称・略称が検索エンジンに見える形で出ているか（2026-08-19追加）
+//
+// 経緯: `content/works/aliases.ts` には44作品の略称が出典つきで登録されていたのに、
+// 使われていたのは `components/SeasonExplorer.tsx` の**サイト内検索の絞り込みだけ**で、
+// レンダリング後のHTMLには1回も出ていなかった。2026-08-19に本番ビルドを起動して実測:
+// `/anime/9733` のHTMLに「シャングリラ」33回に対し「シャンフロ」0回・「鳥頭」0回、
+// JSON-LDの `alternateName` は0箇所。**検索エンジンから見ると略称の語彙が存在しない**
+// のと同じ状態だった（GSCには「逃げ若 2期 配信」14表示31.6位のように略称クエリが実在する）。
+//
+// 「データはあるのに出力に出ていない」は画面を見ても気づけないので機械的に見張る。
+// ─────────────────────────────────────────────
+console.log("\n── 通称・略称の露出 ──");
+let aliasNg = 0;
+{
+  const aliasSrc = readFileSync(new URL("../content/works/aliases.ts", import.meta.url), "utf8");
+  const pageSrc = readFileSync(
+    new URL("../app/anime/[id]/page.tsx", import.meta.url),
+    "utf8"
+  );
+
+  const t = (label: string, cond: boolean, detail: string) => {
+    if (cond) console.log(`\u2713  ${label.padEnd(40)} \u2192 ${detail}`);
+    else {
+      console.log(`\u2717  ${label.padEnd(40)} \u2192 ${detail}`);
+      aliasNg += 1;
+    }
+  };
+
+  // 作品ページが略称を読み込んでいること。
+  t(
+    "作品ページが略称を読み込む",
+    /from "@\/content\/works\/aliases"/.test(pageSrc),
+    "WORK_ALIASES を import している"
+  );
+
+  // JSON-LD に alternateName を出していること（schema.orgの別名フィールド）。
+  t(
+    "JSON-LDにalternateNameを出す",
+    /alternateName/.test(pageSrc),
+    "workLd.alternateName がある"
+  );
+
+  // 可視テキストにも出していること。**機械可読だけに出すのは禁止**
+  // （撤回した WatchAction と同じ「可視テキストに無い主張が機械可読の層にだけ残る」形）。
+  t(
+    "可視テキストにも通称を出す",
+    /detail-alias/.test(pageSrc),
+    ".detail-alias がある"
+  );
+
+  // 出典と確認日を添えること（人力補完の他ファイルと同じ扱い）。
+  t(
+    "通称に出典と確認日を添える",
+    /alias\.sourceUrl/.test(pageSrc) && /alias\.confirmedDate/.test(pageSrc),
+    "sourceUrl と confirmedDate を表示している"
+  );
+
+  // データ側が出典を構造化して持っていること（コメントに書くだけに戻さない）。
+  t(
+    "略称データが出典を構造化して持つ",
+    /sourceUrl:/.test(aliasSrc) && /confirmedDate:/.test(aliasSrc),
+    "sourceUrl / confirmedDate フィールドがある"
+  );
+}
+console.log(`結果（通称・略称の露出）: ${aliasNg === 0 ? "全件OK" : `${aliasNg} 件NG`}`);
+
+// ─────────────────────────────────────────────
+// 配信サービスの口語形（2026-08-19導入）
+//
+// 口語形（Netflix→「ネトフリ」）は lib/services.ts の `kana` とは**別の層**に置く。
+// `kana` は lib/serviceDataset.ts から公開API（GET /api/services）で配っている
+// 名寄せ用データなので、観測にすぎない口語形を混ぜると二次利用側が
+// チャンネル名の正規表記だと受け取りうる。層が混ざる方向への逆戻りを機械的に禁じる。
+// ─────────────────────────────────────────────
+console.log("\n── 配信サービスの口語形 ──");
+let svcAliasNg = 0;
+{
+  const aliasSrc = readFileSync(
+    new URL("../content/services/aliases.ts", import.meta.url),
+    "utf8"
+  );
+  const servicesSrc = readFileSync(
+    new URL("../lib/services.ts", import.meta.url),
+    "utf8"
+  );
+  const workPageSrc = readFileSync(
+    new URL("../app/anime/[id]/page.tsx", import.meta.url),
+    "utf8"
+  );
+  const svcPageSrc = readFileSync(
+    new URL("../app/service/[key]/[year]/[season]/page.tsx", import.meta.url),
+    "utf8"
+  );
+
+  const t = (label: string, cond: boolean, detail: string) => {
+    if (cond) console.log(`\u2713  ${label.padEnd(40)} \u2192 ${detail}`);
+    else {
+      console.log(`\u2717  ${label.padEnd(40)} \u2192 ${detail}`);
+      svcAliasNg += 1;
+    }
+  };
+
+  t(
+    "口語形データが出典を構造化して持つ",
+    /sourceUrl:/.test(aliasSrc) && /confirmedDate:/.test(aliasSrc),
+    "sourceUrl / confirmedDate フィールドがある"
+  );
+
+  // 登録されている口語形をデータから読み出す（テスト側に文字列を書き写さない）。
+  const aliasWords = [...aliasSrc.matchAll(/names:\s*\[([^\]]*)\]/g)]
+    .flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
+  t(
+    "口語形が1件以上登録されている",
+    aliasWords.length > 0,
+    `${aliasWords.length} 件: ${aliasWords.join("・")}`
+  );
+
+  // 層を混ぜない。口語形が lib/services.ts に現れたら、kana に流し込まれた疑い。
+  const leaked = aliasWords.filter((w) => servicesSrc.includes(w));
+  t(
+    "口語形をlib/services.tsに混ぜない",
+    leaked.length === 0,
+    leaked.length === 0
+      ? "SERVICES / kana に口語形は入っていない"
+      : `混入: ${leaked.join("・")}`
+  );
+
+  // 表現を1箇所に集約する（2ページに直書きすると片方だけ直してズレる）。
+  t(
+    "作品ページが口語形の表現を共有する",
+    /buildServiceLabel/.test(workPageSrc),
+    "buildServiceLabel を使っている"
+  );
+  t(
+    "サービス別ページが口語形を出す",
+    /buildServiceLabel/.test(svcPageSrc),
+    "buildServiceLabel を使っている"
+  );
+
+  // title・description には入れない（kana と同じ扱い。検索語の詰め込みをしない）。
+  const metaBlock = svcPageSrc.slice(
+    svcPageSrc.indexOf("export async function generateMetadata"),
+    svcPageSrc.indexOf("export default async function")
+  );
+  t(
+    "口語形をtitle/descriptionに入れない",
+    metaBlock.length > 0 &&
+      !/buildServiceLabel|serviceLabel/.test(metaBlock) &&
+      !aliasWords.some((w) => metaBlock.includes(w)),
+    "generateMetadata は正式名称だけを使っている"
+  );
+
+  // 素の挙動（口語形もカナも無いサービスは、余計な括弧を付けない）。
+  const { buildServiceLabel } = await import("../content/services/aliases.ts");
+  t(
+    "カナも口語形も無ければ括弧を付けない",
+    buildServiceLabel("dアニメ", undefined, "d_anime") === "dアニメ",
+    "buildServiceLabel('dアニメ', undefined, 'd_anime') === 'dアニメ'"
+  );
+}
+console.log(
+  `結果（配信サービスの口語形）: ${svcAliasNg === 0 ? "全件OK" : `${svcAliasNg} 件NG`}`
+);
+
+
 // 孤立ページを作らない（2026-08-07追加）
 //
 // 経緯: `/service/[key]/[year]/[season]`（サービス別ページ）は実装済みで sitemap にも
@@ -3040,6 +3897,17 @@ let orphanNg = 0;
       file: "../app/person/[name]/[year]/[season]/page.tsx",
       needle: "otherSeasonWorks",
       label: "声優ページ → 他クールの出演作",
+    },
+    // 2026-08-19: 声優ページ**同士**（同じ人の他クールのページ）への横断リンク。
+    // 上の "otherSeasonWorks" は作品ページ/シーズンページへのリンクしか作らないので、
+    // sitemapに載せた過去クールの声優ページ4,483件は「そのクールの作品ページの
+    // 声優名リンク」1本でしか辿れなかった。GSC実測（2026-08-15・直近28日）で
+    // 声優ページは平均5.7位・CTR8.3%とサイトで唯一1ページ目に入れている面であり、
+    // いちばん強いページから同じ人の他クールへ authority を渡す導線がここ。
+    {
+      file: "../app/person/[name]/[year]/[season]/page.tsx",
+      needle: "/person/${",
+      label: "声優ページ → 同じ人の他クールのページ",
     },
     // 2026-08-12: 制作会社ページ165件・監督ページ378件をsitemapに載せた。その入口は
     // 作品ページの「監督」「製作会社」欄のリンクだけで、一覧・トップからは辿れない。
@@ -4101,6 +4969,10 @@ if (
   prepNg > 0 ||
   archiveNg > 0 ||
   titleNg > 0 ||
+  pageTitleNg > 0 ||
+  faceNg > 0 ||
+  descNg > 0 ||
+  thinNg > 0 ||
   linkNg > 0 ||
   ssrNg > 0 ||
   ng > 0 ||
@@ -4117,7 +4989,9 @@ if (
   ldNg > 0 ||
   xIntentNg > 0 ||
   xPolicyNg > 0 ||
-  trackNg > 0
+  trackNg > 0 ||
+  aliasNg > 0 ||
+  svcAliasNg > 0
 )
   // process.exit() ではなく exitCode。Windows では stdout がパイプされていると
   // process.exit() が書き込み途中のバッファを巻き込んでプロセスを異常終了させ、

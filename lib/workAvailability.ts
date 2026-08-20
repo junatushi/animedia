@@ -85,6 +85,51 @@ export function buildWatchAnswer(params: {
 }
 
 // 検索結果のスニペットに使われる description。作品ページの metadata から呼ぶ。
+/**
+ * description に並べる配信サービス名を、スニペットの幅に収まる分だけ選ぶ。
+ *
+ * 【なぜ要るか・2026-08-19】以前は無条件に上位5件を並べていたため、実データ465件で
+ * 中央80.0・最長148.5（全角換算）になり、PCの観測値105を超える分は**誰にも
+ * 読まれないのに書かれていた**状態だった。titleで2026-08-05に直したのと同じ形。
+ * 幅の考え方は lib/pageMeta.ts の DESCRIPTION_WIDTH_BUDGET のコメントを参照。
+ *
+ * 作品名は主キーワードなので削らない（title と同じ判断）。溢れるのはサービス名だけ。
+ */
+export function fitDescServices(params: {
+  title: string;
+  serviceShorts: string[];
+  releaseLead: string;
+  status: AiringStatus;
+  budget: number;
+}): string {
+  const { title, serviceShorts, releaseLead, status, budget } = params;
+  if (serviceShorts.length === 0) return "";
+  // サービス名以外の部分の幅を先に引く。
+  const frame = descWidth(buildWatchDescription({ title, descServices: "", releaseLead, status }));
+  let remaining = budget - frame;
+
+  const fitted: string[] = [];
+  for (const s of serviceShorts) {
+    const cost = descWidth(s) + (fitted.length > 0 ? 1 : 0);
+    if (cost > remaining) break;
+    fitted.push(s);
+    remaining -= cost;
+  }
+  // 1件も入らないなら、先頭1件だけは入れる（サービス名が0件だと
+  // 「配信情報があるのは 。」という壊れた文になるため）。
+  if (fitted.length === 0) return serviceShorts[0];
+
+  const rest = serviceShorts.length - fitted.length;
+  if (rest > 0 && descWidth("ほか") <= remaining) return fitted.join("・") + "ほか";
+  return fitted.join("・");
+}
+
+function descWidth(s: string): number {
+  let w = 0;
+  for (const ch of s) w += ch.charCodeAt(0) < 0x80 ? 0.5 : 1;
+  return w;
+}
+
 export function buildWatchDescription(params: {
   title: string;
   descServices: string;

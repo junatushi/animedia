@@ -7,6 +7,8 @@ import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import type { AnimeItem, ServiceTag } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
+import { rankingsPageTitle, rankingsPageDescription } from "@/lib/pageMeta";
+import { titleText } from "@/lib/pageTitle";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -76,16 +78,16 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   if (!isValidYear(year) || !isValidSeason(season)) return {};
 
   const label = SEASON_LABEL[season];
-  const title = `${year}年${label}アニメ 配信サービス勢力図・ランキング`;
-  const description = `${year}年${label}アニメの配信サービス別対応本数・独占配信数・先行配信ランキングをAnnictの実データからまとめました。アニメ視聴ガイドで確認できます。`;
+  const title = rankingsPageTitle(year, season);
+  const description = rankingsPageDescription(year, season);
   const url = `${siteUrl}/rankings/${year}/${season}`;
 
   return {
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, type: "website" },
-    twitter: { card: "summary_large_image", title, description },
+    openGraph: { title: titleText(title), description, url, type: "website" },
+    twitter: { card: "summary_large_image", title: titleText(title), description },
   };
 }
 
