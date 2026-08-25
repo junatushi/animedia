@@ -1177,12 +1177,18 @@ let castsNg = 0;
       ok: personPageSrc.includes("PERSON_PAGE_MIN_APPEARANCES"),
       detail: "lib/personPage.ts の定数を使う",
     },
-    // GSCの実測でいちばん成果の出ているページ種別。過去クール分は
-    // content/archive/people.json から載せる（Annictへの追加取得は不要）。
+    // 【2026-08-25に反転】ここは長らく「sitemapが過去クールの声優ページを載せること」を
+    // 検査していた。2026-08-11にGSCの実測（声優ページ5.9位・CTR9.5%）を根拠に4,483件を
+    // 追加したときの検査だが、その実測は**今期のページ**のもので、過去クールぶんには
+    // 当てはまらなかった。索引到達後は47.0位まで崩れ、サイト全体の週次平均を6.86悪化させた
+    // うち4.77（70%）がこの面だった。いまは載せないのが正しい方針で、その見張りは
+    // 「薄い声優ページを索引に載せない」節が持つ。ここで逆向きの検査を残すと両方を
+    // 同時に満たせないので、代わりに**索引そのものは使い続けている**ことだけを見る
+    // （声優ページの「他のクールの出演作」欄＝過去クールの作品ページへの内部リンク）。
     {
-      label: "sitemapが過去クールの声優ページを載せる",
-      ok: sitemapSrc.includes("people.json"),
-      detail: "content/archive/people.json を参照する",
+      label: "声優ページが出演作索引を使い続ける",
+      ok: personPageSrc.includes("otherSeasonWorks"),
+      detail: "他のクールの出演作（過去クールの作品ページへの導線）を出す",
     },
   ];
   for (const c of cases) {
@@ -3094,6 +3100,86 @@ let orphanNg = 0;
 }
 
 // ─────────────────────────────────────────────
+// 薄い声優ページを検索索引に載せない（2026-08-25追加）
+//
+// 経緯: 2026-08-11に過去クールの声優ページ4,483件をsitemapへ追加した。根拠にした実測
+// 「声優ページは突出して強い（5.9位・CTR9.5%）」は**今期のページ**のものだったのに、
+// 過去クールぶんにも当てはまると考えて広げてしまった。索引到達直後（2026-08-19〜20）の
+// GSC実測では、声優ページの平均掲載順位が 5.9位 → 47.0位、サイト全体の週次平均が
+// 17.88位 → 24.74位。悪化6.86のうち4.77（70%）がこの面で、クリックへの寄与は1件だけ。
+// 除くと週次平均は19.94位に戻り、クリックは1件も減らない（docs/seo-2026-08-25/facts.md）。
+//
+// 「効いている面だから広げる」は正しく見えるが、**効いていたのは今期だけ**だった。
+// 同じ拡張を無自覚にやり直さないよう機械で見張る。今期のページは対象外
+// （サイト最大の資産 /person/悠木碧/2026/summer がそこにある）。
+// ─────────────────────────────────────────────
+console.log("\n── 薄い声優ページを索引に載せない ──");
+let thinPersonNg = 0;
+{
+  const thinCheck = (label: string, ok: boolean, detail: string) => {
+    if (!ok) thinPersonNg++;
+    console.log(`${ok ? "✓" : "✗"}  ${label.padEnd(40)} → ${detail}`);
+  };
+
+  const sitemapSrc = readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+  const noArchivePeople =
+    !sitemapSrc.includes("archive/people.json") && !sitemapSrc.includes("PEOPLE_INDEX");
+  thinCheck(
+    "sitemapに過去クールの声優ページを載せない",
+    noArchivePeople,
+    noArchivePeople
+      ? "content/archive/people.json を参照していない"
+      : "people.json から声優ページを再びsitemapに積んでいる（実測で週次平均を6.9位悪化させた面）"
+  );
+
+  // 今期の声優ページは載せ続けること（削りすぎていないかの逆側の見張り）。
+  const keepsCurrent = sitemapSrc.includes("/person/${encodeURIComponent(castName)}");
+  thinCheck(
+    "今期の声優ページは載せ続ける",
+    keepsCurrent,
+    keepsCurrent ? "今期ぶんはsitemapにある" : "今期ぶんまで消している（実測で最も成績の良い面）"
+  );
+
+  const personSrc = readFileSync(
+    new URL("../app/person/[name]/[year]/[season]/page.tsx", import.meta.url),
+    "utf8"
+  );
+  const usesPolicy = personSrc.includes("shouldIndexPersonSeasonPage");
+  const hasNoindex = /robots:\s*\{\s*index:\s*false/.test(personSrc);
+  thinCheck(
+    "過去クールの声優ページはnoindex",
+    usesPolicy && hasNoindex,
+    usesPolicy && hasNoindex
+      ? "shouldIndexPersonSeasonPage で今期だけ索引させる"
+      : "lib/personPage.ts の判定を使っていない（クール判定やnoindexを直書きしない）"
+  );
+
+  // 判定は lib/personPage.ts の1箇所だけが持つこと（sitemapとページが同じ根拠を見る）。
+  const policySrc = readFileSync(new URL("../lib/personPage.ts", import.meta.url), "utf8");
+  const singleSource =
+    policySrc.includes("export function shouldIndexPersonSeasonPage") &&
+    policySrc.includes("currentYearSeason");
+  thinCheck(
+    "索引方針の定義は1箇所",
+    singleSource,
+    singleSource
+      ? "lib/personPage.ts が currentYearSeason() で今期を判定"
+      : "判定が lib/personPage.ts に無い、または今期の求め方を独自に持っている"
+  );
+
+  // ページ自体は残すこと（404にしない）。過去クールの作品ページ1,961件への内部リンクが
+  // ここを通っている。索引から外すのと、ページを消すのは別の話。
+  const keepsPage = personSrc.includes("otherSeasonWorks");
+  thinCheck(
+    "ページ自体は消さない（内部リンクを残す）",
+    keepsPage,
+    keepsPage ? "他クールの出演作リンクは維持" : "過去クールの作品ページへの導線が消えている"
+  );
+
+  console.log(`結果（薄い声優ページ）: ${thinPersonNg === 0 ? "全件OK" : thinPersonNg + " 件NG"}`);
+}
+
+// ─────────────────────────────────────────────
 // 次クール準備の窓（2026-08-07追加）
 //
 // 検索需要はクール開始の約1ヶ月前から立ち上がり、山は年に4回しか来ない。
@@ -4096,6 +4182,7 @@ if (
   discordNg > 0 ||
   planNg > 0 ||
   orphanNg > 0 ||
+  thinPersonNg > 0 ||
   prepNg > 0 ||
   archiveNg > 0 ||
   titleNg > 0 ||

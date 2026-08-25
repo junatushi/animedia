@@ -1,7 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getSeasonData } from "@/lib/getSeasonData";
 import ARCHIVE_INDEX from "@/content/archive/index.json";
-import PEOPLE_INDEX from "@/content/archive/people.json";
 import STUDIO_INDEX from "@/content/archive/studios.json";
 import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
 
@@ -159,49 +158,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
-  // 過去クールの声優ページ（2026-08-11追加）。
+  // 過去クールの声優ページ（2026-08-11追加 → 2026-08-25に取り下げ）。
   //
-  // 【なぜ追加するか】GSCの実測（2026-07-12〜08-08）で、**声優ページが全ページ種別の
-  // 中で突出して強い**ことが分かった。43ページ中わずか2ページの声優ページが、
-  // 全16クリックのうち6件（37.5%）を取っており、掲載順位も 5.9位／4.7位 と、
-  // 作品ページの平均（15〜30位台）より一段上にいる。導入からまだ1週間での数字。
-  // それなのに sitemap は「今期の声優」しか載せておらず、
-  // content/archive/people.json（787人・出演7,721件）は使われていなかった。
-  // いちばん成果の出ているページ種別を、既にあるデータで広げる。
+  // 【いま載せていない理由】追加の根拠だった「声優ページは突出して強い」という実測は
+  // **今期の声優ページ**のものだった。過去クールぶん4,483件が索引に載った直後（08-19〜20）の
+  // GSC実測で、声優ページの平均掲載順位が 5.9位 → 47.0位 に崩れ、サイト全体の週次平均も
+  // 17.88位 → 24.74位 に悪化した。悪化幅6.86のうち4.77（70%）がこの面由来で、
+  // 表示回数の比率は12.2%・クリックへの寄与は1件だけだった。除くと週次平均は19.94位に戻り、
+  // クリックは1件も減らない。実測と分析は docs/seo-2026-08-25/facts.md、
+  // 判断の理由は lib/personPage.ts のコメントに書いた。
   //
-  // 収録の基準は今期と同じ:
-  //   ・そのクールに PERSON_PAGE_MIN_APPEARANCES 作品以上出ている人だけ
-  //     （1作品だけの人は薄いページになるため。ページ側も notFound() を返す）
-  //   ・people.json 自体が「配信情報が1件以上ある作品」だけで作られている
-  //     （content/archive/index.json と同じ方針）
-  // Annictへの追加取得は発生しない（リポジトリ同梱の静的JSONのみ）。
-  // 声優名には空白を含むもの（例: "田中理恵 (声優)"）があるため、キー文字列を
-  // 後から split で3つ組に戻すことはしない。値のほうに元の値を持たせる。
-  const personCounts = new Map<
-    string,
-    { name: string; year: number; season: string; count: number }
-  >();
-  for (const [name, works] of Object.entries(PEOPLE_INDEX.people)) {
-    for (const w of works) {
-      const workYear = w[2] as number;
-      const workSeason = w[3] as string;
-      // 今期は上の try 節が担当するので二重登録しない。
-      if (workYear === year && workSeason === season) continue;
-      const key = `${workYear}/${workSeason}/${name}`;
-      const cur = personCounts.get(key);
-      if (cur) cur.count++;
-      else personCounts.set(key, { name, year: workYear, season: workSeason, count: 1 });
-    }
-  }
-  for (const p of personCounts.values()) {
-    if (p.count < PERSON_PAGE_MIN_APPEARANCES) continue;
-    entries.push({
-      url: `${siteUrl}/person/${encodeURIComponent(p.name)}/${p.year}/${p.season}`,
-      changeFrequency: "yearly",
-      priority: 0.4,
-    });
-  }
-
+  // ページ自体は残してある（404にしない・follow のまま）ので、そこから過去クールの
+  // 作品ページへ渡る内部リンクは生きている。索引に載せるのをやめただけ。
+  // 今期の声優ページは上の try 節が今までどおり載せる（サイト最大の資産がそこにある）。
+  //
+  // 声優の出演作索引そのものは、声優ページの「他のクールの出演作」欄で引き続き使っている。
   // 制作会社ページ・監督ページ（2026-08-12追加）。/studio/[name]・/director/[name]
   //
   // 【なぜ追加するか】content/archive/studios.json（制作会社165社・監督378人）は

@@ -2,7 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
-import { PERSON_PAGE_MIN_APPEARANCES as MIN_APPEARANCES } from "@/lib/personPage";
+import {
+  PERSON_PAGE_MIN_APPEARANCES as MIN_APPEARANCES,
+  shouldIndexPersonSeasonPage,
+} from "@/lib/personPage";
 import { PERSON_FILMOGRAPHY } from "@/content/people/filmography";
 import { otherSeasonWorks, MAX_WORKS_SHOWN, type PersonIndex } from "@/lib/personIndex";
 import personIndexJson from "@/content/archive/people.json";
@@ -71,10 +74,16 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     : `${name}さんが出演する${year}年${label}アニメを一覧でまとめました。配信サービスもあわせてアニメ視聴ガイドで確認できます。`;
   const url = `${siteUrl}/person/${encodeURIComponent(name)}/${year}/${season}`;
 
+  // 過去クールのページは noindex（2026-08-25。理由は lib/personPage.ts に実測つきで書いた）。
+  // ページは消さない・404にもしない。follow は残すので、ここから過去クールの作品ページへ
+  // 渡っている内部リンクはそのまま効く。今期のページは今までどおり索引させる。
+  const indexable = shouldIndexPersonSeasonPage(year, season);
+
   return {
     title,
     description,
     alternates: { canonical: url },
+    ...(indexable ? {} : { robots: { index: false, follow: true } }),
     openGraph: { title, description, url, type: "website" },
     twitter: { card: "summary_large_image", title, description },
   };
