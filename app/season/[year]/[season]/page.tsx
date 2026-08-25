@@ -6,6 +6,7 @@ import SeasonExplorer from "@/components/SeasonExplorer";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import type { SeasonResponse } from "@/lib/types";
 
+import ARCHIVE_INDEX from "@/content/archive/index.json";
 import { siteUrl } from "@/lib/siteUrl";
 import { seasonPageTitle, seasonPageDescription } from "@/lib/pageMeta";
 import { titleText } from "@/lib/pageTitle";
@@ -32,7 +33,17 @@ const SEASON_LABEL: Record<string, string> = {
 // ISRは期限切れ後も stale-while-revalidate で古いHTMLを即座に返しつつ裏で作り直すので、
 // 期限を延ばしても訪問者が待たされる場面は増えない。Annictの配信情報はコミュニティ更新で
 // 分単位に動くものではなく、1時間の鮮度で困る用途がこのサイトには無い。経緯はdocs/operations.md。
-export const revalidate = 3600;
+// 【2026-08-25変更（2回目）】3600 → 604800（1週間）。
+// 同日に900→3600へ延ばしたが、**それでは書き込みは1件も減らない**ことが実測で判明した。
+// 超過時の30日で Edge Requests 10,300件/日 に対し ISR Writes 9,882件/日＝96%。
+// sitemapの約7,051ページへ1日10,300リクエストが分散すると1ページあたりの再訪間隔は
+// 平均16.4時間になり、revalidateがそれより短い限り訪問のたびに必ず期限切れ＝毎回書き込みに
+// なる。900秒でも3600秒でも16.4時間より遥かに短いので効果が無かった。
+// そこで再訪間隔より十分長い1週間にして「時間による再生成」を止め、鮮度が要る現在クールは
+// /api/revalidate（.github/workflows/revalidate.yml が1日2回叩く）で明示的に指名する方式に
+// 変えた。表示速度は落ちない（stale-while-revalidateで古いHTMLを即座に返す設計は同じで、
+// むしろキャッシュに当たる時間が長くなる）。経緯は docs/operations.md の㉝。
+export const revalidate = 604800;
 
 // 動的セグメント[year]/[season]は generateStaticParams が無いと revalidate を付けても
 // 動的レンダリング（no-store）のままCDNキャッシュされない。今年の4シーズンを列挙して
@@ -40,9 +51,26 @@ export const revalidate = 3600;
 // 年（過去年など）も dynamicParams（既定true）により初回オンデマンド生成→以後キャッシュ
 // される。build時に今年分のgetSeasonDataを呼ぶが、失敗してもpage側でcatchしdata未指定で
 // 描画されるためbuildは落ちない。年はbuild（=デプロイ）時点の西暦で決まる。
+// 【2026-08-25変更】今年の4クールに加え、**過去クール64件も全件事前生成する**。
+// 事前生成したページはISR Writesを1件も消費しない（デプロイ成果物に含まれる）のに対し、
+// 事前生成していないページはデプロイのたびにキャッシュが消え、最初に見に来た人の分だけ
+// 必ず書き込みが発生する。過去クールは content/snapshots/ の静的JSONから返る＝
+// ネットワークに出ないので、焼いてもビルドが外部APIに依存しない。
+// 経緯は docs/operations.md の㉝。
 export function generateStaticParams() {
-  const year = String(new Date().getFullYear());
-  return ["winter", "spring", "summer", "autumn"].map((season) => ({ year, season }));
+  const thisYear = new Date().getFullYear();
+  const params = ["winter", "spring", "summer", "autumn"].map((season) => ({
+    year: String(thisYear),
+    season,
+  }));
+
+  // 過去クールは索引（content/archive/index.json）が持つ組だけを焼く。sitemapが載せる
+  // 集合と同じ作り方なので、載せているのに焼いていないというズレが起きない。
+  for (const s of ARCHIVE_INDEX.seasons) {
+    if (s.year >= thisYear) continue;
+    params.push({ year: String(s.year), season: s.season });
+  }
+  return params;
 }
 
 type Params = { year: string; season: string };

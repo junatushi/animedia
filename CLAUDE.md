@@ -298,6 +298,16 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   一切使われないデータで、それが毎日3回キャッシュを捨てていた。**`content/works/`は除外していない**
   （`autoSchedule.json`は画面に出るのでデプロイが必要）。**このファイルを消すとVercelが停止した
   ときの状態に戻る**。経緯は`docs/operations.md`の㉝
+- `app/api/revalidate/route.ts` + `.github/workflows/revalidate.yml` … **鮮度を「時間」ではなく
+  「指名」で取りに行く窓口**（2026-08-25導入）。長い裾のページ（作品・声優・サービス別・
+  過去クール）の`revalidate`は1週間にしてあり、時間では作り直さない。その代わりこの窓口が
+  `revalidateTag("annict")`と現在クールのページへの`revalidatePath`を実行し、cronが1日2回叩く。
+  **`revalidatePath`は「次に誰かが見に来たら作り直す」印を付けるだけ**なので、呼んだ数だけ
+  課金されるわけではない（誰も来ないページでは書き込みが起きない）。
+  認証は`/api/notify/run`と同じ`NOTIFY_CRON_SECRET`を使い回す（新設しない＝設定漏れで黙って
+  止まるのを避ける）。**タグとパスの両方を古くすること**（ページだけ作り直しても、データ層の
+  キャッシュが生きていると中身は古いまま出る）。検査は`node scripts/check.ts`の
+  「ISRの再生成頻度」節。経緯は`docs/operations.md`の㉝
 - `lib/siteUrl.ts` … サイト正準URLの一元定義（2026-07-18導入）。canonical・OGP・sitemap・JSON-LD・
   メール内リンクの全てがここを参照する。独自ドメイン移行時はこの1行＋`docs/domain-migration.md`の手順
 - `content/affiliate/programs.ts` + `lib/affiliate.ts` … アフィリエイトのリンク・報酬額データ
@@ -658,7 +668,13 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   8月上旬に約7,051ページを開放したのに`revalidate`が据え置きだったのが利用量急増の主因。
   ④**I/O待ちはActive CPUには出ないがProvisioned Memoryには出る**（メモリ課金は待機中も止まらない）。
   全リクエストで走る処理（`middleware.ts`）に外部への往復を置かない。認証Cookieの無いリクエストは
-  `hasAuthCookie`で素通しする。経緯は`docs/operations.md`の㉝。
+  `hasAuthCookie`で素通しする。
+  ⑤**revalidateを延ばすときは「1ページあたりの再訪間隔」を先に計算する**（2026-08-25追記）。
+  `sitemapのページ数 ÷ 1日のリクエスト数`で出る。**延ばした先がこれを超えなければ、何秒にしても
+  書き込み回数は1件も変わらない**。実測では7,051ページ÷10,300リクエスト/日＝**16.4時間**で、
+  900秒を3600秒にしても両方とも遥かに短く、効果はゼロだった（この失敗を1回やっている）。
+  現在の設計は「長い裾は1週間＝時間では作り直さない／鮮度は`/api/revalidate`が指名して取りに行く」。
+  経緯は`docs/operations.md`の㉝。
 - **【基本ルール】revalidateを変えたら必ずビルドして実効値を確かめる（2026-08-25導入）**:
   App Routerの実効revalidateは「ページの`export const revalidate`」と「描画中に走る
   fetch／`unstable_cache`のTTL」の**低いほう**になる。ページ側だけ延ばしても、`lib/annict.ts`の

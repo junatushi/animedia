@@ -45,7 +45,9 @@ export async function GET() {
     headers: {
       "Content-Type": "application/rss+xml; charset=utf-8",
       // 更新履歴が変わったときだけ反映されればよいので、10分キャッシュ。
-      "Cache-Control": "public, max-age=0, s-maxage=600",
+      // 【2026-08-25変更】600 → 3600。RSSリーダーの巡回間隔は概ね1時間以上で、
+      // 10分で切らす必要が無い（上のシーズンAPIと同じ理由）。
+      "Cache-Control": "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400",
     },
   });
 }

@@ -43,18 +43,72 @@ type Params = { name: string; year: string; season: string };
 // ISRは期限切れ後も stale-while-revalidate で古いHTMLを即座に返しつつ裏で作り直すので、
 // 期限を延ばしても訪問者が待たされる場面は増えない。Annictの配信情報はコミュニティ更新で
 // 分単位に動くものではなく、1時間の鮮度で困る用途がこのサイトには無い。経緯はdocs/operations.md。
-export const revalidate = 3600;
+// 【2026-08-25変更（2回目）】3600 → 604800（1週間）。
+// 同日に900→3600へ延ばしたが、**それでは書き込みは1件も減らない**ことが実測で判明した。
+// 超過時の30日で Edge Requests 10,300件/日 に対し ISR Writes 9,882件/日＝96%。
+// sitemapの約7,051ページへ1日10,300リクエストが分散すると1ページあたりの再訪間隔は
+// 平均16.4時間になり、revalidateがそれより短い限り訪問のたびに必ず期限切れ＝毎回書き込みに
+// なる。900秒でも3600秒でも16.4時間より遥かに短いので効果が無かった。
+// そこで再訪間隔より十分長い1週間にして「時間による再生成」を止め、鮮度が要る現在クールは
+// /api/revalidate（.github/workflows/revalidate.yml が1日2回叩く）で明示的に指名する方式に
+// 変えた。表示速度は落ちない（stale-while-revalidateで古いHTMLを即座に返す設計は同じで、
+// むしろキャッシュに当たる時間が長くなる）。経緯は docs/operations.md の㉝。
+export const revalidate = 604800;
 
-// generateStaticParams が無いと revalidate を書いてもルートが prerender-manifest に
-// 載らず動的のまま（作品ページ・サービス別ページと同じ罠）。空配列＝ビルド時には
-// 1件も焼かず、アクセスされたものから順にISRキャッシュに載せる。
-// 声優ページは4,483件あるのでビルド時に全部焼くのは現実的でない。
+// 【2026-08-25変更】空配列 → 過去クールぶん（4,483件）を全件事前生成する。
+//
+// もとは「4,483件あるのでビルド時に全部焼くのは現実的でない」と判断していたが、
+// **その判断は利用量の予算から逆算されていなかった**。VercelのISR Writes上限を
+// 超過してサイトがPausedになった件（docs/operations.md の㉝）で分かったのは:
+//
+//   ・**事前生成したページはISR Writesを1件も消費しない**（デプロイ成果物に含まれる）
+//   ・Vercelはデプロイごとに独立したISRキャッシュを持つ＝デプロイのたびに全消去される。
+//     事前生成していないページは、デプロイのたびに「最初に見に来た人」の分だけ
+//     必ず書き込みが発生する。この床はrevalidateをいくら延ばしても消えない
+//   ・声優ページは長い裾（sitemapの約7,051ページ）の**64%**を占める最大の集団
+//
+// つまりここを焼くかどうかが、書き込みの下限をほぼ決めていた。
+//
+// 焼けるのは**過去クールだけ**。現在クールはAnnictへのライブ取得が要るので、
+// ビルドの成否が外部APIに依存してしまう（app/service/[key]/... と同じ判断）。
+// 過去クールは content/snapshots/ の静的JSONから返るのでネットワークに出ない。
+//
+// 件数は content/archive/people.json から「そのクールに2作品以上」の組を数えて出す。
+// これは sitemap（app/sitemap.ts）が使う集合と同じ作り方なので、載せているのに
+// 焼いていない・焼いたのに載せていない、というズレが起きない。索引は「配信情報が
+// 1件以上ある作品」だけで作られており、ページ側の判定（getSeasonData＝全作品）より
+// 常に少なく数えるので、**ここに出た組は必ずページが実在する**（404を焼かない）。
 //
 // このページは出演2作品未満で notFound() を返すので、**loading.tsx を置かないこと**。
 // 置くとストリーミングでヘッダが先に確定し、404が200（ソフト404）で返るようになる
 // （app/anime/[id]/page.tsx で実測済み）。
-export function generateStaticParams() {
-  return [];
+export function generateStaticParams(): Params[] {
+  const thisYear = new Date().getFullYear();
+  const counts = new Map<string, { name: string; year: number; season: string; count: number }>();
+
+  for (const [name, works] of Object.entries((personIndexJson as unknown as PersonIndex).people)) {
+    for (const w of works) {
+      const year = w[2] as number;
+      const season = w[3] as string;
+      // 現在の年はライブ取得なのでビルド時に焼かない（外部APIにビルドを依存させない）。
+      if (year >= thisYear) continue;
+      const key = `${year}/${season}/${name}`;
+      const cur = counts.get(key);
+      if (cur) cur.count++;
+      else counts.set(key, { name, year, season, count: 1 });
+    }
+  }
+
+  const params: Params[] = [];
+  for (const c of counts.values()) {
+    if (c.count < MIN_APPEARANCES) continue;
+    params.push({
+      name: encodeURIComponent(c.name),
+      year: String(c.year),
+      season: c.season,
+    });
+  }
+  return params;
 }
 
 function findWorks(items: AnimeItem[], name: string): AnimeItem[] {

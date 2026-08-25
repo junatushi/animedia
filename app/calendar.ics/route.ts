@@ -78,7 +78,9 @@ export async function GET(request: Request) {
       "Content-Type": "text/calendar; charset=utf-8",
       // 購読リンクとして開かれるので inline（ダウンロード保存を強制しない）。
       "Content-Disposition": 'inline; filename="animedia.ics"',
-      "Cache-Control": "public, s-maxage=900, stale-while-revalidate=86400",
+      // 【2026-08-25変更】900 → 3600。カレンダー購読アプリの取得間隔はおおむね
+      // 1時間以上なので、15分で切らす意味が無かった。
+      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
       // 公開データなので、他サイトのカレンダーツールからも読めるようにする。
       "Access-Control-Allow-Origin": "*",
     },
