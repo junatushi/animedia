@@ -16,7 +16,14 @@ import { currentYearSeason } from "@/lib/resolveSeasonParams";
 // キャッシュ: 放送予定は日単位でしか動かないので、シーズンデータと同じ 900 秒。
 // 購読クライアント（Googleカレンダー等）は数時間〜1日に1回しか取りに来ないため、
 // これで十分に新しい。
-export const revalidate = 900;
+// 【2026-08-25変更】900秒 → 3600秒（1時間）。Vercel Hobbyの ISR Writes 上限
+// （30日で200,000）を296,449件で超過しプロジェクトがPausedになったため。再検証の間隔を
+// 延ばすと、①再生成の回数がそのまま減る（ISR Writes・Fluid CPU・Provisioned Memoryの
+// 3指標すべてに効く）②キャッシュが効いている時間が長くなるので**表示はむしろ速くなる**。
+// ISRは期限切れ後も stale-while-revalidate で古いHTMLを即座に返しつつ裏で作り直すので、
+// 期限を延ばしても訪問者が待たされる場面は増えない。Annictの配信情報はコミュニティ更新で
+// 分単位に動くものではなく、1時間の鮮度で困る用途がこのサイトには無い。経緯はdocs/operations.md。
+export const revalidate = 3600;
 
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",

@@ -289,6 +289,15 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   （`.claude/agents/*.md` の `model:` — sonnet中心、品質重視のsns-marketerのみopus）で指定する。
 
 ## 主要ファイル
+- `vercel.json` … **表示に使わないデータのコミットで本番デプロイを起こさないための門番**
+  （2026-08-25導入）。`ignoreCommand`が「`content/analytics/`・`content/coverage/`・
+  `content/demand/`・`docs/`しか変更していないコミット」を判定し、その場合はビルドをスキップする
+  （終了コード0＝スキップ、非0＝ビルド）。Vercelはデプロイごとに独立したISRキャッシュを持つため、
+  デプロイ＝キャッシュ実質全消去＝全ページの作り直しになる。mainへ自動コミットするcronは1日5本
+  あるが、うち3本（`gsc-snapshot`・`site-analytics`・`track-season`）が書くのはサイトの表示に
+  一切使われないデータで、それが毎日3回キャッシュを捨てていた。**`content/works/`は除外していない**
+  （`autoSchedule.json`は画面に出るのでデプロイが必要）。**このファイルを消すとVercelが停止した
+  ときの状態に戻る**。経緯は`docs/operations.md`の㉝
 - `lib/siteUrl.ts` … サイト正準URLの一元定義（2026-07-18導入）。canonical・OGP・sitemap・JSON-LD・
   メール内リンクの全てがここを参照する。独自ドメイン移行時はこの1行＋`docs/domain-migration.md`の手順
 - `content/affiliate/programs.ts` + `lib/affiliate.ts` … アフィリエイトのリンク・報酬額データ
@@ -634,6 +643,29 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   効いておらず、制作会社ページは165件中45件（27%）が予算超過していた。
   レイアウトの`template`（`| アニメ視聴ガイド`＝幅9.5）が自動で足されることを勘定に
   入れること。予算を超えるときは**ブランド名を先に落とす**（`fitPageTitle`が自動でやる）。
+- **【基本ルール】ISRの再検証間隔と、それを叩く巡回の間隔はセットで決める（2026-08-25導入・重大度最高）**:
+  2026-08-24にVercel Hobbyの利用上限（ISR Writes・Fluid Active CPU・Fluid Provisioned Memory）を
+  超過し、**本番サイトが全ルートHTTP 402で丸一日以上停止した**。原因は「アクセスが多すぎた」ことでは
+  なく（Function Invocations・Edge Requests・ISR Readsは全て上限内だった）、**同じ内容のページを
+  何度も作り直していた**こと。外してはいけない点が4つある。
+  ①**巡回の間隔が再検証の間隔より長いと、その巡回は「温め」ではなく「強制的な書き直し」になる**。
+  `warm-cache.yml`が毎時なのにページの`revalidate`が900秒だったため、巡回は毎回キャッシュ期限切れに
+  当たり67ページを確実に再生成していた（30日で約46,000 ISR Writes＝全体の16%）。
+  ②**Vercelはデプロイごとに独立したISRキャッシュを持つ**＝mainへのpushは実質キャッシュ全消去。
+  表示に使わないデータ（`content/analytics/`・`content/coverage/`）のコミットでデプロイを
+  起こさないよう`vercel.json`の`ignoreCommand`で門番する。**この設定を消さないこと。**
+  ③**sitemapにページを増やすときは1ページあたりの再検証頻度も見直す**（面の数×再生成頻度で効く）。
+  8月上旬に約7,051ページを開放したのに`revalidate`が据え置きだったのが利用量急増の主因。
+  ④**I/O待ちはActive CPUには出ないがProvisioned Memoryには出る**（メモリ課金は待機中も止まらない）。
+  全リクエストで走る処理（`middleware.ts`）に外部への往復を置かない。認証Cookieの無いリクエストは
+  `hasAuthCookie`で素通しする。経緯は`docs/operations.md`の㉝。
+- **【基本ルール】revalidateを変えたら必ずビルドして実効値を確かめる（2026-08-25導入）**:
+  App Routerの実効revalidateは「ページの`export const revalidate`」と「描画中に走る
+  fetch／`unstable_cache`のTTL」の**低いほう**になる。ページ側だけ延ばしても、`lib/annict.ts`の
+  `next.revalidate`や`lib/getSeasonData.ts`の`CURRENT_YEAR_REVALIDATE`が短いままだと**まったく効かない**。
+  実際、2026-08-25にページ側を3600へ延ばしたのに実効値は900のままだった。
+  確認方法は`npm run build`のあと`.next/prerender-manifest.json`の`initialRevalidateSeconds`を読む
+  （画面を見ても分からない）。
 - 配信網羅率は Annict のコミュニティ更新依存で100%ではない。新作は配信欄が空になりうる。
   「配信情報なし」は仕様であり、勝手に推測データで埋めない。
 - `content/works/` のあらすじ・見どころ・出版社も同様に、公式サイト等の一次情報で確認できた

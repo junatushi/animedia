@@ -36,7 +36,14 @@ type Params = { name: string; year: string; season: string };
 //
 // 値は getSeasonData の今期キャッシュ（900s）と揃える。作品ページで測った効果は
 // 初回0.81秒 → 2回目以降0.010秒（app/anime/[id]/page.tsx のコメント参照）。
-export const revalidate = 900;
+// 【2026-08-25変更】900秒 → 3600秒（1時間）。Vercel Hobbyの ISR Writes 上限
+// （30日で200,000）を296,449件で超過しプロジェクトがPausedになったため。再検証の間隔を
+// 延ばすと、①再生成の回数がそのまま減る（ISR Writes・Fluid CPU・Provisioned Memoryの
+// 3指標すべてに効く）②キャッシュが効いている時間が長くなるので**表示はむしろ速くなる**。
+// ISRは期限切れ後も stale-while-revalidate で古いHTMLを即座に返しつつ裏で作り直すので、
+// 期限を延ばしても訪問者が待たされる場面は増えない。Annictの配信情報はコミュニティ更新で
+// 分単位に動くものではなく、1時間の鮮度で困る用途がこのサイトには無い。経緯はdocs/operations.md。
+export const revalidate = 3600;
 
 // generateStaticParams が無いと revalidate を書いてもルートが prerender-manifest に
 // 載らず動的のまま（作品ページ・サービス別ページと同じ罠）。空配列＝ビルド時には

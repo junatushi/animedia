@@ -17,7 +17,14 @@ import { getWorkData } from "@/lib/getWorkData";
 import { siteUrl } from "@/lib/siteUrl";
 import { airingStatus, jstToday } from "@/lib/workAvailability";
 
-export const revalidate = 900;
+// 【2026-08-25変更】900秒 → 3600秒（1時間）。Vercel Hobbyの ISR Writes 上限
+// （30日で200,000）を296,449件で超過しプロジェクトがPausedになったため。再検証の間隔を
+// 延ばすと、①再生成の回数がそのまま減る（ISR Writes・Fluid CPU・Provisioned Memoryの
+// 3指標すべてに効く）②キャッシュが効いている時間が長くなるので**表示はむしろ速くなる**。
+// ISRは期限切れ後も stale-while-revalidate で古いHTMLを即座に返しつつ裏で作り直すので、
+// 期限を延ばしても訪問者が待たされる場面は増えない。Annictの配信情報はコミュニティ更新で
+// 分単位に動くものではなく、1時間の鮮度で困る用途がこのサイトには無い。経緯はdocs/operations.md。
+export const revalidate = 3600;
 
 // 第三者のサイト・スクリプトから直接叩けるようにする（公開データとしての宣言）。
 // 認証情報は載せないため Allow-Origin は * でよい。
