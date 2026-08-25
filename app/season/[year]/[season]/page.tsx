@@ -6,6 +6,7 @@ import SeasonExplorer from "@/components/SeasonExplorer";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import type { SeasonResponse } from "@/lib/types";
 
+import ARCHIVE_INDEX from "@/content/archive/index.json";
 import { siteUrl } from "@/lib/siteUrl";
 import { seasonPageTitle, seasonPageDescription } from "@/lib/pageMeta";
 import { titleText } from "@/lib/pageTitle";
@@ -50,9 +51,26 @@ export const revalidate = 604800;
 // 年（過去年など）も dynamicParams（既定true）により初回オンデマンド生成→以後キャッシュ
 // される。build時に今年分のgetSeasonDataを呼ぶが、失敗してもpage側でcatchしdata未指定で
 // 描画されるためbuildは落ちない。年はbuild（=デプロイ）時点の西暦で決まる。
+// 【2026-08-25変更】今年の4クールに加え、**過去クール64件も全件事前生成する**。
+// 事前生成したページはISR Writesを1件も消費しない（デプロイ成果物に含まれる）のに対し、
+// 事前生成していないページはデプロイのたびにキャッシュが消え、最初に見に来た人の分だけ
+// 必ず書き込みが発生する。過去クールは content/snapshots/ の静的JSONから返る＝
+// ネットワークに出ないので、焼いてもビルドが外部APIに依存しない。
+// 経緯は docs/operations.md の㉝。
 export function generateStaticParams() {
-  const year = String(new Date().getFullYear());
-  return ["winter", "spring", "summer", "autumn"].map((season) => ({ year, season }));
+  const thisYear = new Date().getFullYear();
+  const params = ["winter", "spring", "summer", "autumn"].map((season) => ({
+    year: String(thisYear),
+    season,
+  }));
+
+  // 過去クールは索引（content/archive/index.json）が持つ組だけを焼く。sitemapが載せる
+  // 集合と同じ作り方なので、載せているのに焼いていないというズレが起きない。
+  for (const s of ARCHIVE_INDEX.seasons) {
+    if (s.year >= thisYear) continue;
+    params.push({ year: String(s.year), season: s.season });
+  }
+  return params;
 }
 
 type Params = { year: string; season: string };
