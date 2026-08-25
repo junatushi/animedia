@@ -20,7 +20,17 @@ import { buildEmbedDocument } from "@/lib/embed";
 // ISRは期限切れ後も stale-while-revalidate で古いHTMLを即座に返しつつ裏で作り直すので、
 // 期限を延ばしても訪問者が待たされる場面は増えない。Annictの配信情報はコミュニティ更新で
 // 分単位に動くものではなく、1時間の鮮度で困る用途がこのサイトには無い。経緯はdocs/operations.md。
-export const revalidate = 3600;
+// 【2026-08-25変更（2回目）】3600 → 604800（1週間）。
+// 同日に900→3600へ延ばしたが、**それでは書き込みは1件も減らない**ことが実測で判明した。
+// 超過時の30日で Edge Requests 10,300件/日 に対し ISR Writes 9,882件/日＝96%。
+// sitemapの約7,051ページへ1日10,300リクエストが分散すると1ページあたりの再訪間隔は
+// 平均16.4時間になり、revalidateがそれより短い限り訪問のたびに必ず期限切れ＝毎回書き込みに
+// なる。900秒でも3600秒でも16.4時間より遥かに短いので効果が無かった。
+// そこで再訪間隔より十分長い1週間にして「時間による再生成」を止め、鮮度が要る現在クールは
+// /api/revalidate（.github/workflows/revalidate.yml が1日2回叩く）で明示的に指名する方式に
+// 変えた。表示速度は落ちない（stale-while-revalidateで古いHTMLを即座に返す設計は同じで、
+// むしろキャッシュに当たる時間が長くなる）。経緯は docs/operations.md の㉝。
+export const revalidate = 604800;
 
 function jstToday(): string {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -30,7 +40,14 @@ function jstToday(): string {
 // CDNエッジにも載せて貼り先の表示速度に影響しないようにする。
 const HTML_HEADERS = {
   "Content-Type": "text/html; charset=utf-8",
-  "Cache-Control": "public, s-maxage=900, stale-while-revalidate=86400",
+  // 【2026-08-25変更】900 → 86400（1日）。
+  // このルートは Route Handler なので、上の `export const revalidate` ではなく
+  // **この Cache-Control ヘッダが実効値**（ビルド出力でも ƒ ＝動的のまま）。
+  // 900秒だとエッジのキャッシュが15分で切れ、そのたびに関数が起動していた。
+  // 埋め込みは他人のブログに貼られて長く生き続ける＝典型的な長い裾なので、
+  // 再訪間隔（実測で平均16.4時間）より長い1日にする。1週間にしないのは、現在クールの
+  // 作品を貼られた場合に配信サービスの追加が反映されるまでが長くなりすぎるため。
+  "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800",
   // 既定でも埋め込みは可能だが、意図（どのサイトからでも貼ってよい）を明示する。
   "Content-Security-Policy": "frame-ancestors *",
   "X-Robots-Tag": "noindex, follow",

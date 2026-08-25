@@ -1,0 +1,42 @@
+name: 現在クールのオンデマンド再検証
+
+# 長い裾のページ（作品・声優・サービス別・過去クール）の revalidate を1週間へ延ばした
+# 代わりに、鮮度が要る**現在クールのぶんだけ**をここで明示的に古くする。
+#
+# 【なぜ時間ベースをやめたか】
+# 2026-08-24にVercel Hobbyの ISR Writes 上限を超過しサイトがPausedになった。実測では
+# Edge Requests 10,300件/日 に対し ISR Writes 9,882件/日（96%）で、リクエストのほぼ全部が
+# 再生成を起こしていた。約7,051ページに1日10,300リクエストが分散すると1ページあたりの
+# 再訪間隔は平均16.4時間になり、revalidate が900秒でも3600秒でもそれより遥かに短いため、
+# 訪問のたびに必ず期限切れ＝毎回書き込みになっていた。
+# 詳細は app/api/revalidate/route.ts の冒頭と docs/operations.md の㉝。
+#
+# 秘密は /api/notify/run と同じ NOTIFY_CRON_SECRET を使い回す（新設しない）。
+# 未設定なら本番側が401を返すだけで、サイトの表示には影響しない。
+#
+# GitHub Actions の schedule は数時間遅れて発火するが、この用途では日付をまたいでも
+# 実害が無い（「1日に何回か現在クールを古くする」だけで、時刻に意味は無い）。
+# そのため anchorToSlotDate のような基準日の固定は不要。
+on:
+  schedule:
+    # 1日2回。1回でも鮮度としては足りるが、GitHub側の間引き（実測で約6日に1日は
+    # 枠を丸ごと逃す）に備えて2回にしてある。
+    - cron: "17 1,13 * * *"
+  workflow_dispatch:
+
+jobs:
+  revalidate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 現在クールのページを再検証対象にする
+        run: |
+          RESPONSE=$(curl -s -X POST \
+            -H "x-cron-secret: ${{ secrets.NOTIFY_CRON_SECRET }}" \
+            -w "\nHTTP_STATUS=%{http_code}" \
+            "https://animedia-khaki.vercel.app/api/revalidate")
+          echo "$RESPONSE"
+          STATUS=$(echo "$RESPONSE" | tr -d '\r' | sed -n 's/^HTTP_STATUS=//p')
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::再検証に失敗しました（status=${STATUS}）"
+            exit 1
+          fi

@@ -90,6 +90,14 @@ export default async function OpengraphImage() {
     {
       ...size,
       fonts: [{ name: "Noto Sans JP", data: fontData, style: "normal", weight: 900 }],
+      // 【2026-08-25追加】CDN（Vercelのエッジ）に載せる。理由は
+      // app/anime/[id]/opengraph-image.tsx と同じ（毎リクエスト関数が起動し、
+      // Google Fonts へ2回の外向き通信をしていた）。見出しに使う「今期」は
+      // サーバー日付から算出しているので、1週間ごとに作り直せば十分。
+      // 経緯は docs/operations.md の㉝。
+      headers: {
+        "cache-control": "public, max-age=0, s-maxage=604800, stale-while-revalidate=86400",
+      },
     }
   );
 }

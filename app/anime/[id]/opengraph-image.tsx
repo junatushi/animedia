@@ -101,6 +101,21 @@ export default async function OpengraphImage({ params }: { params: { id: string 
     {
       ...size,
       fonts: [{ name: "Noto Sans JP", data: fontData, style: "normal", weight: 900 }],
+      // 【2026-08-25追加】CDN（Vercelのエッジ）に載せる。
+      // このルートは force-dynamic ＝ **1リクエストごとに関数が起動**し、その中で
+      // Annict（getWorkDataLive）とGoogle Fonts（CSS＋フォント本体）へ合計3回の
+      // 外向き通信をしていた。OGP画像はSNS・検索エンジンのクローラーが繰り返し
+      // 取りに来る一方、中身が変わるのは配信サービスが増えたときだけなので、
+      // 毎回作り直す理由が無い。
+      // Vercelの Fluid Provisioned Memory は「割当メモリ×稼働時間」で**I/O待ち中も
+      // 止まらない**（Active CPU は止まる）ため、この「待つだけの3往復」が
+      // メモリ課金を直接食っていた（2026-08-25の停止時: 489.1 GB-Hrs ÷ 2GB＝
+      // 約245インスタンス時間に対し実CPUは12時間＝稼働の約95%がI/O待ち）。
+      // s-maxage でエッジに載せれば2回目以降は関数が起動しない。ISRではないので
+      // ISR Writes も増えない。経緯は docs/operations.md の㉝。
+      headers: {
+        "cache-control": "public, max-age=0, s-maxage=604800, stale-while-revalidate=86400",
+      },
     }
   );
 }

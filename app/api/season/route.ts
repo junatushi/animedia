@@ -33,7 +33,10 @@ export async function GET(req: Request) {
     // フェッチが再構築をブロックで待つことがなくなる（2026-07-21導入）。
     return NextResponse.json(body, {
       headers: {
-        "Cache-Control": "public, s-maxage=600, stale-while-revalidate=86400",
+        // 【2026-08-25変更】600 → 3600。lib/getSeasonData.ts の CURRENT_YEAR_REVALIDATE
+        // （3600）と揃える。データ層が1時間キャッシュしているのにエッジだけ10分で切らすと、
+        // 切れた50分ぶんは関数が起動して同じキャッシュ済みデータを詰め直すだけになる。
+        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
         // 公開データとして第三者のサイト・スクリプトからも直接叩けるようにする
         // （2026-08-06。認証情報を載せないため * でよい。docs/operations.md ⑯）。
         "Access-Control-Allow-Origin": "*",

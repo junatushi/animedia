@@ -4952,7 +4952,122 @@ let ciNg = 0;
   );
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// ISRの再生成頻度（2026-08-25導入・重大度最高）
+//
+// 2026-08-24にVercel Hobbyの ISR Writes 上限を超過し、本番が全ルートHTTP 402で停止した。
+// 原因は「時間ベースのISR（revalidate=N秒）が、アクセスが薄く分散した長い裾に対して
+// 機能していなかった」こと。実測（30日）では Edge Requests 10,300件/日に対し
+// ISR Writes 9,882件/日＝96%で、リクエストのほぼ全部が再生成を起こしていた。
+// sitemapの約7,051ページに1日10,300リクエストが分散すると1ページあたりの再訪間隔は
+// 平均16.4時間になり、revalidateがそれより短い限り訪問のたびに必ず期限切れになる。
+//
+// この検査が守るのは「長い裾のページの revalidate を再訪間隔より短い値に戻さないこと」。
+// 900や3600へ戻すと**書き込みは1件も減らない**（同日に900→3600をやって効果ゼロだった）。
+// 数字を戻す変更は画面を見ても気づけないので、機械で見張る。経緯は docs/operations.md の㉝。
+// ────────────────────────────────────────────────────────────────────────────
+let isrNg = 0;
+{
+  console.log("\n【ISRの再生成頻度】");
+
+  // 1ページあたりの再訪間隔（16.4時間）より確実に長い値を下限にする。
+  const MIN_LONG_TAIL_REVALIDATE = 86400;
+
+  // 長い裾＝sitemapに大量に載っていて、1ページあたりのアクセスが薄いページ種別。
+  const LONG_TAIL_ROUTES = [
+    "app/anime/[id]/page.tsx",
+    "app/person/[name]/[year]/[season]/page.tsx",
+    "app/service/[key]/[year]/[season]/page.tsx",
+    "app/season/[year]/[season]/page.tsx",
+    "app/rankings/[year]/[season]/page.tsx",
+    "app/exclusive/[year]/[season]/page.tsx",
+  ];
+
+  for (const rel of LONG_TAIL_ROUTES) {
+    const url = new URL(`../${rel}`, import.meta.url);
+    const text = existsSync(url) ? readFileSync(url, "utf8") : "";
+    const m = text.match(/export const revalidate = (\d+);/);
+    const value = m ? Number(m[1]) : NaN;
+    const ok = Number.isFinite(value) && value >= MIN_LONG_TAIL_REVALIDATE;
+    if (!ok) isrNg++;
+    console.log(
+      `${ok ? "✓" : "✗"}  ${rel.padEnd(48)} → ` +
+        (ok
+          ? `revalidate=${value}`
+          : `revalidate=${m ? m[1] : "見つからない"}。${MIN_LONG_TAIL_REVALIDATE}秒（再訪間隔16.4時間）未満だと訪問のたびに再生成が起きる`)
+    );
+  }
+
+  // データ層のTTLがページ側より短いと、ページ側を延ばしても実効値は低いほうになる
+  // （App Routerの仕様。2026-08-25に実際にこれで効果ゼロだった）。
+  const annict = readFileSync(new URL("../lib/annict.ts", import.meta.url), "utf8");
+  const annictMatch = annict.match(/next: \{ revalidate: (\d+), tags: \[([^\]]*)\] \}/);
+  const annictValue = annictMatch ? Number(annictMatch[1]) : NaN;
+  const annictTagged = Boolean(annictMatch && annictMatch[2].includes('"annict"'));
+  const annictOk = Number.isFinite(annictValue) && annictValue >= MIN_LONG_TAIL_REVALIDATE && annictTagged;
+  if (!annictOk) isrNg++;
+  console.log(
+    `${annictOk ? "✓" : "✗"}  ${"lib/annict.ts のfetchが長いTTL＋タグを持つ".padEnd(48)} → ` +
+      (annictOk
+        ? `revalidate=${annictValue} / tags:["annict"]`
+        : "ページ側のrevalidateを延ばしても、ここが短いと実効値はこちらに引きずられる（低いほうが勝つ）")
+  );
+
+  // 鮮度はタグで明示的に取りに行く方式なので、その窓口とcronが両方要る。
+  const revalidateRouteUrl = new URL("../app/api/revalidate/route.ts", import.meta.url);
+  const revalidateRoute = existsSync(revalidateRouteUrl) ? readFileSync(revalidateRouteUrl, "utf8") : "";
+  const hasTag = revalidateRoute.includes('revalidateTag("annict")');
+  const hasPath = revalidateRoute.includes("revalidatePath(");
+  const hasAuth = revalidateRoute.includes("x-cron-secret");
+  const routeOk = hasTag && hasPath && hasAuth;
+  if (!routeOk) isrNg++;
+  console.log(
+    `${routeOk ? "✓" : "✗"}  ${"/api/revalidate がタグとパスの両方を古くする".padEnd(48)} → ` +
+      (routeOk
+        ? "revalidateTag + revalidatePath + 認証あり"
+        : `不足: ${[!hasTag && "revalidateTag(\"annict\")", !hasPath && "revalidatePath", !hasAuth && "x-cron-secret"].filter(Boolean).join(" / ")}。ページだけ作り直しても中身が古いままになる`)
+  );
+
+  const wfUrl = new URL("../.github/workflows/revalidate.yml", import.meta.url);
+  const wf = existsSync(wfUrl) ? readFileSync(wfUrl, "utf8") : "";
+  const wfOk = wf.includes("/api/revalidate") && wf.includes("NOTIFY_CRON_SECRET");
+  if (!wfOk) isrNg++;
+  console.log(
+    `${wfOk ? "✓" : "✗"}  ${"revalidate.yml が /api/revalidate を叩く".padEnd(48)} → ` +
+      (wfOk ? "cronあり" : "これが無いと現在クールの鮮度が1週間まで緩む")
+  );
+
+  // OGP画像は force-dynamic＝毎リクエスト関数が起動する。明示のCache-Controlが唯一の歯止め。
+  for (const rel of ["app/opengraph-image.tsx", "app/anime/[id]/opengraph-image.tsx"]) {
+    const text = readFileSync(new URL(`../${rel}`, import.meta.url), "utf8");
+    const m = text.match(/"cache-control":\s*"[^"]*s-maxage=(\d+)/i);
+    const value = m ? Number(m[1]) : NaN;
+    const ok = Number.isFinite(value) && value >= MIN_LONG_TAIL_REVALIDATE;
+    if (!ok) isrNg++;
+    console.log(
+      `${ok ? "✓" : "✗"}  ${rel.padEnd(48)} → ` +
+        (ok
+          ? `s-maxage=${value}`
+          : "Cache-Controlが無い/短い。この画像ルートはforce-dynamicなので、ヘッダが無いと毎リクエストAnnictとGoogle Fontsへ計3往復する")
+    );
+  }
+
+  // デプロイ＝ISRキャッシュ実質全消去。表示に使わないデータのコミットで起こさない門番。
+  const vercelUrl = new URL("../vercel.json", import.meta.url);
+  const vercelJson = existsSync(vercelUrl) ? readFileSync(vercelUrl, "utf8") : "";
+  const gateOk = vercelJson.includes("ignoreCommand") && vercelJson.includes("content/analytics");
+  if (!gateOk) isrNg++;
+  console.log(
+    `${gateOk ? "✓" : "✗"}  ${"vercel.json のデプロイ門番がある".padEnd(48)} → ` +
+      (gateOk ? "ignoreCommand あり" : "これが無いと表示に使わないデータのコミットでもキャッシュが全消去される")
+  );
+
+  console.log(`結果（ISRの再生成頻度）: ${isrNg === 0 ? "全てOK" : `${isrNg} 件NG`}`);
+}
+
+
 if (
+  isrNg > 0 ||
   autoNg > 0 ||
   datasetNg > 0 ||
   llmsNg > 0 ||
