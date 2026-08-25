@@ -267,7 +267,12 @@ async function gql<T>(
       body: JSON.stringify(body),
       // “できるだけリアルタイム” と Annict への負荷のバランス。
       // 常に最新が欲しければ 0 に、負荷を下げたければ大きくする。
-      next: { revalidate: 600 },
+      // 【2026-08-25変更】600 → 3600。App Routerではページの revalidate とこの fetch の
+      // TTLの低いほうが実効値になるため、ここが600のままだとページ側を延ばしても
+      // 実効600のままになる（lib/getSeasonData.ts の同日の変更と対）。VercelのISR Writes
+      // 上限超過でサイトがPausedになったのを受け、再検証の回数自体を減らす。
+      // 副次的にAnnictへのGraphQL発行回数も減る。
+      next: { revalidate: 3600 },
     });
 
     if (res.status === 401) {

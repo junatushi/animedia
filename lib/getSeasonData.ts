@@ -63,7 +63,16 @@ async function fetchAndBuild(year: string, season: string): Promise<SeasonRespon
 // 600秒だと「Cronが遅れた窓」で実訪問者がキャッシュ切れの再構築（2026-07-21実測で
 // 5〜6秒。シーズン進行でprogramsが積み上がり悪化した）を踏んでいた。900秒にして
 // Cron遅延を吸収し、再構築は原則Cron側が負担するようにする（鮮度は最大15分に緩む）。
-const CURRENT_YEAR_REVALIDATE = 900;
+// 【2026-08-25変更】900 → 3600（1時間）。理由は2つある。
+// ①Next.jsのApp Routerでは、ページの `export const revalidate` と、その描画中に走る
+//   fetch/unstable_cache のTTLの**低いほう**が実効値になる。ページ側を3600へ延ばしても
+//   ここが900のままだと実効900のままで、延ばした意味が無い（ビルド成果物の
+//   prerender-manifest で実測して判明。/exclusive/2026/autumn が3600ではなく900だった）。
+// ②Vercel Hobbyの ISR Writes 上限（30日で200,000）を296,449件で超過しサイトがPausedに
+//   なったため、再検証の回数そのものを減らす必要がある。
+// 温めCronも6時間おきへ落としたので、上のコメントにある「Cron遅延を吸収する」目的は
+// TTLを延ばす方向とそのまま整合する（鮮度は最大1時間に緩む）。
+const CURRENT_YEAR_REVALIDATE = 3600;
 const PAST_YEAR_REVALIDATE = 60 * 60 * 24;
 
 const getCachedCurrentYearSeasonData = unstable_cache(fetchAndBuild, ["season-data-current"], {

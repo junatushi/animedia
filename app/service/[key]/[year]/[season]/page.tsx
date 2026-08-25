@@ -23,7 +23,14 @@ const SEASON_LABEL: Record<string, string> = {
 // 同じ理由・同じ値）。このページだけ revalidate も generateStaticParams も無く、
 // 動的セグメント[key]/[year]/[season]が毎リクエスト動的レンダリングのまま
 // （＝CDNエッジにキャッシュされない）になっていた。
-export const revalidate = 600;
+// 【2026-08-25変更】600秒 → 3600秒（1時間）。Vercel Hobbyの ISR Writes 上限
+// （30日で200,000）を296,449件で超過しプロジェクトがPausedになったため。再検証の間隔を
+// 延ばすと、①再生成の回数がそのまま減る（ISR Writes・Fluid CPU・Provisioned Memoryの
+// 3指標すべてに効く）②キャッシュが効いている時間が長くなるので**表示はむしろ速くなる**。
+// ISRは期限切れ後も stale-while-revalidate で古いHTMLを即座に返しつつ裏で作り直すので、
+// 期限を延ばしても訪問者が待たされる場面は増えない。Annictの配信情報はコミュニティ更新で
+// 分単位に動くものではなく、1時間の鮮度で困る用途がこのサイトには無い。経緯はdocs/operations.md。
+export const revalidate = 3600;
 
 // generateStaticParams は**空配列**を返す（app/anime/[id]/page.tsx と同じ形）。
 // これが無いと revalidate を書いてもルートが prerender-manifest に載らず動的のままだが、

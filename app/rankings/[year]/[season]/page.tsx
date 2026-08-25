@@ -20,7 +20,14 @@ const WEEKDAY_LABEL = ["日", "月", "火", "水", "木", "金", "土"];
 // ISR（2026-07-24導入。app/season/[year]/[season]/page.tsx と同じ理由・同じ値）。
 // これが無いと動的セグメント[year]/[season]は毎リクエスト動的レンダリングになり
 // CDNエッジにキャッシュされない。10分はgetSeasonData側のキャッシュ鮮度と揃えた。
-export const revalidate = 600;
+// 【2026-08-25変更】600秒 → 3600秒（1時間）。Vercel Hobbyの ISR Writes 上限
+// （30日で200,000）を296,449件で超過しプロジェクトがPausedになったため。再検証の間隔を
+// 延ばすと、①再生成の回数がそのまま減る（ISR Writes・Fluid CPU・Provisioned Memoryの
+// 3指標すべてに効く）②キャッシュが効いている時間が長くなるので**表示はむしろ速くなる**。
+// ISRは期限切れ後も stale-while-revalidate で古いHTMLを即座に返しつつ裏で作り直すので、
+// 期限を延ばしても訪問者が待たされる場面は増えない。Annictの配信情報はコミュニティ更新で
+// 分単位に動くものではなく、1時間の鮮度で困る用途がこのサイトには無い。経緯はdocs/operations.md。
+export const revalidate = 3600;
 
 // season配下と同様、今年の4シーズンを静的生成対象にしてISRを有効化する。
 // それ以外の年はdynamicParams（既定true）で初回オンデマンド生成→以後キャッシュされる。
