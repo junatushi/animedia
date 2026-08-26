@@ -1,0 +1,80 @@
+name: Vercel利用量の答え合わせ（Issue自動起票）
+
+# 【背景】2026-08-24にVercel Hobbyの利用上限を超過してサイトが停止し、2026-08-25〜26に
+# 対策を入れた（docs/operations.md の㉝）。だが**効果は推定でしか書けていない**。
+# Vercelのダッシュボードはログインが要るのでセッションからは読めず、ルート別の内訳も
+# 出ないため、「本当に減ったか」は人が画面を見るしかない。
+# さらに2026-08-25に救済措置で**30日だけ通常の3倍枠**をもらっているので、通常枠へ戻る
+# 前に確かめて、足りなければ手を打つ必要がある。見に行くきっかけが運用に無いと、
+# 気づいたときにはまた止まっている。
+#
+# 【なぜ「毎日1回」起動で判定をscript側に持たせるか】season-prep.yml と同じ理由。
+# GitHub Actionsのscheduleは予定通りに発火しない（このリポジトリの実測で最大6.4時間の
+# 遅れ、間引きで最大13時間の空き）。「判定日にピンポイントで1回起動」にすると、その1回が
+# 落ちれば丸ごと逃す。cronは「毎日1回」を表すだけにし、判定日は
+# scripts/lib/build-usage-check.js の CHECKPOINTS **だけ**が持つ
+# （YAMLに日付を書かない。node scripts/check.ts が逆戻りを検査する）。
+#
+# 【重複起票の防止】窓は7日あり、その間は毎日「窓の中」を返す。season-prep.yml と同じく
+# タイトル（判定日を含む＝窓の間は同じ文字列）で `gh issue list --state all` を検索し、
+# 見つかれば起票しない。state=all なのは、対応が終わってCloseされた後の日にも
+# 同じ窓の判定が続くため。
+on:
+  schedule:
+    - cron: "43 22 * * *" # 毎日1回起動するというだけの意味（JST 7:43ごろ）。判定日はここに書かない
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  usage-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 判定日の窓の中かを判定し、中ならIssue本文を生成
+        id: gen
+        run: |
+          node scripts/usage-check.js > usage-check-output.txt
+          if [ -s usage-check-output.txt ]; then
+            echo "due=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "due=false" >> "$GITHUB_OUTPUT"
+            echo "いまは答え合わせの窓の外なので何もしません"
+          fi
+
+      - name: タイトルと本文を分離
+        id: split
+        if: steps.gen.outputs.due == 'true'
+        run: |
+          title=$(head -n1 usage-check-output.txt | sed 's/^TITLE: //')
+          tail -n +3 usage-check-output.txt > usage-check-body.md
+          echo "title=$title" >> "$GITHUB_OUTPUT"
+
+      - name: 同じ判定日のIssueが既にあるか確認（重複起票の防止。open/closed問わず検索）
+        id: dup
+        if: steps.gen.outputs.due == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.split.outputs.title }}
+        run: |
+          existing=$(gh issue list --state all --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "既にIssue #$existing があるため起票しません: $TITLE"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 答え合わせのチェックリストをIssueとして起票
+        if: steps.gen.outputs.due == 'true' && steps.dup.outputs.exists == 'false'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.split.outputs.title }}
+        run: |
+          gh issue create --title "$TITLE" --body-file usage-check-body.md
