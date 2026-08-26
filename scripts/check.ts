@@ -5062,6 +5062,49 @@ let isrNg = 0;
       (gateOk ? "ignoreCommand あり" : "これが無いと表示に使わないデータのコミットでもキャッシュが全消去される")
   );
 
+  // 対策の効果は推定でしか書けていない（Vercelのダッシュボードはログインが要るので
+  // セッションから読めず、ルート別の内訳も出ない）。人が画面を見に行くきっかけが
+  // 運用に無いと、気づいたときにはまた止まっている。その「きっかけ」を見張る。
+  {
+    const wfUrl2 = new URL("../.github/workflows/usage-check.yml", import.meta.url);
+    const wf2 = existsSync(wfUrl2) ? readFileSync(wfUrl2, "utf8") : "";
+    const hasJob = wf2.includes("scripts/usage-check.js") && wf2.includes("gh issue create");
+    // 判定日はスクリプト側だけが持つ（YAMLに書くと片方だけ直したときにズレて気づけない。
+    // season-prep.yml / daily-digest.yml と同じ方針）。
+    const noDateInYaml = !/\b20\d{2}-\d{2}-\d{2}\b/.test(
+      wf2.split("on:")[1] ?? ""
+    );
+    const ok = hasJob && noDateInYaml;
+    if (!ok) isrNg++;
+    console.log(
+      `${ok ? "✓" : "✗"}  ${"利用量の答え合わせを促すcronがある".padEnd(48)} → ` +
+        (ok
+          ? "usage-check.yml（判定日はscripts/lib/build-usage-check.jsだけが持つ）"
+          : !hasJob
+            ? "これが無いと、対策が効いたかを誰も確かめないまま3倍枠が切れる"
+            : "判定日がYAMLに直書きされている。定義はscripts/lib/build-usage-check.jsの1箇所だけにする")
+    );
+
+    // 判定日に実際に発火するか（窓の中で本文が出て、外では何も出ないこと）。
+    // 静かに発火しなくなる壊れ方は、その日が来るまで気づけない。
+    const { buildUsageCheck, CHECKPOINTS } = await import("../scripts/lib/build-usage-check.js");
+    let fireNg = 0;
+    for (const c of CHECKPOINTS as { date: string }[]) {
+      const onDay = buildUsageCheck(c.date);
+      if (!onDay || !onDay.title.includes(c.date)) fireNg++;
+      // 判定日の前日は窓の外
+      const prev = new Date(Date.parse(`${c.date}T00:00:00Z`) - 86400000)
+        .toISOString()
+        .slice(0, 10);
+      if (buildUsageCheck(prev) !== null) fireNg++;
+    }
+    if (fireNg > 0) isrNg++;
+    console.log(
+      `${fireNg === 0 ? "✓" : "✗"}  ${"判定日に発火し、前日には発火しない".padEnd(48)} → ` +
+        (fireNg === 0 ? `判定日 ${CHECKPOINTS.length} 件すべてOK` : `${fireNg} 件がおかしい`)
+    );
+  }
+
   console.log(`結果（ISRの再生成頻度）: ${isrNg === 0 ? "全てOK" : `${isrNg} 件NG`}`);
 }
 
