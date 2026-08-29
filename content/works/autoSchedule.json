@@ -674,6 +674,17 @@
       "matchedBy": "title",
       "title": "機動警察パトレイバー EZY File 3"
     },
+    "17071": {
+      "date": "2026-10-05",
+      "precision": "day",
+      "weekday": 1,
+      "time": "01:00",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/206774",
+      "fetchedDate": "2026-08-29",
+      "matchedBy": "mal",
+      "title": "マウスカーソルで現実を操作できるようになったので、女の子をいっぱいクリックしまーす"
+    },
     "17077": {
       "date": "2026-10-06",
       "precision": "day",
