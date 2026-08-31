@@ -1137,6 +1137,94 @@ let peopleNg = 0;
 console.log(`結果（声優の出演作索引）: ${peopleNg === 0 ? 4 : 0} 件OK / ${peopleNg} 件NG`);
 
 // ─────────────────────────────────────────────
+// 索引JSONを生成スクリプトから導出して突き合わせる（2026-08-31追加）
+//
+// 【なぜ要るか】
+// content/archive/ には機械生成の索引が3つある（index.json / people.json /
+// studios.json）。**スナップショットを再生成したのに索引を作り直し忘れる**と
+// 画面は何も壊れないまま中身だけが古くなるので、index.json と people.json には
+// 上で一致検査を入れてあった。ところが **studios.json には無かった**。
+// 理由は単純で、検査を1ファイルずつ手で足していたから。索引が増えたときに
+// 検査を足し忘れると、そのファイルだけ永久に見張られない。
+//
+// そこで **content/archive/ を走査し、全ての .json に生成元が登録されていることを
+// 先に検査してから**、1つずつ導出して突き合わせる。新しい索引を足したのに
+// ここへ登録しなければ**その時点で落ちる**（静かに見張り漏れが増えない）。
+// これは app/ の走査（エラーページの節）と同じ考え方を、データ側へ当てたもの。
+// ─────────────────────────────────────────────
+console.log("\n── 索引JSONを生成スクリプトから導出する ──");
+let deriveNg = 0;
+{
+  const { readSnapshots, buildArchiveIndex } = await import("./build-archive-index.ts");
+  const { buildPersonIndex } = await import("./build-person-index.ts");
+  const { buildStudioIndex } = await import("./build-studio-index.ts");
+  const snapshots = readSnapshots();
+
+  // ファイル名 → { 生成スクリプト, 導出関数, 比較対象の取り出し方 }。
+  // ここに無いファイルが content/archive/ に現れたら落ちる。
+  const builders: Record<
+    string,
+    { script: string; derive: () => unknown; pick: (json: any) => unknown; describe: (v: any) => string }
+  > = {
+    "index.json": {
+      script: "node scripts/build-archive-index.ts",
+      derive: () => buildArchiveIndex(snapshots),
+      pick: (j) => j,
+      describe: (v) =>
+        `シーズン${v.seasons.length}件・作品${v.seasons.reduce((n: number, s: any) => n + s.workIds.length, 0)}件`,
+    },
+    "people.json": {
+      script: "node scripts/build-person-index.ts",
+      derive: () => buildPersonIndex(snapshots),
+      pick: (j) => j.people,
+      describe: (v) =>
+        `${Object.keys(v).length}人・出演${Object.values(v).reduce((n: number, w: any) => n + w.length, 0)}件`,
+    },
+    "studios.json": {
+      script: "node scripts/build-studio-index.ts",
+      // 生成側は generatedAt も書くが、これは「内容が変わったときだけ」更新される
+      // 印であって中身ではない。比較からは外す（外さないと日付で毎回不一致になる）。
+      derive: () => buildStudioIndex(snapshots),
+      pick: (j) => ({ studios: j.studios, directors: j.directors }),
+      describe: (v) => `制作会社${Object.keys(v.studios).length}社・監督${Object.keys(v.directors).length}人`,
+    },
+  };
+
+  const archiveDir = new URL("../content/archive/", import.meta.url);
+  const files = readdirSync(archiveDir).filter((f) => f.endsWith(".json")).sort();
+  const unregistered = files.filter((f) => !(f in builders));
+  if (unregistered.length) deriveNg++;
+  console.log(
+    `${unregistered.length === 0 ? "✓" : "✗"}  ${"索引JSONに生成元が登録されている".padEnd(40)} → ` +
+      (unregistered.length === 0
+        ? `${files.length} 件すべて登録済み`
+        : `生成元が未登録: ${unregistered.join(" / ")}（見張られないまま古くなる）`)
+  );
+  // 逆に、登録されているのにファイルが無い（消した／改名した）ことも見る。
+  const missing = Object.keys(builders).filter((f) => !files.includes(f));
+  if (missing.length) deriveNg++;
+  console.log(
+    `${missing.length === 0 ? "✓" : "✗"}  ${"登録された索引JSONが実在する".padEnd(40)} → ` +
+      (missing.length === 0 ? "欠けなし" : `見つからない: ${missing.join(" / ")}`)
+  );
+
+  for (const file of files) {
+    const b = builders[file];
+    if (!b) continue;
+    const expected = b.derive();
+    const actual = b.pick(JSON.parse(readFileSync(new URL(file, archiveDir), "utf8")));
+    const same = JSON.stringify(expected) === JSON.stringify(actual);
+    if (!same) deriveNg++;
+    console.log(
+      `${same ? "✓" : "✗"}  ${`${file}が導出結果と一致`.padEnd(40)} → ` +
+        b.describe(expected) +
+        (same ? "" : `  (不一致: ${b.script} を実行してください)`)
+    );
+  }
+}
+console.log(`結果（索引JSONの導出）: ${deriveNg === 0 ? "全件OK" : deriveNg + " 件NG"}`);
+
+// ─────────────────────────────────────────────
 // 声優データの取りこぼし（2026-08-11追加・重大度高）
 //
 // シーズン一覧のGraphQLは長らく casts(first: 5) しか取っておらず、「一覧は主要5件で
