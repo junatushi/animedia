@@ -87,7 +87,7 @@ import { shouldIndexSeasonScopedPage, robotsFor } from "../lib/indexPolicy.ts";
 import { parseWorkId } from "../lib/workId.ts";
 // 検査の対象を**手で数えず、app/ を走査して導出する**ための道具（2026-08-31導入）。
 // 名指しの列挙が漏れて OG画像ルートだけ検証を通っていなかった事故から入れた。
-import { dynamicRoutes } from "./lib/app-routes.js";
+import { appRoutes, dynamicRoutes } from "./lib/app-routes.js";
 // 配信サービス追加の検知（2026-08-07追加）。純粋関数のみ。
 import { applySightings } from "../lib/serviceAdditions.ts";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
@@ -5656,27 +5656,37 @@ let isrNg = 0;
   const MIN_LONG_TAIL_REVALIDATE = 86400;
 
   // 長い裾＝sitemapに大量に載っていて、1ページあたりのアクセスが薄いページ種別。
-  const LONG_TAIL_ROUTES = [
-    "app/anime/[id]/page.tsx",
-    "app/person/[name]/[year]/[season]/page.tsx",
-    "app/service/[key]/[year]/[season]/page.tsx",
-    "app/season/[year]/[season]/page.tsx",
-    "app/rankings/[year]/[season]/page.tsx",
-    "app/exclusive/[year]/[season]/page.tsx",
-  ];
+  //
+  // **ここも手で並べない**（2026-08-31に書き直した）。初版は6本を名指しで書いており、
+  // `/studio/[name]`（165件）と `/director/[name]`（378件）が入っていなかった。
+  // 動的セグメントを持つページ＝URL空間が広い＝長い裾、なので app/ の走査から
+  // 導出する。新しいページ種別を足したとき自動で見張りに入る。
+  const appDirForIsr = fileURLToPath(new URL("../app", import.meta.url));
+  const longTail = dynamicRoutes(appDirForIsr).filter((r) => r.kind === "html");
+  if (longTail.length < 6) isrNg++;
+  console.log(
+    `${longTail.length >= 6 ? "✓" : "✗"}  ${"長い裾のページを走査できている".padEnd(48)} → ` +
+      `${longTail.length} 件（app/ の動的セグメント）`
+  );
 
-  for (const rel of LONG_TAIL_ROUTES) {
-    const url = new URL(`../${rel}`, import.meta.url);
-    const text = existsSync(url) ? readFileSync(url, "utf8") : "";
+  for (const r of longTail) {
+    const text = readFileSync(r.file, "utf8");
     const m = text.match(/export const revalidate = (\d+);/);
-    const value = m ? Number(m[1]) : NaN;
-    const ok = Number.isFinite(value) && value >= MIN_LONG_TAIL_REVALIDATE;
+    // revalidate を書いていないページは「時間では作り直さない」＝ISR Writes が
+    // 増えない方向なので合格。ただし**書いてあるなら下限を守る**こと。
+    // （/studio・/director は generateStaticParams で全件を事前生成しており、
+    //   revalidate を持たない。これは最も安い形なので、書けと要求しない。）
+    const declared = m !== null;
+    const value = declared ? Number(m[1]) : null;
+    const ok = !declared || (Number.isFinite(value!) && value! >= MIN_LONG_TAIL_REVALIDATE);
     if (!ok) isrNg++;
     console.log(
-      `${ok ? "✓" : "✗"}  ${rel.padEnd(48)} → ` +
+      `${ok ? "✓" : "✗"}  ${r.rel.padEnd(48)} → ` +
         (ok
-          ? `revalidate=${value}`
-          : `revalidate=${m ? m[1] : "見つからない"}。${MIN_LONG_TAIL_REVALIDATE}秒（再訪間隔16.4時間）未満だと訪問のたびに再生成が起きる`)
+          ? declared
+            ? `revalidate=${value}`
+            : "revalidate 宣言なし（時間では作り直さない）"
+          : `revalidate=${m![1]}。${MIN_LONG_TAIL_REVALIDATE}秒（再訪間隔16.4時間）未満だと訪問のたびに再生成が起きる`)
     );
   }
 
@@ -5720,8 +5730,19 @@ let isrNg = 0;
   );
 
   // OGP画像は force-dynamic＝毎リクエスト関数が起動する。明示のCache-Controlが唯一の歯止め。
-  for (const rel of ["app/opengraph-image.tsx", "app/anime/[id]/opengraph-image.tsx"]) {
-    const text = readFileSync(new URL(`../${rel}`, import.meta.url), "utf8");
+  // **画像ルートも走査から導出する**（手で並べると、新しく足した画像ルートだけ
+  // 歯止めが無いまま毎リクエスト外向き通信する状態になる）。
+  const imageRoutes = appRoutes(appDirForIsr).filter(
+    (r) => r.kind === "asset" && /image/.test(r.basename)
+  );
+  if (imageRoutes.length < 2) isrNg++;
+  console.log(
+    `${imageRoutes.length >= 2 ? "✓" : "✗"}  ${"画像ルートを走査できている".padEnd(48)} → ` +
+      `${imageRoutes.length} 件`
+  );
+  for (const r of imageRoutes) {
+    const rel = r.rel;
+    const text = readFileSync(r.file, "utf8");
     const m = text.match(/"cache-control":\s*"[^"]*s-maxage=(\d+)/i);
     const value = m ? Number(m[1]) : NaN;
     const ok = Number.isFinite(value) && value >= MIN_LONG_TAIL_REVALIDATE;
