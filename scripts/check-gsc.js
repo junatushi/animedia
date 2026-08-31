@@ -138,14 +138,22 @@ function rowsFor(dim, body = {}) {
     ];
   }
   if (dim === "query") {
-    return [{ keys: ["ダンダダン 配信"], clicks: 6, impressions: 400, ctr: 0.015, position: 8.2 }];
+    // 順位帯サマリ（queryBands）を働かせるため、1ページ目・2ページ目・圏外を混ぜる。
+    return [
+      { keys: ["ダンダダン 配信"], clicks: 6, impressions: 400, ctr: 0.015, position: 8.2 },
+      { keys: ["2ページ目のクエリ"], clicks: 1, impressions: 50, ctr: 0.02, position: 15 },
+      { keys: ["圏外のクエリ"], clicks: 0, impressions: 900, ctr: 0, position: 120 },
+    ];
   }
   if (dim === "date+page") {
     // ページ送りを実際に働かせる。rowLimit を小さくして走らせると複数回に分かれる。
     const start = body.startRow || 0;
     return DATE_PAGE_ROWS.slice(start, start + (body.rowLimit || DATE_PAGE_ROWS.length));
   }
-  return [{ keys: ["https://example.test/anime/11771"], clicks: 4, impressions: 300, ctr: 0.013, position: 9.4 }];
+  return [
+    { keys: ["https://example.test/anime/11771"], clicks: 4, impressions: 300, ctr: 0.013, position: 9.4 },
+    { keys: ["https://example.test/anime/99999"], clicks: 0, impressions: 700, ctr: 0, position: 45 },
+  ];
 }
 
 function runFetch({ baseUrl, serviceAccount = SERVICE_ACCOUNT, outDir, extraEnv = {} }) {
@@ -203,7 +211,7 @@ async function main() {
     if (output) {
       const j = output.json;
       ok("正常系: 日別・クエリ別・ページ別がすべて入る",
-        j.daily.length === 2 && j.queries.length === 1 && j.pages.length === 1,
+        j.daily.length === 2 && j.queries.length === 3 && j.pages.length === 2,
         `daily=${j.daily.length} queries=${j.queries.length} pages=${j.pages.length}`);
       ok("正常系: クリック・表示の合計が合う",
         j.totals.clicks === 10 && j.totals.impressions === 1000,
@@ -212,6 +220,33 @@ async function main() {
         Math.abs(j.totals.position - 11) < 1e-9, `position=${j.totals.position}`);
       ok("正常系: ファイル名が期間の終端日", output.name === `${j.range.endDate}.json`, output.name);
       ok("正常系: errorsが空", j.errors.length === 0);
+
+      // 順位帯サマリ（2026-08-31追加）。上位100行だけを保存する運用では、
+      // 全表示の大半がどの順位にいるか分からず、按分で誤診したことがある（㉟）。
+      // 保存する行数を増やさずに「クリック0の表示がどの帯に何件あるか」を残す。
+      const qb = j.queryBands || [];
+      const pb = j.pageBands || [];
+      ok("順位帯: クエリ別のサマリが出る", qb.length === 3, `${qb.length}帯`);
+      const band = (arr, name) => arr.find((b) => b.band === name);
+      ok(
+        "順位帯: 1ページ目・2ページ目・圏外に分かれる",
+        !!band(qb, "1-10") && !!band(qb, "11-20") && !!band(qb, "101+"),
+        qb.map((b) => b.band).join(",")
+      );
+      ok(
+        "順位帯: 圏外の表示回数とクリック0が残る",
+        band(qb, "101+")?.impressions === 900 && band(qb, "101+")?.clicks === 0,
+        JSON.stringify(band(qb, "101+"))
+      );
+      ok(
+        "順位帯: 帯の合計が全体の表示回数と一致する",
+        qb.reduce((a, b) => a + b.impressions, 0) === 1350,
+        `${qb.reduce((a, b) => a + b.impressions, 0)}`
+      );
+      ok("順位帯: ページ別のサマリも出る", pb.length === 2, pb.map((b) => b.band).join(","));
+      // 生データは従来どおり上位100行まで（保存量を増やさない）。
+      ok("順位帯: 生の行は保存し続ける", j.queries.length === 3 && j.pages.length === 2,
+        `queries=${j.queries.length} pages=${j.pages.length}`);
 
       // 8〜10. 面別（週次・長期）
       const w = j.weeklyByType;
@@ -258,7 +293,7 @@ async function main() {
   await withStub({ query: [503, 500] }, ({ code, counts, output }) => {
     ok("5xx: 再試行して成功する", code === 0, `code=${code}`);
     ok("5xx: 3回目で成功している", counts.query === 3, `query=${counts.query}`);
-    if (output) ok("5xx: クエリ別が取れている", output.json.queries.length === 1);
+    if (output) ok("5xx: クエリ別が取れている", output.json.queries.length === 3);
   });
 
   // 4. 401 は即失敗（再試行しない）
@@ -277,7 +312,7 @@ async function main() {
     if (output) {
       const j = output.json;
       ok("一部失敗: 残り2種類は取得できている",
-        j.daily.length === 2 && j.pages.length === 1,
+        j.daily.length === 2 && j.pages.length === 2,
         `daily=${j.daily.length} pages=${j.pages.length}`);
       ok("一部失敗: 失敗した種類がerrorsに残る",
         j.errors.length === 1 && j.errors[0].key === "queries", JSON.stringify(j.errors));
@@ -312,7 +347,7 @@ async function main() {
     if (output) {
       const j = output.json;
       ok("面別の失敗: 日別・クエリ別・ページ別は巻き添えにならない",
-        j.daily.length === 2 && j.queries.length === 1 && j.pages.length === 1,
+        j.daily.length === 2 && j.queries.length === 3 && j.pages.length === 2,
         `daily=${j.daily.length} queries=${j.queries.length} pages=${j.pages.length}`);
       ok("面別の失敗: errorsに残る",
         j.errors.length === 1 && j.errors[0].key === "weeklyByType", JSON.stringify(j.errors));

@@ -3,7 +3,10 @@ import { getSeasonData } from "@/lib/getSeasonData";
 import ARCHIVE_INDEX from "@/content/archive/index.json";
 import PEOPLE_INDEX from "@/content/archive/people.json";
 import STUDIO_INDEX from "@/content/archive/studios.json";
-import { PERSON_PAGE_MIN_APPEARANCES } from "@/lib/personPage";
+import {
+  PERSON_PAGE_MIN_APPEARANCES,
+  shouldIndexPersonSeasonPage,
+} from "@/lib/personPage";
 
 import { siteUrl } from "@/lib/siteUrl";
 
@@ -18,6 +21,16 @@ function currentSeason(): { year: number; season: string } {
   const m = now.getMonth() + 1;
   const season = m <= 3 ? "winter" : m <= 6 ? "spring" : m <= 9 ? "summer" : "autumn";
   return { year, season };
+}
+
+// 次のクール。冬→春→夏→秋→(翌年)冬。
+const SEASON_ORDER = ["winter", "spring", "summer", "autumn"];
+function nextYearSeason(year: number, season: string): { year: number; season: string } {
+  const i = SEASON_ORDER.indexOf(season);
+  if (i < 0) return { year, season };
+  return i === SEASON_ORDER.length - 1
+    ? { year: year + 1, season: SEASON_ORDER[0] }
+    : { year, season: SEASON_ORDER[i + 1] };
 }
 
 // ルートURLに加え、現在のシーズンページ・作品個別ページ、および過去クールの
@@ -136,6 +149,40 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   } catch {
     // Annictから取得できない場合はルートURLのみのサイトマップにフォールバックする
   }
+  // 次クール（2026-08-31追加）。
+  //
+  // 【なぜ要るか】このsitemapは長らく「今期」しか載せていなかった。ところが
+  // docs/next-season-coverage.md の実測どおり、放送時期（○年○月）は放送開始の
+  // 3〜11ヶ月前・中央値およそ8ヶ月前に判明しており、検索需要はクール開始の約1ヶ月前から
+  // 立ち上がる。つまり「9月に2026年秋アニメを探している人」が最も多い時期に、
+  // 秋クールのページが検索エンジンに1件も知られていない状態だった
+  // （/season/2026/autumn も /anime/{秋の作品} も未送信）。需要の山は年に4回しか来ない。
+  //
+  // 声優・サービス別ページはここでは載せない。次クールはキャストも配信サービスも
+  // まだ埋まっておらず、薄いページを先回りで送ることになるため。作品ページと
+  // シーズンページだけにする（中身は autoSchedule の放送予定日で成立している）。
+  //
+  // 今期の取得が失敗しても次クールは載せたい（逆も同じ）ので try を分ける。
+  const next = nextYearSeason(year, season);
+  try {
+    const nextData = await getSeasonData(String(next.year), next.season);
+    entries.push({
+      url: `${siteUrl}/season/${next.year}/${next.season}`,
+      lastModified: new Date(),
+      changeFrequency: "daily",
+      priority: 0.9,
+    });
+    for (const it of nextData.items) {
+      entries.push({
+        url: `${siteUrl}/anime/${it.id}`,
+        lastModified: new Date(),
+        changeFrequency: "daily",
+        priority: 0.6,
+      });
+    }
+  } catch {
+    // 次クールが取れなくても今期・過去クールのsitemapは出す
+  }
 
   // 過去クール（content/snapshots/ に確定値があるもの）。今期の取得が失敗しても
   // こちらは静的JSONだけで組めるので、try の外に置いて必ず載せる。
@@ -159,22 +206,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
-  // 過去クールの声優ページ（2026-08-11追加）。
+  // 過去年の声優ページ（2026-08-11に4,483件を追加 → 2026-08-31に条件つきへ絞り込み）。
   //
-  // 【なぜ追加するか】GSCの実測（2026-07-12〜08-08）で、**声優ページが全ページ種別の
-  // 中で突出して強い**ことが分かった。43ページ中わずか2ページの声優ページが、
-  // 全16クリックのうち6件（37.5%）を取っており、掲載順位も 5.9位／4.7位 と、
-  // 作品ページの平均（15〜30位台）より一段上にいる。導入からまだ1週間での数字。
-  // それなのに sitemap は「今期の声優」しか載せておらず、
-  // content/archive/people.json（787人・出演7,721件）は使われていなかった。
-  // いちばん成果の出ているページ種別を、既にあるデータで広げる。
+  // 【経緯】追加の根拠だった「声優ページは突出して強い（5.9位・CTR9.5%）」という実測は
+  // 今期のページのものだった。過去クールぶんが索引に載ったあと、声優面の平均掲載順位は
+  // 38〜40位まで落ちている（08-17週 363表示@38.24位 / 08-24週 316表示@40.02位）。
   //
-  // 収録の基準は今期と同じ:
+  // ただし**全部外すのは行き過ぎ**だと実測で分かった。28日のページ別実測で、過去年の
+  // 声優ページは37表示・6クリック・平均20.84位を取っている（前野智昭/2017/winter 4.0位、
+  // 斉藤壮馬/2024/summer 8.0位、櫻井孝宏/2023/summer 43.5位ほか）。全部外すと
+  // 28日あたり4〜6クリック＝全体の5〜7%を確実に失う。
+  //
+  // そこで「今年のクールは全部／過去年は出演作の多い声優だけ」に絞る。判定は
+  // lib/personPage.ts の shouldIndexPersonSeasonPage が1箇所で持ち、ページ側の
+  // noindex 判定とここが必ず同じ答えを出すようにする（ズレるとsitemapに noindex の
+  // URLを載せることになる）。約4,483 → 約2,374件。
+  // 実測と経緯は docs/seo-2026-08-25/ と docs/operations.md の㉟。
+  //
+  // 収録の基準（上の絞り込みに加えて、従来どおり）:
   //   ・そのクールに PERSON_PAGE_MIN_APPEARANCES 作品以上出ている人だけ
-  //     （1作品だけの人は薄いページになるため。ページ側も notFound() を返す）
   //   ・people.json 自体が「配信情報が1件以上ある作品」だけで作られている
-  //     （content/archive/index.json と同じ方針）
-  // Annictへの追加取得は発生しない（リポジトリ同梱の静的JSONのみ）。
   // 声優名には空白を含むもの（例: "田中理恵 (声優)"）があるため、キー文字列を
   // 後から split で3つ組に戻すことはしない。値のほうに元の値を持たせる。
   const personCounts = new Map<
@@ -182,11 +233,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { name: string; year: number; season: string; count: number }
   >();
   for (const [name, works] of Object.entries(PEOPLE_INDEX.people)) {
+    // 索引に載っているその人の総出演数＝知名度の代理指標。上のクリックを取っている
+    // 4人は 83 / 98 / 70 / 97 作品なので、閾値50なら全員残る。
+    const totalWorks = works.length;
     for (const w of works) {
       const workYear = w[2] as number;
       const workSeason = w[3] as string;
       // 今期は上の try 節が担当するので二重登録しない。
       if (workYear === year && workSeason === season) continue;
+      if (!shouldIndexPersonSeasonPage(workYear, totalWorks)) continue;
       const key = `${workYear}/${workSeason}/${name}`;
       const cur = personCounts.get(key);
       if (cur) cur.count++;
@@ -201,7 +256,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.4,
     });
   }
-
   // 制作会社ページ・監督ページ（2026-08-12追加）。/studio/[name]・/director/[name]
   //
   // 【なぜ追加するか】content/archive/studios.json（制作会社165社・監督378人）は

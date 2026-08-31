@@ -58,6 +58,43 @@ const latest = archive.seasons.filter((s) => s.workIds.length > 0).at(-1);
 const PAST_ID = latest.workIds[0];
 const CUR_ID = 99001;
 
+// F節（索引方針）で使う経路。verify-production.sh 側と同じ求め方をする。
+// ハードコードしないのは、索引や日付が変わったときに検査だけが古くなるのを避けるため。
+const INDEXED_PERSON_PATH = "/person/%E6%AB%BB%E4%BA%95%E5%AD%9D%E5%AE%8F/2023/summer";
+function nextSeasonPath() {
+  const order = ["winter", "spring", "summer", "autumn"];
+  const now = new Date();
+  const m = now.getUTCMonth() + 1;
+  const cur = m <= 3 ? "winter" : m <= 6 ? "spring" : m <= 9 ? "summer" : "autumn";
+  const i = order.indexOf(cur);
+  const y = now.getUTCFullYear();
+  return i === 3 ? `${y + 1}/winter` : `${y}/${order[i + 1]}`;
+}
+// verify-production.sh が選ぶ「閾値に届かない過去年の声優」と同じ人を選ぶ。
+function thinPersonPath() {
+  const fsMod = require("node:fs");
+  const root = path.join(__dirname, "..");
+  const idx = JSON.parse(fsMod.readFileSync(path.join(root, "content/archive/people.json"), "utf8")).people;
+  const src = fsMod.readFileSync(path.join(root, "lib/personPage.ts"), "utf8");
+  const m = src.match(/PERSON_PAGE_INDEX_MIN_TOTAL_WORKS\s*=\s*(\d+)/);
+  const th = m ? Number(m[1]) : 50;
+  const year = new Date().getUTCFullYear();
+  const cour = new Map();
+  for (const [n, ws] of Object.entries(idx)) {
+    for (const w of ws) {
+      const k = `${n}|${w[2]}|${w[3]}`;
+      cour.set(k, (cour.get(k) || 0) + 1);
+    }
+  }
+  for (const [k, c] of cour) {
+    const [n, y, se] = k.split("|");
+    if (c >= 2 && Number(y) < year && (idx[n] || []).length < th) {
+      return `/person/${encodeURIComponent(n)}/${y}/${se}`;
+    }
+  }
+  return "";
+}
+
 // ── スタブ本番サーバー ───────────────────────────────────────
 // broken: 壊す項目名の集合。空なら健全な応答を返す。
 function startStub(broken) {
@@ -94,6 +131,30 @@ function startStub(broken) {
         }),
         "application/json",
         has("api-cors") ? {} : { "Access-Control-Allow-Origin": "*" }
+      );
+    }
+    // sitemap（2026-08-31追加。F節＝索引方針が本番に出ているかの検査で使う）。
+    // 「過去年の声優ページが1件も載っていない」＝規則が今期のみに戻った、を検知したいので、
+    // 健全な応答には過去年ぶんを1件入れておく。
+    if (p === "/sitemap.xml") {
+      const b = `http://127.0.0.1:${server.address().port}`;
+      const locs = [`${b}/season/2026/summer`];
+      if (!has("sitemap-no-past-person")) locs.push(`${b}${INDEXED_PERSON_PATH}`);
+      if (has("sitemap-lists-noindex")) locs.push(`${b}${thinPersonPath()}`);
+      if (!has("sitemap-no-next-season")) locs.push(`${b}/season/${nextSeasonPath()}`);
+      return send(
+        `<?xml version="1.0"?><urlset>${locs.map((u) => `<url><loc>${u}</loc></url>`).join("")}</urlset>`,
+        "application/xml"
+      );
+    }
+    if (p.startsWith("/person/")) {
+      // sitemapに載せた過去年のページは index、閾値に届かない人は noindex。
+      const listed = decodeURIComponent(p) === decodeURIComponent(INDEXED_PERSON_PATH);
+      const noindex = listed ? has("person-indexed-is-noindex") : !has("person-thin-is-index");
+      return send(
+        `<!doctype html><html><head><meta name="robots" content="${
+          noindex ? "noindex, follow" : "index, follow"
+        }"></head><body><h1>声優</h1></body></html>`
       );
     }
     if (p.startsWith("/season/")) {
@@ -191,9 +252,9 @@ async function main() {
     good.out.match(/^\s*NG\s+.*/m)?.[0]?.trim() ?? "NGなし"
   );
   const okCount = (good.out.match(/^\s*OK\s/gm) || []).length;
-  // 検査を削ると気づけるように件数も固定する（A:2 A2:1 B:6 C:2 D:3 E:3 = 17。
+  // 検査を削ると気づけるように件数も固定する（A:2 A2:1 B:6 C:2 D:3 E:3 F:4 = 21。
   // verify-production.sh に検査を足したらこの数も更新する）。
-  check("① OKが17件（検査の取りこぼしが無い）", okCount === 17, `${okCount}件`);
+  check("① OKが21件（検査の取りこぼしが無い）", okCount === 21, `${okCount}件`);
 
   // ② 壊れた応答では、その項目が確実にNGになる（＝検査が生きている）。
   //    1項目ずつ壊して「その事故だけを捕まえる」ことを確かめる。
@@ -208,6 +269,13 @@ async function main() {
     ["embed-ref", "埋め込みのリンクから?ref=embedが消えた", "ref=embed"],
     ["api-status", "公開APIのairingStatusが誤り", "airingStatus"],
     ["api-cors", "公開APIのCORSヘッダが消えた", "CORSヘッダ"],
+    // F節（索引方針・2026-08-31追加）。この4件は「直したつもりで本番に出ていない」を
+    // 捕まえるための検査なので、落ちるべきときに落ちることを必ず固定する（㉟）。
+    ["person-thin-is-index", "閾値未満の声優ページがindexのまま（未デプロイの再現）", "index のまま"],
+    ["sitemap-no-past-person", "索引方針が今期のみに戻った", "過去年の声優ページが1件も無い"],
+    ["person-indexed-is-noindex", "sitemapに載せたページがnoindexになった", "noindex"],
+    ["sitemap-lists-noindex", "noindexのページをsitemapが申告している", "sitemapが申告"],
+    ["sitemap-no-next-season", "次クールがsitemapから消えた", "次クール"],
   ];
   for (const [fault, label, needle] of faults) {
     const r = await withStub([fault], runScript);
@@ -220,7 +288,7 @@ async function main() {
   //    （途中で exit すると残りの事故が見えなくなる）。
   const all = await withStub(faults.map(([f]) => f), runScript);
   const ngCount = (all.out.match(/^\s*NG\s/gm) || []).length;
-  check("③ 全部壊すと複数NGを出して最後まで走る", all.code !== 0 && ngCount >= 10, `NG ${ngCount}件 / exit=${all.code}`);
+  check("③ 全部壊すと複数NGを出して最後まで走る", all.code !== 0 && ngCount >= 14, `NG ${ngCount}件 / exit=${all.code}`);
   check("③ E節（最後の検査）まで到達している", all.out.includes("E. 公開API"), all.out.includes("E. 公開API") ? "到達" : "途中で終了");
 
   console.log(`\n結果: ${ng === 0 ? "全件OK" : `${ng} 件NG`}`);

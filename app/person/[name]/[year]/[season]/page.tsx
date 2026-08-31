@@ -2,7 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
-import { PERSON_PAGE_MIN_APPEARANCES as MIN_APPEARANCES } from "@/lib/personPage";
+import {
+  PERSON_PAGE_MIN_APPEARANCES as MIN_APPEARANCES,
+  shouldIndexPersonSeasonPage,
+} from "@/lib/personPage";
 import { PERSON_FILMOGRAPHY } from "@/content/people/filmography";
 import {
   otherSeasonWorks,
@@ -135,10 +138,19 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const description = personPageDescription(name, year, season, Boolean(filmography));
   const url = `${siteUrl}/person/${encodeURIComponent(name)}/${year}/${season}`;
 
+  // 過去年の「無名の声優」のページだけ noindex にする（規則と実測は lib/personPage.ts）。
+  // ページは消さない・404にもしない。follow は残すので、ここから過去クールの作品ページへ
+  // 渡っている内部リンクはそのまま効く。今年のクールは全部索引させる。
+  const totalWorks = (
+    (personIndexJson as unknown as PersonIndex).people[name] ?? []
+  ).length;
+  const indexable = shouldIndexPersonSeasonPage(year, totalWorks);
+
   return {
     title,
     description,
     alternates: { canonical: url },
+    ...(indexable ? {} : { robots: { index: false, follow: true } }),
     openGraph: { title: titleText(title), description, url, type: "website" },
     twitter: { card: "summary_large_image", title: titleText(title), description },
   };

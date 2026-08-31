@@ -1177,12 +1177,18 @@ let castsNg = 0;
       ok: personPageSrc.includes("PERSON_PAGE_MIN_APPEARANCES"),
       detail: "lib/personPage.ts の定数を使う",
     },
-    // GSCの実測でいちばん成果の出ているページ種別。過去クール分は
-    // content/archive/people.json から載せる（Annictへの追加取得は不要）。
+    // 【2026-08-25に反転】ここは長らく「sitemapが過去クールの声優ページを載せること」を
+    // 検査していた。2026-08-11にGSCの実測（声優ページ5.9位・CTR9.5%）を根拠に4,483件を
+    // 追加したときの検査だが、その実測は**今期のページ**のもので、過去クールぶんには
+    // 当てはまらなかった。索引到達後は47.0位まで崩れ、サイト全体の週次平均を6.86悪化させた
+    // うち4.77（70%）がこの面だった。いまは載せないのが正しい方針で、その見張りは
+    // 「薄い声優ページを索引に載せない」節が持つ。ここで逆向きの検査を残すと両方を
+    // 同時に満たせないので、代わりに**索引そのものは使い続けている**ことだけを見る
+    // （声優ページの「他のクールの出演作」欄＝過去クールの作品ページへの内部リンク）。
     {
-      label: "sitemapが過去クールの声優ページを載せる",
-      ok: sitemapSrc.includes("people.json"),
-      detail: "content/archive/people.json を参照する",
+      label: "声優ページが出演作索引を使い続ける",
+      ok: personPageSrc.includes("otherSeasonWorks"),
+      detail: "他のクールの出演作（過去クールの作品ページへの導線）を出す",
     },
   ];
   for (const c of cases) {
@@ -3964,6 +3970,198 @@ let orphanNg = 0;
 }
 
 // ─────────────────────────────────────────────
+// 声優ページの索引方針（2026-08-25追加 → 2026-08-31に規則を差し替え）
+//
+// 経緯: 2026-08-11に過去クールの声優ページ4,483件をsitemapへ追加した。根拠にした実測
+// 「声優ページは突出して強い（5.9位・CTR9.5%）」は**今期のページ**のものだった。
+// 2026-08-25にこれを「今期のクール以外は全部noindex」で直そうとしたが、
+// **その判断自体が途中までの週のデータに基づく誤りだった**（詳細は lib/personPage.ts）:
+//   ・声優ページは表示の10.7%しかなく、全部除いても改善は1.74位（70%ではなく30%）。
+//   ・過去年の声優ページは28日で37表示・6クリック・平均20.84位を実際に取っている。
+//   ・「今期のクールだけ」は粗すぎて 2026/winter（6.6位・1.0位）まで巻き添えで外れる。
+// いまの規則は「今年のクールは全部／過去年は出演作の多い声優だけ」。
+// この節は ①規則が1箇所にあること ②実測でクリックを取っている声優が閾値を通ること
+// を見張る。②は閾値をソースから読んで索引の実データと突き合わせる。
+// ─────────────────────────────────────────────
+console.log("\n── 声優ページの索引方針 ──");
+let thinPersonNg = 0;
+{
+  const thinCheck = (label: string, ok: boolean, detail: string) => {
+    if (!ok) thinPersonNg++;
+    console.log(`${ok ? "✓" : "✗"}  ${label.padEnd(40)} → ${detail}`);
+  };
+
+  const policySrc = readFileSync(new URL("../lib/personPage.ts", import.meta.url), "utf8");
+  const sitemapSrc = readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+  const personSrc = readFileSync(
+    new URL("../app/person/[name]/[year]/[season]/page.tsx", import.meta.url),
+    "utf8"
+  );
+
+  const singleSource =
+    policySrc.includes("export function shouldIndexPersonSeasonPage") &&
+    policySrc.includes("PERSON_PAGE_INDEX_MIN_TOTAL_WORKS") &&
+    !policySrc.includes("@/lib/"); // check.ts から直接importできること（CIで実際に落ちた）
+  thinCheck(
+    "索引方針の定義は1箇所",
+    singleSource,
+    singleSource
+      ? "lib/personPage.ts が年と総出演数で判定（外部importなし）"
+      : "判定が lib/personPage.ts に無い、または閾値・今期の求め方を独自に持っている"
+  );
+
+  const gated =
+    sitemapSrc.includes("shouldIndexPersonSeasonPage") && sitemapSrc.includes("PEOPLE_INDEX");
+  thinCheck(
+    "sitemapは同じ判定で絞る",
+    gated,
+    gated
+      ? "過去年ぶんを shouldIndexPersonSeasonPage で門番"
+      : "無条件に積んでいる、または索引を参照していない（ページ側のnoindexとズレる）"
+  );
+
+  const pageOk =
+    personSrc.includes("shouldIndexPersonSeasonPage") &&
+    /robots:\s*\{\s*index:\s*false/.test(personSrc);
+  thinCheck(
+    "ページ側も同じ判定でnoindex",
+    pageOk,
+    pageOk ? "lib/personPage.ts の判定を使う" : "クール判定やnoindexを直書きしている"
+  );
+
+  // ページ自体は残すこと（404にしない）。過去クールの作品ページ1,961件への内部リンクが
+  // ここを通っている。索引から外すのと、ページを消すのは別の話。
+  const keepsPage = personSrc.includes("otherSeasonWorks");
+  thinCheck(
+    "ページ自体は消さない（内部リンクを残す）",
+    keepsPage,
+    keepsPage ? "他クールの出演作リンクは維持" : "過去クールの作品ページへの導線が消えている"
+  );
+
+  // 実測でクリックを取っている過去年の声優が、閾値で落ちないこと
+  // （2026-08-27時点の28日データ。/person/{名}/{年}/{季} でクリック1件以上）。
+  const m = policySrc.match(/PERSON_PAGE_INDEX_MIN_TOTAL_WORKS\s*=\s*(\d+)/);
+  const threshold = m ? Number(m[1]) : NaN;
+  const EARNERS = ["前野智昭", "斉藤壮馬", "森川智之", "櫻井孝宏"];
+  const peopleIdx = JSON.parse(
+    readFileSync(new URL("../content/archive/people.json", import.meta.url), "utf8")
+  ) as { people: Record<string, unknown[]> };
+  const survived = EARNERS.map((n) => ({ name: n, total: (peopleIdx.people[n] ?? []).length }));
+  const allSurvive = Number.isFinite(threshold) && survived.every((x) => x.total >= threshold);
+  thinCheck(
+    "クリック実績のある声優が残る",
+    allSurvive,
+    allSurvive
+      ? `閾値${threshold} / ` + survived.map((x) => `${x.name}=${x.total}`).join(" ")
+      : `閾値${threshold} で落ちる: ` +
+        survived
+          .filter((x) => !(x.total >= threshold))
+          .map((x) => `${x.name}=${x.total}`)
+          .join(" ") +
+        "（実測でクリックを取っているページを索引から外すことになる）"
+  );
+
+  console.log(`結果（声優ページの索引方針）: ${thinPersonNg === 0 ? "全件OK" : thinPersonNg + " 件NG"}`);
+}
+
+// ─────────────────────────────────────────────
+// 次クールをsitemapに載せる（2026-08-31追加）
+//
+// 経緯: sitemapは長らく「今期」しか載せていなかった。放送時期（○年○月）は放送開始の
+// 3〜11ヶ月前に判明し、検索需要はクール開始の約1ヶ月前から立ち上がる
+// （docs/next-season-coverage.md）。つまり需要の山のいちばん手前で、次クールのページが
+// 検索エンジンに1件も知られていない状態だった。山は年に4回しか来ないので、
+// 1回逃すと次は3ヶ月後になる。消さないこと。
+// ─────────────────────────────────────────────
+console.log("\n── 次クールをsitemapに載せる ──");
+let nextSeasonNg = 0;
+{
+  const nsCheck = (label: string, ok: boolean, detail: string) => {
+    if (!ok) nextSeasonNg++;
+    console.log(`${ok ? "✓" : "✗"}  ${label.padEnd(40)} → ${detail}`);
+  };
+  const sitemapSrc = readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+
+  const hasNext = sitemapSrc.includes("nextYearSeason(");
+  nsCheck(
+    "次クールを載せている",
+    hasNext,
+    hasNext ? "nextYearSeason で次クールを組む" : "今期しか載せていない（需要の山を逃す）"
+  );
+
+  // 冬→春→夏→秋→翌年冬 の順送り。年またぎで壊れると次クールを丸ごと落とす。
+  const order = ["winter", "spring", "summer", "autumn"];
+  const nextOf = (y: number, ss: string) => {
+    const i = order.indexOf(ss);
+    return i === order.length - 1
+      ? { year: y + 1, season: order[0] }
+      : { year: y, season: order[i + 1] };
+  };
+  const cases: [number, string, number, string][] = [
+    [2026, "summer", 2026, "autumn"],
+    [2026, "autumn", 2027, "winter"],
+    [2026, "winter", 2026, "spring"],
+  ];
+  const orderOk = cases.every(([y, ss, ey, es]) => {
+    const r = nextOf(y, ss);
+    return r.year === ey && r.season === es;
+  });
+  const implOk = sitemapSrc.includes("SEASON_ORDER") && order.every((ss) => sitemapSrc.includes(ss));
+  nsCheck(
+    "年またぎの順送りが正しい",
+    orderOk && implOk,
+    orderOk && implOk ? "秋→翌年冬まで含めて期待どおり" : "SEASON_ORDER が揃っていない"
+  );
+
+  // 次クールは作品ページとシーズンページだけ。声優・サービス別は、キャストも配信も
+  // 埋まっていない段階で薄いページを先回りで送ることになる。
+  const idx = sitemapSrc.indexOf("const next = nextYearSeason(");
+  const tail = idx >= 0 ? sitemapSrc.slice(idx, idx + 1400) : "";
+  const noThin = idx >= 0 && !tail.includes("/person/") && !tail.includes("/service/");
+  nsCheck(
+    "次クールに薄い面を先回りで送らない",
+    noThin,
+    noThin ? "作品ページとシーズンページだけ" : "声優・サービス別まで送っている"
+  );
+
+  console.log(`結果（次クール）: ${nextSeasonNg === 0 ? "全件OK" : nextSeasonNg + " 件NG"}`);
+}
+
+// ─────────────────────────────────────────────
+// 途中の週と完全な週を取り違えない（2026-08-31追加）
+//
+// 経緯: GSCは3日ラグがあるので最新の週は必ず途中までしか埋まっていない。
+// 2026-08-25の診断でこれを見落とし、途中の週の作品ページ表示（966件）と
+// 完全な週（2,881件）を並べて「悪化の70%は声優ページ」と結論した。正しくは30%。
+// 数字ではなく**比較の前提**が壊れる形の間違いなので、データ自身に印を持たせる。
+// ─────────────────────────────────────────────
+console.log("\n── 途中の週に印を付ける ──");
+let partialWeekNg = 0;
+{
+  const { aggregateWeeklyByType } = await import("../scripts/lib/gsc-page-type.js");
+  const rows: { keys: string[]; clicks: number; impressions: number; position: number }[] = [];
+  for (const d of ["10", "11", "12", "13", "14", "15", "16"]) {
+    rows.push({ keys: [`2026-08-${d}`, "https://x/anime/1"], clicks: 0, impressions: 1, position: 20 });
+  }
+  for (const d of ["17", "18"]) {
+    rows.push({ keys: [`2026-08-${d}`, "https://x/anime/1"], clicks: 0, impressions: 1, position: 20 });
+  }
+  const agg = aggregateWeeklyByType(rows) as { week: string; days: number; partial: boolean }[];
+  const full = agg.find((r) => r.week === "2026-08-10");
+  const part = agg.find((r) => r.week === "2026-08-17");
+  const ok =
+    !!full && !!part && full.days === 7 && !full.partial && part.days === 2 && part.partial;
+  if (!ok) partialWeekNg++;
+  console.log(
+    `${ok ? "✓" : "✗"}  ${"週ごとに日数と途中フラグを持つ".padEnd(40)} → ` +
+      (ok
+        ? "7日=partial:false / 2日=partial:true"
+        : `days・partial が付いていない（full=${JSON.stringify(full)} part=${JSON.stringify(part)}）`)
+  );
+  console.log(`結果（途中の週）: ${partialWeekNg === 0 ? "全件OK" : partialWeekNg + " 件NG"}`);
+}
+
+// ─────────────────────────────────────────────
 // 次クール準備の窓（2026-08-07追加）
 //
 // 検索需要はクール開始の約1ヶ月前から立ち上がり、山は年に4回しか来ない。
@@ -5124,6 +5322,9 @@ if (
   discordNg > 0 ||
   planNg > 0 ||
   orphanNg > 0 ||
+  thinPersonNg > 0 ||
+  nextSeasonNg > 0 ||
+  partialWeekNg > 0 ||
   prepNg > 0 ||
   archiveNg > 0 ||
   titleNg > 0 ||

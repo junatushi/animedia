@@ -92,6 +92,13 @@ function weekStart(dateStr) {
  *
  * ・ctr / position は**表示回数で重み付け**する（単純平均だと歪む。
  *   fetch-gsc.js の summarize と同じ理由）。
+ * ・**その週に何日ぶんのデータが入っているかを days で持つ**（2026-08-31追加）。
+ *   GSCは3日ラグがあるので、最新の週は必ず途中までしか埋まっていない。この印が無いと、
+ *   途中の週（例: 4日ぶん）と完全な週（7日ぶん）をそのまま並べて比較してしまう。
+ *   実際に2026-08-25の診断でこれをやり、作品ページの表示を966件（途中）と読んで
+ *   「悪化の70%は声優ページ」と結論した。完全な週では2,881件で、正しくは30%だった
+ *   （docs/operations.md の㉟）。数字ではなく**比較の前提**が壊れる形の間違いなので、
+ *   読む側の注意力ではなくデータ自身に持たせる。
  * ・表示もクリックも0の組は書き出さない。サイトが小さいうちは
  *   ほとんどの週×面が0で、そのまま書くとファイルが無意味に膨らむため。
  */
@@ -103,10 +110,11 @@ function aggregateWeeklyByType(rows) {
     const week = weekStart(date);
     if (!week) continue;
     const key = `${week}\u0000${pageType(page)}`;
-    const cur = acc.get(key) || { clicks: 0, impressions: 0, weighted: 0 };
+    const cur = acc.get(key) || { clicks: 0, impressions: 0, weighted: 0, dates: new Set() };
     cur.clicks += row.clicks || 0;
     cur.impressions += row.impressions || 0;
     cur.weighted += (row.position || 0) * (row.impressions || 0);
+    cur.dates.add(date);
     acc.set(key, cur);
   }
 
@@ -121,6 +129,10 @@ function aggregateWeeklyByType(rows) {
       impressions: v.impressions,
       ctr: v.impressions > 0 ? v.clicks / v.impressions : 0,
       position: v.impressions > 0 ? v.weighted / v.impressions : 0,
+      // この週に実際にデータがあった日数。7未満＝**途中の週**なので、
+      // 完全な週と表示回数を並べて比べてはいけない（上のコメント参照）。
+      days: v.dates.size,
+      partial: v.dates.size < 7,
     });
   }
   out.sort((a, b) => {

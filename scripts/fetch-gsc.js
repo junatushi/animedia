@@ -213,12 +213,86 @@ function summarize(daily) {
   };
 }
 
+// ───────────────────────────────────────────────────────────────
+// 順位帯サマリ（2026-08-31追加）
+//
+// 【なぜ要るか】queries / pages は上位100行しか保存していない。ところが実測では
+// その100行で拾えるのは全表示回数の **13.6%（ページ別）・5.3%（クエリ別）** しかなく、
+// 残り86%が「どこにいるか分からない」状態だった。2026-08-25の診断はこの見えない部分を
+// 上位100行から按分して推測し、結論を誤った（docs/operations.md の㉟）。
+//
+// 生の5,000行をコミットするとファイルが日々1MB近く増えるので保存しない。代わりに
+// **順位帯ごとの合計だけ**を畳んで持つ。「クリック0の表示がどの帯に何件あるか」は
+// これで答えられる。上位100行の生データは従来どおり残す（個別ページの特定に要る）。
+//
+// 帯の切り方は検索結果のページ送りに合わせる（1ページ目=1〜10位、2ページ目=11〜20位…）。
+const POSITION_BANDS = [
+  ["1-10", 0, 10.5],
+  ["11-20", 10.5, 20.5],
+  ["21-30", 20.5, 30.5],
+  ["31-50", 30.5, 50.5],
+  ["51-100", 50.5, 100.5],
+  ["101+", 100.5, Infinity],
+];
+
+function aggregateByPositionBand(rows) {
+  const acc = new Map(POSITION_BANDS.map(([name]) => [name, { rows: 0, clicks: 0, impressions: 0, weighted: 0 }]));
+  for (const row of rows) {
+    const pos = row.position || 0;
+    const band = POSITION_BANDS.find(([, lo, hi]) => pos >= lo && pos < hi);
+    if (!band) continue;
+    const cur = acc.get(band[0]);
+    cur.rows += 1;
+    cur.clicks += row.clicks || 0;
+    cur.impressions += row.impressions || 0;
+    cur.weighted += pos * (row.impressions || 0);
+  }
+  const out = [];
+  for (const [name, v] of acc) {
+    if (v.rows === 0) continue;
+    out.push({
+      band: name,
+      rows: v.rows,
+      clicks: v.clicks,
+      impressions: v.impressions,
+      ctr: v.impressions > 0 ? v.clicks / v.impressions : 0,
+      position: v.impressions > 0 ? v.weighted / v.impressions : 0,
+    });
+  }
+  return out;
+}
+
+// 上位N行だけを残す（生データの保存量を抑える）。行は表示回数の降順で返ってくる。
+const KEEP_TOP_ROWS = 100;
+function keepTop(rows) {
+  return rows.slice(0, KEEP_TOP_ROWS);
+}
 // range: "recent" は直近28日（従来どおり）、"long" は面ごとの推移を見るための長期の窓。
 // transform を持つものは、取得した生の行をそのまま書かず畳んでから書き出す。
 const SPECS = [
   { key: "daily", label: "日別", dimensions: ["date"], rowLimit: 1000, range: "recent" },
-  { key: "queries", label: "クエリ別", dimensions: ["query"], rowLimit: 100, range: "recent" },
-  { key: "pages", label: "ページ別", dimensions: ["page"], rowLimit: 100, range: "recent" },
+  // 取得は5,000行（上位100行では全表示の1〜2割しか説明できなかった）。
+  // 保存は上位100行のまま。残りは queryBands / pageBands に順位帯で畳んで持つ。
+  {
+    key: "queries",
+    label: "クエリ別",
+    dimensions: ["query"],
+    rowLimit: Number(process.env.GSC_ROW_LIMIT ?? 5000),
+    range: "recent",
+    paginate: true,
+    transform: keepTop,
+    bandsKey: "queryBands",
+  },
+  {
+    key: "pages",
+    label: "ページ別",
+    dimensions: ["page"],
+    rowLimit: Number(process.env.GSC_ROW_LIMIT ?? 5000),
+    range: "recent",
+    paginate: true,
+    transform: keepTop,
+    bandsKey: "pageBands",
+  },
   {
     key: "weeklyByType",
     label: "面別（週次・長期）",
@@ -264,6 +338,8 @@ async function main() {
     daily: [],
     queries: [],
     pages: [],
+    queryBands: [],
+    pageBands: [],
     weeklyByType: [],
     errors: [],
   };
@@ -273,6 +349,9 @@ async function main() {
     try {
       const rows = await searchAnalytics(token, spec, spec.range === "long" ? longRange : range);
       result[spec.key] = spec.transform ? spec.transform(rows) : rows;
+      // 保存しない残りの行も順位帯だけは残す（上位100行では全表示の1〜2割しか
+      // 説明できず、見えない部分を按分して誤診したことがある。docs/operations.md の㉟）。
+      if (spec.bandsKey) result[spec.bandsKey] = aggregateByPositionBand(rows);
       console.log(
         spec.transform
           ? `${spec.label}: ${rows.length}行 → ${result[spec.key].length}行に集約`
