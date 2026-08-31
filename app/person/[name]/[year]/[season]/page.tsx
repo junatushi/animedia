@@ -19,7 +19,7 @@ import type { AnimeItem } from "@/lib/types";
 import { siteUrl } from "@/lib/siteUrl";
 import { personPageTitle, personPageDescription } from "@/lib/pageMeta";
 import { titleText } from "@/lib/pageTitle";
-import { canPrerenderParam } from "@/lib/staticParams";
+import { decodeParamName } from "@/lib/staticParams";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -106,12 +106,11 @@ export function generateStaticParams(): Params[] {
   const params: Params[] = [];
   for (const c of counts.values()) {
     if (c.count < MIN_APPEARANCES) continue;
-    // 【2026-08-31・応急処置】非ASCIIの名前は事前生成に載せない（lib/staticParams.ts）。
-    // 本番で日本語名の事前生成ページが全て404になっていた。過去年の声優ページ2,351件が
-    // これに当たる。外した分はオンデマンドISRで描画され200を返す。
-    if (!canPrerenderParam(c.name)) continue;
+  // **名前はエンコードせずに渡す**（2026-08-31。lib/staticParams.ts に経緯）。
+  // encodeURIComponent したものを渡すと成果物が `%E3%81%B4….html` というファイル名で
+  // 焼かれ、Vercelはデコード後のパスで探すため本番だけ404になる（ローカルでは再現しない）。
     params.push({
-      name: encodeURIComponent(c.name),
+      name: c.name,
       year: String(c.year),
       season: c.season,
     });
@@ -126,7 +125,7 @@ function findWorks(items: AnimeItem[], name: string): AnimeItem[] {
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { name: encodedName, year, season } = params;
   if (!isValidYear(year) || !isValidSeason(season)) return {};
-  const name = decodeURIComponent(encodedName);
+  const name = decodeParamName(encodedName);
 
   let works: AnimeItem[] = [];
   try {
@@ -169,7 +168,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default async function PersonPage({ params }: { params: Params }) {
   const { name: encodedName, year, season } = params;
   if (!isValidYear(year) || !isValidSeason(season)) notFound();
-  const name = decodeURIComponent(encodedName);
+  const name = decodeParamName(encodedName);
 
   const label = SEASON_LABEL[season];
   let works: AnimeItem[] = [];

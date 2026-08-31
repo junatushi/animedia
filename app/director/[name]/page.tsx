@@ -4,7 +4,7 @@ import { siteUrl } from "@/lib/siteUrl";
 import { CreditPage } from "@/components/CreditPage";
 import { creditPageTitle, creditPageDescription } from "@/lib/pageMeta";
 import { titleText } from "@/lib/pageTitle";
-import { canPrerenderParam } from "@/lib/staticParams";
+import { decodeParamName } from "@/lib/staticParams";
 import { creditMap, creditWorks, type StudioIndex } from "@/lib/studioIndex";
 import studioIndexJson from "@/content/archive/studios.json";
 
@@ -18,15 +18,14 @@ const INDEX = studioIndexJson as unknown as StudioIndex;
 type Params = { name: string };
 
 export function generateStaticParams(): Params[] {
-  // 【2026-08-31・応急処置】非ASCIIの名前は事前生成に載せない（lib/staticParams.ts）。
-  // 監督名は376件中ほぼ全てが日本語なので、実質すべてオンデマンドISRに回る。
-  return Object.keys(creditMap(INDEX, "director"))
-    .filter((name) => canPrerenderParam(name))
-    .map((name) => ({ name: encodeURIComponent(name) }));
+  // **名前はエンコードせずに渡す**（2026-08-31。lib/staticParams.ts に経緯）。
+  // encodeURIComponent したものを渡すと成果物が `%E3%81%B4….html` というファイル名で
+  // 焼かれ、Vercelはデコード後のパスで探すため本番だけ404になる（ローカルでは再現しない）。
+  return Object.keys(creditMap(INDEX, "director")).map((name) => ({ name }));
 }
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
-  const name = decodeURIComponent(params.name);
+  const name = decodeParamName(params.name);
   const works = creditWorks(INDEX, "director", name);
   if (works.length === 0) return {};
 
@@ -44,7 +43,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 }
 
 export default function DirectorPage({ params }: { params: Params }) {
-  const name = decodeURIComponent(params.name);
+  const name = decodeParamName(params.name);
   const works = creditWorks(INDEX, "director", name);
   if (works.length === 0) notFound();
 
