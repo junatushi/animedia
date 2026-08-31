@@ -138,7 +138,15 @@ function startStub(broken) {
     // 健全な応答には過去年ぶんを1件入れておく。
     if (p === "/sitemap.xml") {
       const b = `http://127.0.0.1:${server.address().port}`;
-      const locs = [`${b}/season/2026/summer`];
+      // G節（sitemapのURLが200を返すか）のため、面ごとに1件ずつ載せる。
+      // **日本語名を入れる**（2026-08-31の障害は非ASCIIだけに出たので、ASCII名しか
+      // 載っていないと検査が素通りする）。
+      const locs = [
+        `${b}/season/2026/summer`,
+        `${b}/anime/${PAST_ID}`,
+        `${b}/director/${encodeURIComponent("小野勝巳")}`,
+        `${b}/studio/${encodeURIComponent("ぴえろ")}`,
+      ];
       if (!has("sitemap-no-past-person")) locs.push(`${b}${INDEXED_PERSON_PATH}`);
       if (has("sitemap-lists-noindex")) locs.push(`${b}${thinPersonPath()}`);
       if (!has("sitemap-no-next-season")) locs.push(`${b}/season/${nextSeasonPath()}`);
@@ -147,9 +155,25 @@ function startStub(broken) {
         "application/xml"
       );
     }
+    // 制作会社・監督ページ。2026-08-31の障害（非ASCII名の事前生成ページが404）を
+    // 再現できるように、pregen-404 を立てると日本語名だけ404を返す。
+    if (p.startsWith("/director/") || p.startsWith("/studio/")) {
+      const name = decodeURIComponent(p.split("/").pop() || "");
+      const nonAscii = [...name].some((ch) => ch.codePointAt(0) > 0x7f);
+      if (has("pregen-404") && nonAscii) {
+        return res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" }).end("<h1>404</h1>");
+      }
+      return send(`<!doctype html><html><body><h1>${name}</h1></body></html>`);
+    }
     if (p.startsWith("/person/")) {
       // sitemapに載せた過去年のページは index、閾値に届かない人は noindex。
       const listed = decodeURIComponent(p) === decodeURIComponent(INDEXED_PERSON_PATH);
+      const pname = decodeURIComponent(p.split("/")[2] || "");
+      const pNonAscii = [...pname].some((ch) => ch.codePointAt(0) > 0x7f);
+      const pastYear = !p.includes(`/${new Date().getFullYear()}/`);
+      if (has("pregen-404") && pNonAscii && pastYear) {
+        return res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" }).end("<h1>404</h1>");
+      }
       const noindex = listed ? has("person-indexed-is-noindex") : !has("person-thin-is-index");
       return send(
         `<!doctype html><html><head><meta name="robots" content="${
@@ -252,9 +276,9 @@ async function main() {
     good.out.match(/^\s*NG\s+.*/m)?.[0]?.trim() ?? "NGなし"
   );
   const okCount = (good.out.match(/^\s*OK\s/gm) || []).length;
-  // 検査を削ると気づけるように件数も固定する（A:2 A2:1 B:6 C:2 D:3 E:3 F:4 = 21。
+  // 検査を削ると気づけるように件数も固定する（A:2 A2:1 B:6 C:2 D:3 E:3 F:4 G:5 = 26。
   // verify-production.sh に検査を足したらこの数も更新する）。
-  check("① OKが21件（検査の取りこぼしが無い）", okCount === 21, `${okCount}件`);
+  check("① OKが26件（検査の取りこぼしが無い）", okCount === 26, `${okCount}件`);
 
   // ② 壊れた応答では、その項目が確実にNGになる（＝検査が生きている）。
   //    1項目ずつ壊して「その事故だけを捕まえる」ことを確かめる。
@@ -276,6 +300,10 @@ async function main() {
     ["person-indexed-is-noindex", "sitemapに載せたページがnoindexになった", "noindex"],
     ["sitemap-lists-noindex", "noindexのページをsitemapが申告している", "sitemapが申告"],
     ["sitemap-no-next-season", "次クールがsitemapから消えた", "次クール"],
+    // G節（2026-08-31追加）。日本語名の事前生成ページが本番で404になっていた事故。
+    // robotsメタを見るだけの検査は「404にはrobotsが無い→noindexではない→合格」で
+    // すり抜けていたので、HTTPコードで捕まえられることを固定する。
+    ["pregen-404", "日本語名の事前生成ページが404（㊱の再現）", "が 404"],
   ];
   for (const [fault, label, needle] of faults) {
     const r = await withStub([fault], runScript);
@@ -288,7 +316,7 @@ async function main() {
   //    （途中で exit すると残りの事故が見えなくなる）。
   const all = await withStub(faults.map(([f]) => f), runScript);
   const ngCount = (all.out.match(/^\s*NG\s/gm) || []).length;
-  check("③ 全部壊すと複数NGを出して最後まで走る", all.code !== 0 && ngCount >= 14, `NG ${ngCount}件 / exit=${all.code}`);
+  check("③ 全部壊すと複数NGを出して最後まで走る", all.code !== 0 && ngCount >= 16, `NG ${ngCount}件 / exit=${all.code}`);
   check("③ E節（最後の検査）まで到達している", all.out.includes("E. 公開API"), all.out.includes("E. 公開API") ? "到達" : "途中で終了");
 
   console.log(`\n結果: ${ng === 0 ? "全件OK" : `${ng} 件NG`}`);

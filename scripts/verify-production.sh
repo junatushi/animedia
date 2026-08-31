@@ -27,6 +27,14 @@
 #   D. 埋め込みに <script>・自サイト外リンクが無い    … ⑯／CLAUDE.md 基本ルール
 #   E. 公開APIが airingStatus を返す                  … ⑰
 #   F. 索引方針が本番に反映されている                  … ㉟
+#   G. sitemapに載せたURLが200を返す                … ㊱
+#      2026-08-31に、**日本語名の事前生成ページが本番で全て404**になっていた。
+#      sitemapに載せていて404だったのは約2,826ページ（声優2,351/監督376/制作会社99）。
+#      ローカルの `next start` では全て200を返すので手元では気づけない（⑦-10と同じ型）。
+#      しかも F節は robots メタを grep するだけだったため、**404ページには robots が
+#      無い → 「noindexではない」→ 合格**、という形ですり抜けていた。
+#      検査そのものが「見えないと合格」になっていたのが最大の問題なので、
+#      以後はHTTPコードを明示的に確かめる。
 #      2026-08-25に書いてテストまで通した「過去年の声優ページを索引から外す」対応が、
 #      mainへ入っておらず**6日間本番に出ていなかった**。しかも誰も気づかなかった。
 #      ソースを見る検査（node scripts/check.ts）は通っていたので、
@@ -187,11 +195,16 @@ THIS_YEAR=$(date -u +%Y)
 INDEXED_PERSON=$(tr ">" "\n" <<<"$SITEMAP" | grep -oE "https?://[^<]*/person/[^<]*" \
   | grep -v "/${THIS_YEAR}/" | head -1)
 if [ -n "$INDEXED_PERSON" ]; then
+  # **必ずHTTPコードを先に見る**。404にはrobotsメタが無いので、
+  # 「noindexでない＝合格」と誤判定してしまう（2026-08-31に実際にすり抜けた）。
+  CODE=$($CURL -o /dev/null -w "%{http_code}" "$INDEXED_PERSON")
   H=$($CURL "$INDEXED_PERSON")
-  if grep -qi 'name="robots"[^>]*content="[^"]*noindex' <<<"$H"; then
+  if [ "$CODE" != "200" ]; then
+    fail "sitemapに載っている過去年の声優ページが ${CODE}: ${INDEXED_PERSON}"
+  elif grep -qi 'name="robots"[^>]*content="[^"]*noindex' <<<"$H"; then
     fail "sitemapに載っている過去年の声優ページが noindex: ${INDEXED_PERSON}"
   else
-    ok "sitemapに載っている過去年の声優ページは index（${INDEXED_PERSON##*/person/}）"
+    ok "sitemapに載っている過去年の声優ページは 200＋index（${INDEXED_PERSON##*/person/}）"
   fi
 else
   # 過去年ぶんが1件も載っていないのは、規則が「今期のみ」に戻った可能性が高い。
@@ -247,9 +260,32 @@ else
   fail "次クール（${NEXT_SEASON}）がsitemapに無い（9月・12月・3月・6月の山を逃す）"
 fi
 
+# ── G. sitemapに載せたURLが200を返すか（㊱の再発検知）────────────────
+#
+# 面ごとに1件ずつ抜き取って叩く。**日本語名を必ず含める**（2026-08-31の障害は
+# 非ASCIIの名前だけに出たので、ASCII名だけ見ていると全て緑になる）。
+echo
+echo "G. sitemapのURLが生きているか"
+for KIND in person director studio anime season; do
+  # 日本語名（パーセントエンコードを含む）を優先して選ぶ。無ければ何でもよい。
+  URL=$(tr ">" "\n" <<<"$SITEMAP" | grep -oE "https?://[^<]*/${KIND}/[^<]*" \
+    | grep "%E" | head -1)
+  [ -z "$URL" ] && URL=$(tr ">" "\n" <<<"$SITEMAP" \
+    | grep -oE "https?://[^<]*/${KIND}/[^<]*" | head -1)
+  if [ -z "$URL" ]; then
+    fail "sitemapに /${KIND}/ のURLが1件も無い"
+    continue
+  fi
+  CODE=$($CURL -o /dev/null -w "%{http_code}" "$URL")
+  if [ "$CODE" = "200" ]; then
+    ok "/${KIND}/ が200（${URL##*/${KIND}/}）"
+  else
+    fail "sitemapに載せた /${KIND}/ が ${CODE}: ${URL}"
+  fi
+done
 echo
 if [ "$NG" -gt 0 ]; then
-  echo "NG ${NG} 件。docs/operations.md の ⑦-10 / ⑯ / ⑰ / ㉟ を確認してください。"
+  echo "NG ${NG} 件。docs/operations.md の ⑦-10 / ⑯ / ⑰ / ㉟ / ㊱ を確認してください。"
   exit 1
 fi
 echo "全て OK"

@@ -4,6 +4,7 @@ import { siteUrl } from "@/lib/siteUrl";
 import { CreditPage } from "@/components/CreditPage";
 import { creditPageTitle, creditPageDescription } from "@/lib/pageMeta";
 import { titleText } from "@/lib/pageTitle";
+import { canPrerenderParam, PREGEN_CANARY_STUDIOS } from "@/lib/staticParams";
 import { creditMap, creditWorks, type StudioIndex } from "@/lib/studioIndex";
 import studioIndexJson from "@/content/archive/studios.json";
 
@@ -29,9 +30,20 @@ const INDEX = studioIndexJson as unknown as StudioIndex;
 type Params = { name: string };
 
 export function generateStaticParams(): Params[] {
-  return Object.keys(creditMap(INDEX, "studio")).map((name) => ({
-    name: encodeURIComponent(name),
-  }));
+  // 【2026-08-31・応急処置】非ASCIIの名前は事前生成に載せない。
+  // 本番で日本語名の事前生成ページが全て404になっていた（lib/staticParams.ts に実測）。
+  // 外した分はオンデマンドISRで描画され、日本語名でも200を返す。
+  const names = Object.keys(creditMap(INDEX, "studio"));
+  const params: Params[] = names
+    .filter((name) => canPrerenderParam(name))
+    .map((name) => ({ name: encodeURIComponent(name) }));
+
+  // 原因究明のカナリア。**エンコードせず生の名前で**焼き、次の本番デプロイで
+  // 200になるかを見る（仮説: Vercelはデコード後のパスで静的ファイルを探している）。
+  for (const name of PREGEN_CANARY_STUDIOS) {
+    if (names.includes(name)) params.push({ name });
+  }
+  return params;
 }
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {

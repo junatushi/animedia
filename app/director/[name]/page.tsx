@@ -4,6 +4,7 @@ import { siteUrl } from "@/lib/siteUrl";
 import { CreditPage } from "@/components/CreditPage";
 import { creditPageTitle, creditPageDescription } from "@/lib/pageMeta";
 import { titleText } from "@/lib/pageTitle";
+import { canPrerenderParam } from "@/lib/staticParams";
 import { creditMap, creditWorks, type StudioIndex } from "@/lib/studioIndex";
 import studioIndexJson from "@/content/archive/studios.json";
 
@@ -17,9 +18,11 @@ const INDEX = studioIndexJson as unknown as StudioIndex;
 type Params = { name: string };
 
 export function generateStaticParams(): Params[] {
-  return Object.keys(creditMap(INDEX, "director")).map((name) => ({
-    name: encodeURIComponent(name),
-  }));
+  // 【2026-08-31・応急処置】非ASCIIの名前は事前生成に載せない（lib/staticParams.ts）。
+  // 監督名は376件中ほぼ全てが日本語なので、実質すべてオンデマンドISRに回る。
+  return Object.keys(creditMap(INDEX, "director"))
+    .filter((name) => canPrerenderParam(name))
+    .map((name) => ({ name: encodeURIComponent(name) }));
 }
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
