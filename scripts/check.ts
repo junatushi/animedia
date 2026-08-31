@@ -4065,6 +4065,63 @@ let thinPersonNg = 0;
 }
 
 // ─────────────────────────────────────────────
+// 事前生成に「エンコードが要る名前」を載せない（2026-08-31追加・重大度高）
+//
+// 経緯: 本番で事前生成ページが404を返していた。実測で決め手は日本語かどうかではなく
+// **パーセントエンコードが要るかどうか**だった:
+//   /studio/CloverWorks     （エンコード不要） → 200
+//   /studio/A-1%20Pictures  （空白→%20）      → 404  ← ASCIIでも404
+//   /studio/ぴえろ          （日本語）        → 404
+// sitemapに載せていて404だったのは約2,826ページ（声優2,351/監督376/制作会社99）。
+// ローカルの next start では全て200を返すので**手元では絶対に気づけない**（⑦-10と同じ型）。
+// 経緯は docs/operations.md の㊱、判定は lib/staticParams.ts。
+// ─────────────────────────────────────────────
+console.log("\n── 事前生成にエンコードが要る名前を載せない ──");
+let prerenderNg = 0;
+{
+  const preCheck = (label: string, ok: boolean, detail: string) => {
+    if (!ok) prerenderNg++;
+    console.log(`${ok ? "✓" : "✗"}  ${label.padEnd(40)} → ${detail}`);
+  };
+
+  const policy = readFileSync(new URL("../lib/staticParams.ts", import.meta.url), "utf8");
+  const cond = policy.includes("encodeURIComponent(name) === name");
+  preCheck(
+    "判定はエンコードの有無で行う",
+    cond,
+    cond
+      ? "encodeURIComponent(name) === name"
+      : "非ASCII判定などで代用している（A-1 Pictures のようなASCIIの取りこぼしが出る）"
+  );
+
+  const pages: [string, string][] = [
+    ["../app/studio/[name]/page.tsx", "制作会社ページ"],
+    ["../app/director/[name]/page.tsx", "監督ページ"],
+    ["../app/person/[name]/[year]/[season]/page.tsx", "声優ページ"],
+  ];
+  for (const [rel, label] of pages) {
+    const src = readFileSync(new URL(rel, import.meta.url), "utf8");
+    const gated = src.includes("canPrerenderParam");
+    preCheck(
+      `${label}が門番を通す`,
+      gated,
+      gated ? "canPrerenderParam で絞る" : "全件を事前生成している（本番で404になる）"
+    );
+  }
+
+  // カナリアは小さく保つ（外れたときの被害を限るため）。判定がついたら消すもの。
+  const m = policy.match(/PREGEN_CANARY_STUDIOS\s*=\s*\[([^\]]*)\]/);
+  const canaryCount = m ? m[1].split(",").filter((x) => x.trim()).length : -1;
+  preCheck(
+    "カナリアは5件以内",
+    canaryCount >= 0 && canaryCount <= 5,
+    canaryCount < 0 ? "PREGEN_CANARY_STUDIOS が無い" : `${canaryCount}件`
+  );
+
+  console.log(`結果（事前生成の門番）: ${prerenderNg === 0 ? "全件OK" : prerenderNg + " 件NG"}`);
+}
+
+// ─────────────────────────────────────────────
 // 次クールをsitemapに載せる（2026-08-31追加）
 //
 // 経緯: sitemapは長らく「今期」しか載せていなかった。放送時期（○年○月）は放送開始の
@@ -5324,6 +5381,7 @@ if (
   orphanNg > 0 ||
   thinPersonNg > 0 ||
   nextSeasonNg > 0 ||
+  prerenderNg > 0 ||
   partialWeekNg > 0 ||
   prepNg > 0 ||
   archiveNg > 0 ||

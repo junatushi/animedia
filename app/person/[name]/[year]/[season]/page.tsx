@@ -19,6 +19,7 @@ import type { AnimeItem } from "@/lib/types";
 import { siteUrl } from "@/lib/siteUrl";
 import { personPageTitle, personPageDescription } from "@/lib/pageMeta";
 import { titleText } from "@/lib/pageTitle";
+import { canPrerenderParam } from "@/lib/staticParams";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -105,6 +106,10 @@ export function generateStaticParams(): Params[] {
   const params: Params[] = [];
   for (const c of counts.values()) {
     if (c.count < MIN_APPEARANCES) continue;
+    // 【2026-08-31・応急処置】非ASCIIの名前は事前生成に載せない（lib/staticParams.ts）。
+    // 本番で日本語名の事前生成ページが全て404になっていた。過去年の声優ページ2,351件が
+    // これに当たる。外した分はオンデマンドISRで描画され200を返す。
+    if (!canPrerenderParam(c.name)) continue;
     params.push({
       name: encodeURIComponent(c.name),
       year: String(c.year),
