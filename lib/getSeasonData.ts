@@ -63,11 +63,31 @@ async function fetchAndBuild(year: string, season: string): Promise<SeasonRespon
 // 600秒だと「Cronが遅れた窓」で実訪問者がキャッシュ切れの再構築（2026-07-21実測で
 // 5〜6秒。シーズン進行でprogramsが積み上がり悪化した）を踏んでいた。900秒にして
 // Cron遅延を吸収し、再構築は原則Cron側が負担するようにする（鮮度は最大15分に緩む）。
-const CURRENT_YEAR_REVALIDATE = 900;
+// 【2026-08-25変更】900 → 3600（1時間）。理由は2つある。
+// ①Next.jsのApp Routerでは、ページの `export const revalidate` と、その描画中に走る
+//   fetch/unstable_cache のTTLの**低いほう**が実効値になる。ページ側を3600へ延ばしても
+//   ここが900のままだと実効900のままで、延ばした意味が無い（ビルド成果物の
+//   prerender-manifest で実測して判明。/exclusive/2026/autumn が3600ではなく900だった）。
+// ②Vercel Hobbyの ISR Writes 上限（30日で200,000）を296,449件で超過しサイトがPausedに
+//   なったため、再検証の回数そのものを減らす必要がある。
+// 温めCronも6時間おきへ落としたので、上のコメントにある「Cron遅延を吸収する」目的は
+// TTLを延ばす方向とそのまま整合する（鮮度は最大1時間に緩む）。
+const CURRENT_YEAR_REVALIDATE = 3600;
 const PAST_YEAR_REVALIDATE = 60 * 60 * 24;
 
+// 【2026-08-25追加】タグ "season-current" を付ける。/api/revalidate が revalidateTag で
+// 明示的に古くするため。
+//
+// なお **CURRENT_YEAR_REVALIDATE は3600のまま据え置く**（1週間へ延ばさない）。ここは
+// 一覧（トップ・シーズン・ランキング・独占配信）が読む現在クールのデータで、カードの
+// 配信バッジもここから出る。cronが止まったときに一覧まで1週間古くなるのは、このサイトの
+// 存在理由（今どこで見られるか）を損なう。対象は現在クールのぶんだけ＝約150ページなので、
+// 1時間刻みでも書き込みは1日200件程度に収まり、上限（1日6,600件相当）に対して十分小さい。
+// 長い裾（過去クールの作品・声優ページ）は下の PAST_YEAR_REVALIDATE とスナップショットの
+// 直読みに乗るので、この値の影響を受けない。
 const getCachedCurrentYearSeasonData = unstable_cache(fetchAndBuild, ["season-data-current"], {
   revalidate: CURRENT_YEAR_REVALIDATE,
+  tags: ["season-current"],
 });
 const getCachedPastYearSeasonData = unstable_cache(fetchAndBuild, ["season-data-past"], {
   revalidate: PAST_YEAR_REVALIDATE,

@@ -43,7 +43,7 @@ export const PERSON_PAGE_MIN_APPEARANCES = 2;
 // 広げないこと。scaled content abuse の定義は「順位操作が主目的」かつ「利用者の役に
 // 立たない」の両方が要件で、このサイトの声優ページはどちらも満たさない。これは
 // **薄い面を検索の入口に使わないという運用判断**であって、違反の回避ではない。
-// 経緯は docs/operations.md の㉜、実測は docs/seo-2026-08-25/。
+// 経緯は docs/operations.md の㉞㉟、実測は docs/seo-2026-08-25/。
 export const PERSON_PAGE_INDEX_MIN_TOTAL_WORKS = 50;
 
 // 声優のクール別ページを検索索引に載せてよいか。

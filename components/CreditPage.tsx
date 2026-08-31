@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { siteUrl } from "@/lib/siteUrl";
+import { creditHeadline } from "@/lib/pageMeta";
 import {
   CREDIT_ROLE_LABEL,
   MAX_WORKS_SHOWN,
@@ -29,17 +30,6 @@ const SEASON_LABEL: Record<string, string> = {
   autumn: "秋",
 };
 
-export function creditPageTitle(role: CreditRole, name: string): string {
-  return role === "studio"
-    ? `${name}が制作したアニメの配信情報一覧`
-    : `${name}が監督したアニメの配信情報一覧`;
-}
-
-export function creditPageDescription(role: CreditRole, name: string, count: number): string {
-  const verb = role === "studio" ? "制作" : "監督";
-  return `${name}が${verb}したアニメ${count}作品を新しい順にまとめました。各作品の配信サービスはアニメ視聴ガイドで確認できます。`;
-}
-
 export function CreditPage({
   role,
   name,
@@ -57,7 +47,7 @@ export function CreditPage({
     {
       "@context": "https://schema.org",
       "@type": "ItemList",
-      name: creditPageTitle(role, name),
+      name: creditHeadline(role, name),
       numberOfItems: shown.length,
       itemListElement: shown.map(([id, title], i) => ({
         "@type": "ListItem",

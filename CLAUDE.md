@@ -18,7 +18,7 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `npm run check` … **コミット前はこれ1本**（2026-08-11導入）。下の検査スクリプトを
   CIと同じ順で全部回す（`tsc --noEmit` → `check.ts` → `check-threads.js` →
   `check-verify-production.js` → `check-gsc.js` → `check-probe-series.js` →
-  `check-track-season.js` → `check-fetch-upcoming.js`）。
+  `check-track-season.js` → `check-fetch-upcoming.js` → `check-site-analytics.js`）。
   検査が6コマンドに分かれていると実際には全部は回されず、2件が数セッション赤いまま
   放置された（`docs/operations.md`の㉔追記2）。CIの`run:`とこのコマンドが同じ検査を
   並べていることは`node scripts/check.ts`が突き合わせる。ネットワークには出ない
@@ -112,6 +112,37 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   **MAL IDでの突き合わせが最優先・食い違いは採用しない・月精度に曜日を付けない・
   過去の予定日を出さない・取れなかった作品を消さない・1情報源の失敗で残りを巻き添えに
   しない**ことを固定する。ネットワークには出ない。`fetch-upcoming.js`を触ったら必ず実行する
+- `node scripts/fetch-site-analytics.js` … **サイト自身の行動ログ集計の取得**（2026-08-19導入）。
+  自前計測（Supabaseの`analytics_events`）は`/admin/analytics?token=...`の**画面にしか無く、
+  ブラウザで開く以外に読む方法が無かった**。そのためセッションは実測値を一度も読めず、
+  `docs/affiliate-setup.md`の「未提携サービスへのクリックが多い順に提携する」という判断が
+  ユーザーの手入力待ちで止まっていた。GSCと同じ形（外向き通信ができるGitHub Actionsから取り、
+  リポジトリにJSONを置き、セッションはコミット済みのJSONを読む）に載せた。
+  結果は`content/analytics/site/<日付>.json`。毎日`.github/workflows/site-analytics.yml`が
+  回すので手で実行する必要は無い。要`ADMIN_DASHBOARD_TOKEN`（VercelとGitHub Secretsで**同じ値**）。
+  集計本体は`lib/adminAnalytics.ts`にあり、**画面とJSON窓口（`app/api/admin/analytics/route.ts`）が
+  同じ集計を通る**（どちらかに書き戻すと数字が2通りになる）。手順は`docs/operations.md`の「計測の見かた」
+- `node scripts/check-site-analytics.js` … 上の取得スクリプトのテスト（2026-08-19導入）。
+  HTTPスタブを立てて`fetch-site-analytics.js`を実際に動かし、**トークンをURLに載せない・
+  書き出すJSONにトークンが混入しない・404（トークン不一致）は再試行せず即失敗・
+  一時エラー（429/5xx）は再試行・未設定なら静かにスキップしてファイルを作らない・
+  打ち切りを黙らない**ことを固定する。ネットワークには出ない。
+  `fetch-site-analytics.js`を触ったら必ず実行する
+- `node scripts/seo-report.js` … **SEOの「判定」レポート**（2026-08-19導入）。コミット済みの
+  `content/analytics/gsc/*.json`を読み、①全体の推移 ②日次の前半/後半 ③**面別の効率
+  （1ページあたりクリック）** ④面別の週次推移 ⑤手を入れる候補（11〜20位のクエリ・
+  表示があるのにクリック0のページ）を出す。ネットワークには出ない。
+  **毎日のSEO作業はまずこれを実行する**（手順は`docs/seo-operations.md`）。
+  導入の経緯: 収集（`fetch-gsc.js`）は自動化されていたのに**JSONを読んで
+  「改善したか・次に何をすべきか」を答える道具が無く**、面別の効率差
+  （声優ページが作品ページの8倍）が2週間埋もれていた（`docs/operations.md`の㉜）。
+  **数字をドキュメントに転記しないこと**（棚卸し時点で同じ断面が4箇所に写され、
+  平均掲載順位が3つの値で語られていた）
+- `node scripts/check-seo-report.js` … 上のレポートの回帰テスト（2026-08-19導入）。
+  仮のGSC JSONを置いて`seo-report.js`を実際に動かし、**1ページあたりクリックの降順・
+  CTRと順位の表示回数による重み付け・表示ゼロの面の警告・11〜20位の抽出**を固定する。
+  落ちるのではなく数字を静かに間違える方向に壊れると、間違った面に投資し続けるため。
+  ネットワークには出ない。`seo-report.js`を触ったら必ず実行する
 - `node scripts/audit-coverage.ts [year] [season]` … 配信データ網羅率の点検（2026-07-12導入）。
   引数省略時は現在のクール。(a)TV放送データはあるが配信サービス0件の作品（注目度順。
   Annict側の登録待ちの疑い）、(b)「その他配信」に落ちた未知チャンネル名（`SERVICES`
@@ -171,6 +202,18 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - 流入リード発掘（demand-scan/lead-finder、2026-07-16導入・検証中）は「配信どこ？」で困っている個人の投稿を見つけ返信下書きを作る仕組み。2〜3週に1回、Claudeに「流入リードを集めて」と依頼して回す。手順は `docs/operations.md`の⑬、技術詳細は `docs/demand-scan.md`。
 - ユーザー行動は Vercel Web Analytics のカスタムイベントで計測（`docs/operations.md` の「計測の見かた」参照）。
 - 集客最大化・サイト改良の構想メモは `docs/growth-ideas.md` にまとめてある（次回セッションの着手候補）。
+- **日次巡回の手順は `docs/daily-ops.md`**（2026-08-19導入）。毎日のスケジュール実行が
+  読む手順の**正本**。それまで手順はリポジトリ外（スケジュール実行の設定）にしか無く、
+  CI・PRレビュー・`check.ts`のどれにもかからないため、実測と矛盾しても誰も気づけなかった
+  （実際に「作品ページに投資する」という実測に否定された方針が毎日注入されていた）。
+  **手順を変えるときはこのファイルを直してPRを出す**こと（設定側に写さない）。
+- **毎日のSEO改善は `docs/seo-operations.md`**（2026-08-19導入）。`node scripts/seo-report.js`を
+  実行し、①11〜20位のクエリ（1ページ目まであと一歩＝費用対効果が最大）②1ページあたり
+  クリックが高い面 ③表示があるのにクリック0のページ の順で判断する。
+  **2026-08-19時点の重点は声優ページ**（4ページで平均5.7位・CTR8.3%＝サイトで唯一1ページ目。
+  作品ページは37ページで22.0位・CTR1.4%）。作品ページの「量を増やす」方向には投資しない。
+  **「変化なし」と書く前に必ず`seo-report.js`を実行すること**（見ずに変化なしと書かない）。
+  撤退判定の表（期日つき）も同書3節にある。経緯は`docs/operations.md`の㉜
 - **集客戦略の方針は `docs/growth-strategy-2026-08.md`**（2026-08-07。世界の類似サービス約100件の
   調査に基づく）。要点は「SEOで順位を上げるより、**他人の道具が依存するデータ供給元になる**
   ほうがこの分野の生存者の実績と整合する」こと。既存の公開API・ウィジェットに
@@ -246,6 +289,25 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   （`.claude/agents/*.md` の `model:` — sonnet中心、品質重視のsns-marketerのみopus）で指定する。
 
 ## 主要ファイル
+- `vercel.json` … **表示に使わないデータのコミットで本番デプロイを起こさないための門番**
+  （2026-08-25導入）。`ignoreCommand`が「`content/analytics/`・`content/coverage/`・
+  `content/demand/`・`docs/`しか変更していないコミット」を判定し、その場合はビルドをスキップする
+  （終了コード0＝スキップ、非0＝ビルド）。Vercelはデプロイごとに独立したISRキャッシュを持つため、
+  デプロイ＝キャッシュ実質全消去＝全ページの作り直しになる。mainへ自動コミットするcronは1日5本
+  あるが、うち3本（`gsc-snapshot`・`site-analytics`・`track-season`）が書くのはサイトの表示に
+  一切使われないデータで、それが毎日3回キャッシュを捨てていた。**`content/works/`は除外していない**
+  （`autoSchedule.json`は画面に出るのでデプロイが必要）。**このファイルを消すとVercelが停止した
+  ときの状態に戻る**。経緯は`docs/operations.md`の㉝
+- `app/api/revalidate/route.ts` + `.github/workflows/revalidate.yml` … **鮮度を「時間」ではなく
+  「指名」で取りに行く窓口**（2026-08-25導入）。長い裾のページ（作品・声優・サービス別・
+  過去クール）の`revalidate`は1週間にしてあり、時間では作り直さない。その代わりこの窓口が
+  `revalidateTag("annict")`と現在クールのページへの`revalidatePath`を実行し、cronが1日2回叩く。
+  **`revalidatePath`は「次に誰かが見に来たら作り直す」印を付けるだけ**なので、呼んだ数だけ
+  課金されるわけではない（誰も来ないページでは書き込みが起きない）。
+  認証は`/api/notify/run`と同じ`NOTIFY_CRON_SECRET`を使い回す（新設しない＝設定漏れで黙って
+  止まるのを避ける）。**タグとパスの両方を古くすること**（ページだけ作り直しても、データ層の
+  キャッシュが生きていると中身は古いまま出る）。検査は`node scripts/check.ts`の
+  「ISRの再生成頻度」節。経緯は`docs/operations.md`の㉝
 - `lib/siteUrl.ts` … サイト正準URLの一元定義（2026-07-18導入）。canonical・OGP・sitemap・JSON-LD・
   メール内リンクの全てがここを参照する。独自ドメイン移行時はこの1行＋`docs/domain-migration.md`の手順
 - `content/affiliate/programs.ts` + `lib/affiliate.ts` … アフィリエイトのリンク・報酬額データ
@@ -619,6 +681,50 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   分母に入っているだけ。**「CTRを上げる施策」の実体は「圏外表示を減らす」ことで、
   掲載順位の対策と同じ打ち手になる。独立した打ち手は存在しない。**
   特に`/person/悠木碧/2026/summer`は106表示・11クリック・5.9位＝サイト最大の資産なので触らない。
+- **【基本ルール】新しいページ種別は「面」にも登録する（2026-08-19導入）**: 上の孤立ページが
+  「人とクローラーから辿れるか」なら、こちらは**投資判断の土俵に乗るか**。
+  `scripts/lib/gsc-page-type.js`の`PAGE_TYPE_PREFIXES`に接頭辞を足さないと、そのページは
+  `seo-report.js`の③（1ページあたりクリック）④（面別の週次推移）で黙って「その他」に
+  落ち、**どの面に投資するかの表に一度も現れない**。表に出ない面は効果を測られず、
+  作られたことすら忘れられる。面を増やしたくない場合も、増やさない理由を書いて
+  `SITEMAP_OTHER_PATHS`に登録する。`node scripts/check.ts`の「面（ページ種別）の分類」節が
+  sitemapと機械的に突き合わせ、どちらもしていないパスがあれば落ちる。
+- **【基本ルール】ページのtitleは`lib/pageMeta.ts`で組み立てる（2026-08-19導入）**:
+  `generateMetadata`の中でテンプレートリテラルを直書きしない。直書きすると
+  ①幅の予算（`lib/pageTitle.ts`／全角32）が効かず ②`node scripts/check.ts`から検査できない
+  （`.tsx`はNodeがimportできない）。実際、予算は2026-08-05に作ったのに作品ページにしか
+  効いておらず、制作会社ページは165件中45件（27%）が予算超過していた。
+  レイアウトの`template`（`| アニメ視聴ガイド`＝幅9.5）が自動で足されることを勘定に
+  入れること。予算を超えるときは**ブランド名を先に落とす**（`fitPageTitle`が自動でやる）。
+- **【基本ルール】ISRの再検証間隔と、それを叩く巡回の間隔はセットで決める（2026-08-25導入・重大度最高）**:
+  2026-08-24にVercel Hobbyの利用上限（ISR Writes・Fluid Active CPU・Fluid Provisioned Memory）を
+  超過し、**本番サイトが全ルートHTTP 402で丸一日以上停止した**。原因は「アクセスが多すぎた」ことでは
+  なく（Function Invocations・Edge Requests・ISR Readsは全て上限内だった）、**同じ内容のページを
+  何度も作り直していた**こと。外してはいけない点が4つある。
+  ①**巡回の間隔が再検証の間隔より長いと、その巡回は「温め」ではなく「強制的な書き直し」になる**。
+  `warm-cache.yml`が毎時なのにページの`revalidate`が900秒だったため、巡回は毎回キャッシュ期限切れに
+  当たり67ページを確実に再生成していた（30日で約46,000 ISR Writes＝全体の16%）。
+  ②**Vercelはデプロイごとに独立したISRキャッシュを持つ**＝mainへのpushは実質キャッシュ全消去。
+  表示に使わないデータ（`content/analytics/`・`content/coverage/`）のコミットでデプロイを
+  起こさないよう`vercel.json`の`ignoreCommand`で門番する。**この設定を消さないこと。**
+  ③**sitemapにページを増やすときは1ページあたりの再検証頻度も見直す**（面の数×再生成頻度で効く）。
+  8月上旬に約7,051ページを開放したのに`revalidate`が据え置きだったのが利用量急増の主因。
+  ④**I/O待ちはActive CPUには出ないがProvisioned Memoryには出る**（メモリ課金は待機中も止まらない）。
+  全リクエストで走る処理（`middleware.ts`）に外部への往復を置かない。認証Cookieの無いリクエストは
+  `hasAuthCookie`で素通しする。
+  ⑤**revalidateを延ばすときは「1ページあたりの再訪間隔」を先に計算する**（2026-08-25追記）。
+  `sitemapのページ数 ÷ 1日のリクエスト数`で出る。**延ばした先がこれを超えなければ、何秒にしても
+  書き込み回数は1件も変わらない**。実測では7,051ページ÷10,300リクエスト/日＝**16.4時間**で、
+  900秒を3600秒にしても両方とも遥かに短く、効果はゼロだった（この失敗を1回やっている）。
+  現在の設計は「長い裾は1週間＝時間では作り直さない／鮮度は`/api/revalidate`が指名して取りに行く」。
+  経緯は`docs/operations.md`の㉝。
+- **【基本ルール】revalidateを変えたら必ずビルドして実効値を確かめる（2026-08-25導入）**:
+  App Routerの実効revalidateは「ページの`export const revalidate`」と「描画中に走る
+  fetch／`unstable_cache`のTTL」の**低いほう**になる。ページ側だけ延ばしても、`lib/annict.ts`の
+  `next.revalidate`や`lib/getSeasonData.ts`の`CURRENT_YEAR_REVALIDATE`が短いままだと**まったく効かない**。
+  実際、2026-08-25にページ側を3600へ延ばしたのに実効値は900のままだった。
+  確認方法は`npm run build`のあと`.next/prerender-manifest.json`の`initialRevalidateSeconds`を読む
+  （画面を見ても分からない）。
 - 配信網羅率は Annict のコミュニティ更新依存で100%ではない。新作は配信欄が空になりうる。
   「配信情報なし」は仕様であり、勝手に推測データで埋めない。
 - `content/works/` のあらすじ・見どころ・出版社も同様に、公式サイト等の一次情報で確認できた

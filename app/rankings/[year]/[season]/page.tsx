@@ -7,6 +7,8 @@ import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import type { AnimeItem, ServiceTag } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
+import { rankingsPageTitle, rankingsPageDescription } from "@/lib/pageMeta";
+import { titleText } from "@/lib/pageTitle";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -18,7 +20,24 @@ const WEEKDAY_LABEL = ["日", "月", "火", "水", "木", "金", "土"];
 // ISR（2026-07-24導入。app/season/[year]/[season]/page.tsx と同じ理由・同じ値）。
 // これが無いと動的セグメント[year]/[season]は毎リクエスト動的レンダリングになり
 // CDNエッジにキャッシュされない。10分はgetSeasonData側のキャッシュ鮮度と揃えた。
-export const revalidate = 600;
+// 【2026-08-25変更】600秒 → 3600秒（1時間）。Vercel Hobbyの ISR Writes 上限
+// （30日で200,000）を296,449件で超過しプロジェクトがPausedになったため。再検証の間隔を
+// 延ばすと、①再生成の回数がそのまま減る（ISR Writes・Fluid CPU・Provisioned Memoryの
+// 3指標すべてに効く）②キャッシュが効いている時間が長くなるので**表示はむしろ速くなる**。
+// ISRは期限切れ後も stale-while-revalidate で古いHTMLを即座に返しつつ裏で作り直すので、
+// 期限を延ばしても訪問者が待たされる場面は増えない。Annictの配信情報はコミュニティ更新で
+// 分単位に動くものではなく、1時間の鮮度で困る用途がこのサイトには無い。経緯はdocs/operations.md。
+// 【2026-08-25変更（2回目）】3600 → 604800（1週間）。
+// 同日に900→3600へ延ばしたが、**それでは書き込みは1件も減らない**ことが実測で判明した。
+// 超過時の30日で Edge Requests 10,300件/日 に対し ISR Writes 9,882件/日＝96%。
+// sitemapの約7,051ページへ1日10,300リクエストが分散すると1ページあたりの再訪間隔は
+// 平均16.4時間になり、revalidateがそれより短い限り訪問のたびに必ず期限切れ＝毎回書き込みに
+// なる。900秒でも3600秒でも16.4時間より遥かに短いので効果が無かった。
+// そこで再訪間隔より十分長い1週間にして「時間による再生成」を止め、鮮度が要る現在クールは
+// /api/revalidate（.github/workflows/revalidate.yml が1日2回叩く）で明示的に指名する方式に
+// 変えた。表示速度は落ちない（stale-while-revalidateで古いHTMLを即座に返す設計は同じで、
+// むしろキャッシュに当たる時間が長くなる）。経緯は docs/operations.md の㉝。
+export const revalidate = 604800;
 
 // season配下と同様、今年の4シーズンを静的生成対象にしてISRを有効化する。
 // それ以外の年はdynamicParams（既定true）で初回オンデマンド生成→以後キャッシュされる。
@@ -76,16 +95,16 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   if (!isValidYear(year) || !isValidSeason(season)) return {};
 
   const label = SEASON_LABEL[season];
-  const title = `${year}年${label}アニメ 配信サービス勢力図・ランキング`;
-  const description = `${year}年${label}アニメの配信サービス別対応本数・独占配信数・先行配信ランキングをAnnictの実データからまとめました。アニメ視聴ガイドで確認できます。`;
+  const title = rankingsPageTitle(year, season);
+  const description = rankingsPageDescription(year, season);
   const url = `${siteUrl}/rankings/${year}/${season}`;
 
   return {
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, type: "website" },
-    twitter: { card: "summary_large_image", title, description },
+    openGraph: { title: titleText(title), description, url, type: "website" },
+    twitter: { card: "summary_large_image", title: titleText(title), description },
   };
 }
 

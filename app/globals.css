@@ -1441,6 +1441,49 @@ body {
   line-height: 1.6;
   color: var(--ink);
 }
+/* 作品ページの通称・略称（2026-08-19追加）。h1のすぐ下に置き、JSON-LDの
+   alternateName と同じ内容を可視テキストにも出す。 */
+.detail-alias {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.detail-alias strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.detail-alias a {
+  color: var(--accent);
+}
+
+/* 声優ページ「他のクールの出演一覧」（2026-08-19追加）。
+   同じ人のクール別ページ同士を繋ぐ導線。件数が多い声優（100作品超）でも
+   縦に伸びないよう、箇条書きではなく横に折り返すチップ列にする。 */
+.person-season-links {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.person-season-links a {
+  display: inline-block;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--ink);
+  text-decoration: none;
+  background: var(--card);
+}
+.person-season-links a:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* コード片（/developers の貼り付け例・APIの呼び出し例）。横に長いので単独でスクロールさせる。 */
 .detail-code {
   margin: 0;

@@ -7,11 +7,18 @@ import {
   shouldIndexPersonSeasonPage,
 } from "@/lib/personPage";
 import { PERSON_FILMOGRAPHY } from "@/content/people/filmography";
-import { otherSeasonWorks, MAX_WORKS_SHOWN, type PersonIndex } from "@/lib/personIndex";
+import {
+  otherSeasonWorks,
+  otherSeasonPages,
+  MAX_WORKS_SHOWN,
+  type PersonIndex,
+} from "@/lib/personIndex";
 import personIndexJson from "@/content/archive/people.json";
 import type { AnimeItem } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
+import { personPageTitle, personPageDescription } from "@/lib/pageMeta";
+import { titleText } from "@/lib/pageTitle";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -32,18 +39,79 @@ type Params = { name: string; year: string; season: string };
 //
 // 値は getSeasonData の今期キャッシュ（900s）と揃える。作品ページで測った効果は
 // 初回0.81秒 → 2回目以降0.010秒（app/anime/[id]/page.tsx のコメント参照）。
-export const revalidate = 900;
+// 【2026-08-25変更】900秒 → 3600秒（1時間）。Vercel Hobbyの ISR Writes 上限
+// （30日で200,000）を296,449件で超過しプロジェクトがPausedになったため。再検証の間隔を
+// 延ばすと、①再生成の回数がそのまま減る（ISR Writes・Fluid CPU・Provisioned Memoryの
+// 3指標すべてに効く）②キャッシュが効いている時間が長くなるので**表示はむしろ速くなる**。
+// ISRは期限切れ後も stale-while-revalidate で古いHTMLを即座に返しつつ裏で作り直すので、
+// 期限を延ばしても訪問者が待たされる場面は増えない。Annictの配信情報はコミュニティ更新で
+// 分単位に動くものではなく、1時間の鮮度で困る用途がこのサイトには無い。経緯はdocs/operations.md。
+// 【2026-08-25変更（2回目）】3600 → 604800（1週間）。
+// 同日に900→3600へ延ばしたが、**それでは書き込みは1件も減らない**ことが実測で判明した。
+// 超過時の30日で Edge Requests 10,300件/日 に対し ISR Writes 9,882件/日＝96%。
+// sitemapの約7,051ページへ1日10,300リクエストが分散すると1ページあたりの再訪間隔は
+// 平均16.4時間になり、revalidateがそれより短い限り訪問のたびに必ず期限切れ＝毎回書き込みに
+// なる。900秒でも3600秒でも16.4時間より遥かに短いので効果が無かった。
+// そこで再訪間隔より十分長い1週間にして「時間による再生成」を止め、鮮度が要る現在クールは
+// /api/revalidate（.github/workflows/revalidate.yml が1日2回叩く）で明示的に指名する方式に
+// 変えた。表示速度は落ちない（stale-while-revalidateで古いHTMLを即座に返す設計は同じで、
+// むしろキャッシュに当たる時間が長くなる）。経緯は docs/operations.md の㉝。
+export const revalidate = 604800;
 
-// generateStaticParams が無いと revalidate を書いてもルートが prerender-manifest に
-// 載らず動的のまま（作品ページ・サービス別ページと同じ罠）。空配列＝ビルド時には
-// 1件も焼かず、アクセスされたものから順にISRキャッシュに載せる。
-// 声優ページは4,483件あるのでビルド時に全部焼くのは現実的でない。
+// 【2026-08-25変更】空配列 → 過去クールぶん（4,483件）を全件事前生成する。
+//
+// もとは「4,483件あるのでビルド時に全部焼くのは現実的でない」と判断していたが、
+// **その判断は利用量の予算から逆算されていなかった**。VercelのISR Writes上限を
+// 超過してサイトがPausedになった件（docs/operations.md の㉝）で分かったのは:
+//
+//   ・**事前生成したページはISR Writesを1件も消費しない**（デプロイ成果物に含まれる）
+//   ・Vercelはデプロイごとに独立したISRキャッシュを持つ＝デプロイのたびに全消去される。
+//     事前生成していないページは、デプロイのたびに「最初に見に来た人」の分だけ
+//     必ず書き込みが発生する。この床はrevalidateをいくら延ばしても消えない
+//   ・声優ページは長い裾（sitemapの約7,051ページ）の**64%**を占める最大の集団
+//
+// つまりここを焼くかどうかが、書き込みの下限をほぼ決めていた。
+//
+// 焼けるのは**過去クールだけ**。現在クールはAnnictへのライブ取得が要るので、
+// ビルドの成否が外部APIに依存してしまう（app/service/[key]/... と同じ判断）。
+// 過去クールは content/snapshots/ の静的JSONから返るのでネットワークに出ない。
+//
+// 件数は content/archive/people.json から「そのクールに2作品以上」の組を数えて出す。
+// これは sitemap（app/sitemap.ts）が使う集合と同じ作り方なので、載せているのに
+// 焼いていない・焼いたのに載せていない、というズレが起きない。索引は「配信情報が
+// 1件以上ある作品」だけで作られており、ページ側の判定（getSeasonData＝全作品）より
+// 常に少なく数えるので、**ここに出た組は必ずページが実在する**（404を焼かない）。
 //
 // このページは出演2作品未満で notFound() を返すので、**loading.tsx を置かないこと**。
 // 置くとストリーミングでヘッダが先に確定し、404が200（ソフト404）で返るようになる
 // （app/anime/[id]/page.tsx で実測済み）。
-export function generateStaticParams() {
-  return [];
+export function generateStaticParams(): Params[] {
+  const thisYear = new Date().getFullYear();
+  const counts = new Map<string, { name: string; year: number; season: string; count: number }>();
+
+  for (const [name, works] of Object.entries((personIndexJson as unknown as PersonIndex).people)) {
+    for (const w of works) {
+      const year = w[2] as number;
+      const season = w[3] as string;
+      // 現在の年はライブ取得なのでビルド時に焼かない（外部APIにビルドを依存させない）。
+      if (year >= thisYear) continue;
+      const key = `${year}/${season}/${name}`;
+      const cur = counts.get(key);
+      if (cur) cur.count++;
+      else counts.set(key, { name, year, season, count: 1 });
+    }
+  }
+
+  const params: Params[] = [];
+  for (const c of counts.values()) {
+    if (c.count < MIN_APPEARANCES) continue;
+    params.push({
+      name: encodeURIComponent(c.name),
+      year: String(c.year),
+      season: c.season,
+    });
+  }
+  return params;
 }
 
 function findWorks(items: AnimeItem[], name: string): AnimeItem[] {
@@ -66,12 +134,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
   const label = SEASON_LABEL[season];
   const filmography = PERSON_FILMOGRAPHY[name];
-  const title = filmography
-    ? `${name}の代表作・${year}年${label}アニメ出演作一覧`
-    : `${name}が出演する${year}年${label}アニメ一覧`;
-  const description = filmography
-    ? `${name}さんの代表作（役名付き）と、${year}年${label}アニメの出演作をまとめました。配信サービスもあわせてアニメ視聴ガイドで確認できます。`
-    : `${name}さんが出演する${year}年${label}アニメを一覧でまとめました。配信サービスもあわせてアニメ視聴ガイドで確認できます。`;
+  const title = personPageTitle(name, year, season, Boolean(filmography));
+  const description = personPageDescription(name, year, season, Boolean(filmography));
   const url = `${siteUrl}/person/${encodeURIComponent(name)}/${year}/${season}`;
 
   // 過去年の「無名の声優」のページだけ noindex にする（規則と実測は lib/personPage.ts）。
@@ -87,8 +151,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     description,
     alternates: { canonical: url },
     ...(indexable ? {} : { robots: { index: false, follow: true } }),
-    openGraph: { title, description, url, type: "website" },
-    twitter: { card: "summary_large_image", title, description },
+    openGraph: { title: titleText(title), description, url, type: "website" },
+    twitter: { card: "summary_large_image", title: titleText(title), description },
   };
 }
 
@@ -129,6 +193,15 @@ export default async function PersonPage({ params }: { params: Params }) {
     Number(year),
     season
   ).slice(0, MAX_WORKS_SHOWN);
+  // 同じ人の他クールのページ（2026-08-19追加）。ページが実在するクールだけが返る
+  // （lib/personIndex.ts の otherSeasonPages が閾値で門番する＝404へのリンクを配らない）。
+  const otherPages = otherSeasonPages(
+    personIndexJson as unknown as PersonIndex,
+    name,
+    Number(year),
+    season,
+    MIN_APPEARANCES
+  );
   const checkedDate = new Date().toISOString().slice(0, 10);
   const structuredLd = !fetchError
     ? [
@@ -261,6 +334,29 @@ export default async function PersonPage({ params }: { params: Params }) {
                       過去クールの記録から、配信情報が登録されている作品だけを新しい順に出しています。
                       現在も配信されているかは各サービスでご確認ください。
                     </p>
+                  </section>
+                )}
+
+                {otherPages.length > 0 && (
+                  <section className="detail-section">
+                    {/* 同じ人の他クールのページへの導線（2026-08-19追加）。
+                        ここが無いと、sitemapに載せた過去クールの声優ページは
+                        「そのクールの作品ページの声優名リンク」1本でしか辿れず、
+                        サイトでいちばん強い面（GSC実測5.7位）から authority が渡らない。
+                        並ぶのは PERSON_PAGE_MIN_APPEARANCES を満たすクールだけなので
+                        404へのリンクにはならない。 */}
+                    <h2 className="detail-heading">
+                      {name}さんの他のクールの出演一覧
+                    </h2>
+                    <ul className="person-season-links">
+                      {otherPages.map((p) => (
+                        <li key={`${p.year}-${p.season}`}>
+                          <Link href={`/person/${encodeURIComponent(name)}/${p.year}/${p.season}`}>
+                            {p.year}年{SEASON_LABEL[p.season]}（{p.count}作品）
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
                   </section>
                 )}
               </>

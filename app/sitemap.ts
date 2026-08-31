@@ -221,7 +221,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // lib/personPage.ts の shouldIndexPersonSeasonPage が1箇所で持ち、ページ側の
   // noindex 判定とここが必ず同じ答えを出すようにする（ズレるとsitemapに noindex の
   // URLを載せることになる）。約4,483 → 約2,374件。
-  // 実測と経緯は docs/seo-2026-08-25/ と docs/operations.md の㉜。
+  // 実測と経緯は docs/seo-2026-08-25/ と docs/operations.md の㉟。
   //
   // 収録の基準（上の絞り込みに加えて、従来どおり）:
   //   ・そのクールに PERSON_PAGE_MIN_APPEARANCES 作品以上出ている人だけ

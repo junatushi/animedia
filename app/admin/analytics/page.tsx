@@ -2,75 +2,20 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+// 集計は画面とJSON窓口（app/api/admin/analytics/route.ts）で共有する。
+// ここに集計を書き戻すと、画面とJSONで数字がズレてどちらが正か分からなくなる。
+import {
+  EVENT_LABELS,
+  MAX_ROWS,
+  WINDOW_DAYS,
+  countBy,
+  countByDataField,
+  type EventRow,
+} from "@/lib/adminAnalytics";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 // 集計対象は毎回最新にする（キャッシュされた古い数字を運営者に見せない）。
 export const dynamic = "force-dynamic";
-
-// 運営者本人だけが見られる簡易ダッシュボード。ログイン機能（Supabase Auth）とは別に、
-// 共有URLに ?token=... を付ける方式にしている（管理者ロールを新設する規模ではないため、
-// app/api/notify/run が使う x-cron-secret ヘッダー方式と同じ「固定シークレットの一致」で
-// 十分と判断した。ヘッダーではなくクエリパラメータなのは、ブラウザで直接開く画面のため）。
-const WINDOW_DAYS = 30;
-const MAX_ROWS = 5000;
-
-type EventRow = { event_name: string; event_data: Record<string, unknown> | null; created_at: string };
-
-const EVENT_LABELS: Record<string, string> = {
-  share_site: "サイト全体を共有",
-  share_work: "作品を共有",
-  favorite_add: "お気に入り登録",
-  watched_add: "視聴済みに登録",
-  notify_add: "配信通知を登録",
-  filter_service: "配信サービスで絞り込み",
-  filter_cast: "声優で絞り込み",
-  change_season: "シーズン切り替え",
-  // フッターのフォロー導線（2026-08-06追加。components/FollowLinks.tsx）。
-  // Xのフォロワーを増やす手段のうち、サイト側で測れる唯一の数字なので必ず出す。
-  follow_click: "SNSフォロー導線をクリック",
-  // カレンダー購読（2026-08-07追加。app/calendar.ics / components/FollowLinks.tsx）。
-  // フォローと違い、購読されるとこちらが投稿しなくても毎週相手のカレンダーに出る。
-  // 定着（Direct流入）の施策なので、follow_click と並べて比較する
-  // （docs/growth-strategy-2026-08.md ／ docs/operations.md ⑱）。
-  calendar_subscribe: "カレンダー購読をクリック",
-  // 視聴プラン（2026-08-07追加）。お気に入りを全部見るのに必要な最小のサービス
-  // 組み合わせを開いた回数。加入判断に最も近い操作。
-  plan_open: "視聴プランを開いた",
-  // 【2026-08-06追加】配信バッジのクリック。`components/ServiceMarks.tsx` が
-  // 2026-07-19からずっと記録していたのに、このラベル表に載っていなかったため
-  // ダッシュボードのどこにも出ていなかった（`events` は EVENT_LABELS のキーから
-  // 作られるので、ここに無いイベントは表にもグラフにも現れない）。
-  // アフィリエイトの提携先を決める判断材料そのものなので必ず出す。
-  affiliate_click: "広告リンクをクリック（提携済み）",
-  official_link_click: "公式サイトへ（未提携）",
-  // 配信先ウィジェットの貼り付けコードがコピーされた（2026-08-06追加。
-  // components/EmbedSnippet.tsx）。被リンク施策（docs/operations.md ⑯）の
-  // 効果測定の起点で、コピー数と ?ref=embed の流入を突き合わせて
-  // 「貼られていないのか／貼られたが押されないのか」を切り分ける。
-  embed_copy: "埋め込みコードをコピー",
-};
-
-function countBy(rows: EventRow[], since: Date | null): Record<string, number> {
-  const counts: Record<string, number> = {};
-  for (const row of rows) {
-    if (since && new Date(row.created_at) < since) continue;
-    counts[row.event_name] = (counts[row.event_name] ?? 0) + 1;
-  }
-  return counts;
-}
-
-// filter_service / filter_cast のように event_data に識別子が付くイベントの、
-// 値ごとの内訳（例: どの配信サービスがよく絞り込まれるか）。
-function countByDataField(rows: EventRow[], eventName: string, field: string): [string, number][] {
-  const counts = new Map<string, number>();
-  for (const row of rows) {
-    if (row.event_name !== eventName) continue;
-    const value = row.event_data?.[field];
-    if (typeof value !== "string") continue;
-    counts.set(value, (counts.get(value) ?? 0) + 1);
-  }
-  return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
-}
 
 function Bar({ label, count, max }: { label: string; count: number; max: number }) {
   const pct = max > 0 ? Math.max(4, Math.round((count / max) * 100)) : 0;
@@ -92,6 +37,11 @@ function Bar({ label, count, max }: { label: string; count: number; max: number 
   );
 }
 
+// 運営者本人だけが見られる簡易ダッシュボード。ログイン機能（Supabase Auth）とは別に、
+// 共有URLに ?token=... を付ける方式にしている（管理者ロールを新設する規模ではないため、
+// app/api/notify/run が使う x-cron-secret ヘッダー方式と同じ「固定シークレットの一致」で
+// 十分と判断した。ヘッダーではなくクエリパラメータなのは、ブラウザで直接開く画面のため）。
+// 機械から読む用のJSONは app/api/admin/analytics/route.ts（集計は共有）。
 export default async function AnalyticsDashboard({
   searchParams,
 }: {

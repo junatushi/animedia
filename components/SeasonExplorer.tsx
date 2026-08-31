@@ -547,7 +547,7 @@ export default function SeasonExplorer({
     if (!data) return [];
     const q = query.trim().toLowerCase();
     const list = data.items.filter((it) => {
-      const aliases = WORK_ALIASES[it.id] ?? [];
+      const aliases = WORK_ALIASES[it.id]?.names ?? [];
       const okText =
         q === "" ||
         it.title.toLowerCase().includes(q) ||
@@ -590,7 +590,7 @@ export default function SeasonExplorer({
     return searchIndex
       .filter((e) => !currentIds.has(e.id))
       .filter((e) => {
-        const aliases = WORK_ALIASES[e.id] ?? [];
+        const aliases = WORK_ALIASES[e.id]?.names ?? [];
         return (
           e.title.toLowerCase().includes(q) ||
           e.kana.toLowerCase().includes(q) ||

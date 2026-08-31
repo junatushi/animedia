@@ -2,13 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
-import { SERVICES, splitRentalServices } from "@/lib/services";
+import { SERVICES, splitRentalServices, getServiceKana } from "@/lib/services";
+import { buildServiceLabel } from "@/content/services/aliases";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import ServiceMarks from "@/components/ServiceMarks";
 import CalendarSubscribeLink from "@/components/CalendarSubscribeLink";
 import { currentYearSeason } from "@/lib/resolveSeasonParams";
 
 import { siteUrl } from "@/lib/siteUrl";
+import { servicePageTitle, servicePageDescription } from "@/lib/pageMeta";
+import { titleText } from "@/lib/pageTitle";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
   spring: "春",
@@ -20,7 +23,24 @@ const SEASON_LABEL: Record<string, string> = {
 // 同じ理由・同じ値）。このページだけ revalidate も generateStaticParams も無く、
 // 動的セグメント[key]/[year]/[season]が毎リクエスト動的レンダリングのまま
 // （＝CDNエッジにキャッシュされない）になっていた。
-export const revalidate = 600;
+// 【2026-08-25変更】600秒 → 3600秒（1時間）。Vercel Hobbyの ISR Writes 上限
+// （30日で200,000）を296,449件で超過しプロジェクトがPausedになったため。再検証の間隔を
+// 延ばすと、①再生成の回数がそのまま減る（ISR Writes・Fluid CPU・Provisioned Memoryの
+// 3指標すべてに効く）②キャッシュが効いている時間が長くなるので**表示はむしろ速くなる**。
+// ISRは期限切れ後も stale-while-revalidate で古いHTMLを即座に返しつつ裏で作り直すので、
+// 期限を延ばしても訪問者が待たされる場面は増えない。Annictの配信情報はコミュニティ更新で
+// 分単位に動くものではなく、1時間の鮮度で困る用途がこのサイトには無い。経緯はdocs/operations.md。
+// 【2026-08-25変更（2回目）】3600 → 604800（1週間）。
+// 同日に900→3600へ延ばしたが、**それでは書き込みは1件も減らない**ことが実測で判明した。
+// 超過時の30日で Edge Requests 10,300件/日 に対し ISR Writes 9,882件/日＝96%。
+// sitemapの約7,051ページへ1日10,300リクエストが分散すると1ページあたりの再訪間隔は
+// 平均16.4時間になり、revalidateがそれより短い限り訪問のたびに必ず期限切れ＝毎回書き込みに
+// なる。900秒でも3600秒でも16.4時間より遥かに短いので効果が無かった。
+// そこで再訪間隔より十分長い1週間にして「時間による再生成」を止め、鮮度が要る現在クールは
+// /api/revalidate（.github/workflows/revalidate.yml が1日2回叩く）で明示的に指名する方式に
+// 変えた。表示速度は落ちない（stale-while-revalidateで古いHTMLを即座に返す設計は同じで、
+// むしろキャッシュに当たる時間が長くなる）。経緯は docs/operations.md の㉝。
+export const revalidate = 604800;
 
 // generateStaticParams は**空配列**を返す（app/anime/[id]/page.tsx と同じ形）。
 // これが無いと revalidate を書いてもルートが prerender-manifest に載らず動的のままだが、
@@ -53,16 +73,16 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   if (!service || !isValidYear(year) || !isValidSeason(season)) return {};
 
   const label = SEASON_LABEL[season];
-  const title = `${year}年${label}アニメ ${service.name}で見れる作品一覧`;
-  const description = `${year}年${label}アニメのうち、${service.name}で配信されている作品を一覧でまとめました。アニメ視聴ガイドで確認できます。`;
+  const title = servicePageTitle(service.name, service.short, year, season);
+  const description = servicePageDescription(service.name, year, season);
   const url = `${siteUrl}/service/${key}/${year}/${season}`;
 
   return {
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, type: "website" },
-    twitter: { card: "summary_large_image", title, description },
+    openGraph: { title: titleText(title), description, url, type: "website" },
+    twitter: { card: "summary_large_image", title: titleText(title), description },
   };
 }
 
@@ -96,6 +116,15 @@ export default async function ServicePage({ params }: { params: Params }) {
   }
   const exclusiveItems = items.filter((it) => it.exclusive);
 
+  // 「ネトフリ アニメ」のようにサービス名を口語形で書く検索がある（GSC実測）。
+  // ページ内が正式名称だけだとその語彙を持たないため、導入文で一度だけ併記する
+  // （h1・title・descriptionには入れない＝詰め込みはしない）。表現は
+  // content/services/aliases.ts の buildServiceLabel に集約してある。
+  const serviceLabel = buildServiceLabel(
+    service.name,
+    getServiceKana(service.key),
+    service.key
+  );
   const checkedDate = new Date().toISOString().slice(0, 10);
   // /calendar.ics は常に「今期」を返す（year/season を受け取らない）ので、
   // 購読の案内は今期のページでだけ出す。
@@ -172,8 +201,9 @@ export default async function ServicePage({ params }: { params: Params }) {
             <section className="detail-section">
               <h2 className="detail-heading">この一覧について</h2>
               <p className="detail-text">
-                {year}年{label}アニメのうち、{service.name}で配信されている作品を人気順（注目度順）でまとめています
-                （{checkedDate}時点）。配信情報は網羅率100%ではなく、新作は反映が遅れることがあります。
+                {year}年{label}アニメのうち、{serviceLabel}
+                で配信されている作品を人気順（注目度順）でまとめています （{checkedDate}
+                時点）。配信情報は網羅率100%ではなく、新作は反映が遅れることがあります。
               </p>
               {/* このページの主役サービスへのリンク。提携済みならアフィリエイト（PR表示付き）、
                   未提携なら公式サイトへリンクする（ServiceMarksの単一サービス表示として再利用）。 */}
