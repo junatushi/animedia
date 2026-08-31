@@ -4065,34 +4065,30 @@ let thinPersonNg = 0;
 }
 
 // ─────────────────────────────────────────────
-// 事前生成に「エンコードが要る名前」を載せない（2026-08-31追加・重大度高）
+// 事前生成に名前をエンコードして渡さない（2026-08-31追加・重大度高）
 //
-// 経緯: 本番で事前生成ページが404を返していた。実測で決め手は日本語かどうかではなく
+// 経緯: 本番で事前生成ページが404を返していた。sitemapに載せていて404だったのは
+// 約2,826ページ（声優2,351／監督376／制作会社99）。決め手は日本語かどうかではなく
 // **パーセントエンコードが要るかどうか**だった:
 //   /studio/CloverWorks     （エンコード不要） → 200
 //   /studio/A-1%20Pictures  （空白→%20）      → 404  ← ASCIIでも404
 //   /studio/ぴえろ          （日本語）        → 404
-// sitemapに載せていて404だったのは約2,826ページ（声優2,351/監督376/制作会社99）。
+//
+// 原因は generateStaticParams が encodeURIComponent(name) を返していたこと。成果物が
+// `%E3%81%B4….html` というファイル名で焼かれ、**Vercelはデコード後のパスで探す**ため
+// 一致しない。生の名前で焼くカナリアを本番に出して確定させた（3件とも200）。
+//
 // ローカルの next start では全て200を返すので**手元では絶対に気づけない**（⑦-10と同じ型）。
-// 経緯は docs/operations.md の㊱、判定は lib/staticParams.ts。
+// 逆戻りすると再び数千ページが404になるため、機械で見張る。
+// 経緯は docs/operations.md の㊱、規則は lib/staticParams.ts。
 // ─────────────────────────────────────────────
-console.log("\n── 事前生成にエンコードが要る名前を載せない ──");
+console.log("\n── 事前生成に名前をエンコードして渡さない ──");
 let prerenderNg = 0;
 {
   const preCheck = (label: string, ok: boolean, detail: string) => {
     if (!ok) prerenderNg++;
     console.log(`${ok ? "✓" : "✗"}  ${label.padEnd(40)} → ${detail}`);
   };
-
-  const policy = readFileSync(new URL("../lib/staticParams.ts", import.meta.url), "utf8");
-  const cond = policy.includes("encodeURIComponent(name) === name");
-  preCheck(
-    "判定はエンコードの有無で行う",
-    cond,
-    cond
-      ? "encodeURIComponent(name) === name"
-      : "非ASCII判定などで代用している（A-1 Pictures のようなASCIIの取りこぼしが出る）"
-  );
 
   const pages: [string, string][] = [
     ["../app/studio/[name]/page.tsx", "制作会社ページ"],
@@ -4101,24 +4097,49 @@ let prerenderNg = 0;
   ];
   for (const [rel, label] of pages) {
     const src = readFileSync(new URL(rel, import.meta.url), "utf8");
-    const gated = src.includes("canPrerenderParam");
+    // generateStaticParams の本体だけを見る（canonical URL を組む encodeURIComponent は
+    // 正しい使い方なので、ファイル全体を検索してはいけない）。
+    const i = src.indexOf("export function generateStaticParams");
+    if (i < 0) {
+      preCheck(`${label}に generateStaticParams がある`, false, "見つからない（事前生成が消えている）");
+      continue;
+    }
+    // 次の export までを本体とみなす。
+    const rest = src.slice(i + 1);
+    const j = rest.indexOf("\nexport ");
+    const body = j < 0 ? rest : rest.slice(0, j);
+    const encodes = body.includes("encodeURIComponent(");
     preCheck(
-      `${label}が門番を通す`,
-      gated,
-      gated ? "canPrerenderParam で絞る" : "全件を事前生成している（本番で404になる）"
+      `${label}が名前をエンコードして渡さない`,
+      !encodes,
+      encodes
+        ? "generateStaticParams が encodeURIComponent を使っている（本番で404になる）"
+        : "生の名前を渡している"
+    );
+
+    // 読む側は decodeParamName（不正な % でビルドを落とさない）を使うこと。
+    const decodesSafely = src.includes("decodeParamName(");
+    preCheck(
+      `${label}が decodeParamName で読む`,
+      decodesSafely,
+      decodesSafely
+        ? "lib/staticParams.ts の復元を使う"
+        : "decodeURIComponent を直接呼んでいる（不正な % でビルドが落ちる）"
     );
   }
 
-  // カナリアは小さく保つ（外れたときの被害を限るため）。判定がついたら消すもの。
-  const m = policy.match(/PREGEN_CANARY_STUDIOS\s*=\s*\[([^\]]*)\]/);
-  const canaryCount = m ? m[1].split(",").filter((x) => x.trim()).length : -1;
+  // 応急処置（門番とカナリア）は原因確定に伴って消したこと。残っていると、
+  // 事前生成から外れたページがオンデマンドISRに回り続けてVercelの書き込み下限が戻る（㉝）。
+  const policy = readFileSync(new URL("../lib/staticParams.ts", import.meta.url), "utf8");
+  const cleaned =
+    !policy.includes("canPrerenderParam") && !policy.includes("PREGEN_CANARY");
   preCheck(
-    "カナリアは5件以内",
-    canaryCount >= 0 && canaryCount <= 5,
-    canaryCount < 0 ? "PREGEN_CANARY_STUDIOS が無い" : `${canaryCount}件`
+    "応急処置の門番とカナリアが残っていない",
+    cleaned,
+    cleaned ? "撤去済み" : "canPrerenderParam / PREGEN_CANARY が残っている"
   );
 
-  console.log(`結果（事前生成の門番）: ${prerenderNg === 0 ? "全件OK" : prerenderNg + " 件NG"}`);
+  console.log(`結果（事前生成の渡し方）: ${prerenderNg === 0 ? "全件OK" : prerenderNg + " 件NG"}`);
 }
 
 // ─────────────────────────────────────────────

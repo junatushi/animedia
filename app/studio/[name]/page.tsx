@@ -4,7 +4,7 @@ import { siteUrl } from "@/lib/siteUrl";
 import { CreditPage } from "@/components/CreditPage";
 import { creditPageTitle, creditPageDescription } from "@/lib/pageMeta";
 import { titleText } from "@/lib/pageTitle";
-import { canPrerenderParam, PREGEN_CANARY_STUDIOS } from "@/lib/staticParams";
+import { decodeParamName } from "@/lib/staticParams";
 import { creditMap, creditWorks, type StudioIndex } from "@/lib/studioIndex";
 import studioIndexJson from "@/content/archive/studios.json";
 
@@ -30,24 +30,14 @@ const INDEX = studioIndexJson as unknown as StudioIndex;
 type Params = { name: string };
 
 export function generateStaticParams(): Params[] {
-  // 【2026-08-31・応急処置】非ASCIIの名前は事前生成に載せない。
-  // 本番で日本語名の事前生成ページが全て404になっていた（lib/staticParams.ts に実測）。
-  // 外した分はオンデマンドISRで描画され、日本語名でも200を返す。
-  const names = Object.keys(creditMap(INDEX, "studio"));
-  const params: Params[] = names
-    .filter((name) => canPrerenderParam(name))
-    .map((name) => ({ name: encodeURIComponent(name) }));
-
-  // 原因究明のカナリア。**エンコードせず生の名前で**焼き、次の本番デプロイで
-  // 200になるかを見る（仮説: Vercelはデコード後のパスで静的ファイルを探している）。
-  for (const name of PREGEN_CANARY_STUDIOS) {
-    if (names.includes(name)) params.push({ name });
-  }
-  return params;
+  // **名前はエンコードせずに渡す**（2026-08-31。lib/staticParams.ts に経緯）。
+  // encodeURIComponent したものを渡すと成果物が `%E3%81%B4….html` というファイル名で
+  // 焼かれ、Vercelはデコード後のパスで探すため本番だけ404になる（ローカルでは再現しない）。
+  return Object.keys(creditMap(INDEX, "studio")).map((name) => ({ name }));
 }
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
-  const name = decodeURIComponent(params.name);
+  const name = decodeParamName(params.name);
   const works = creditWorks(INDEX, "studio", name);
   if (works.length === 0) return {};
 
@@ -65,7 +55,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 }
 
 export default function StudioPage({ params }: { params: Params }) {
-  const name = decodeURIComponent(params.name);
+  const name = decodeParamName(params.name);
   const works = creditWorks(INDEX, "studio", name);
   if (works.length === 0) notFound();
 
