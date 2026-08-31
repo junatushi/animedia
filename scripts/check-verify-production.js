@@ -109,6 +109,15 @@ function yearInRange(year) {
   if (!/^\d{4}$/.test(String(year))) return false;
   return y >= MIN_SEASON_YEAR && y <= new Date().getFullYear() + 1;
 }
+// 作品IDの厳密な検証。lib/workId.ts の正規表現をソースから読んで再現する
+// （直書きすると規則を変えたときにこのテストだけが古くなる）。
+const WORK_ID_RE = (() => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, "lib/workId.ts"), "utf8");
+  const m = src.match(/test\((?:raw)\)[\s\S]*?/) && src.match(/\/\^\[1-9\]\[0-9\]\{0,(\d+)\}\$\//);
+  return m ? new RegExp(`^[1-9][0-9]{0,${m[1]}}$`) : /^[1-9][0-9]{0,8}$/;
+})();
+const validWorkId = (raw) => WORK_ID_RE.test(raw);
+
 // 実在するとみなす名前・キー（H-2＝存在しない名前が404になるかの検査用）。
 const KNOWN_CREDIT_NAMES = new Set(["小野勝巳", "ぴえろ"]);
 const KNOWN_SERVICE_KEYS = new Set(["netflix", "d_anime"]);
@@ -139,6 +148,19 @@ function startStub(broken) {
       );
     }
     if (p.startsWith("/api/work/")) {
+      const raw = p.split("/").pop() || "";
+      // 厳密な検証（H-3）。`loose-id` を立てると `Number.isInteger` 相当の緩い判定に
+      // 戻り、MAX_SAFE_INTEGER を超える値で502を返す＝2026-08-31の事故を再現する。
+      if (!validWorkId(raw)) {
+        if (!has("loose-id")) {
+          return res
+            .writeHead(400, { "Content-Type": "application/json", ...(has("api-cors") ? {} : { "Access-Control-Allow-Origin": "*" }) })
+            .end(JSON.stringify({ error: "作品IDを整数で指定してください。" }));
+        }
+        if (Number(raw) > Number.MAX_SAFE_INTEGER) {
+          return res.writeHead(502, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "取得に失敗しました。" }));
+        }
+      }
       const id = Number(p.split("/").pop());
       const status = id === PAST_ID ? (has("api-status") ? "airing" : "finished") : "airing";
       return send(
@@ -242,6 +264,15 @@ function startStub(broken) {
       );
     }
     if (p.startsWith("/embed/anime/")) {
+      const eRaw = p.split("/").pop() || "";
+      if (!validWorkId(eRaw)) {
+        if (!has("loose-id")) {
+          return res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" }).end("作品IDが正しくありません。");
+        }
+        if (Number(eRaw) > Number.MAX_SAFE_INTEGER) {
+          return res.writeHead(502, { "Content-Type": "text/html; charset=utf-8" }).end("取得に失敗しました。");
+        }
+      }
       const base = `http://127.0.0.1:${server.address().port}`;
       return send(
         `<!doctype html><html><body>` +
@@ -252,6 +283,10 @@ function startStub(broken) {
       );
     }
     if (p.startsWith("/anime/")) {
+      const aRaw = p.split("/").pop() || "";
+      // 厳密な検証（H-3）。緩いと 0x3374 / 0013180 / 13180.0 が同じ作品の別URLとして
+      // 200を返し、無駄なISR書き込みが起きる。
+      if (!validWorkId(aRaw) && !has("loose-id")) return notFoundPage(res);
       const id = Number(p.split("/").pop());
       if (id === PAST_ID) {
         return send(
@@ -345,9 +380,9 @@ async function main() {
   );
   const okCount = (good.out.match(/^\s*OK\s/gm) || []).length;
   // 検査を削ると気づけるように件数も固定する
-  // （A:2 A2:1 B:6 C:2 D:3 E:3 F:4 G:7 H:3 I:3 = 34。
+  // （A:2 A2:1 B:6 C:2 D:3 E:3 F:4 G:7 H:4 I:3 = 35。
   //  verify-production.sh に検査を足したらこの数も更新する）。
-  check("① OKが34件（検査の取りこぼしが無い）", okCount === 34, `${okCount}件`);
+  check("① OKが35件（検査の取りこぼしが無い）", okCount === 35, `${okCount}件`);
 
   // ② 壊れた応答では、その項目が確実にNGになる（＝検査が生きている）。
   //    1項目ずつ壊して「その事故だけを捕まえる」ことを確かめる。
@@ -381,6 +416,8 @@ async function main() {
     ["error-body-indexed", "sitemapのページにエラー本文が出ている（㊲の再現）", "取得失敗の本文"],
     ["notfound-soft", "存在しないURLが200を返す（ソフト404）", "ソフト404になっている"],
     ["notfound-dead-end", "404ページが行き止まり（㊲の再現）", "行き止まりになっている"],
+    // 作品IDの検証が緩い（㊲。逆張り巡回で見つけた。公開APIと埋め込みが502を返していた）。
+    ["loose-id", "作品IDの検証が緩く502や重複URLが出る（㊲の再現）", "作品IDの形を崩したら"],
   ];
   for (const [fault, label, needle] of faults) {
     const r = await withStub([fault], runScript);

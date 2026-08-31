@@ -84,6 +84,7 @@ import {
   MIN_SEASON_YEAR,
 } from "../lib/resolveSeasonParams.ts";
 import { shouldIndexSeasonScopedPage, robotsFor } from "../lib/indexPolicy.ts";
+import { parseWorkId } from "../lib/workId.ts";
 // 配信サービス追加の検知（2026-08-07追加）。純粋関数のみ。
 import { applySightings } from "../lib/serviceAdditions.ts";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
@@ -4271,7 +4272,11 @@ let softNg = 0;
     hasNf ? "app/not-found.tsx" : "既定の画面（サイト内リンク0本の行き止まり）"
   );
   if (hasNf) {
-    const nf = readFileSync(nfPath, "utf8");
+    // 中身は components/NotFoundPanel.tsx が持つ（app/not-found.tsx はそれを描くだけ）。
+    const nf = readFileSync(
+      new URL("../components/NotFoundPanel.tsx", import.meta.url),
+      "utf8"
+    );
     const links = (nf.match(/<Link href=/g) || []).length;
     softCheck(
       "404ページに戻る導線がある",
@@ -4287,6 +4292,107 @@ let softNg = 0;
       "404ページが日付からURLを組まない",
       !usesNow,
       usesNow ? "new Date() を使っている（クール替わりで古いURLを指す）" : "静的なリンクだけ"
+    );
+  }
+
+  // ⑤-2 404の境界（2026-08-31追加）。
+  //
+  //   **`notFound()` を呼ぶ page.tsx には、同じ階層に not-found.tsx が要る。**
+  //
+  // Next.js 14.2 の実測: ルートの `app/not-found.tsx` が拾うのは「どのルートにも
+  // 一致しなかったURL」だけで、ルートに一致したうえで `notFound()` を呼んだ場合
+  // （存在しない作品ID・索引に無い名前・未知のクール名など＝実際に起きる404のほぼ全部）は
+  // **既定の画面**が出た。1階層浅い `app/<区画>/not-found.tsx` も効かず、
+  // `page.tsx` と同じ階層に置いたときだけ効いた。
+  //
+  // この検査は**新しいページ種別を足したときに自動で効く**のが要点。個別のURLを
+  // 並べる検査だと、面が増えたときに追随を忘れて静かに穴が開く。
+  {
+    const appDir = new URL("../app/", import.meta.url);
+    const missing: string[] = [];
+    let boundaries = 0;
+    const walk = (dir: URL, rel: string) => {
+      for (const ent of readdirSync(dir, { withFileTypes: true })) {
+        if (ent.isDirectory()) {
+          walk(new URL(ent.name + "/", dir), rel + ent.name + "/");
+          continue;
+        }
+        if (ent.name !== "page.tsx") continue;
+        const src = readFileSync(new URL(ent.name, dir), "utf8");
+        if (!/\bnotFound\(\)/.test(src)) continue;
+        if (existsSync(new URL("not-found.tsx", dir))) boundaries++;
+        else missing.push(rel + "page.tsx");
+      }
+    };
+    walk(appDir, "app/");
+    softCheck(
+      "notFound() を呼ぶページに404の境界がある",
+      missing.length === 0,
+      missing.length === 0
+        ? `${boundaries} 区画すべてに not-found.tsx がある`
+        : `境界が無い: ${missing.join(" / ")}（既定の行き止まり画面が出る）`
+    );
+    // 中身は1箇所だけが持つ（8箇所に散らばると表現がズレる）。
+    const panels = missing.length === 0 && boundaries > 0;
+    if (panels) {
+      const sample = readFileSync(
+        new URL("../app/studio/[name]/not-found.tsx", import.meta.url),
+        "utf8"
+      );
+      const shared = sample.includes("NotFoundPanel");
+      softCheck(
+        "404の中身を1箇所にまとめている",
+        shared,
+        shared ? "components/NotFoundPanel.tsx" : "区画ごとに中身を書いている"
+      );
+    }
+  }
+
+  // ⑥ 作品IDの検証（2026-08-31追加）。逆張り巡回で見つけた事故。
+  //    3つの窓口が各自で `Number(params.id)` + `Number.isInteger` を書いていたため、
+  //    MAX_SAFE_INTEGER を超える値・16進・指数・小数・先頭ゼロが全て通っていた。
+  //    実測: /api/work/99999999999999999999 と /embed/anime/... が **502**、
+  //          /anime/0x3374 が 200（13172に解決＝別URLで同じ作品）。
+  const idCases: [string, number | null, string][] = [
+    ["13180", 13180, "普通の10進"],
+    ["1", 1, "最小"],
+    ["999999999", 999999999, "9桁の上限"],
+    ["0", null, "ゼロ"],
+    ["-1", null, "負"],
+    ["0013180", null, "先頭ゼロ（別URLで同じ作品になる）"],
+    ["13180.0", null, "小数点"],
+    ["1e5", null, "指数表記"],
+    ["0x3374", null, "16進（Number() が解釈してしまう）"],
+    ["99999999999999999999", null, "MAX_SAFE_INTEGERを超える（502の原因）"],
+    ["１３１８０", null, "全角数字"],
+    ["", null, "空"],
+    ["13180 ", null, "末尾空白"],
+    ["abc", null, "数字でない"],
+  ];
+  let idNg = 0;
+  for (const [raw, want, label] of idCases) {
+    if (parseWorkId(raw) !== want) {
+      idNg++;
+      softCheck(`作品IDの検証: ${label}`, false, `"${raw}" → ${parseWorkId(raw)}（${want}のはず）`);
+    }
+  }
+  softCheck(
+    "作品IDを10進数として厳密に見る",
+    idNg === 0,
+    idNg === 0 ? `${idCases.length}件の形を確認` : `${idNg} 件が期待と違う`
+  );
+  // 3つの窓口が各自で Number() を書いていないこと（逆戻り禁止）。
+  for (const [rel, label] of [
+    ["../app/anime/[id]/page.tsx", "作品ページ"],
+    ["../app/api/work/[id]/route.ts", "公開API"],
+    ["../app/embed/anime/[id]/route.ts", "埋め込み"],
+  ] as [string, string][]) {
+    const src = readFileSync(new URL(rel, import.meta.url), "utf8");
+    const strict = src.includes("parseWorkId(") && !src.includes("Number.isInteger(id)");
+    softCheck(
+      `${label}が作品IDの検証を共有する`,
+      strict,
+      strict ? "lib/workId.ts を使う" : "Number(params.id) を自前で書いている（502・重複URLの原因）"
     );
   }
 

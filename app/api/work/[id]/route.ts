@@ -15,6 +15,7 @@ import { NextResponse } from "next/server";
 import { apiSource } from "@/lib/attribution";
 import { getWorkData } from "@/lib/getWorkData";
 import { siteUrl } from "@/lib/siteUrl";
+import { parseWorkId } from "@/lib/workId";
 import { airingStatus, jstToday } from "@/lib/workAvailability";
 
 // 【2026-08-25変更】900秒 → 3600秒（1時間）。Vercel Hobbyの ISR Writes 上限
@@ -48,8 +49,8 @@ export function OPTIONS() {
 }
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const id = Number(params.id);
-  if (!Number.isInteger(id) || id <= 0) {
+  const id = parseWorkId(params.id);
+  if (id === null) {
     return NextResponse.json(
       { error: "作品ID（Annict の annictId）を整数で指定してください。" },
       { status: 400, headers: CORS }

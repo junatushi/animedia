@@ -352,7 +352,27 @@ for PATH_TMPL in "/studio/%E5%AD%98%E5%9C%A8%E3%81%97%E3%81%AA%E3%81%84XYZ" \
 done
 [ "$NOTFOUND" -eq 0 ] && ok "存在しない名前・キーは404"
 
-# H-3. sitemapに載せたページに、取得失敗の本文が出ていないこと。
+# H-3. 作品IDの形を崩しても 5xx を返さないこと（2026-08-31追加）。
+#      3つの窓口が各自で `Number(params.id)` を書いていたため、`Number.isInteger` が
+#      MAX_SAFE_INTEGER を超える値を通し、**公開APIと埋め込みが502**を返していた。
+#      16進・小数・先頭ゼロは同じ作品の別URLとして200を返していた（無駄な書き込み）。
+IDFORM=0
+for CASE in "/api/work/99999999999999999999:400" \
+            "/embed/anime/99999999999999999999:400" \
+            "/anime/99999999999999999999:404" \
+            "/anime/0x3374:404" \
+            "/anime/0013180:404" \
+            "/anime/13180.0:404"; do
+  P="${CASE%:*}"; WANT="${CASE##*:}"
+  CODE=$($CURL -o /dev/null -w "%{http_code}" "${BASE}${P}")
+  if [ "$CODE" != "$WANT" ]; then
+    fail "作品IDの形を崩したら ${CODE}（${WANT}のはず）: ${P}"
+    IDFORM=$((IDFORM + 1))
+  fi
+done
+[ "$IDFORM" -eq 0 ] && ok "作品IDの形を崩しても5xxにならず、別URLで同じ作品を返さない"
+
+# H-4. sitemapに載せたページに、取得失敗の本文が出ていないこと。
 #      Annictの障害中にクロールされると、ISRがエラーHTMLを最大1週間配ることになる。
 #      **索引に載せると宣言したページ**でこれが起きているなら、それ自体が事故。
 ERRPAGE=0
@@ -372,6 +392,13 @@ done <<<"$G_SAMPLE"
 # 2026-08-31までは Next.js の既定画面（サイト内リンク0本）だった。
 # 404に着地する経路は実在する（㊱で約2,826ページが404だった期間の検索結果、
 # ㉟で索引から外した声優ページ、Annictから消えた作品）。
+#
+# **見るのは「ルート未一致のURL」だけ**にする。`notFound()` 経由の404
+# （存在しない作品ID・索引に無い名前など）は、描画開始後に投げられるためHTMLの
+# シェルが既に送出済みで、画面の中身はRSCストリーム（self.__next_f.push）側に入る。
+# ブラウザでは正しく出るが**生HTMLを grep しても見つからない**ので、ここで数えても
+# 意味がない（⑦-10と同じ形の制約）。そちらの担保は
+# `node scripts/check.ts` の「notFound() を呼ぶページに404の境界がある」検査が持つ。
 echo
 echo "I. 404ページに戻る導線があるか"
 NF_URL="${BASE}/this-page-does-not-exist-$(date +%s)"

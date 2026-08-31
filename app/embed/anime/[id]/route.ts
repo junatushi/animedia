@@ -11,6 +11,7 @@
 // ───────────────────────────────────────────────────────────────
 import { getWorkData } from "@/lib/getWorkData";
 import { buildEmbedDocument } from "@/lib/embed";
+import { parseWorkId } from "@/lib/workId";
 
 // 作品ページ（app/anime/[id]/page.tsx）と同じ15分。
 // 【2026-08-25変更】900秒 → 3600秒（1時間）。Vercel Hobbyの ISR Writes 上限
@@ -64,8 +65,8 @@ function plain(message: string, status: number): Response {
 }
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const id = Number(params.id);
-  if (!Number.isInteger(id) || id <= 0) {
+  const id = parseWorkId(params.id);
+  if (id === null) {
     return plain("作品IDが正しくありません。", 400);
   }
 
