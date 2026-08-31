@@ -4001,12 +4001,12 @@ let thinPersonNg = 0;
   const singleSource =
     policySrc.includes("export function shouldIndexPersonSeasonPage") &&
     policySrc.includes("PERSON_PAGE_INDEX_MIN_TOTAL_WORKS") &&
-    policySrc.includes("currentYearSeason");
+    !policySrc.includes("@/lib/"); // check.ts から直接importできること（CIで実際に落ちた）
   thinCheck(
     "索引方針の定義は1箇所",
     singleSource,
     singleSource
-      ? "lib/personPage.ts が年と総出演数で判定"
+      ? "lib/personPage.ts が年と総出演数で判定（外部importなし）"
       : "判定が lib/personPage.ts に無い、または閾値・今期の求め方を独自に持っている"
   );
 

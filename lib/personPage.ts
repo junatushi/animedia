@@ -3,8 +3,6 @@
 // 「今期2作品以上に出演」の声優だけをページ化する閾値（components/SeasonExplorer.tsx の
 // 声優チップと同じ基準）。作品個別ページの声優名は、この閾値を満たさない相手にリンクを
 // 張ると404になってしまうため、リンクを出す前に必ずこの値でフィルタする。
-import { currentYearSeason } from "@/lib/resolveSeasonParams";
-
 export const PERSON_PAGE_MIN_APPEARANCES = 2;
 
 // ───────────────────────────────────────────────────────────────
@@ -49,11 +47,18 @@ export const PERSON_PAGE_INDEX_MIN_TOTAL_WORKS = 50;
 // 声優のクール別ページを検索索引に載せてよいか。
 // totalWorks は content/archive/people.json に載っているその人の総出演数
 // （索引に無い人は0を渡す。今年のクールなら0でも索引に載る＝①の規則が先に効く）。
+//
+// 【なぜクールを見ないか】判定に要るのは**年だけ**で、クールの境目は関係ない
+// （実際の検索語が「宮野真守 2026 アニメ」＝年の粒度だから）。そのため
+// lib/resolveSeasonParams.ts の currentYearSeason() は呼ばない。
+// 呼ぶと `scripts/check.ts` がこのファイルを直接 import できなくなる
+// （Node の型ストリッピングは tsconfig の "@/" エイリアスを解決しない。
+//  2026-08-31にCIで実際に落ちた）。年だけなら Date から一意に決まるので、
+// クール判定を二重に持つことにもならない。
 export function shouldIndexPersonSeasonPage(
   year: string | number,
   totalWorks: number
 ): boolean {
-  const cur = currentYearSeason();
-  if (Number(year) >= Number(cur.year)) return true;
+  if (Number(year) >= new Date().getFullYear()) return true;
   return totalWorks >= PERSON_PAGE_INDEX_MIN_TOTAL_WORKS;
 }
