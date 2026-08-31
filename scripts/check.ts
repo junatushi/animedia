@@ -5755,15 +5755,188 @@ let isrNg = 0;
     );
   }
 
-  // デプロイ＝ISRキャッシュ実質全消去。表示に使わないデータのコミットで起こさない門番。
-  const vercelUrl = new URL("../vercel.json", import.meta.url);
-  const vercelJson = existsSync(vercelUrl) ? readFileSync(vercelUrl, "utf8") : "";
-  const gateOk = vercelJson.includes("ignoreCommand") && vercelJson.includes("content/analytics");
-  if (!gateOk) isrNg++;
-  console.log(
-    `${gateOk ? "✓" : "✗"}  ${"vercel.json のデプロイ門番がある".padEnd(48)} → ` +
-      (gateOk ? "ignoreCommand あり" : "これが無いと表示に使わないデータのコミットでもキャッシュが全消去される")
-  );
+  // ── デプロイを起こしてよいものを1件ずつ決める ─────────────────────────
+  //
+  // デプロイ＝ISRキャッシュ実質全消去（docs/operations.md の㉝）。門番は vercel.json の
+  // ignoreCommand で、導入時（2026-08-25）は「表示に使わないデータ」4箇所だけを除外して
+  // いた。ところが実測（2026-09-01・直近30日）では、デプロイを起こした82コミットのうち
+  // **32件（39%）が scripts/ .github/ .claude/ *.md しか触っていなかった**。どれも
+  // next build が読まないファイルでビルド成果物は1バイトも変わらないのに、毎回キャッシュが
+  // 全消去され、次にクローラが来たページが全部作り直しになっていた。
+  //
+  // **対象を手で数えない**（CLAUDE.md の基本ルール）。git が追跡している要素を走査して
+  // 1件ずつ下の表と突き合わせるので、新しくディレクトリを足したら、ここに
+  // 「デプロイを起こすべきか」を書くまで落ちる。
+  //
+  // 【この門番の限界】ignoreCommand が見るのは HEAD^..HEAD の**1コミットだけ**。1回の
+  // push に複数コミットが入り、最後のコミットだけが除外対象だった場合、その前のコード変更は
+  // このデプロイでは出ない（次のデプロイまで持ち越される）。導入時から在る性質だが、
+  // 除外を広げたぶん当たりやすくなった。長引かない担保は2つ:
+  // content/works/autoSchedule.json のcronが毎日コミットする＝ビルド対象なので24時間以内に
+  // 必ずデプロイが起きること、verify-production.sh が毎日本番HTMLを数えること。
+  // PRのsquash mergeは1コミットなので、この形自体が起きない。
+  {
+    const vercelUrl = new URL("../vercel.json", import.meta.url);
+    const vercelJson = existsSync(vercelUrl) ? readFileSync(vercelUrl, "utf8") : "";
+    const hasGate = vercelJson.includes("ignoreCommand");
+    if (!hasGate) isrNg++;
+    console.log(
+      `${hasGate ? "✓" : "✗"}  ${"vercel.json のデプロイ門番がある".padEnd(48)} → ` +
+        (hasGate
+          ? "ignoreCommand あり"
+          : "これが無いと、表示に使わないデータのコミットでもキャッシュが全消去される")
+    );
+
+    // ignoreCommand から除外パススペック（':!…'）を取り出す。
+    const specs = [...vercelJson.matchAll(/':!([^']+)'/g)].map((m) => m[1]);
+    const isExcluded = (p: string) =>
+      specs.some((s) =>
+        s.startsWith("*") ? p.endsWith(s.slice(1)) : s === p || p.startsWith(`${s}/`)
+      );
+
+    // deploy: true = 変更したらデプロイすべき（next build が読む、または配信物になる）
+    const DEPLOY: Record<string, { deploy: boolean; why: string }> = {
+      app: { deploy: true, why: "ページ本体" },
+      components: { deploy: true, why: "画面" },
+      lib: { deploy: true, why: "アプリのロジック" },
+      public: { deploy: true, why: "配信する静的ファイル" },
+      content: { deploy: true, why: "中の一部だけを除外する（下のcontent/の表）" },
+      "middleware.ts": { deploy: true, why: "全リクエストが通る" },
+      "next.config.mjs": { deploy: true, why: "ビルド設定" },
+      "next-env.d.ts": { deploy: true, why: "型" },
+      "package.json": { deploy: true, why: "依存とビルドコマンド" },
+      "package-lock.json": { deploy: true, why: "依存の固定" },
+      "tsconfig.json": { deploy: true, why: "パス別名がビルドに効く" },
+      "vercel.json": { deploy: true, why: "デプロイ設定そのもの" },
+      // 以下3つは next build が読まないが、checkout の挙動に触れうる／変更頻度が実質ゼロ
+      // なので安全側に倒す（除外の判断を1件でも増やすと、そのぶん間違える機会が増える）。
+      ".gitattributes": { deploy: true, why: "checkout時の改行に効くので安全側" },
+      ".gitignore": { deploy: true, why: "同上・変更頻度は実質ゼロ" },
+      ".env.local.example": { deploy: true, why: "同上" },
+      docs: { deploy: false, why: "手順書。next build は読まない" },
+      scripts: { deploy: false, why: "検査・収集。アプリ側からのimportが無いことを下で検査する" },
+      ".github": { deploy: false, why: "ワークフロー定義" },
+      ".claude": { deploy: false, why: "エージェント定義" },
+      "CLAUDE.md": { deploy: false, why: "*.md でまとめて除外" },
+      "README.md": { deploy: false, why: "同上" },
+    };
+
+    // content/ の中は「表示に使うか」で割れているので1階層深く見る。
+    const CONTENT: Record<string, { deploy: boolean; why: string }> = {
+      affiliate: { deploy: true, why: "lib/affiliate.ts が読む" },
+      archive: { deploy: true, why: "sitemap・声優/制作会社ページが読む" },
+      discord: { deploy: true, why: "lib/discord.ts が読む" },
+      people: { deploy: true, why: "出演作の人力補完" },
+      services: { deploy: true, why: "配信サービス名寄せ" },
+      sns: { deploy: true, why: "スポットライト（SNS画像が読む）" },
+      snapshots: { deploy: true, why: "過去クールの静的データ" },
+      works: { deploy: true, why: "あらすじ・人力補完・autoSchedule.json＝画面に出る" },
+      analytics: { deploy: false, why: "GSC・行動ログ。画面に一切出ない" },
+      coverage: { deploy: false, why: "初出日の記録。画面に一切出ない" },
+      demand: { deploy: false, why: "需要シグナル。画面に一切出ない" },
+    };
+
+    // git が追跡している実体から導出する（readdirSync だと node_modules や .next を
+    // 自前で除く判断が要り、そこが Vercel の checkout とズレる）。
+    const repoRoot = fileURLToPath(new URL("..", import.meta.url));
+    let tracked: string[] = [];
+    let gitOk = true;
+    try {
+      tracked = execFileSync("git", ["ls-files"], { encoding: "utf8", cwd: repoRoot })
+        .split("\n")
+        .filter(Boolean);
+    } catch {
+      gitOk = false;
+    }
+    if (!gitOk) isrNg++;
+    console.log(
+      `${gitOk ? "✓" : "✗"}  ${"追跡ファイルを走査できている".padEnd(48)} → ` +
+        (gitOk
+          ? `${tracked.length} 件`
+          : "git ls-files が失敗した。この節は対象を走査で導出するので、走査できないと検査にならない")
+    );
+
+    // ① 登録漏れ・実体の無い登録（freshness.js の収集先登録と同じ考え方）。
+    for (const [label, table, entries] of [
+      ["トップレベル", DEPLOY, [...new Set(tracked.map((f) => f.split("/")[0]))]],
+      [
+        "content/",
+        CONTENT,
+        [...new Set(tracked.filter((f) => f.startsWith("content/")).map((f) => f.split("/")[1]))],
+      ],
+    ] as [string, Record<string, { deploy: boolean; why: string }>, string[]][]) {
+      const unregistered = entries.filter((e) => !(e in table));
+      const ghosts = Object.keys(table).filter((k) => !entries.includes(k));
+      const ok = gitOk && unregistered.length === 0 && ghosts.length === 0;
+      if (!ok) isrNg++;
+      console.log(
+        `${ok ? "✓" : "✗"}  ${`${label}が全部登録されている`.padEnd(48)} → ` +
+          (ok
+            ? `${entries.length} 件すべて登録済み`
+            : [
+                unregistered.length &&
+                  `未登録: ${unregistered.join(" / ")}（デプロイを起こしてよいかを決めていない）`,
+                ghosts.length && `実体が無い登録: ${ghosts.join(" / ")}`,
+              ]
+                .filter(Boolean)
+                .join(" ／ "))
+      );
+    }
+
+    // ② 決めたとおりに ignoreCommand が除外している／していない。
+    for (const [prefix, table] of [
+      ["", DEPLOY],
+      ["content/", CONTENT],
+    ] as [string, Record<string, { deploy: boolean; why: string }>][]) {
+      for (const [name, { deploy, why }] of Object.entries(table)) {
+        const p = `${prefix}${name}`;
+        // content 本体は deploy:true だが、中の一部を除外するので個別に見る（上の CONTENT）。
+        if (p === "content") continue;
+        const excluded = isExcluded(p);
+        const ok = deploy ? !excluded : excluded;
+        if (!ok) isrNg++;
+        if (!ok) {
+          console.log(
+            `✗  ${p.padEnd(48)} → ` +
+              (deploy
+                ? `除外されているがデプロイが要る（${why}）`
+                : `除外されていない＝変更のたびにキャッシュが全消去される（${why}）`)
+          );
+        }
+      }
+    }
+    const decided = Object.keys(DEPLOY).length + Object.keys(CONTENT).length - 1;
+    console.log(`✓  ${"除外の要否が決めたとおりになっている".padEnd(48)} → ${decided} 件を判定`);
+
+    // ③ scripts/ を除外してよい前提＝アプリ側が scripts/ を一切importしていないこと。
+    //    ここが崩れると、ビルドに効くコードの変更が無言でデプロイされなくなる。
+    const importers: string[] = [];
+    const scanImports = (dir: URL, rel: string) => {
+      if (!existsSync(dir)) return;
+      for (const ent of readdirSync(dir, { withFileTypes: true })) {
+        const child = new URL(`${ent.name}${ent.isDirectory() ? "/" : ""}`, dir);
+        if (ent.isDirectory()) scanImports(child, `${rel}/${ent.name}`);
+        else if (/\.(ts|tsx|js|mjs)$/.test(ent.name)) {
+          const src = readFileSync(child, "utf8");
+          // import / export ... from "…/scripts/…"、require("…/scripts/…")、動的 import の全部を見る。
+          if (/(?:from|require\s*\(|import\s*\(|import)\s*["'][^"']*scripts\//.test(src)) {
+            importers.push(`${rel}/${ent.name}`);
+          }
+        }
+      }
+    };
+    for (const d of ["app", "components", "lib", "content"]) {
+      scanImports(new URL(`../${d}/`, import.meta.url), d);
+    }
+    const noImport = importers.length === 0;
+    if (!noImport) isrNg++;
+    console.log(
+      `${noImport ? "✓" : "✗"}  ${"アプリ側が scripts/ をimportしていない".padEnd(48)} → ` +
+        (noImport
+          ? "参照なし（scripts/ を除外してよい前提が成り立っている）"
+          : `参照あり: ${importers.join(" / ")}。除外するとビルドに効く変更がデプロイされない`)
+    );
+  }
 
   // 対策の効果は推定でしか書けていない（Vercelのダッシュボードはログインが要るので
   // セッションから読めず、ルート別の内訳も出ない）。人が画面を見に行くきっかけが
