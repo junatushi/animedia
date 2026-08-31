@@ -9,6 +9,7 @@ import type { SeasonResponse } from "@/lib/types";
 import ARCHIVE_INDEX from "@/content/archive/index.json";
 import { siteUrl } from "@/lib/siteUrl";
 import { seasonPageTitle, seasonPageDescription } from "@/lib/pageMeta";
+import { robotsFor } from "@/lib/indexPolicy";
 import { titleText } from "@/lib/pageTitle";
 
 const SEASON_LABEL: Record<string, string> = {
@@ -84,10 +85,21 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const description = seasonPageDescription(year, season);
   const url = `${siteUrl}/season/${year}/${season}`;
 
+  // 取得に失敗したとき・作品が1件も無いときは索引に載せない（lib/indexPolicy.ts）。
+  // 下の本体は失敗を握ってエラーUIを描く＝HTTPは200なので、robotsで止めるしかない。
+  let failed = false;
+  let count = 0;
+  try {
+    count = (await getSeasonData(year, season)).items.length;
+  } catch {
+    failed = true;
+  }
+
   return {
     title,
     description,
     alternates: { canonical: url },
+    ...robotsFor(failed, count),
     openGraph: { title: titleText(title), description, url, type: "website" },
     twitter: { card: "summary_large_image", title: titleText(title), description },
   };

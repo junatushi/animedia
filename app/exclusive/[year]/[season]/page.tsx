@@ -8,6 +8,7 @@ import type { AnimeItem, ServiceTag } from "@/lib/types";
 
 import { siteUrl } from "@/lib/siteUrl";
 import { exclusivePageTitle, exclusivePageDescription } from "@/lib/pageMeta";
+import { robotsFor } from "@/lib/indexPolicy";
 import { titleText } from "@/lib/pageTitle";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
@@ -77,10 +78,20 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const description = exclusivePageDescription(year, season);
   const url = `${siteUrl}/exclusive/${year}/${season}`;
 
+  // 取得に失敗したとき・作品が1件も無いときは索引に載せない（lib/indexPolicy.ts）。
+  let failed = false;
+  let count = 0;
+  try {
+    count = (await getSeasonData(year, season)).items.length;
+  } catch {
+    failed = true;
+  }
+
   return {
     title,
     description,
     alternates: { canonical: url },
+    ...robotsFor(failed, count),
     openGraph: { title: titleText(title), description, url, type: "website" },
     twitter: { card: "summary_large_image", title: titleText(title), description },
   };

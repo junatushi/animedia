@@ -11,6 +11,7 @@ import { currentYearSeason } from "@/lib/resolveSeasonParams";
 
 import { siteUrl } from "@/lib/siteUrl";
 import { servicePageTitle, servicePageDescription } from "@/lib/pageMeta";
+import { robotsFor } from "@/lib/indexPolicy";
 import { titleText } from "@/lib/pageTitle";
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
@@ -77,10 +78,23 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const description = servicePageDescription(service.name, year, season);
   const url = `${siteUrl}/service/${key}/${year}/${season}`;
 
+  // 取得に失敗したとき・**このサービスの**作品が1件も無いときは索引に載せない
+  // （lib/indexPolicy.ts）。数えるのはクール全体ではなくサービスで絞った件数
+  // ＝このページが実際に並べる件数。0件なら「該当なし」としか書けない薄いページになる。
+  let failed = false;
+  let count = 0;
+  try {
+    const data = await getSeasonData(year, season);
+    count = data.items.filter((it) => it.services.some((s) => s.key === key)).length;
+  } catch {
+    failed = true;
+  }
+
   return {
     title,
     description,
     alternates: { canonical: url },
+    ...robotsFor(failed, count),
     openGraph: { title: titleText(title), description, url, type: "website" },
     twitter: { card: "summary_large_image", title: titleText(title), description },
   };

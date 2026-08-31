@@ -77,7 +77,13 @@ import {
   MAX_CANDIDATES,
 } from "../lib/discord.ts";
 import { DISCORD_PUBLIC_KEY_FALLBACK } from "../content/discord/publicKey.ts";
-import { currentSeasonKey, currentYearSeason } from "../lib/resolveSeasonParams.ts";
+import {
+  currentSeasonKey,
+  currentYearSeason,
+  isSeasonYearInRange,
+  MIN_SEASON_YEAR,
+} from "../lib/resolveSeasonParams.ts";
+import { shouldIndexSeasonScopedPage, robotsFor } from "../lib/indexPolicy.ts";
 // 配信サービス追加の検知（2026-08-07追加）。純粋関数のみ。
 import { applySightings } from "../lib/serviceAdditions.ts";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
@@ -4143,6 +4149,151 @@ let prerenderNg = 0;
 }
 
 // ─────────────────────────────────────────────
+// エラーページ・空ページを索引に開放しない（2026-08-31追加・重大度高）
+//
+// 経緯: 本番を面ごとに叩いて回ったところ、**取得に失敗したページが HTTP 200 ＋
+// `index, follow` で返っていた**。実測:
+//   /rankings/2099/winter        → 200 / index,follow / 本文「Annict API がエラーを返しました（500）。」
+//   /exclusive/2099/winter       → 200 / index,follow / 同上
+//   /service/netflix/2099/winter → 200 / index,follow / 同上
+//   /person/悠木碧/2099/winter    → 200 / index,follow / 同上
+//   /season/2099/winter          → 200 / index,follow / 作品リンク0件
+//
+// 原因は年の判定が `/^\d{4}$/` だけだったこと。1000〜9999年の9,000通りが全て
+// 有効で、存在しない年のURLを叩くだけで ①Annictへライブ取得が飛び ②その空ページが
+// ISRキャッシュに書き込まれ ③索引可能な形で公開される、が同時に起きていた。
+// ②は2026-08-24に本番を丸一日停止させた ISR Writes 超過（㉝）と同じ経路で、
+// しかもURL空間が無制限だった。
+//
+// 規則は2箇所が持つ:
+//   lib/resolveSeasonParams.ts の isSeasonYearInRange … 年の範囲（範囲外は404）
+//   lib/indexPolicy.ts の shouldIndexSeasonScopedPage … 失敗・0件は noindex
+// 本番側の検知は scripts/verify-production.sh の H 節。経緯は docs/operations.md の㊲。
+// ─────────────────────────────────────────────
+console.log("\n── エラーページ・空ページを索引に開放しない ──");
+let softNg = 0;
+{
+  const softCheck = (label: string, ok: boolean, detail: string) => {
+    if (!ok) softNg++;
+    console.log(`${ok ? "✓" : "✗"}  ${label.padEnd(40)} → ${detail}`);
+  };
+
+  // ① 年の範囲そのもの（実際に関数を呼ぶ）。
+  const nowY = new Date().getFullYear();
+  const yearCases: [string, boolean, string][] = [
+    [String(MIN_SEASON_YEAR - 1), false, "下限の1つ手前"],
+    [String(MIN_SEASON_YEAR), true, "下限ちょうど"],
+    [String(nowY), true, "今年"],
+    [String(nowY + 1), true, "来年（次クールが年をまたぐ）"],
+    [String(nowY + 2), false, "再来年"],
+    ["2099", false, "遠い未来"],
+    ["1980", false, "収録範囲より前"],
+    ["abcd", false, "数字でない"],
+    ["99", false, "4桁でない"],
+  ];
+  let yearNg = 0;
+  for (const [y, want, label] of yearCases) {
+    if (isSeasonYearInRange(y) !== want) {
+      yearNg++;
+      softCheck(`年の範囲: ${label}`, false, `${y} → ${!want}（${want}のはず）`);
+    }
+  }
+  softCheck(
+    "年の範囲が実データに合っている",
+    yearNg === 0,
+    yearNg === 0
+      ? `${MIN_SEASON_YEAR}〜${nowY + 1}年だけが有効（${yearCases.length}件の境界を確認）`
+      : `${yearNg} 件が期待と違う`
+  );
+
+  // ② isValidYear が範囲判定へ委譲していること（`/^\\d{4}$/` 直書きへの逆戻り禁止）。
+  const gsd = readFileSync(new URL("../lib/getSeasonData.ts", import.meta.url), "utf8");
+  const delegates = /export function isValidYear[^}]*isSeasonYearInRange/.test(gsd);
+  softCheck(
+    "isValidYear が年の範囲判定に委譲する",
+    delegates,
+    delegates
+      ? "isSeasonYearInRange を呼ぶ"
+      : "4桁かどうかだけを見ている（1000〜9999年が全て有効になる）"
+  );
+
+  // ③ 失敗・0件は索引に載せない（実際に関数を呼ぶ）。
+  const policyCases: [boolean, number, boolean, string][] = [
+    [true, 10, false, "取得に失敗した（件数があっても載せない）"],
+    [false, 0, false, "取得できたが0件"],
+    [false, 1, true, "1件でもあれば載せる"],
+  ];
+  let policyNg = 0;
+  for (const [failed, count, want, label] of policyCases) {
+    if (shouldIndexSeasonScopedPage(failed, count) !== want) {
+      policyNg++;
+      softCheck(`索引の判定: ${label}`, false, `${!want}（${want}のはず）`);
+    }
+  }
+  softCheck(
+    "失敗・0件のページを索引に載せない",
+    policyNg === 0,
+    policyNg === 0 ? `${policyCases.length}件の場合分けを確認` : `${policyNg} 件が期待と違う`
+  );
+  // robots の中身も固定する（follow を落とすと内部リンクまで殺す）。
+  const rf = robotsFor(true, 0).robots;
+  softCheck(
+    "noindex にしても follow は残す",
+    rf?.index === false && rf?.follow === true,
+    JSON.stringify(rf)
+  );
+
+  // ④ クール単位の5面が、この判定を通していること。
+  //    ここを通さないページは、Annict障害中に「エラー」本文つきで索引されうる。
+  const seasonScoped: [string, string][] = [
+    ["../app/season/[year]/[season]/page.tsx", "シーズンページ"],
+    ["../app/rankings/[year]/[season]/page.tsx", "ランキングページ"],
+    ["../app/exclusive/[year]/[season]/page.tsx", "独占配信ページ"],
+    ["../app/service/[key]/[year]/[season]/page.tsx", "サービス別ページ"],
+    ["../app/person/[name]/[year]/[season]/page.tsx", "声優ページ"],
+  ];
+  for (const [rel, label] of seasonScoped) {
+    const src = readFileSync(new URL(rel, import.meta.url), "utf8");
+    const uses = src.includes("robotsFor(") || src.includes("NOINDEX_FOLLOW");
+    softCheck(
+      `${label}が索引の判定を通す`,
+      uses,
+      uses ? "lib/indexPolicy.ts を使う" : "失敗・0件でも index のまま公開される"
+    );
+  }
+
+  // ⑤ 404ページが行き止まりでないこと。
+  const nfPath = new URL("../app/not-found.tsx", import.meta.url);
+  const hasNf = existsSync(nfPath);
+  softCheck(
+    "404ページがある",
+    hasNf,
+    hasNf ? "app/not-found.tsx" : "既定の画面（サイト内リンク0本の行き止まり）"
+  );
+  if (hasNf) {
+    const nf = readFileSync(nfPath, "utf8");
+    const links = (nf.match(/<Link href=/g) || []).length;
+    softCheck(
+      "404ページに戻る導線がある",
+      links >= 2,
+      `<Link> が ${links} 本`
+    );
+    // ビルド時に事前生成され得るので、日付から組んだURLは古くなる。
+    // コメントは除いて見る（「new Date() を使わない」という**注意書き**自体に
+    // 反応してしまうため。実際1度そうなった）。
+    const nfCode = nf.replace(/^\s*\/\/.*$/gm, "");
+    const usesNow = /new Date\(/.test(nfCode);
+    softCheck(
+      "404ページが日付からURLを組まない",
+      !usesNow,
+      usesNow ? "new Date() を使っている（クール替わりで古いURLを指す）" : "静的なリンクだけ"
+    );
+  }
+
+  console.log(`結果（エラーページ・空ページ）: ${softNg === 0 ? "全件OK" : softNg + " 件NG"}`);
+}
+
+// ─────────────────────────────────────────────
 // 次クールをsitemapに載せる（2026-08-31追加）
 //
 // 経緯: sitemapは長らく「今期」しか載せていなかった。放送時期（○年○月）は放送開始の
@@ -5403,6 +5554,7 @@ if (
   thinPersonNg > 0 ||
   nextSeasonNg > 0 ||
   prerenderNg > 0 ||
+  softNg > 0 ||
   partialWeekNg > 0 ||
   prepNg > 0 ||
   archiveNg > 0 ||
