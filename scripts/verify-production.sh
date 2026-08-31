@@ -26,6 +26,12 @@
 #      サイト全体から消えただけ」でも通ってしまうのを防ぐ
 #   D. 埋め込みに <script>・自サイト外リンクが無い    … ⑯／CLAUDE.md 基本ルール
 #   E. 公開APIが airingStatus を返す                  … ⑰
+#   F. 索引方針が本番に反映されている                  … ㉟
+#      2026-08-25に書いてテストまで通した「過去年の声優ページを索引から外す」対応が、
+#      mainへ入っておらず**6日間本番に出ていなかった**。しかも誰も気づかなかった。
+#      ソースを見る検査（node scripts/check.ts）は通っていたので、
+#      「直したつもりで出ていない」はソース側からは原理的に検出できない。
+#      ⑦-10（HTMLが空）と同じ型の事故なので、同じ場所（本番HTMLを取って数える）で見張る。
 #
 # シークレット不要・本番の公開URLしか叩かない（読み取りのみ）。
 # 検査対象の作品IDはリポジトリ同梱の content/archive/index.json と本番の
@@ -162,9 +168,88 @@ CORS=$($CURL -o /dev/null -D - "$BASE/api/work/${PAST_ID}" \
   | tr -d '\r' | grep -i '^access-control-allow-origin:' | head -1)
 [ -n "$CORS" ] && ok "CORSヘッダあり（${CORS}）" || fail "CORSヘッダが無い（公開APIの仕様）"
 
+# ── F. 索引方針が本番に反映されているか（㉟の再発検知）──────────────
+#
+# 「今年のクールは索引に載せる／過去年は出演作の多い声優だけ」という規則
+# （lib/personPage.ts の shouldIndexPersonSeasonPage）が本番に出ているかを、
+# 本番のHTMLとsitemapから直接確かめる。ソース側の検査では出ていないことが分からない。
+#
+# 対象の声優はハードコードしない（索引が変わると検査自体が壊れる）。
+# 本番のsitemapに /person/{名}/{過去年}/{季} が1件でも載っていれば、それは
+# 「閾値を通った＝索引に載せると決めた」ページなので index であるべき。
+# 逆に sitemap に載っていない過去年の声優ページは noindex であるべき。
+echo
+echo "F. 索引方針（過去年の声優ページ）"
+SITEMAP=$($CURL "$BASE/sitemap.xml")
+THIS_YEAR=$(date -u +%Y)
+
+# sitemapに載っている「過去年」の声優ページを1件取る（今年ぶんは除く）。
+INDEXED_PERSON=$(tr ">" "\n" <<<"$SITEMAP" | grep -oE "https?://[^<]*/person/[^<]*" \
+  | grep -v "/${THIS_YEAR}/" | head -1)
+if [ -n "$INDEXED_PERSON" ]; then
+  H=$($CURL "$INDEXED_PERSON")
+  if grep -qi 'name="robots"[^>]*content="[^"]*noindex' <<<"$H"; then
+    fail "sitemapに載っている過去年の声優ページが noindex: ${INDEXED_PERSON}"
+  else
+    ok "sitemapに載っている過去年の声優ページは index（${INDEXED_PERSON##*/person/}）"
+  fi
+else
+  # 過去年ぶんが1件も載っていないのは、規則が「今期のみ」に戻った可能性が高い。
+  # 2026-08-25にその粒度で実装して、1.0位・6.6位のページまで落としたことがある。
+  fail "sitemapに過去年の声優ページが1件も無い（索引方針が今期のみに戻っていないか）"
+fi
+
+# sitemapに載っていない過去年の声優ページが noindex になっていること。
+# 対象はリポジトリ同梱の索引から「閾値に届かない人」を1人選ぶ（本番には依存しない）。
+THIN_PERSON=$(node -e '
+const fs=require("fs");
+const idx=JSON.parse(fs.readFileSync("content/archive/people.json","utf8")).people;
+const src=fs.readFileSync("lib/personPage.ts","utf8");
+const m=src.match(/PERSON_PAGE_INDEX_MIN_TOTAL_WORKS\s*=\s*(\d+)/);
+const th=m?Number(m[1]):50;
+const year=new Date().getUTCFullYear();
+const cour=new Map();
+for(const [n,ws] of Object.entries(idx)) for(const w of ws){const k=n+"|"+w[2]+"|"+w[3];cour.set(k,(cour.get(k)||0)+1);}
+for(const [k,c] of cour){const [n,y,s]=k.split("|");
+  if(c>=2 && Number(y)<year && (idx[n]||[]).length<th){
+    process.stdout.write("/person/"+encodeURIComponent(n)+"/"+y+"/"+s); break; }}
+')
+if [ -n "$THIN_PERSON" ]; then
+  H=$($CURL "${BASE}${THIN_PERSON}")
+  if grep -qi 'name="robots"[^>]*content="[^"]*noindex' <<<"$H"; then
+    ok "閾値に届かない過去年の声優ページは noindex（${THIN_PERSON##*/person/}）"
+  else
+    fail "閾値に届かない過去年の声優ページが index のまま: ${THIN_PERSON}（対応が本番に出ていない可能性）"
+  fi
+  # sitemapにも載っていないこと（ページ側とsitemapがズレると noindex のURLを申告することになる）。
+  if grep -q "${THIN_PERSON}<" <<<"$SITEMAP"; then
+    fail "noindexのページをsitemapが申告している: ${THIN_PERSON}"
+  else
+    ok "noindexのページはsitemapにも無い"
+  fi
+else
+  ok "閾値に届かない過去年の声優が索引に居ない（検査対象なし）"
+fi
+
+# 次クールが載っていること（㉟。需要の山は年4回しか来ない）。
+NEXT_SEASON=$(node -e '
+const order=["winter","spring","summer","autumn"];
+const now=new Date();
+const m=now.getUTCMonth()+1;
+const cur=m<=3?"winter":m<=6?"spring":m<=9?"summer":"autumn";
+const i=order.indexOf(cur);
+const y=now.getUTCFullYear();
+process.stdout.write(i===3?(y+1)+"/winter":y+"/"+order[i+1]);
+')
+if grep -q "/season/${NEXT_SEASON}<" <<<"$SITEMAP"; then
+  ok "次クール（${NEXT_SEASON}）がsitemapに載っている"
+else
+  fail "次クール（${NEXT_SEASON}）がsitemapに無い（9月・12月・3月・6月の山を逃す）"
+fi
+
 echo
 if [ "$NG" -gt 0 ]; then
-  echo "NG ${NG} 件。docs/operations.md の ⑦-10 / ⑯ / ⑰ を確認してください。"
+  echo "NG ${NG} 件。docs/operations.md の ⑦-10 / ⑯ / ⑰ / ㉟ を確認してください。"
   exit 1
 fi
 echo "全て OK"
