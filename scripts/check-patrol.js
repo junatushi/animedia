@@ -15,6 +15,7 @@
 const http = require("node:http");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
+const { dynamicRoutes } = require("./lib/app-routes.js");
 
 const REPO_ROOT = path.join(__dirname, "..");
 const SCRIPT = path.join(__dirname, "patrol.js");
@@ -69,6 +70,10 @@ function startStub(broken) {
 
     // クール単位のページ（/season /rankings /exclusive /service）
     if (["season", "rankings", "exclusive", "service"].includes(seg[0])) {
+      // **サービス別ページは配信サービスのキーも検証する**（本番は SERVICES.find →
+      // notFound()）。ここを見ていないと、巡回が `/service/d_anime🍜/...` を投げても
+      // 200が返り、スタブ側の都合で「健全なのに違反6件」になる（実際にそうなった）。
+      if (seg[0] === "service" && !KNOWN_NAMES.has(seg[1] ?? "")) return html("nf", 404);
       const year = Number(seg[0] === "service" ? seg[2] : seg[1]);
       const key = seg[0] === "service" ? seg[3] : seg[2];
       const inRange = year >= MIN_YEAR && year <= MAX_YEAR;
@@ -82,8 +87,19 @@ function startStub(broken) {
     // 名前セグメント（/studio /director /person）。索引にある名前だけ200。
     if (["studio", "director", "person"].includes(seg[0])) {
       const name = seg[1] ?? "";
-      const known = KNOWN_NAMES.has(name);
-      if (!known) return html("nf", 404);
+      if (!KNOWN_NAMES.has(name)) return html("nf", 404);
+      // **声優ページは名前だけでなく年・クールも持つ**。ここを見ていないと、
+      // 巡回が `/person/名前/99999/autumn` を投げても200が返り、スタブ側の都合で
+      // 「健全なのに違反6件」になる（実際にそうなった）。本番は
+      // lib/getSeasonData.ts の isValidYear / isValidSeason で 404 にする。
+      if (seg[0] === "person") {
+        const year = Number(seg[2]);
+        const inRange = year >= MIN_YEAR && year <= MAX_YEAR;
+        if (!inRange && !has("out-of-range-200")) return html("nf", 404);
+        if (inRange && !["winter", "spring", "summer", "autumn"].includes(seg[3] ?? "")) {
+          return html("nf", 404);
+        }
+      }
       return html(page(!has("no-h1"), has("error-body")));
     }
     return html("nf", 404);
@@ -115,6 +131,20 @@ function runPatrol(port) {
   });
 }
 
+// 実際には叩かず、崩す対象の一覧だけを出させる（patrol.js の PATROL_LIST=1）。
+function listPatrolCases() {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [SCRIPT], {
+      cwd: REPO_ROOT,
+      env: { ...process.env, PATROL_LIST: "1", BASE: "http://127.0.0.1:1" },
+    });
+    let out = "";
+    child.stdout.on("data", (d) => (out += d));
+    child.stderr.on("data", (d) => (out += d));
+    child.on("close", () => resolve(out));
+  });
+}
+
 let ng = 0;
 function check(name, pass, detail) {
   if (!pass) ng++;
@@ -135,14 +165,16 @@ async function main() {
 
   // patrol.js が選んだ「実在する値」をスタブに教える（1回目の実行から読み取る）。
   const probe = await withStub([], runPatrol);
-  const line = probe.out.match(/実在する値: 制作会社=(.*?) \/ 監督=(.*?) \/ 声優=(.*?) \/ 作品#(\d+)/);
+  const line = probe.out.match(
+    /実在する値: 制作会社=(.*?) \/ 監督=(.*?) \/ 声優=(.*?) \/ 作品#(\d+) \/ サービス=(.*)/
+  );
   if (!line) {
     console.error("patrol.js の出力から実在する値を読み取れませんでした:\n" + probe.out);
     process.exit(1);
   }
-  const [, studio, director, person, workId] = line;
-  for (const n of [studio, director, person, workId]) KNOWN_NAMES.add(n);
-  console.log(`（巡回が選んだ値: ${studio} / ${director} / ${person} / #${workId}）\n`);
+  const [, studio, director, person, workId, serviceKey] = line;
+  for (const n of [studio, director, person, workId, serviceKey]) KNOWN_NAMES.add(n);
+  console.log(`（巡回が選んだ値: ${studio} / ${director} / ${person} / #${workId} / ${serviceKey}）\n`);
 
   // ① 非ASCIIの名前を選んでいること。ASCII名を選ぶと崩し方の大半が恒等写像になり、
   //    2026-08-31の事故（㊱＝日本語名だけが404）と同じ形を素通りさせる。
@@ -193,6 +225,34 @@ async function main() {
     dead.code !== 0 && /到達できない/.test(dead.out),
     `exit=${dead.code} / ${/到達できない/.test(dead.out) ? "「到達できない」を出す" : "静かに成功した"}`
   );
+
+  // ⑤ 対象URLを**走査から導出している**こと（手書きの列挙に戻していない）。
+  //
+  // 初版は対象URLを手書きしており、`/anime/[id]/opengraph-image` を1つも崩して
+  // いなかった。同じ日に check.ts でも同じ取りこぼしをしている（窓口を3つと手で
+  // 数えて名指しで書き、4つ目が漏れた）。手書きに戻ると**その日から新しい面が
+  // 静かに検査対象外になる**ので、ここで固定する。
+  {
+    const routes = dynamicRoutes(path.join(REPO_ROOT, "app"));
+    const listed = await listPatrolCases();
+    const declared = Number((listed.match(/走査したルート: (\d+) 件/) || [])[1] || 0);
+    check(
+      "⑤ 対象URLを app/ の走査から導出している",
+      declared === routes.length && routes.length >= 10,
+      `走査 ${routes.length} 件 / 巡回の申告 ${declared} 件`
+    );
+    // 走査で見つかったルートが1つ残らず崩されていること（拾って捨てていない）。
+    // 「対照/」だけで実際には崩していないルートも取りこぼし扱いにする。
+    const missed = routes.filter((r) => !listed.includes(`${r.routePath} [`));
+    check(
+      "⑤ 走査したルートを1つも取りこぼさない",
+      missed.length === 0,
+      missed.length ? `崩していない: ${missed.map((r) => r.routePath).join(" / ")}` : `${routes.length} ルート全部を崩した`
+    );
+    // 画像ルート（OG画像）も崩している。初版が取りこぼした実物なので名指しで固定する。
+    const og = listed.includes("/anime/[id]/opengraph-image [id]/");
+    check("⑤ OG画像のルートも崩している", og, og ? "崩している" : "初版と同じ取りこぼし");
+  }
 
   console.log(`\n結果: ${ng === 0 ? "全件OK" : `${ng} 件NG`}`);
   process.exit(ng === 0 ? 0 : 1);

@@ -85,6 +85,9 @@ import {
 } from "../lib/resolveSeasonParams.ts";
 import { shouldIndexSeasonScopedPage, robotsFor } from "../lib/indexPolicy.ts";
 import { parseWorkId } from "../lib/workId.ts";
+// 検査の対象を**手で数えず、app/ を走査して導出する**ための道具（2026-08-31導入）。
+// 名指しの列挙が漏れて OG画像ルートだけ検証を通っていなかった事故から入れた。
+import { dynamicRoutes } from "./lib/app-routes.js";
 // 配信サービス追加の検知（2026-08-07追加）。純粋関数のみ。
 import { applySightings } from "../lib/serviceAdditions.ts";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
@@ -4381,18 +4384,76 @@ let softNg = 0;
     idNg === 0,
     idNg === 0 ? `${idCases.length}件の形を確認` : `${idNg} 件が期待と違う`
   );
-  // 3つの窓口が各自で Number() を書いていないこと（逆戻り禁止）。
-  for (const [rel, label] of [
-    ["../app/anime/[id]/page.tsx", "作品ページ"],
-    ["../app/api/work/[id]/route.ts", "公開API"],
-    ["../app/embed/anime/[id]/route.ts", "埋め込み"],
-  ] as [string, string][]) {
-    const src = readFileSync(new URL(rel, import.meta.url), "utf8");
-    const strict = src.includes("parseWorkId(") && !src.includes("Number.isInteger(id)");
+  // ⑥-2 **窓口を手で数えない**（2026-08-31。この検査自身の失敗から書き直した）。
+  //
+  // 最初の版は窓口を3つ名指しで書いていた（作品ページ・公開API・埋め込み）。
+  // ところが実際には4つあり、`app/anime/[id]/opengraph-image.tsx` が
+  // `Number(params.id)` + `Number.isInteger` のまま残っていた。名指しの検査は
+  // 書いた3つについては正しく動き続けるので、**漏れた1件は永久に見つからない**。
+  // しかもこの漏れ方には理由がある: 移行の目印にしていた `getWorkData` を
+  // OG画像だけは使っていない（edgeのサイズ制限のため `getWorkDataLive`）ので、
+  // grep でも引っ掛からなかった。
+  //
+  // そこで **app/ を走査して動的セグメントを持つ窓口を導出する**方式にした。
+  // 新しいページ種別・新しい画像ルート（twitter-image など）を足したとき、
+  // この検査は**何もしなくても追随する**。導出は scripts/lib/app-routes.js。
+  {
+    const appDir = fileURLToPath(new URL("../app", import.meta.url));
+    const routes = dynamicRoutes(appDir);
+    // 走査そのものが壊れて0件になると、以下のループが全部素通りして静かに緑になる。
+    // 実データの下限を置いて、それを防ぐ（面を減らしたときは下げてよい）。
     softCheck(
-      `${label}が作品IDの検証を共有する`,
-      strict,
-      strict ? "lib/workId.ts を使う" : "Number(params.id) を自前で書いている（502・重複URLの原因）"
+      "動的セグメントを持つ窓口を走査できている",
+      routes.length >= 10,
+      `${routes.length} 件（app/ を走査）`
+    );
+
+    // 逆戻りの検査は**コメントを除いてから**見る。除かないと、この事故の経緯を
+    // 説明したコメント（「Number.isInteger は安全な整数かを見ない」）自体に反応して、
+    // 直したファイルが永久にNGのままになる（実際に1度そうなった）。
+    // 行頭の // とブロックコメントだけを落とす（文字列中の "https://" を壊さない）。
+    const withoutComments = (s: string) =>
+      s
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .split("\n")
+        .filter((line) => !/^\s*\/\//.test(line))
+        .join("\n");
+
+    const idRoutes = routes.filter((r) => r.segments.includes("id"));
+    const looseId: string[] = [];
+    for (const r of idRoutes) {
+      const src = withoutComments(readFileSync(r.file, "utf8"));
+      // parseWorkId を通していること、かつ Number()/Number.isInteger を自前で書いていないこと。
+      const ok =
+        src.includes("parseWorkId(") &&
+        !/Number\.isInteger\s*\(/.test(src) &&
+        !/Number\s*\(\s*params\.id\s*\)/.test(src);
+      if (!ok) looseId.push(r.rel);
+    }
+    softCheck(
+      "作品IDの窓口がすべて lib/workId.ts を通る",
+      looseId.length === 0 && idRoutes.length >= 4,
+      looseId.length
+        ? `自前で Number() を書いている: ${looseId.join(" / ")}（502・重複URLの原因）`
+        : `${idRoutes.length} 件すべてが parseWorkId を使う`
+    );
+
+    // 年の範囲（㊲）も同じ扱い。[year] を持つ窓口は必ず範囲判定を通し、
+    // 範囲外は notFound() する。isValidYear は isSeasonYearInRange の別名。
+    const yearRoutes = routes.filter((r) => r.segments.includes("year"));
+    const looseYear: string[] = [];
+    for (const r of yearRoutes) {
+      const src = withoutComments(readFileSync(r.file, "utf8"));
+      const guarded =
+        /\bisValidYear\s*\(|\bisSeasonYearInRange\s*\(/.test(src) && /\bnotFound\(\)/.test(src);
+      if (!guarded) looseYear.push(r.rel);
+    }
+    softCheck(
+      "[year] を持つ窓口がすべて年の範囲を検査する",
+      looseYear.length === 0 && yearRoutes.length >= 5,
+      looseYear.length
+        ? `範囲を見ていない: ${looseYear.join(" / ")}（存在しない年でAnnict取得とISR書き込みが起きる）`
+        : `${yearRoutes.length} 件すべてが範囲外を notFound() する`
     );
   }
 

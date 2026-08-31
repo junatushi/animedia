@@ -7,6 +7,7 @@ import { loadGoogleFont } from "@/lib/ogFont";
 // Vercel の Edge Function のサイズ上限を超えてデプロイが落ちる。詳細は
 // lib/getWorkDataLive.ts の冒頭。
 import { getWorkDataLive } from "@/lib/getWorkDataLive";
+import { parseWorkId } from "@/lib/workId";
 
 // 作品ページを共有した時、その作品名・配信サービスが入ったカード画像を出す。
 export const runtime = "edge";
@@ -22,12 +23,27 @@ function truncate(text: string, max: number): string {
 }
 
 export default async function OpengraphImage({ params }: { params: { id: string } }) {
-  const id = Number(params.id);
+  // 作品IDの検証は lib/workId.ts の parseWorkId **だけ**が持つ（2026-08-31）。
+  // ここは長らく `Number(params.id)` + `Number.isInteger` を自前で書いていた4つ目の
+  // 窓口で、他の3つを移行したときに漏れた（getWorkDataLive を使うため、移行の目印に
+  // していた getWorkData の grep に掛からなかった）。`Number.isInteger` は
+  // 「安全な整数か」ではなく「整数値か」しか見ないので 1e20 も通り、`Number()` は
+  // 16進・指数・小数・先頭ゼロも解釈する＝同じ画像が別URLで生成される。
+  const id = parseWorkId(params.id);
+  // 形として不正なIDは404を返す（作品ページと揃える）。汎用カードを200で返すと
+  // `/anime/0x3374/opengraph-image` のような**同じ画像の別URL**が生まれ、
+  // s-maxage=604800 でエッジに1週間居座る。
+  // 「形は正しいがデータが無い」場合は下の汎用カードに落とす（Annict障害で
+  // OG画像まで404にすると、復旧後もSNS側のキャッシュに404が残るため）。
+  if (id === null) {
+    return new Response("Not found", { status: 404 });
+  }
+
   let title = "作品情報";
   let serviceLine = "";
 
   try {
-    const item = Number.isInteger(id) ? await getWorkDataLive(id) : null;
+    const item = await getWorkDataLive(id);
     if (item) {
       title = item.title;
       serviceLine = item.services.map((s) => s.short).join(" / ");

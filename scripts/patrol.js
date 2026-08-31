@@ -20,8 +20,12 @@
 //   /anime/0x3374                     → 200（16進として13172に解決＝同じ作品の別URL）
 //
 // 【設計の要点】
-// ①**値をハードコードしない**。実在する制作会社名・監督名・声優名・作品IDは
-//   リポジトリ同梱の索引から取る（索引が変わっても検査が古くならない）。
+// ①**値もURLもハードコードしない**。実在する制作会社名・監督名・声優名・作品IDは
+//   リポジトリ同梱の索引から取り、**崩す対象のURLは app/ を走査して導出する**
+//   （scripts/lib/app-routes.js）。初版は対象URLを手書きしていたため、
+//   `/anime/[id]/opengraph-image` を1つも崩しておらず、そこだけ検証が緩いまま
+//   残っていた（同じ日に check.ts でも同じ取りこぼしをしている）。走査にすると
+//   新しいページ種別・新しい画像ルートを足したとき**自動で崩す対象に入る**。
 // ②**不変条件はURLの形に依らないものだけ**を書く。「このURLは200」ではなく
 //   「5xxを返さない」「200なのにエラー本文が出ていない」のように書く。
 // ③**404の中身は見ない**。notFound() 経由の404は描画開始後に投げられるため
@@ -34,6 +38,7 @@
 // ───────────────────────────────────────────────────────────────
 const fs = require("node:fs");
 const path = require("node:path");
+const { dynamicRoutes } = require("./lib/app-routes.js");
 
 const REPO = path.join(__dirname, "..");
 const BASE = process.env.BASE || "https://animedia-khaki.vercel.app";
@@ -114,59 +119,100 @@ const SEASON_SHAPES = [
   ["日本語", E("夏")],
   ["未知", "monsoon"],
 ];
+// 年（[year] セグメント）。範囲外の年は200を返してはいけない（㊲）。
+// 200を返すと、存在しない年のURLを叩くだけでAnnictへのライブ取得とISR書き込みが
+// 無制限に発生する（2026-08-24に本番を停止させた経路と同じ）。
+function yearShapes() {
+  return [
+    ["範囲外(未来)", String(new Date().getFullYear() + 5)],
+    ["範囲外(過去)", "1900"],
+    ["桁数違い", "99999"],
+    ["数字でない", "abcd"],
+  ];
+}
+
+// 動的セグメントの名前 → そこに入る「実在する値」。
+// [name] はルートによって指すものが違う（制作会社／監督／声優）。
+function realFor(segment, route, v) {
+  if (segment === "id") return v.workId;
+  if (segment === "year") return v.year;
+  if (segment === "season") return v.season;
+  if (segment === "key") return v.serviceKey;
+  if (segment === "name") {
+    if (route.routePath.startsWith("/studio/")) return v.studio;
+    if (route.routePath.startsWith("/director/")) return v.director;
+    return v.person;
+  }
+  return null; // 知らないセグメント名 → そのルートは崩さない（下で報告する）
+}
+
+// 動的セグメントの名前 → 崩し方。
+function shapesFor(segment, real, localOnly) {
+  if (segment === "id") return ID_SHAPES;
+  if (segment === "year") return yearShapes();
+  if (segment === "season") {
+    // **大文字違いは localhost に向けたときだけ飛ばす。**
+    // Windowsのローカル本番ビルドでは `/season/2025/Summer` が200になる（事前生成した
+    // `summer.html` が大文字小文字を区別しないファイルシステムに当たるため）。しかも
+    // next start がその要求で `Summer.html` を書こうとして正規の `summer.html` を壊し、
+    // **本来200のURLが以後404になる**。本番（Linux）では正しく404で、実測でもそうだった。
+    // 「CIは緑なのに手元では必ず失敗する」状態を作らない（docs/operations.md の㉔）。
+    return SEASON_SHAPES.filter(([label]) => !(localOnly && label === "大文字"));
+  }
+  return nameShapes(real); // name / key（自由文字列のセグメント）
+}
 
 // 崩した結果が正規の形と同じ文字列になることがある（ASCIIだけの名前は
 // encodeURIComponent も NFD 正規化も恒等写像になる）。その場合は「崩せていない」ので
 // 対照扱いにする。これをやらないと `/director/FROGMAN` を違反として数えてしまう。
+//
+// **対象URLは app/ の走査から導出する**（手書きしない）。初版は手書きだったため
+// `/anime/[id]/opengraph-image` を1つも崩していなかった。
 function buildCases(v) {
   const c = [];
-  const push = (label, seg, canonical, url, kind) =>
-    c.push([seg === canonical ? `対照/${label}` : label, url, kind]);
+  const localOnly = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(BASE);
+  const routes = dynamicRoutes(path.join(REPO, "app"));
+  const skipped = [];
 
-  for (const [label, s] of nameShapes(v.studio)) {
-    push(`studio/${label}`, s, E(v.studio), `/studio/${s}`, "html");
-  }
-  for (const [label, s] of nameShapes(v.director)) {
-    push(`director/${label}`, s, E(v.director), `/director/${s}`, "html");
-  }
-  if (v.person) {
-    for (const [label, s] of nameShapes(v.person)) {
-      push(`person/${label}`, s, E(v.person), `/person/${s}/${v.year}/${v.season}`, "html");
+  for (const r of routes) {
+    // このルートの全セグメントに実在する値を割り当てる。
+    const reals = {};
+    let ok = true;
+    for (const s of r.segments) {
+      const real = realFor(s, r, v);
+      if (!real) {
+        ok = false;
+        skipped.push(`${r.routePath}（[${s}] の実在値が無い）`);
+        break;
+      }
+      reals[s] = real;
+    }
+    if (!ok) continue;
+
+    // routePath の [x] を埋める。over で指定した1つだけ崩した値に差し替える。
+    const fill = (overName, overValue) =>
+      r.routePath.replace(/\[(?:\.{0,3})([^\]]+)\]/g, (_, name) =>
+        name === overName ? overValue : E(reals[name])
+      );
+    // HTML以外（画像・Route Handler）は <h1> を持たないので kind を分ける。
+    const kind = r.kind === "html" ? "html" : "api";
+
+    // 対照（全セグメントが正規の値）。これが200で返らないなら巡回自体が壊れている。
+    c.push([`対照/${r.routePath}`, fill(null, null), kind]);
+
+    // セグメントを1つずつ崩す。
+    for (const s of r.segments) {
+      for (const [label, shape] of shapesFor(s, reals[s], localOnly)) {
+        const broken = shape !== E(reals[s]);
+        c.push([
+          `${broken ? "" : "対照/"}${r.routePath} [${s}]/${label}`,
+          fill(s, shape),
+          kind,
+        ]);
+      }
     }
   }
-  for (const [label, s] of ID_SHAPES) {
-    c.push([`anime/${label}`, `/anime/${s}`, "html"]);
-    c.push([`api-work/${label}`, `/api/work/${s}`, "api"]);
-    c.push([`embed/${label}`, `/embed/anime/${s}`, "api"]);
-  }
-  // クール名の崩し。
-  //
-  // **大文字違いは localhost に向けたときだけ飛ばす。**
-  // Windowsのローカル本番ビルドでは `/season/2025/Summer` が200になる（事前生成した
-  // `summer.html` が大文字小文字を区別しないファイルシステムに当たるため）。しかも
-  // next start がその要求で `Summer.html` を書こうとして正規の `summer.html` を壊し、
-  // **本来200のURLが以後404になる**。本番（Linux）では正しく404で、実測でもそうだった。
-  // 「CIは緑なのに手元では必ず失敗する」状態を作らない（docs/operations.md の㉔）。
-  const localOnly = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(BASE);
-  for (const [label, s] of SEASON_SHAPES) {
-    if (localOnly && label === "大文字") continue;
-    c.push([`season/${label}`, `/season/${v.year}/${s}`, "html"]);
-    c.push([`rankings/${label}`, `/rankings/${v.year}/${s}`, "html"]);
-  }
-  // 年の範囲（㊲）。範囲外は200を返してはいけない。
-  const far = new Date().getFullYear() + 5;
-  for (const p of [
-    `/season/${far}/winter`,
-    `/rankings/${far}/winter`,
-    `/exclusive/${far}/winter`,
-    `/service/${v.serviceKey}/${far}/winter`,
-  ]) {
-    c.push([`範囲外の年/${p.split("/")[1]}`, p, "html"]);
-  }
-  // 正規のURL（対照）。これが200で返らないなら巡回自体が壊れている。
-  c.push(["対照/作品", `/anime/${v.workId}`, "html"]);
-  c.push(["対照/制作会社", `/studio/${E(v.studio)}`, "html"]);
-  return c;
+  return { cases: c, skipped, routeCount: routes.length };
 }
 
 const ERROR_PHRASES = ["エラーを返しました", "取得に失敗しました", "Internal Server Error"];
@@ -203,12 +249,24 @@ function violations(label, kind, r) {
 
 async function main() {
   const v = realValues();
-  const cases = buildCases(v);
+  const { cases, skipped, routeCount } = buildCases(v);
   console.log(`逆張り巡回: ${BASE}`);
   console.log(
-    `実在する値: 制作会社=${v.studio} / 監督=${v.director} / 声優=${v.person ?? "(無し)"} / 作品#${v.workId}`
+    `実在する値: 制作会社=${v.studio} / 監督=${v.director} / 声優=${v.person ?? "(無し)"} / 作品#${v.workId} / サービス=${v.serviceKey}`
   );
+  console.log(`走査したルート: ${routeCount} 件（app/ の動的セグメント）`);
+  // 崩せなかったルートは黙って落とさない。**静かに対象から外れる**のがこの種の
+  // 道具のいちばん危ない壊れ方（毎日緑のまま無力化する）。
+  for (const s of skipped) console.log(`  ⚠ 崩していない: ${s}`);
   console.log(`検査対象: ${cases.length} 件\n`);
+
+  // PATROL_LIST=1 … 実際には叩かず、崩した対象の一覧だけを出して終わる。
+  // 人が「何を崩しているのか」を確かめるためと、回帰テスト（check-patrol.js）が
+  // **走査したルートを1つ残らず崩しているか**を機械的に確かめるための窓口。
+  if (process.env.PATROL_LIST) {
+    for (const [label, p, kind] of cases) console.log(`${kind.padEnd(5)} ${label}\t${p}`);
+    return;
+  }
 
   const rows = [];
   let i = 0;
@@ -231,8 +289,18 @@ async function main() {
   const bad = rows.filter((r) => r[4].length);
   console.log("\n── 不変条件に反したもの ──");
   if (!bad.length) console.log("  なし");
+  // **表示のためのデコードで落ちてはいけない。** 巡回は不正な `%` を含むURLを
+  // 故意に投げるので、素の decodeURIComponent は URIError を投げて
+  // **違反を報告する直前にプロセスごと落ちる**（実際に1度そうなった）。
+  const show = (p) => {
+    try {
+      return decodeURIComponent(p);
+    } catch {
+      return p;
+    }
+  };
   for (const [label, p, , st, vs] of bad) {
-    console.log(`  NG ${String(st).padEnd(5)} ${label.padEnd(26)} ${decodeURIComponent(p).slice(0, 64)}`);
+    console.log(`  NG ${String(st).padEnd(5)} ${label.padEnd(42)} ${show(p).slice(0, 64)}`);
     for (const x of vs) console.log(`        → ${x}`);
   }
   console.log(`\n合計 ${rows.length} 件中 ${bad.length} 件が違反`);
