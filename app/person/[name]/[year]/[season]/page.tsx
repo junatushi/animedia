@@ -74,10 +74,13 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     : `${name}さんが出演する${year}年${label}アニメを一覧でまとめました。配信サービスもあわせてアニメ視聴ガイドで確認できます。`;
   const url = `${siteUrl}/person/${encodeURIComponent(name)}/${year}/${season}`;
 
-  // 過去クールのページは noindex（2026-08-25。理由は lib/personPage.ts に実測つきで書いた）。
+  // 過去年の「無名の声優」のページだけ noindex にする（規則と実測は lib/personPage.ts）。
   // ページは消さない・404にもしない。follow は残すので、ここから過去クールの作品ページへ
-  // 渡っている内部リンクはそのまま効く。今期のページは今までどおり索引させる。
-  const indexable = shouldIndexPersonSeasonPage(year, season);
+  // 渡っている内部リンクはそのまま効く。今年のクールは全部索引させる。
+  const totalWorks = (
+    (personIndexJson as unknown as PersonIndex).people[name] ?? []
+  ).length;
+  const indexable = shouldIndexPersonSeasonPage(year, totalWorks);
 
   return {
     title,
