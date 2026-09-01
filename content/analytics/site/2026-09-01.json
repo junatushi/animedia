@@ -1,0 +1,132 @@
+{
+  "fetchedAt": "2026-09-01T01:16:47.526Z",
+  "source": "https://animedia-khaki.vercel.app/api/admin/analytics",
+  "configured": true,
+  "windowDays": 30,
+  "rowCount": 33,
+  "truncated": false,
+  "events": [
+    {
+      "event": "share_site",
+      "label": "サイト全体を共有",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "share_work",
+      "label": "作品を共有",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "favorite_add",
+      "label": "お気に入り登録",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "watched_add",
+      "label": "視聴済みに登録",
+      "last7": 0,
+      "last30": 1
+    },
+    {
+      "event": "notify_add",
+      "label": "配信通知を登録",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "filter_service",
+      "label": "配信サービスで絞り込み",
+      "last7": 0,
+      "last30": 1
+    },
+    {
+      "event": "filter_cast",
+      "label": "声優で絞り込み",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "change_season",
+      "label": "シーズン切り替え",
+      "last7": 2,
+      "last30": 16
+    },
+    {
+      "event": "follow_click",
+      "label": "SNSフォロー導線をクリック",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "calendar_subscribe",
+      "label": "カレンダー購読をクリック",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "plan_open",
+      "label": "視聴プランを開いた",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "affiliate_click",
+      "label": "広告リンクをクリック（提携済み）",
+      "last7": 3,
+      "last30": 3
+    },
+    {
+      "event": "official_link_click",
+      "label": "公式サイトへ（未提携）",
+      "last7": 7,
+      "last30": 12
+    },
+    {
+      "event": "embed_copy",
+      "label": "埋め込みコードをコピー",
+      "last7": 0,
+      "last30": 0
+    }
+  ],
+  "filterService": [
+    [
+      "youtube",
+      1
+    ]
+  ],
+  "officialClicks": [
+    [
+      "d_anime",
+      4
+    ],
+    [
+      "netflix",
+      4
+    ],
+    [
+      "bandai",
+      2
+    ],
+    [
+      "niconico",
+      1
+    ],
+    [
+      "disney",
+      1
+    ]
+  ],
+  "affiliateClicks": [
+    [
+      "prime",
+      2
+    ],
+    [
+      "abema",
+      1
+    ]
+  ]
+}
