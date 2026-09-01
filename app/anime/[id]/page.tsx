@@ -60,6 +60,7 @@ function formatAutoScheduleDate(auto: AutoScheduleEntry): string {
 
 import type { AutoScheduleEntry } from "@/lib/types";
 import { siteUrl } from "@/lib/siteUrl";
+import { parseWorkId } from "@/lib/workId";
 
 type Params = { id: string };
 
@@ -118,8 +119,8 @@ export async function generateStaticParams() {
 const UNAVAILABLE_METADATA: Metadata = { robots: { index: false, follow: false } };
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
-  const id = Number(params.id);
-  if (!Number.isInteger(id) || id <= 0) return UNAVAILABLE_METADATA;
+  const id = parseWorkId(params.id);
+  if (id === null) return UNAVAILABLE_METADATA;
 
   let item;
   try {
@@ -180,8 +181,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 // サーバーコンポーネントとして完全にHTML化するため、クロール・共有カード双方で
 // 内容がそのまま見える。
 export default async function AnimeDetailPage({ params }: { params: Params }) {
-  const id = Number(params.id);
-  if (!Number.isInteger(id) || id <= 0) notFound();
+  const id = parseWorkId(params.id);
+  if (id === null) notFound();
 
   let item;
   try {

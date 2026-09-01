@@ -28,6 +28,8 @@
 #   E. 公開APIが airingStatus を返す                  … ⑰
 #   F. 索引方針が本番に反映されている                  … ㉟
 #   G. sitemapに載せたURLが200を返す                … ㊱
+#   H. エラーページ・空ページを索引に開放していない      … ㊲
+#   I. 404が行き止まりになっていない                  … ㊲
 #      2026-08-31に、**日本語名の事前生成ページが本番で全て404**になっていた。
 #      sitemapに載せていて404だったのは約2,826ページ（声優2,351/監督376/制作会社99）。
 #      ローカルの `next start` では全て200を返すので手元では気づけない（⑦-10と同じ型）。
@@ -262,30 +264,161 @@ fi
 
 # ── G. sitemapに載せたURLが200を返すか（㊱の再発検知）────────────────
 #
-# 面ごとに1件ずつ抜き取って叩く。**日本語名を必ず含める**（2026-08-31の障害は
-# 非ASCIIの名前だけに出たので、ASCII名だけ見ていると全て緑になる）。
+# 面ごとに**複数件**抜き取って叩き、さらにsitemap全体から等間隔で抜き取る。
+# **日本語名を必ず含める**（2026-08-31の障害は非ASCIIの名前だけに出たので、
+# ASCII名だけ見ていると全て緑になる）。
+#
+# 2026-08-31に面ごと1件から増やした。1件だけだと、その1件がたまたま生きている面の
+# 事故を丸ごと見逃す（実際、当時の抜き取りは1件がASCII名に当たって緑だった）。
 echo
 echo "G. sitemapのURLが生きているか"
-for KIND in person director studio anime season; do
-  # 日本語名（パーセントエンコードを含む）を優先して選ぶ。無ければ何でもよい。
-  URL=$(tr ">" "\n" <<<"$SITEMAP" | grep -oE "https?://[^<]*/${KIND}/[^<]*" \
-    | grep "%E" | head -1)
-  [ -z "$URL" ] && URL=$(tr ">" "\n" <<<"$SITEMAP" \
-    | grep -oE "https?://[^<]*/${KIND}/[^<]*" | head -1)
-  if [ -z "$URL" ]; then
+G_SAMPLE=""
+for KIND in person director studio anime season service; do
+  # 日本語名（パーセントエンコードを含む）を優先し、足りなければ何でもよい。
+  URLS=$( { tr ">" "\n" <<<"$SITEMAP" | grep -oE "https?://[^<]*/${KIND}/[^<]*" | grep "%E" | head -2
+            tr ">" "\n" <<<"$SITEMAP" | grep -oE "https?://[^<]*/${KIND}/[^<]*" | head -3
+          } | sort -u | head -3 )
+  if [ -z "$URLS" ]; then
     fail "sitemapに /${KIND}/ のURLが1件も無い"
     continue
   fi
-  CODE=$($CURL -o /dev/null -w "%{http_code}" "$URL")
-  if [ "$CODE" = "200" ]; then
-    ok "/${KIND}/ が200（${URL##*/${KIND}/}）"
-  else
-    fail "sitemapに載せた /${KIND}/ が ${CODE}: ${URL}"
+  BAD=0
+  while IFS= read -r URL; do
+    [ -z "$URL" ] && continue
+    G_SAMPLE="${G_SAMPLE}${URL}
+"
+    CODE=$($CURL -o /dev/null -w "%{http_code}" "$URL")
+    [ "$CODE" = "200" ] || { fail "sitemapに載せた /${KIND}/ が ${CODE}: ${URL}"; BAD=$((BAD + 1)); }
+  done <<<"$URLS"
+  [ "$BAD" -eq 0 ] && ok "/${KIND}/ が $(grep -c . <<<"$URLS") 件とも200"
+done
+
+# sitemap全体からの等間隔抜き取り。面ごとの抜き取りは「面の代表」しか見ないので、
+# 特定の名前だけが壊れる形（㊱はこの形だった）を全体からも拾う。
+ALL_LOCS=$(tr ">" "\n" <<<"$SITEMAP" | grep -oE "https?://[^<]+" | grep -v "^https\?://[^/]*/*$")
+TOTAL=$(grep -c . <<<"$ALL_LOCS")
+SAMPLE_N=20
+if [ "$TOTAL" -gt 0 ]; then
+  STEP=$(( TOTAL / SAMPLE_N )); [ "$STEP" -lt 1 ] && STEP=1
+  SAMPLED=$(awk -v s="$STEP" 'NR % s == 1' <<<"$ALL_LOCS" | head -$SAMPLE_N)
+  SBAD=0
+  SCOUNT=0
+  while IFS= read -r URL; do
+    [ -z "$URL" ] && continue
+    SCOUNT=$((SCOUNT + 1))
+    CODE=$($CURL -o /dev/null -w "%{http_code}" "$URL")
+    [ "$CODE" = "200" ] || { fail "sitemapの抜き取りが ${CODE}: ${URL}"; SBAD=$((SBAD + 1)); }
+  done <<<"$SAMPLED"
+  [ "$SBAD" -eq 0 ] && ok "sitemap全体からの抜き取り ${SCOUNT}件（全${TOTAL}件中）が全て200"
+fi
+
+# ── H. エラーページ・空ページを索引に開放していないか（㊲の再発検知）──────
+#
+# 2026-08-31の見回りで、**取得に失敗したページが HTTP 200 ＋ index で返っていた**
+# ことが分かった（実測: /rankings/2099/winter が本文「Annict API がエラーを
+# 返しました（500）。」で 200・index,follow）。年の判定が「4桁の数字か」だけで
+# 1000〜9999年が全て有効だったため、存在しない年のURLがAnnictへのライブ取得と
+# ISR書き込みを無制限に発生させ、その空ページが索引可能な形で公開されていた。
+#
+# 直したのは2点で、ここはその両方が本番に出ていることを確かめる:
+#   ・年の範囲（lib/resolveSeasonParams.ts の isSeasonYearInRange）… 範囲外は404
+#   ・失敗・0件のページは noindex（lib/indexPolicy.ts）
+echo
+echo "H. エラーページ・空ページを索引に開放していないか"
+
+# H-1. 範囲外の年は、クール単位の5面すべてで404になること。
+OUT_YEAR=$(( $(TZ=Asia/Tokyo date +%Y) + 5 ))
+SOFT404=0
+for PATH_TMPL in "/season/${OUT_YEAR}/winter" \
+                 "/rankings/${OUT_YEAR}/winter" \
+                 "/exclusive/${OUT_YEAR}/winter" \
+                 "/service/netflix/${OUT_YEAR}/winter" \
+                 "/person/%E6%82%A0%E6%9C%A8%E7%A2%A7/${OUT_YEAR}/winter"; do
+  CODE=$($CURL -o /dev/null -w "%{http_code}" "${BASE}${PATH_TMPL}")
+  if [ "$CODE" != "404" ]; then
+    fail "範囲外の年が ${CODE}（404のはず）: ${PATH_TMPL}"
+    SOFT404=$((SOFT404 + 1))
   fi
 done
+[ "$SOFT404" -eq 0 ] && ok "範囲外の年は5面とも404（無制限のURL空間を閉じている）"
+
+# H-2. 存在しない名前・キーは404になること。
+NOTFOUND=0
+for PATH_TMPL in "/studio/%E5%AD%98%E5%9C%A8%E3%81%97%E3%81%AA%E3%81%84XYZ" \
+                 "/director/%E5%AD%98%E5%9C%A8%E3%81%97%E3%81%AA%E3%81%84XYZ" \
+                 "/service/zzzznotaservice/${YEAR}/${SEASON}"; do
+  CODE=$($CURL -o /dev/null -w "%{http_code}" "${BASE}${PATH_TMPL}")
+  [ "$CODE" = "404" ] || { fail "存在しない名前が ${CODE}（404のはず）: ${PATH_TMPL}"; NOTFOUND=$((NOTFOUND + 1)); }
+done
+[ "$NOTFOUND" -eq 0 ] && ok "存在しない名前・キーは404"
+
+# H-3. 作品IDの形を崩しても 5xx を返さないこと（2026-08-31追加）。
+#      3つの窓口が各自で `Number(params.id)` を書いていたため、`Number.isInteger` が
+#      MAX_SAFE_INTEGER を超える値を通し、**公開APIと埋め込みが502**を返していた。
+#      16進・小数・先頭ゼロは同じ作品の別URLとして200を返していた（無駄な書き込み）。
+IDFORM=0
+for CASE in "/api/work/99999999999999999999:400" \
+            "/embed/anime/99999999999999999999:400" \
+            "/anime/99999999999999999999:404" \
+            "/anime/0x3374:404" \
+            "/anime/0013180:404" \
+            "/anime/13180.0:404"; do
+  P="${CASE%:*}"; WANT="${CASE##*:}"
+  CODE=$($CURL -o /dev/null -w "%{http_code}" "${BASE}${P}")
+  if [ "$CODE" != "$WANT" ]; then
+    fail "作品IDの形を崩したら ${CODE}（${WANT}のはず）: ${P}"
+    IDFORM=$((IDFORM + 1))
+  fi
+done
+[ "$IDFORM" -eq 0 ] && ok "作品IDの形を崩しても5xxにならず、別URLで同じ作品を返さない"
+
+# H-4. sitemapに載せたページに、取得失敗の本文が出ていないこと。
+#      Annictの障害中にクロールされると、ISRがエラーHTMLを最大1週間配ることになる。
+#      **索引に載せると宣言したページ**でこれが起きているなら、それ自体が事故。
+ERRPAGE=0
+while IFS= read -r URL; do
+  [ -z "$URL" ] && continue
+  H=$($CURL "$URL")
+  if grep -qF "エラーを返しました" <<<"$H" || grep -qF "取得に失敗しました" <<<"$H"; then
+    fail "sitemapのページに取得失敗の本文が出ている: ${URL}"
+    ERRPAGE=$((ERRPAGE + 1))
+  fi
+done <<<"$G_SAMPLE"
+[ "$ERRPAGE" -eq 0 ] && ok "sitemapのページに取得失敗の本文が出ていない"
+
+# ── I. 404が行き止まりになっていないか（㊲）──────────────────────
+#
+# 存在しないURLは404を返すのが正しいが、そこに着地した人には次の行き先が要る。
+# 2026-08-31までは Next.js の既定画面（サイト内リンク0本）だった。
+# 404に着地する経路は実在する（㊱で約2,826ページが404だった期間の検索結果、
+# ㉟で索引から外した声優ページ、Annictから消えた作品）。
+#
+# **見るのは「ルート未一致のURL」だけ**にする。`notFound()` 経由の404
+# （存在しない作品ID・索引に無い名前など）は、描画開始後に投げられるためHTMLの
+# シェルが既に送出済みで、画面の中身はRSCストリーム（self.__next_f.push）側に入る。
+# ブラウザでは正しく出るが**生HTMLを grep しても見つからない**ので、ここで数えても
+# 意味がない（⑦-10と同じ形の制約）。そちらの担保は
+# `node scripts/check.ts` の「notFound() を呼ぶページに404の境界がある」検査が持つ。
+echo
+echo "I. 404ページに戻る導線があるか"
+NF_URL="${BASE}/this-page-does-not-exist-$(date +%s)"
+NF_CODE=$($CURL -o /dev/null -w "%{http_code}" "$NF_URL")
+NF_HTML=$($CURL "$NF_URL")
+[ "$NF_CODE" = "404" ] && ok "存在しないURLは404を返す" \
+  || fail "存在しないURLが ${NF_CODE}（404のはず。ソフト404になっている）"
+NF_LINKS=$(grep -o 'href="/[^"]*"' <<<"$NF_HTML" | grep -v '/_next' | grep -vE '\.(svg|webmanifest)' \
+  | sort -u | wc -l | tr -d ' ')
+[ "$NF_LINKS" -ge 2 ] && ok "404ページにサイト内リンクが ${NF_LINKS} 本" \
+  || fail "404ページのサイト内リンクが ${NF_LINKS} 本（行き止まりになっている）"
+if grep -qi 'name="robots"[^>]*content="[^"]*noindex' <<<"$NF_HTML"; then
+  ok "404ページは noindex"
+else
+  fail "404ページが noindex ではない"
+fi
+
 echo
 if [ "$NG" -gt 0 ]; then
-  echo "NG ${NG} 件。docs/operations.md の ⑦-10 / ⑯ / ⑰ / ㉟ / ㊱ を確認してください。"
+  echo "NG ${NG} 件。docs/operations.md の ⑦-10 / ⑯ / ⑰ / ㉟ / ㊱ / ㊲ を確認してください。"
   exit 1
 fi
 echo "全て OK"

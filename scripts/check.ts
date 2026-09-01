@@ -77,7 +77,17 @@ import {
   MAX_CANDIDATES,
 } from "../lib/discord.ts";
 import { DISCORD_PUBLIC_KEY_FALLBACK } from "../content/discord/publicKey.ts";
-import { currentSeasonKey, currentYearSeason } from "../lib/resolveSeasonParams.ts";
+import {
+  currentSeasonKey,
+  currentYearSeason,
+  isSeasonYearInRange,
+  MIN_SEASON_YEAR,
+} from "../lib/resolveSeasonParams.ts";
+import { shouldIndexSeasonScopedPage, robotsFor } from "../lib/indexPolicy.ts";
+import { parseWorkId } from "../lib/workId.ts";
+// 検査の対象を**手で数えず、app/ を走査して導出する**ための道具（2026-08-31導入）。
+// 名指しの列挙が漏れて OG画像ルートだけ検証を通っていなかった事故から入れた。
+import { appRoutes, dynamicRoutes } from "./lib/app-routes.js";
 // 配信サービス追加の検知（2026-08-07追加）。純粋関数のみ。
 import { applySightings } from "../lib/serviceAdditions.ts";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
@@ -1125,6 +1135,94 @@ let peopleNg = 0;
   );
 }
 console.log(`結果（声優の出演作索引）: ${peopleNg === 0 ? 4 : 0} 件OK / ${peopleNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// 索引JSONを生成スクリプトから導出して突き合わせる（2026-08-31追加）
+//
+// 【なぜ要るか】
+// content/archive/ には機械生成の索引が3つある（index.json / people.json /
+// studios.json）。**スナップショットを再生成したのに索引を作り直し忘れる**と
+// 画面は何も壊れないまま中身だけが古くなるので、index.json と people.json には
+// 上で一致検査を入れてあった。ところが **studios.json には無かった**。
+// 理由は単純で、検査を1ファイルずつ手で足していたから。索引が増えたときに
+// 検査を足し忘れると、そのファイルだけ永久に見張られない。
+//
+// そこで **content/archive/ を走査し、全ての .json に生成元が登録されていることを
+// 先に検査してから**、1つずつ導出して突き合わせる。新しい索引を足したのに
+// ここへ登録しなければ**その時点で落ちる**（静かに見張り漏れが増えない）。
+// これは app/ の走査（エラーページの節）と同じ考え方を、データ側へ当てたもの。
+// ─────────────────────────────────────────────
+console.log("\n── 索引JSONを生成スクリプトから導出する ──");
+let deriveNg = 0;
+{
+  const { readSnapshots, buildArchiveIndex } = await import("./build-archive-index.ts");
+  const { buildPersonIndex } = await import("./build-person-index.ts");
+  const { buildStudioIndex } = await import("./build-studio-index.ts");
+  const snapshots = readSnapshots();
+
+  // ファイル名 → { 生成スクリプト, 導出関数, 比較対象の取り出し方 }。
+  // ここに無いファイルが content/archive/ に現れたら落ちる。
+  const builders: Record<
+    string,
+    { script: string; derive: () => unknown; pick: (json: any) => unknown; describe: (v: any) => string }
+  > = {
+    "index.json": {
+      script: "node scripts/build-archive-index.ts",
+      derive: () => buildArchiveIndex(snapshots),
+      pick: (j) => j,
+      describe: (v) =>
+        `シーズン${v.seasons.length}件・作品${v.seasons.reduce((n: number, s: any) => n + s.workIds.length, 0)}件`,
+    },
+    "people.json": {
+      script: "node scripts/build-person-index.ts",
+      derive: () => buildPersonIndex(snapshots),
+      pick: (j) => j.people,
+      describe: (v) =>
+        `${Object.keys(v).length}人・出演${Object.values(v).reduce((n: number, w: any) => n + w.length, 0)}件`,
+    },
+    "studios.json": {
+      script: "node scripts/build-studio-index.ts",
+      // 生成側は generatedAt も書くが、これは「内容が変わったときだけ」更新される
+      // 印であって中身ではない。比較からは外す（外さないと日付で毎回不一致になる）。
+      derive: () => buildStudioIndex(snapshots),
+      pick: (j) => ({ studios: j.studios, directors: j.directors }),
+      describe: (v) => `制作会社${Object.keys(v.studios).length}社・監督${Object.keys(v.directors).length}人`,
+    },
+  };
+
+  const archiveDir = new URL("../content/archive/", import.meta.url);
+  const files = readdirSync(archiveDir).filter((f) => f.endsWith(".json")).sort();
+  const unregistered = files.filter((f) => !(f in builders));
+  if (unregistered.length) deriveNg++;
+  console.log(
+    `${unregistered.length === 0 ? "✓" : "✗"}  ${"索引JSONに生成元が登録されている".padEnd(40)} → ` +
+      (unregistered.length === 0
+        ? `${files.length} 件すべて登録済み`
+        : `生成元が未登録: ${unregistered.join(" / ")}（見張られないまま古くなる）`)
+  );
+  // 逆に、登録されているのにファイルが無い（消した／改名した）ことも見る。
+  const missing = Object.keys(builders).filter((f) => !files.includes(f));
+  if (missing.length) deriveNg++;
+  console.log(
+    `${missing.length === 0 ? "✓" : "✗"}  ${"登録された索引JSONが実在する".padEnd(40)} → ` +
+      (missing.length === 0 ? "欠けなし" : `見つからない: ${missing.join(" / ")}`)
+  );
+
+  for (const file of files) {
+    const b = builders[file];
+    if (!b) continue;
+    const expected = b.derive();
+    const actual = b.pick(JSON.parse(readFileSync(new URL(file, archiveDir), "utf8")));
+    const same = JSON.stringify(expected) === JSON.stringify(actual);
+    if (!same) deriveNg++;
+    console.log(
+      `${same ? "✓" : "✗"}  ${`${file}が導出結果と一致`.padEnd(40)} → ` +
+        b.describe(expected) +
+        (same ? "" : `  (不一致: ${b.script} を実行してください)`)
+    );
+  }
+}
+console.log(`結果（索引JSONの導出）: ${deriveNg === 0 ? "全件OK" : deriveNg + " 件NG"}`);
 
 // ─────────────────────────────────────────────
 // 声優データの取りこぼし（2026-08-11追加・重大度高）
@@ -4143,6 +4241,314 @@ let prerenderNg = 0;
 }
 
 // ─────────────────────────────────────────────
+// エラーページ・空ページを索引に開放しない（2026-08-31追加・重大度高）
+//
+// 経緯: 本番を面ごとに叩いて回ったところ、**取得に失敗したページが HTTP 200 ＋
+// `index, follow` で返っていた**。実測:
+//   /rankings/2099/winter        → 200 / index,follow / 本文「Annict API がエラーを返しました（500）。」
+//   /exclusive/2099/winter       → 200 / index,follow / 同上
+//   /service/netflix/2099/winter → 200 / index,follow / 同上
+//   /person/悠木碧/2099/winter    → 200 / index,follow / 同上
+//   /season/2099/winter          → 200 / index,follow / 作品リンク0件
+//
+// 原因は年の判定が `/^\d{4}$/` だけだったこと。1000〜9999年の9,000通りが全て
+// 有効で、存在しない年のURLを叩くだけで ①Annictへライブ取得が飛び ②その空ページが
+// ISRキャッシュに書き込まれ ③索引可能な形で公開される、が同時に起きていた。
+// ②は2026-08-24に本番を丸一日停止させた ISR Writes 超過（㉝）と同じ経路で、
+// しかもURL空間が無制限だった。
+//
+// 規則は2箇所が持つ:
+//   lib/resolveSeasonParams.ts の isSeasonYearInRange … 年の範囲（範囲外は404）
+//   lib/indexPolicy.ts の shouldIndexSeasonScopedPage … 失敗・0件は noindex
+// 本番側の検知は scripts/verify-production.sh の H 節。経緯は docs/operations.md の㊲。
+// ─────────────────────────────────────────────
+console.log("\n── エラーページ・空ページを索引に開放しない ──");
+let softNg = 0;
+{
+  const softCheck = (label: string, ok: boolean, detail: string) => {
+    if (!ok) softNg++;
+    console.log(`${ok ? "✓" : "✗"}  ${label.padEnd(40)} → ${detail}`);
+  };
+
+  // ① 年の範囲そのもの（実際に関数を呼ぶ）。
+  const nowY = new Date().getFullYear();
+  const yearCases: [string, boolean, string][] = [
+    [String(MIN_SEASON_YEAR - 1), false, "下限の1つ手前"],
+    [String(MIN_SEASON_YEAR), true, "下限ちょうど"],
+    [String(nowY), true, "今年"],
+    [String(nowY + 1), true, "来年（次クールが年をまたぐ）"],
+    [String(nowY + 2), false, "再来年"],
+    ["2099", false, "遠い未来"],
+    ["1980", false, "収録範囲より前"],
+    ["abcd", false, "数字でない"],
+    ["99", false, "4桁でない"],
+  ];
+  let yearNg = 0;
+  for (const [y, want, label] of yearCases) {
+    if (isSeasonYearInRange(y) !== want) {
+      yearNg++;
+      softCheck(`年の範囲: ${label}`, false, `${y} → ${!want}（${want}のはず）`);
+    }
+  }
+  softCheck(
+    "年の範囲が実データに合っている",
+    yearNg === 0,
+    yearNg === 0
+      ? `${MIN_SEASON_YEAR}〜${nowY + 1}年だけが有効（${yearCases.length}件の境界を確認）`
+      : `${yearNg} 件が期待と違う`
+  );
+
+  // ② isValidYear が範囲判定へ委譲していること（`/^\\d{4}$/` 直書きへの逆戻り禁止）。
+  const gsd = readFileSync(new URL("../lib/getSeasonData.ts", import.meta.url), "utf8");
+  const delegates = /export function isValidYear[^}]*isSeasonYearInRange/.test(gsd);
+  softCheck(
+    "isValidYear が年の範囲判定に委譲する",
+    delegates,
+    delegates
+      ? "isSeasonYearInRange を呼ぶ"
+      : "4桁かどうかだけを見ている（1000〜9999年が全て有効になる）"
+  );
+
+  // ③ 失敗・0件は索引に載せない（実際に関数を呼ぶ）。
+  const policyCases: [boolean, number, boolean, string][] = [
+    [true, 10, false, "取得に失敗した（件数があっても載せない）"],
+    [false, 0, false, "取得できたが0件"],
+    [false, 1, true, "1件でもあれば載せる"],
+  ];
+  let policyNg = 0;
+  for (const [failed, count, want, label] of policyCases) {
+    if (shouldIndexSeasonScopedPage(failed, count) !== want) {
+      policyNg++;
+      softCheck(`索引の判定: ${label}`, false, `${!want}（${want}のはず）`);
+    }
+  }
+  softCheck(
+    "失敗・0件のページを索引に載せない",
+    policyNg === 0,
+    policyNg === 0 ? `${policyCases.length}件の場合分けを確認` : `${policyNg} 件が期待と違う`
+  );
+  // robots の中身も固定する（follow を落とすと内部リンクまで殺す）。
+  const rf = robotsFor(true, 0).robots;
+  softCheck(
+    "noindex にしても follow は残す",
+    rf?.index === false && rf?.follow === true,
+    JSON.stringify(rf)
+  );
+
+  // ④ クール単位の5面が、この判定を通していること。
+  //    ここを通さないページは、Annict障害中に「エラー」本文つきで索引されうる。
+  const seasonScoped: [string, string][] = [
+    ["../app/season/[year]/[season]/page.tsx", "シーズンページ"],
+    ["../app/rankings/[year]/[season]/page.tsx", "ランキングページ"],
+    ["../app/exclusive/[year]/[season]/page.tsx", "独占配信ページ"],
+    ["../app/service/[key]/[year]/[season]/page.tsx", "サービス別ページ"],
+    ["../app/person/[name]/[year]/[season]/page.tsx", "声優ページ"],
+  ];
+  for (const [rel, label] of seasonScoped) {
+    const src = readFileSync(new URL(rel, import.meta.url), "utf8");
+    const uses = src.includes("robotsFor(") || src.includes("NOINDEX_FOLLOW");
+    softCheck(
+      `${label}が索引の判定を通す`,
+      uses,
+      uses ? "lib/indexPolicy.ts を使う" : "失敗・0件でも index のまま公開される"
+    );
+  }
+
+  // ⑤ 404ページが行き止まりでないこと。
+  const nfPath = new URL("../app/not-found.tsx", import.meta.url);
+  const hasNf = existsSync(nfPath);
+  softCheck(
+    "404ページがある",
+    hasNf,
+    hasNf ? "app/not-found.tsx" : "既定の画面（サイト内リンク0本の行き止まり）"
+  );
+  if (hasNf) {
+    // 中身は components/NotFoundPanel.tsx が持つ（app/not-found.tsx はそれを描くだけ）。
+    const nf = readFileSync(
+      new URL("../components/NotFoundPanel.tsx", import.meta.url),
+      "utf8"
+    );
+    const links = (nf.match(/<Link href=/g) || []).length;
+    softCheck(
+      "404ページに戻る導線がある",
+      links >= 2,
+      `<Link> が ${links} 本`
+    );
+    // ビルド時に事前生成され得るので、日付から組んだURLは古くなる。
+    // コメントは除いて見る（「new Date() を使わない」という**注意書き**自体に
+    // 反応してしまうため。実際1度そうなった）。
+    const nfCode = nf.replace(/^\s*\/\/.*$/gm, "");
+    const usesNow = /new Date\(/.test(nfCode);
+    softCheck(
+      "404ページが日付からURLを組まない",
+      !usesNow,
+      usesNow ? "new Date() を使っている（クール替わりで古いURLを指す）" : "静的なリンクだけ"
+    );
+  }
+
+  // ⑤-2 404の境界（2026-08-31追加）。
+  //
+  //   **`notFound()` を呼ぶ page.tsx には、同じ階層に not-found.tsx が要る。**
+  //
+  // Next.js 14.2 の実測: ルートの `app/not-found.tsx` が拾うのは「どのルートにも
+  // 一致しなかったURL」だけで、ルートに一致したうえで `notFound()` を呼んだ場合
+  // （存在しない作品ID・索引に無い名前・未知のクール名など＝実際に起きる404のほぼ全部）は
+  // **既定の画面**が出た。1階層浅い `app/<区画>/not-found.tsx` も効かず、
+  // `page.tsx` と同じ階層に置いたときだけ効いた。
+  //
+  // この検査は**新しいページ種別を足したときに自動で効く**のが要点。個別のURLを
+  // 並べる検査だと、面が増えたときに追随を忘れて静かに穴が開く。
+  {
+    const appDir = new URL("../app/", import.meta.url);
+    const missing: string[] = [];
+    let boundaries = 0;
+    const walk = (dir: URL, rel: string) => {
+      for (const ent of readdirSync(dir, { withFileTypes: true })) {
+        if (ent.isDirectory()) {
+          walk(new URL(ent.name + "/", dir), rel + ent.name + "/");
+          continue;
+        }
+        if (ent.name !== "page.tsx") continue;
+        const src = readFileSync(new URL(ent.name, dir), "utf8");
+        if (!/\bnotFound\(\)/.test(src)) continue;
+        if (existsSync(new URL("not-found.tsx", dir))) boundaries++;
+        else missing.push(rel + "page.tsx");
+      }
+    };
+    walk(appDir, "app/");
+    softCheck(
+      "notFound() を呼ぶページに404の境界がある",
+      missing.length === 0,
+      missing.length === 0
+        ? `${boundaries} 区画すべてに not-found.tsx がある`
+        : `境界が無い: ${missing.join(" / ")}（既定の行き止まり画面が出る）`
+    );
+    // 中身は1箇所だけが持つ（8箇所に散らばると表現がズレる）。
+    const panels = missing.length === 0 && boundaries > 0;
+    if (panels) {
+      const sample = readFileSync(
+        new URL("../app/studio/[name]/not-found.tsx", import.meta.url),
+        "utf8"
+      );
+      const shared = sample.includes("NotFoundPanel");
+      softCheck(
+        "404の中身を1箇所にまとめている",
+        shared,
+        shared ? "components/NotFoundPanel.tsx" : "区画ごとに中身を書いている"
+      );
+    }
+  }
+
+  // ⑥ 作品IDの検証（2026-08-31追加）。逆張り巡回で見つけた事故。
+  //    3つの窓口が各自で `Number(params.id)` + `Number.isInteger` を書いていたため、
+  //    MAX_SAFE_INTEGER を超える値・16進・指数・小数・先頭ゼロが全て通っていた。
+  //    実測: /api/work/99999999999999999999 と /embed/anime/... が **502**、
+  //          /anime/0x3374 が 200（13172に解決＝別URLで同じ作品）。
+  const idCases: [string, number | null, string][] = [
+    ["13180", 13180, "普通の10進"],
+    ["1", 1, "最小"],
+    ["999999999", 999999999, "9桁の上限"],
+    ["0", null, "ゼロ"],
+    ["-1", null, "負"],
+    ["0013180", null, "先頭ゼロ（別URLで同じ作品になる）"],
+    ["13180.0", null, "小数点"],
+    ["1e5", null, "指数表記"],
+    ["0x3374", null, "16進（Number() が解釈してしまう）"],
+    ["99999999999999999999", null, "MAX_SAFE_INTEGERを超える（502の原因）"],
+    ["１３１８０", null, "全角数字"],
+    ["", null, "空"],
+    ["13180 ", null, "末尾空白"],
+    ["abc", null, "数字でない"],
+  ];
+  let idNg = 0;
+  for (const [raw, want, label] of idCases) {
+    if (parseWorkId(raw) !== want) {
+      idNg++;
+      softCheck(`作品IDの検証: ${label}`, false, `"${raw}" → ${parseWorkId(raw)}（${want}のはず）`);
+    }
+  }
+  softCheck(
+    "作品IDを10進数として厳密に見る",
+    idNg === 0,
+    idNg === 0 ? `${idCases.length}件の形を確認` : `${idNg} 件が期待と違う`
+  );
+  // ⑥-2 **窓口を手で数えない**（2026-08-31。この検査自身の失敗から書き直した）。
+  //
+  // 最初の版は窓口を3つ名指しで書いていた（作品ページ・公開API・埋め込み）。
+  // ところが実際には4つあり、`app/anime/[id]/opengraph-image.tsx` が
+  // `Number(params.id)` + `Number.isInteger` のまま残っていた。名指しの検査は
+  // 書いた3つについては正しく動き続けるので、**漏れた1件は永久に見つからない**。
+  // しかもこの漏れ方には理由がある: 移行の目印にしていた `getWorkData` を
+  // OG画像だけは使っていない（edgeのサイズ制限のため `getWorkDataLive`）ので、
+  // grep でも引っ掛からなかった。
+  //
+  // そこで **app/ を走査して動的セグメントを持つ窓口を導出する**方式にした。
+  // 新しいページ種別・新しい画像ルート（twitter-image など）を足したとき、
+  // この検査は**何もしなくても追随する**。導出は scripts/lib/app-routes.js。
+  {
+    const appDir = fileURLToPath(new URL("../app", import.meta.url));
+    const routes = dynamicRoutes(appDir);
+    // 走査そのものが壊れて0件になると、以下のループが全部素通りして静かに緑になる。
+    // 実データの下限を置いて、それを防ぐ（面を減らしたときは下げてよい）。
+    softCheck(
+      "動的セグメントを持つ窓口を走査できている",
+      routes.length >= 10,
+      `${routes.length} 件（app/ を走査）`
+    );
+
+    // 逆戻りの検査は**コメントを除いてから**見る。除かないと、この事故の経緯を
+    // 説明したコメント（「Number.isInteger は安全な整数かを見ない」）自体に反応して、
+    // 直したファイルが永久にNGのままになる（実際に1度そうなった）。
+    // 行頭の // とブロックコメントだけを落とす（文字列中の "https://" を壊さない）。
+    const withoutComments = (s: string) =>
+      s
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .split("\n")
+        .filter((line) => !/^\s*\/\//.test(line))
+        .join("\n");
+
+    const idRoutes = routes.filter((r) => r.segments.includes("id"));
+    const looseId: string[] = [];
+    for (const r of idRoutes) {
+      const src = withoutComments(readFileSync(r.file, "utf8"));
+      // parseWorkId を通していること、かつ Number()/Number.isInteger を自前で書いていないこと。
+      const ok =
+        src.includes("parseWorkId(") &&
+        !/Number\.isInteger\s*\(/.test(src) &&
+        !/Number\s*\(\s*params\.id\s*\)/.test(src);
+      if (!ok) looseId.push(r.rel);
+    }
+    softCheck(
+      "作品IDの窓口がすべて lib/workId.ts を通る",
+      looseId.length === 0 && idRoutes.length >= 4,
+      looseId.length
+        ? `自前で Number() を書いている: ${looseId.join(" / ")}（502・重複URLの原因）`
+        : `${idRoutes.length} 件すべてが parseWorkId を使う`
+    );
+
+    // 年の範囲（㊲）も同じ扱い。[year] を持つ窓口は必ず範囲判定を通し、
+    // 範囲外は notFound() する。isValidYear は isSeasonYearInRange の別名。
+    const yearRoutes = routes.filter((r) => r.segments.includes("year"));
+    const looseYear: string[] = [];
+    for (const r of yearRoutes) {
+      const src = withoutComments(readFileSync(r.file, "utf8"));
+      const guarded =
+        /\bisValidYear\s*\(|\bisSeasonYearInRange\s*\(/.test(src) && /\bnotFound\(\)/.test(src);
+      if (!guarded) looseYear.push(r.rel);
+    }
+    softCheck(
+      "[year] を持つ窓口がすべて年の範囲を検査する",
+      looseYear.length === 0 && yearRoutes.length >= 5,
+      looseYear.length
+        ? `範囲を見ていない: ${looseYear.join(" / ")}（存在しない年でAnnict取得とISR書き込みが起きる）`
+        : `${yearRoutes.length} 件すべてが範囲外を notFound() する`
+    );
+  }
+
+  console.log(`結果（エラーページ・空ページ）: ${softNg === 0 ? "全件OK" : softNg + " 件NG"}`);
+}
+
+// ─────────────────────────────────────────────
 // 次クールをsitemapに載せる（2026-08-31追加）
 //
 // 経緯: sitemapは長らく「今期」しか載せていなかった。放送時期（○年○月）は放送開始の
@@ -5250,27 +5656,37 @@ let isrNg = 0;
   const MIN_LONG_TAIL_REVALIDATE = 86400;
 
   // 長い裾＝sitemapに大量に載っていて、1ページあたりのアクセスが薄いページ種別。
-  const LONG_TAIL_ROUTES = [
-    "app/anime/[id]/page.tsx",
-    "app/person/[name]/[year]/[season]/page.tsx",
-    "app/service/[key]/[year]/[season]/page.tsx",
-    "app/season/[year]/[season]/page.tsx",
-    "app/rankings/[year]/[season]/page.tsx",
-    "app/exclusive/[year]/[season]/page.tsx",
-  ];
+  //
+  // **ここも手で並べない**（2026-08-31に書き直した）。初版は6本を名指しで書いており、
+  // `/studio/[name]`（165件）と `/director/[name]`（378件）が入っていなかった。
+  // 動的セグメントを持つページ＝URL空間が広い＝長い裾、なので app/ の走査から
+  // 導出する。新しいページ種別を足したとき自動で見張りに入る。
+  const appDirForIsr = fileURLToPath(new URL("../app", import.meta.url));
+  const longTail = dynamicRoutes(appDirForIsr).filter((r) => r.kind === "html");
+  if (longTail.length < 6) isrNg++;
+  console.log(
+    `${longTail.length >= 6 ? "✓" : "✗"}  ${"長い裾のページを走査できている".padEnd(48)} → ` +
+      `${longTail.length} 件（app/ の動的セグメント）`
+  );
 
-  for (const rel of LONG_TAIL_ROUTES) {
-    const url = new URL(`../${rel}`, import.meta.url);
-    const text = existsSync(url) ? readFileSync(url, "utf8") : "";
+  for (const r of longTail) {
+    const text = readFileSync(r.file, "utf8");
     const m = text.match(/export const revalidate = (\d+);/);
-    const value = m ? Number(m[1]) : NaN;
-    const ok = Number.isFinite(value) && value >= MIN_LONG_TAIL_REVALIDATE;
+    // revalidate を書いていないページは「時間では作り直さない」＝ISR Writes が
+    // 増えない方向なので合格。ただし**書いてあるなら下限を守る**こと。
+    // （/studio・/director は generateStaticParams で全件を事前生成しており、
+    //   revalidate を持たない。これは最も安い形なので、書けと要求しない。）
+    const declared = m !== null;
+    const value = declared ? Number(m[1]) : null;
+    const ok = !declared || (Number.isFinite(value!) && value! >= MIN_LONG_TAIL_REVALIDATE);
     if (!ok) isrNg++;
     console.log(
-      `${ok ? "✓" : "✗"}  ${rel.padEnd(48)} → ` +
+      `${ok ? "✓" : "✗"}  ${r.rel.padEnd(48)} → ` +
         (ok
-          ? `revalidate=${value}`
-          : `revalidate=${m ? m[1] : "見つからない"}。${MIN_LONG_TAIL_REVALIDATE}秒（再訪間隔16.4時間）未満だと訪問のたびに再生成が起きる`)
+          ? declared
+            ? `revalidate=${value}`
+            : "revalidate 宣言なし（時間では作り直さない）"
+          : `revalidate=${m![1]}。${MIN_LONG_TAIL_REVALIDATE}秒（再訪間隔16.4時間）未満だと訪問のたびに再生成が起きる`)
     );
   }
 
@@ -5314,8 +5730,19 @@ let isrNg = 0;
   );
 
   // OGP画像は force-dynamic＝毎リクエスト関数が起動する。明示のCache-Controlが唯一の歯止め。
-  for (const rel of ["app/opengraph-image.tsx", "app/anime/[id]/opengraph-image.tsx"]) {
-    const text = readFileSync(new URL(`../${rel}`, import.meta.url), "utf8");
+  // **画像ルートも走査から導出する**（手で並べると、新しく足した画像ルートだけ
+  // 歯止めが無いまま毎リクエスト外向き通信する状態になる）。
+  const imageRoutes = appRoutes(appDirForIsr).filter(
+    (r) => r.kind === "asset" && /image/.test(r.basename)
+  );
+  if (imageRoutes.length < 2) isrNg++;
+  console.log(
+    `${imageRoutes.length >= 2 ? "✓" : "✗"}  ${"画像ルートを走査できている".padEnd(48)} → ` +
+      `${imageRoutes.length} 件`
+  );
+  for (const r of imageRoutes) {
+    const rel = r.rel;
+    const text = readFileSync(r.file, "utf8");
     const m = text.match(/"cache-control":\s*"[^"]*s-maxage=(\d+)/i);
     const value = m ? Number(m[1]) : NaN;
     const ok = Number.isFinite(value) && value >= MIN_LONG_TAIL_REVALIDATE;
@@ -5328,15 +5755,188 @@ let isrNg = 0;
     );
   }
 
-  // デプロイ＝ISRキャッシュ実質全消去。表示に使わないデータのコミットで起こさない門番。
-  const vercelUrl = new URL("../vercel.json", import.meta.url);
-  const vercelJson = existsSync(vercelUrl) ? readFileSync(vercelUrl, "utf8") : "";
-  const gateOk = vercelJson.includes("ignoreCommand") && vercelJson.includes("content/analytics");
-  if (!gateOk) isrNg++;
-  console.log(
-    `${gateOk ? "✓" : "✗"}  ${"vercel.json のデプロイ門番がある".padEnd(48)} → ` +
-      (gateOk ? "ignoreCommand あり" : "これが無いと表示に使わないデータのコミットでもキャッシュが全消去される")
-  );
+  // ── デプロイを起こしてよいものを1件ずつ決める ─────────────────────────
+  //
+  // デプロイ＝ISRキャッシュ実質全消去（docs/operations.md の㉝）。門番は vercel.json の
+  // ignoreCommand で、導入時（2026-08-25）は「表示に使わないデータ」4箇所だけを除外して
+  // いた。ところが実測（2026-09-01・直近30日）では、デプロイを起こした82コミットのうち
+  // **32件（39%）が scripts/ .github/ .claude/ *.md しか触っていなかった**。どれも
+  // next build が読まないファイルでビルド成果物は1バイトも変わらないのに、毎回キャッシュが
+  // 全消去され、次にクローラが来たページが全部作り直しになっていた。
+  //
+  // **対象を手で数えない**（CLAUDE.md の基本ルール）。git が追跡している要素を走査して
+  // 1件ずつ下の表と突き合わせるので、新しくディレクトリを足したら、ここに
+  // 「デプロイを起こすべきか」を書くまで落ちる。
+  //
+  // 【この門番の限界】ignoreCommand が見るのは HEAD^..HEAD の**1コミットだけ**。1回の
+  // push に複数コミットが入り、最後のコミットだけが除外対象だった場合、その前のコード変更は
+  // このデプロイでは出ない（次のデプロイまで持ち越される）。導入時から在る性質だが、
+  // 除外を広げたぶん当たりやすくなった。長引かない担保は2つ:
+  // content/works/autoSchedule.json のcronが毎日コミットする＝ビルド対象なので24時間以内に
+  // 必ずデプロイが起きること、verify-production.sh が毎日本番HTMLを数えること。
+  // PRのsquash mergeは1コミットなので、この形自体が起きない。
+  {
+    const vercelUrl = new URL("../vercel.json", import.meta.url);
+    const vercelJson = existsSync(vercelUrl) ? readFileSync(vercelUrl, "utf8") : "";
+    const hasGate = vercelJson.includes("ignoreCommand");
+    if (!hasGate) isrNg++;
+    console.log(
+      `${hasGate ? "✓" : "✗"}  ${"vercel.json のデプロイ門番がある".padEnd(48)} → ` +
+        (hasGate
+          ? "ignoreCommand あり"
+          : "これが無いと、表示に使わないデータのコミットでもキャッシュが全消去される")
+    );
+
+    // ignoreCommand から除外パススペック（':!…'）を取り出す。
+    const specs = [...vercelJson.matchAll(/':!([^']+)'/g)].map((m) => m[1]);
+    const isExcluded = (p: string) =>
+      specs.some((s) =>
+        s.startsWith("*") ? p.endsWith(s.slice(1)) : s === p || p.startsWith(`${s}/`)
+      );
+
+    // deploy: true = 変更したらデプロイすべき（next build が読む、または配信物になる）
+    const DEPLOY: Record<string, { deploy: boolean; why: string }> = {
+      app: { deploy: true, why: "ページ本体" },
+      components: { deploy: true, why: "画面" },
+      lib: { deploy: true, why: "アプリのロジック" },
+      public: { deploy: true, why: "配信する静的ファイル" },
+      content: { deploy: true, why: "中の一部だけを除外する（下のcontent/の表）" },
+      "middleware.ts": { deploy: true, why: "全リクエストが通る" },
+      "next.config.mjs": { deploy: true, why: "ビルド設定" },
+      "next-env.d.ts": { deploy: true, why: "型" },
+      "package.json": { deploy: true, why: "依存とビルドコマンド" },
+      "package-lock.json": { deploy: true, why: "依存の固定" },
+      "tsconfig.json": { deploy: true, why: "パス別名がビルドに効く" },
+      "vercel.json": { deploy: true, why: "デプロイ設定そのもの" },
+      // 以下3つは next build が読まないが、checkout の挙動に触れうる／変更頻度が実質ゼロ
+      // なので安全側に倒す（除外の判断を1件でも増やすと、そのぶん間違える機会が増える）。
+      ".gitattributes": { deploy: true, why: "checkout時の改行に効くので安全側" },
+      ".gitignore": { deploy: true, why: "同上・変更頻度は実質ゼロ" },
+      ".env.local.example": { deploy: true, why: "同上" },
+      docs: { deploy: false, why: "手順書。next build は読まない" },
+      scripts: { deploy: false, why: "検査・収集。アプリ側からのimportが無いことを下で検査する" },
+      ".github": { deploy: false, why: "ワークフロー定義" },
+      ".claude": { deploy: false, why: "エージェント定義" },
+      "CLAUDE.md": { deploy: false, why: "*.md でまとめて除外" },
+      "README.md": { deploy: false, why: "同上" },
+    };
+
+    // content/ の中は「表示に使うか」で割れているので1階層深く見る。
+    const CONTENT: Record<string, { deploy: boolean; why: string }> = {
+      affiliate: { deploy: true, why: "lib/affiliate.ts が読む" },
+      archive: { deploy: true, why: "sitemap・声優/制作会社ページが読む" },
+      discord: { deploy: true, why: "lib/discord.ts が読む" },
+      people: { deploy: true, why: "出演作の人力補完" },
+      services: { deploy: true, why: "配信サービス名寄せ" },
+      sns: { deploy: true, why: "スポットライト（SNS画像が読む）" },
+      snapshots: { deploy: true, why: "過去クールの静的データ" },
+      works: { deploy: true, why: "あらすじ・人力補完・autoSchedule.json＝画面に出る" },
+      analytics: { deploy: false, why: "GSC・行動ログ。画面に一切出ない" },
+      coverage: { deploy: false, why: "初出日の記録。画面に一切出ない" },
+      demand: { deploy: false, why: "需要シグナル。画面に一切出ない" },
+    };
+
+    // git が追跡している実体から導出する（readdirSync だと node_modules や .next を
+    // 自前で除く判断が要り、そこが Vercel の checkout とズレる）。
+    const repoRoot = fileURLToPath(new URL("..", import.meta.url));
+    let tracked: string[] = [];
+    let gitOk = true;
+    try {
+      tracked = execFileSync("git", ["ls-files"], { encoding: "utf8", cwd: repoRoot })
+        .split("\n")
+        .filter(Boolean);
+    } catch {
+      gitOk = false;
+    }
+    if (!gitOk) isrNg++;
+    console.log(
+      `${gitOk ? "✓" : "✗"}  ${"追跡ファイルを走査できている".padEnd(48)} → ` +
+        (gitOk
+          ? `${tracked.length} 件`
+          : "git ls-files が失敗した。この節は対象を走査で導出するので、走査できないと検査にならない")
+    );
+
+    // ① 登録漏れ・実体の無い登録（freshness.js の収集先登録と同じ考え方）。
+    for (const [label, table, entries] of [
+      ["トップレベル", DEPLOY, [...new Set(tracked.map((f) => f.split("/")[0]))]],
+      [
+        "content/",
+        CONTENT,
+        [...new Set(tracked.filter((f) => f.startsWith("content/")).map((f) => f.split("/")[1]))],
+      ],
+    ] as [string, Record<string, { deploy: boolean; why: string }>, string[]][]) {
+      const unregistered = entries.filter((e) => !(e in table));
+      const ghosts = Object.keys(table).filter((k) => !entries.includes(k));
+      const ok = gitOk && unregistered.length === 0 && ghosts.length === 0;
+      if (!ok) isrNg++;
+      console.log(
+        `${ok ? "✓" : "✗"}  ${`${label}が全部登録されている`.padEnd(48)} → ` +
+          (ok
+            ? `${entries.length} 件すべて登録済み`
+            : [
+                unregistered.length &&
+                  `未登録: ${unregistered.join(" / ")}（デプロイを起こしてよいかを決めていない）`,
+                ghosts.length && `実体が無い登録: ${ghosts.join(" / ")}`,
+              ]
+                .filter(Boolean)
+                .join(" ／ "))
+      );
+    }
+
+    // ② 決めたとおりに ignoreCommand が除外している／していない。
+    for (const [prefix, table] of [
+      ["", DEPLOY],
+      ["content/", CONTENT],
+    ] as [string, Record<string, { deploy: boolean; why: string }>][]) {
+      for (const [name, { deploy, why }] of Object.entries(table)) {
+        const p = `${prefix}${name}`;
+        // content 本体は deploy:true だが、中の一部を除外するので個別に見る（上の CONTENT）。
+        if (p === "content") continue;
+        const excluded = isExcluded(p);
+        const ok = deploy ? !excluded : excluded;
+        if (!ok) isrNg++;
+        if (!ok) {
+          console.log(
+            `✗  ${p.padEnd(48)} → ` +
+              (deploy
+                ? `除外されているがデプロイが要る（${why}）`
+                : `除外されていない＝変更のたびにキャッシュが全消去される（${why}）`)
+          );
+        }
+      }
+    }
+    const decided = Object.keys(DEPLOY).length + Object.keys(CONTENT).length - 1;
+    console.log(`✓  ${"除外の要否が決めたとおりになっている".padEnd(48)} → ${decided} 件を判定`);
+
+    // ③ scripts/ を除外してよい前提＝アプリ側が scripts/ を一切importしていないこと。
+    //    ここが崩れると、ビルドに効くコードの変更が無言でデプロイされなくなる。
+    const importers: string[] = [];
+    const scanImports = (dir: URL, rel: string) => {
+      if (!existsSync(dir)) return;
+      for (const ent of readdirSync(dir, { withFileTypes: true })) {
+        const child = new URL(`${ent.name}${ent.isDirectory() ? "/" : ""}`, dir);
+        if (ent.isDirectory()) scanImports(child, `${rel}/${ent.name}`);
+        else if (/\.(ts|tsx|js|mjs)$/.test(ent.name)) {
+          const src = readFileSync(child, "utf8");
+          // import / export ... from "…/scripts/…"、require("…/scripts/…")、動的 import の全部を見る。
+          if (/(?:from|require\s*\(|import\s*\(|import)\s*["'][^"']*scripts\//.test(src)) {
+            importers.push(`${rel}/${ent.name}`);
+          }
+        }
+      }
+    };
+    for (const d of ["app", "components", "lib", "content"]) {
+      scanImports(new URL(`../${d}/`, import.meta.url), d);
+    }
+    const noImport = importers.length === 0;
+    if (!noImport) isrNg++;
+    console.log(
+      `${noImport ? "✓" : "✗"}  ${"アプリ側が scripts/ をimportしていない".padEnd(48)} → ` +
+        (noImport
+          ? "参照なし（scripts/ を除外してよい前提が成り立っている）"
+          : `参照あり: ${importers.join(" / ")}。除外するとビルドに効く変更がデプロイされない`)
+    );
+  }
 
   // 対策の効果は推定でしか書けていない（Vercelのダッシュボードはログインが要るので
   // セッションから読めず、ルート別の内訳も出ない）。人が画面を見に行くきっかけが
@@ -5403,6 +6003,7 @@ if (
   thinPersonNg > 0 ||
   nextSeasonNg > 0 ||
   prerenderNg > 0 ||
+  softNg > 0 ||
   partialWeekNg > 0 ||
   prepNg > 0 ||
   archiveNg > 0 ||

@@ -52,10 +52,40 @@ export const SEASON_LABEL: Record<string, string> = {
   autumn: "秋",
 };
 
+// このサイトが扱う最も古い年。年セレクタの選択肢も、
+// content/archive/index.json（過去クール索引）の最古クールもここに揃っている。
+export const MIN_SEASON_YEAR = 2010;
+
 // 年セレクタが表示する選択肢と同じ範囲（2010年〜今年）。範囲外の年が
 // クエリに来た場合は今年にフォールバックする。
 export function validYears(thisYear: number): number[] {
-  return Array.from({ length: thisYear - 2009 }, (_, i) => thisYear - i);
+  return Array.from({ length: thisYear - (MIN_SEASON_YEAR - 1) }, (_, i) => thisYear - i);
+}
+
+/**
+ * URLの `[year]` セグメントが、このサイトが扱う範囲に入っているか。
+ *
+ * 【なぜ範囲が要るか・2026-08-31の見回りで見つけた事故】
+ * これまでの判定は `lib/getSeasonData.ts` の `/^\d{4}$/` だけで、**1000〜9999年の
+ * 9,000通りが全て有効**だった。実測で `/season/2099/winter` は 200 ＋ `index, follow`
+ * を返し、しかも本文は「Annict API がエラーを返しました（500）。」だった。
+ * つまり存在しない年のURLを叩くだけで、
+ *   ①Annictへライブ取得のリクエストが飛ぶ（500が返ってきたことがその証拠）
+ *   ②その空ページがISRキャッシュに書き込まれる
+ *   ③中身の無いページが索引可能な形で公開される
+ * が同時に起きる。②は2026-08-24に本番を丸一日停止させた ISR Writes 超過
+ * （docs/operations.md の㉝）とまったく同じ経路で、しかもURL空間が無制限だった。
+ *
+ * 上限を「今年+1」にしているのは、次クールが年をまたぐ場合があるため
+ * （秋の次は翌年の冬。app/sitemap.ts の nextYearSeason と同じ考え方）。
+ * 下限は MIN_SEASON_YEAR。範囲外は各ページが notFound() する＝404＋noindex になる。
+ *
+ * 検査は `node scripts/check.ts` の「クールページの年の範囲」節。
+ */
+export function isSeasonYearInRange(year: string, now: Date = new Date()): boolean {
+  if (!/^\d{4}$/.test(year)) return false;
+  const y = Number(year);
+  return y >= MIN_SEASON_YEAR && y <= now.getFullYear() + 1;
 }
 
 export function resolveYearSeason(searchParams: {

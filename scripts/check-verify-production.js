@@ -95,6 +95,33 @@ function thinPersonPath() {
   return "";
 }
 
+// クール単位のページの年が、サイトが扱う範囲に入っているか。
+// lib/resolveSeasonParams.ts の isSeasonYearInRange と同じ規則（2010〜今年+1）を、
+// スタブ側でも再現する。**数値を直書きせずソースから読む**ので、規則を変えたときに
+// このテストだけが古くなることがない。
+const MIN_SEASON_YEAR = (() => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, "lib/resolveSeasonParams.ts"), "utf8");
+  const m = src.match(/MIN_SEASON_YEAR\s*=\s*(\d+)/);
+  return m ? Number(m[1]) : 2010;
+})();
+function yearInRange(year) {
+  const y = Number(year);
+  if (!/^\d{4}$/.test(String(year))) return false;
+  return y >= MIN_SEASON_YEAR && y <= new Date().getFullYear() + 1;
+}
+// 作品IDの厳密な検証。lib/workId.ts の正規表現をソースから読んで再現する
+// （直書きすると規則を変えたときにこのテストだけが古くなる）。
+const WORK_ID_RE = (() => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, "lib/workId.ts"), "utf8");
+  const m = src.match(/test\((?:raw)\)[\s\S]*?/) && src.match(/\/\^\[1-9\]\[0-9\]\{0,(\d+)\}\$\//);
+  return m ? new RegExp(`^[1-9][0-9]{0,${m[1]}}$`) : /^[1-9][0-9]{0,8}$/;
+})();
+const validWorkId = (raw) => WORK_ID_RE.test(raw);
+
+// 実在するとみなす名前・キー（H-2＝存在しない名前が404になるかの検査用）。
+const KNOWN_CREDIT_NAMES = new Set(["小野勝巳", "ぴえろ"]);
+const KNOWN_SERVICE_KEYS = new Set(["netflix", "d_anime"]);
+
 // ── スタブ本番サーバー ───────────────────────────────────────
 // broken: 壊す項目名の集合。空なら健全な応答を返す。
 function startStub(broken) {
@@ -121,6 +148,19 @@ function startStub(broken) {
       );
     }
     if (p.startsWith("/api/work/")) {
+      const raw = p.split("/").pop() || "";
+      // 厳密な検証（H-3）。`loose-id` を立てると `Number.isInteger` 相当の緩い判定に
+      // 戻り、MAX_SAFE_INTEGER を超える値で502を返す＝2026-08-31の事故を再現する。
+      if (!validWorkId(raw)) {
+        if (!has("loose-id")) {
+          return res
+            .writeHead(400, { "Content-Type": "application/json", ...(has("api-cors") ? {} : { "Access-Control-Allow-Origin": "*" }) })
+            .end(JSON.stringify({ error: "作品IDを整数で指定してください。" }));
+        }
+        if (Number(raw) > Number.MAX_SAFE_INTEGER) {
+          return res.writeHead(502, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "取得に失敗しました。" }));
+        }
+      }
       const id = Number(p.split("/").pop());
       const status = id === PAST_ID ? (has("api-status") ? "airing" : "finished") : "airing";
       return send(
@@ -141,11 +181,16 @@ function startStub(broken) {
       // G節（sitemapのURLが200を返すか）のため、面ごとに1件ずつ載せる。
       // **日本語名を入れる**（2026-08-31の障害は非ASCIIだけに出たので、ASCII名しか
       // 載っていないと検査が素通りする）。
+      const thisYear = new Date().getFullYear();
       const locs = [
-        `${b}/season/2026/summer`,
+        `${b}/season/${thisYear}/summer`,
         `${b}/anime/${PAST_ID}`,
         `${b}/director/${encodeURIComponent("小野勝巳")}`,
         `${b}/studio/${encodeURIComponent("ぴえろ")}`,
+        // G節はサービス別ページも見る（2026-08-31追加）。面ごと1件では
+        // 「その1件がたまたま生きている面」の事故を丸ごと見逃すため件数も増やした。
+        `${b}/service/d_anime/${thisYear}/summer`,
+        `${b}/service/netflix/${thisYear}/summer`,
       ];
       if (!has("sitemap-no-past-person")) locs.push(`${b}${INDEXED_PERSON_PATH}`);
       if (has("sitemap-lists-noindex")) locs.push(`${b}${thinPersonPath()}`);
@@ -163,9 +208,34 @@ function startStub(broken) {
       if (has("pregen-404") && nonAscii) {
         return res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" }).end("<h1>404</h1>");
       }
+      // 索引に無い名前は404（H-2）。`unknown-name-200` を立てると200を返し、
+      // 「存在しない名前を200で公開してしまう」事故を再現する。
+      if (!KNOWN_CREDIT_NAMES.has(name) && !has("unknown-name-200")) {
+        return notFoundPage(res);
+      }
       return send(`<!doctype html><html><body><h1>${name}</h1></body></html>`);
     }
+    // クール単位のページ（/rankings /exclusive /service）。年の範囲と、
+    // 取得失敗の本文が索引可能な形で出ていないかを見るために必要（H節）。
+    if (p.startsWith("/rankings/") || p.startsWith("/exclusive/") || p.startsWith("/service/")) {
+      const seg = p.split("/").filter(Boolean);
+      const isService = seg[0] === "service";
+      const year = isService ? seg[2] : seg[1];
+      if (isService && !KNOWN_SERVICE_KEYS.has(seg[1]) && !has("unknown-name-200")) {
+        return notFoundPage(res);
+      }
+      // 範囲外の年は404。`soft-404` を立てると200を返し、㊲の事故を再現する。
+      if (!yearInRange(year) && !has("soft-404")) return notFoundPage(res);
+      return send(
+        `<!doctype html><html><head><meta name="robots" content="index, follow"></head><body>` +
+          `<h1>${seg[0]}</h1>` +
+          (has("error-body-indexed") ? `<p>Annict API がエラーを返しました（500）。</p>` : "") +
+          `</body></html>`
+      );
+    }
     if (p.startsWith("/person/")) {
+      const pYear = p.split("/").filter(Boolean)[2];
+      if (!yearInRange(pYear) && !has("soft-404")) return notFoundPage(res);
       // sitemapに載せた過去年のページは index、閾値に届かない人は noindex。
       const listed = decodeURIComponent(p) === decodeURIComponent(INDEXED_PERSON_PATH);
       const pname = decodeURIComponent(p.split("/")[2] || "");
@@ -182,12 +252,27 @@ function startStub(broken) {
       );
     }
     if (p.startsWith("/season/")) {
+      const sYear = p.split("/").filter(Boolean)[1];
+      if (!yearInRange(sYear) && !has("soft-404")) return notFoundPage(res);
       // 壊し方は⑦-10の実物に合わせる（Suspenseのfallbackだけが出た状態）。
       if (has("season-empty")) return send(`<!doctype html><html><body><div class="wrap"></div></body></html>`);
       const links = Array.from({ length: 158 }, (_, i) => `<a href="/anime/${1000 + i}">作品${i}</a>`).join("");
-      return send(`<!doctype html><html><body><h1>2026年夏アニメ</h1>${links}</body></html>`);
+      return send(
+        `<!doctype html><html><body><h1>${sYear}年夏アニメ</h1>${links}` +
+          (has("error-body-indexed") ? `<p>取得に失敗しました。</p>` : "") +
+          `</body></html>`
+      );
     }
     if (p.startsWith("/embed/anime/")) {
+      const eRaw = p.split("/").pop() || "";
+      if (!validWorkId(eRaw)) {
+        if (!has("loose-id")) {
+          return res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" }).end("作品IDが正しくありません。");
+        }
+        if (Number(eRaw) > Number.MAX_SAFE_INTEGER) {
+          return res.writeHead(502, { "Content-Type": "text/html; charset=utf-8" }).end("取得に失敗しました。");
+        }
+      }
       const base = `http://127.0.0.1:${server.address().port}`;
       return send(
         `<!doctype html><html><body>` +
@@ -198,6 +283,10 @@ function startStub(broken) {
       );
     }
     if (p.startsWith("/anime/")) {
+      const aRaw = p.split("/").pop() || "";
+      // 厳密な検証（H-3）。緩いと 0x3374 / 0013180 / 13180.0 が同じ作品の別URLとして
+      // 200を返し、無駄なISR書き込みが起きる。
+      if (!validWorkId(aRaw) && !has("loose-id")) return notFoundPage(res);
       const id = Number(p.split("/").pop());
       if (id === PAST_ID) {
         return send(
@@ -220,8 +309,22 @@ function startStub(broken) {
         )
       );
     }
-    res.writeHead(404).end("nf");
+    return notFoundPage(res);
   });
+
+  // 404ページ（I節）。行き止まりにしない＝h1・サイト内リンク・noindex を持つ。
+  // `notfound-dead-end` でリンクを消し、`notfound-soft` で200を返す（ソフト404の再現）。
+  function notFoundPage(res) {
+    const body =
+      `<!doctype html><html><head><meta name="robots" content="noindex"></head><body>` +
+      `<h1>ページが見つかりません</h1>` +
+      (has("notfound-dead-end")
+        ? ""
+        : `<a href="/">トップ</a><a href="/about">運営者情報</a><a href="/season/2025/summer">2025年夏</a>`) +
+      `</body></html>`;
+    const code = has("notfound-soft") ? 200 : 404;
+    return res.writeHead(code, { "Content-Type": "text/html; charset=utf-8" }).end(body);
+  }
 
   return new Promise((resolve) => {
     server.listen(0, "127.0.0.1", () => resolve(server));
@@ -276,9 +379,10 @@ async function main() {
     good.out.match(/^\s*NG\s+.*/m)?.[0]?.trim() ?? "NGなし"
   );
   const okCount = (good.out.match(/^\s*OK\s/gm) || []).length;
-  // 検査を削ると気づけるように件数も固定する（A:2 A2:1 B:6 C:2 D:3 E:3 F:4 G:5 = 26。
-  // verify-production.sh に検査を足したらこの数も更新する）。
-  check("① OKが26件（検査の取りこぼしが無い）", okCount === 26, `${okCount}件`);
+  // 検査を削ると気づけるように件数も固定する
+  // （A:2 A2:1 B:6 C:2 D:3 E:3 F:4 G:7 H:4 I:3 = 35。
+  //  verify-production.sh に検査を足したらこの数も更新する）。
+  check("① OKが35件（検査の取りこぼしが無い）", okCount === 35, `${okCount}件`);
 
   // ② 壊れた応答では、その項目が確実にNGになる（＝検査が生きている）。
   //    1項目ずつ壊して「その事故だけを捕まえる」ことを確かめる。
@@ -304,6 +408,16 @@ async function main() {
     // robotsメタを見るだけの検査は「404にはrobotsが無い→noindexではない→合格」で
     // すり抜けていたので、HTTPコードで捕まえられることを固定する。
     ["pregen-404", "日本語名の事前生成ページが404（㊱の再現）", "が 404"],
+    // H/I節（2026-08-31追加）。取得に失敗したページ・中身が空のページが 200＋index で
+    // 返っていた事故（㊲）。年の判定が「4桁の数字か」だけだったため、存在しない年の
+    // URLがAnnictへのライブ取得とISR書き込みを無制限に発生させていた。
+    ["soft-404", "範囲外の年が200を返す（㊲の再現）", "範囲外の年が"],
+    ["unknown-name-200", "存在しない名前・キーが200を返す", "存在しない名前が"],
+    ["error-body-indexed", "sitemapのページにエラー本文が出ている（㊲の再現）", "取得失敗の本文"],
+    ["notfound-soft", "存在しないURLが200を返す（ソフト404）", "ソフト404になっている"],
+    ["notfound-dead-end", "404ページが行き止まり（㊲の再現）", "行き止まりになっている"],
+    // 作品IDの検証が緩い（㊲。逆張り巡回で見つけた。公開APIと埋め込みが502を返していた）。
+    ["loose-id", "作品IDの検証が緩く502や重複URLが出る（㊲の再現）", "作品IDの形を崩したら"],
   ];
   for (const [fault, label, needle] of faults) {
     const r = await withStub([fault], runScript);
