@@ -867,8 +867,8 @@
       "title": "劇場版 前橋ウィッチーズ ～魔女見習いのエモエモリーズ～"
     },
     "17329": {
-      "date": "2026-10",
-      "precision": "month",
+      "date": "2026-10-03",
+      "precision": "day",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/209709",
       "fetchedDate": "2026-09-01",
