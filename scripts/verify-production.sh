@@ -295,12 +295,18 @@ done
 
 # sitemap全体からの等間隔抜き取り。面ごとの抜き取りは「面の代表」しか見ないので、
 # 特定の名前だけが壊れる形（㊱はこの形だった）を全体からも拾う。
-ALL_LOCS=$(tr ">" "\n" <<<"$SITEMAP" | grep -oE "https?://[^<]+" | grep -v "^https\?://[^/]*/*$")
+# **<loc> の中身だけ**を取る。sitemapのルート要素は
+# xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" を持つため、XML全体から https?:// を
+# 拾うと名前空間URLが混ざり、しかも等間隔抜き取りの1件目に必ず当たる
+# （2026-09-01に本番で301として発覚。スタブの <urlset> に xmlns が無くCIでは再現しなかった）。
+ALL_LOCS=$(grep -oE "<loc>[^<]+" <<<"$SITEMAP" | sed "s/^<loc>//" | grep -v "^https\?://[^/]*/*$")
 TOTAL=$(grep -c . <<<"$ALL_LOCS")
 SAMPLE_N=20
 if [ "$TOTAL" -gt 0 ]; then
   STEP=$(( TOTAL / SAMPLE_N )); [ "$STEP" -lt 1 ] && STEP=1
-  SAMPLED=$(awk -v s="$STEP" 'NR % s == 1' <<<"$ALL_LOCS" | head -$SAMPLE_N)
+  # (NR-1) % s == 0 にすること。NR % s == 1 は s=1 のとき**1件も選ばない**（NR%1は常に0）ので、
+  # sitemapが20件未満のとき抜き取りが静かに0件になり、それでも ok を出していた。
+  SAMPLED=$(awk -v s="$STEP" '(NR - 1) % s == 0' <<<"$ALL_LOCS" | head -$SAMPLE_N)
   SBAD=0
   SCOUNT=0
   while IFS= read -r URL; do
@@ -309,7 +315,12 @@ if [ "$TOTAL" -gt 0 ]; then
     CODE=$($CURL -o /dev/null -w "%{http_code}" "$URL")
     [ "$CODE" = "200" ] || { fail "sitemapの抜き取りが ${CODE}: ${URL}"; SBAD=$((SBAD + 1)); }
   done <<<"$SAMPLED"
-  [ "$SBAD" -eq 0 ] && ok "sitemap全体からの抜き取り ${SCOUNT}件（全${TOTAL}件中）が全て200"
+  # 0件で成功しない。この節はいちばん静かに無力化しやすい（上の awk がまさにそれだった）。
+  if [ "$SCOUNT" -eq 0 ]; then
+    fail "sitemapからの抜き取りが0件（全${TOTAL}件あるのに1件も叩いていない）"
+  elif [ "$SBAD" -eq 0 ]; then
+    ok "sitemap全体からの抜き取り ${SCOUNT}件（全${TOTAL}件中）が全て200"
+  fi
 fi
 
 # ── H. エラーページ・空ページを索引に開放していないか（㊲の再発検知）──────
