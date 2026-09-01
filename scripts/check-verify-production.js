@@ -195,8 +195,15 @@ function startStub(broken) {
       if (!has("sitemap-no-past-person")) locs.push(`${b}${INDEXED_PERSON_PATH}`);
       if (has("sitemap-lists-noindex")) locs.push(`${b}${thinPersonPath()}`);
       if (!has("sitemap-no-next-season")) locs.push(`${b}/season/${nextSeasonPath()}`);
+      // **xmlns を必ず付ける**（本物と同じ形にする）。ここを素の <urlset> にしていたため、
+      // 「XML全体から https?:// を拾う」実装のバグ＝名前空間URL
+      // （http://www.sitemaps.org/schemas/sitemap/0.9）を抜き取り対象に含めてしまう不具合が
+      // CIで再現せず、本番で301として初めて出た（2026-09-01）。
+      // スタブは本物の形を省略しないこと。省略した部分がそのまま検知できない穴になる。
       return send(
-        `<?xml version="1.0"?><urlset>${locs.map((u) => `<url><loc>${u}</loc></url>`).join("")}</urlset>`,
+        `<?xml version="1.0" encoding="UTF-8"?>` +
+          `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` +
+          `${locs.map((u) => `<url><loc>${u}</loc></url>`).join("")}</urlset>`,
         "application/xml"
       );
     }
@@ -383,6 +390,18 @@ async function main() {
   // （A:2 A2:1 B:6 C:2 D:3 E:3 F:4 G:7 H:4 I:3 = 35。
   //  verify-production.sh に検査を足したらこの数も更新する）。
   check("① OKが35件（検査の取りこぼしが無い）", okCount === 35, `${okCount}件`);
+
+  // ①-2 sitemap全体からの抜き取りが**実際に1件以上叩いている**こと。
+  // ここは「0件でもOKを出す」形で静かに無力化していた（awk の NR % s == 1 が s=1 のとき
+  // 1件も選ばず、スタブのsitemapは常に20件未満だったので、CIでは一度も抜き取りが
+  // 走っていなかった。2026-09-01）。件数を見ないと、この壊れ方は緑のまま通る。
+  const sampled = good.out.match(/sitemap全体からの抜き取り\s+(\d+)件/);
+  const sampledN = sampled ? Number(sampled[1]) : 0;
+  check(
+    "①-2 sitemapの抜き取りが1件以上走っている",
+    sampledN > 0,
+    sampled ? `${sampledN}件を実際に叩いた` : "抜き取りのOK行が出ていない＝0件で通っている"
+  );
 
   // ② 壊れた応答では、その項目が確実にNGになる（＝検査が生きている）。
   //    1項目ずつ壊して「その事故だけを捕まえる」ことを確かめる。
