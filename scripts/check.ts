@@ -4574,27 +4574,35 @@ let nextSeasonNg = 0;
   );
 
   // 冬→春→夏→秋→翌年冬 の順送り。年またぎで壊れると次クールを丸ごと落とす。
-  const order = ["winter", "spring", "summer", "autumn"];
-  const nextOf = (y: number, ss: string) => {
-    const i = order.indexOf(ss);
-    return i === order.length - 1
-      ? { year: y + 1, season: order[0] }
-      : { year: y, season: order[i + 1] };
-  };
+  //
+  // 【2026-09-03変更】期待値を書き写すのではなく**本物の関数を呼ぶ**。以前は
+  // check.ts 側に同じ順送りを再実装し、実装側は `sitemapSrc.includes("SEASON_ORDER")`
+  // という**文字列があるか**しか見ていなかった。これでは定義を別ファイルへ移した
+  // だけで落ちる一方、順送りが実際に壊れても文字列さえあれば通ってしまう。
+  // 定義は lib/resolveSeasonParams.ts の nextYearSeason **だけ**が持つ
+  // （/api/revalidate も同じ集合を対象にするため。docs/operations.md の㉝）。
+  const { nextYearSeason: nextOf } = await import("../lib/resolveSeasonParams.ts");
   const cases: [number, string, number, string][] = [
     [2026, "summer", 2026, "autumn"],
     [2026, "autumn", 2027, "winter"],
     [2026, "winter", 2026, "spring"],
+    [2026, "spring", 2026, "summer"],
   ];
   const orderOk = cases.every(([y, ss, ey, es]) => {
     const r = nextOf(y, ss);
     return r.year === ey && r.season === es;
   });
-  const implOk = sitemapSrc.includes("SEASON_ORDER") && order.every((ss) => sitemapSrc.includes(ss));
+  // 未知のクール名は推測で進めず、そのまま返すこと（不正な値から勝手に次を作らない）。
+  const unknown = nextOf(2026, "harvest");
+  const safeOnUnknown = unknown.year === 2026 && unknown.season === "harvest";
   nsCheck(
     "年またぎの順送りが正しい",
-    orderOk && implOk,
-    orderOk && implOk ? "秋→翌年冬まで含めて期待どおり" : "SEASON_ORDER が揃っていない"
+    orderOk && safeOnUnknown,
+    orderOk && safeOnUnknown
+      ? `本物のnextYearSeasonで${cases.length}件（秋→翌年冬を含む）＋未知クールの扱いもOK`
+      : !orderOk
+        ? "順送りの結果が期待とちがう"
+        : "未知のクール名から勝手に次クールを作っている"
   );
 
   // 次クールは作品ページとシーズンページだけ。声優・サービス別は、キャストも配信も
@@ -5693,16 +5701,23 @@ let isrNg = 0;
   // データ層のTTLがページ側より短いと、ページ側を延ばしても実効値は低いほうになる
   // （App Routerの仕様。2026-08-25に実際にこれで効果ゼロだった）。
   const annict = readFileSync(new URL("../lib/annict.ts", import.meta.url), "utf8");
-  const annictMatch = annict.match(/next: \{ revalidate: (\d+), tags: \[([^\]]*)\] \}/);
+  // 【2026-09-03変更】タグはリテラルではなく gql() の引数になった（作品1件だけ
+  // 作品ごとのタグにするため。下の「Annictのキャッシュタグ」節を読むこと）。
+  // ここで見るのは①TTLが長いこと ②必ず何らかのタグが付くこと の2点。
+  // 既定値が消えるとタグ無しのクエリが生まれ、cronから指名できなくなる。
+  const annictMatch = annict.match(/next: \{ revalidate: (\d+), tags \}/);
   const annictValue = annictMatch ? Number(annictMatch[1]) : NaN;
-  const annictTagged = Boolean(annictMatch && annictMatch[2].includes('"annict"'));
-  const annictOk = Number.isFinite(annictValue) && annictValue >= MIN_LONG_TAIL_REVALIDATE && annictTagged;
+  const annictTagged = /tags: string\[\] = \["annict"\]/.test(annict);
+  const annictOk =
+    Number.isFinite(annictValue) && annictValue >= MIN_LONG_TAIL_REVALIDATE && annictTagged;
   if (!annictOk) isrNg++;
   console.log(
     `${annictOk ? "✓" : "✗"}  ${"lib/annict.ts のfetchが長いTTL＋タグを持つ".padEnd(48)} → ` +
       (annictOk
-        ? `revalidate=${annictValue} / tags:["annict"]`
-        : "ページ側のrevalidateを延ばしても、ここが短いと実効値はこちらに引きずられる（低いほうが勝つ）")
+        ? `revalidate=${annictValue} / tagsは引数（既定 ["annict"]）`
+        : !Number.isFinite(annictValue) || annictValue < MIN_LONG_TAIL_REVALIDATE
+          ? "ページ側のrevalidateを延ばしても、ここが短いと実効値はこちらに引きずられる（低いほうが勝つ）"
+          : "gql() のtagsから既定値が消えている。タグ無しの応答はcronから指名できない")
   );
 
   // 鮮度はタグで明示的に取りに行く方式なので、その窓口とcronが両方要る。
@@ -5978,6 +5993,83 @@ let isrNg = 0;
     console.log(
       `${fireNg === 0 ? "✓" : "✗"}  ${"判定日に発火し、前日には発火しない".padEnd(48)} → ` +
         (fireNg === 0 ? `判定日 ${CHECKPOINTS.length} 件すべてOK` : `${fireNg} 件がおかしい`)
+    );
+  }
+
+  // ── Annictのキャッシュタグ（2026-09-03導入・重大度最高） ──
+  //
+  // 作品1件の取得に一律の "annict" タグを付けると、/api/revalidate の
+  // revalidateTag("annict")（1日2回）が**過去クール1,961件のページまで**無効化する。
+  // ページのISRエントリはfetchのタグを引き継ぐ（実測: .next/server/app/anime/13180.meta が
+  // x-next-cache-tags: annict,... を持つ）ので、revalidate=604800 が完全に効かなくなる。
+  // 実測（Vercel Observability・12時間）で /anime/[id] が起動667回中476回・
+  // Active CPU 1分00秒＝全ルート中1位だった。経緯は docs/operations.md の㉝。
+  //
+  // 画面からは絶対に気づけない（内容は正しく出る。増えるのは請求だけ）ので機械で見張る。
+  {
+    const annictSrc = readFileSync(new URL("../lib/annict.ts", import.meta.url), "utf8");
+
+    // ① 作品1件の取得が、作品ごとのタグを使っていること。
+    const byId = annictSrc.slice(annictSrc.indexOf("export async function fetchWorkById"));
+    const usesWorkTag = /const tags = \[workCacheTag\(id\)\]/.test(byId);
+    if (!usesWorkTag) isrNg++;
+    console.log(
+      `${usesWorkTag ? "✓" : "✗"}  ${"作品1件の取得は作品ごとのタグを使う".padEnd(48)} → ` +
+        (usesWorkTag
+          ? "workCacheTag(id)"
+          : '一律の "annict" に戻すと過去クールが1日2回作り直される')
+    );
+
+    // ② fetchWorkById の中に "annict" のベタ書きが復活していないこと。
+    //    追い取得（fetchProgramsPaged）に別のタグを渡す形での逆戻りもここで捕まえる。
+    //    **コメントは除いてから見る**（説明文に "annict" と書けるようにするため。
+    //    コード検査が散文に反応すると、正しい説明を書けなくなって注釈が痩せる）。
+    const bodyEnd = byId.indexOf("\n}\n");
+    const byIdCode = byId
+      .slice(0, bodyEnd > 0 ? bodyEnd : byId.length)
+      .replace(/\/\/.*$/gm, "");
+    const noBlanket = !/["']annict["']/.test(byIdCode);
+    if (!noBlanket) isrNg++;
+    console.log(
+      `${noBlanket ? "✓" : "✗"}  ${'作品1件の取得に "annict" が混ざっていない'.padEnd(48)} → ` +
+        (noBlanket ? "混入なし" : "追い取得も含めて作品ごとのタグに揃えること")
+    );
+
+    // ③ gql() がタグを受け取れること（既定値に固定されていないこと）。
+    const gqlTakesTags = /async function gql<T>\([\s\S]{0,400}?tags: string\[\]/.test(annictSrc);
+    if (!gqlTakesTags) isrNg++;
+    console.log(
+      `${gqlTakesTags ? "✓" : "✗"}  ${"gql() がタグを引数で受け取る".padEnd(48)} → ` +
+        (gqlTakesTags ? "tags 引数あり" : "引数が消えると全クエリが同じタグに戻る")
+    );
+
+    // ④ /api/revalidate が作品ごとのタグを名指ししていること。
+    //    ここが消えると、今度は現在クールの鮮度が1週間まで落ちる（逆方向の壊れ方）。
+    const revSrc = readFileSync(new URL("../app/api/revalidate/route.ts", import.meta.url), "utf8");
+    const namesWorkTags =
+      /workCacheTag\(item\.id\)/.test(revSrc) && /revalidateTag\(tag\)/.test(revSrc);
+    if (!namesWorkTags) isrNg++;
+    console.log(
+      `${namesWorkTags ? "✓" : "✗"}  ${"cronが対象クールの作品を名指しする".padEnd(48)} → ` +
+        (namesWorkTags ? "workCacheTag で指名" : "これが無いと現在クールが1週間古いまま出る")
+    );
+
+    // ⑤ 次クールも対象に入っていること。sitemapに載せている集合と揃える
+    //    （載せているのに再検証しないクールを作らない）。次クールの求め方は
+    //    lib/resolveSeasonParams.ts の1箇所だけが持つ。
+    const sitemapSrc = readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+    const sharedNext =
+      /export function nextYearSeason/.test(
+        readFileSync(new URL("../lib/resolveSeasonParams.ts", import.meta.url), "utf8")
+      ) &&
+      /nextYearSeason/.test(revSrc) &&
+      !/^function nextYearSeason/m.test(sitemapSrc);
+    if (!sharedNext) isrNg++;
+    console.log(
+      `${sharedNext ? "✓" : "✗"}  ${"次クールの定義が1箇所で共有されている".padEnd(48)} → ` +
+        (sharedNext
+          ? "lib/resolveSeasonParams.ts の nextYearSeason"
+          : "sitemapと/api/revalidateで対象クールがズレる")
     );
   }
 

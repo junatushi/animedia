@@ -36,6 +36,27 @@ export function currentYearSeason(): { year: string; season: string } {
   };
 }
 
+// クールの並び。冬→春→夏→秋→(翌年)冬。
+const SEASON_ORDER = ["winter", "spring", "summer", "autumn"];
+
+/**
+ * 次のクールを返す。
+ *
+ * 【なぜここに置くか・2026-09-03】
+ * もとは `app/sitemap.ts` の私有関数だった。次クールを対象にする処理は
+ * sitemap だけではなく `/api/revalidate`（現在クール＋次クールの作品ページを
+ * 指名して古くする）にも要る。定義を2箇所に持つと、片方だけ直したときに
+ * 「sitemapには載っているのに再検証されないクール」が静かに生まれる。
+ * 未知のクール名を渡されたら**そのまま返す**（推測で並びを作らない）。
+ */
+export function nextYearSeason(year: number, season: string): { year: number; season: string } {
+  const i = SEASON_ORDER.indexOf(season);
+  if (i < 0) return { year, season };
+  return i === SEASON_ORDER.length - 1
+    ? { year: year + 1, season: SEASON_ORDER[0] }
+    : { year, season: SEASON_ORDER[i + 1] };
+}
+
 // 任意の月（1〜12）からクールキーを求める。作品の放送開始月から「どのクールの
 // 作品か」を逆算する用途（例: app/anime/[id]/page.tsx のシーズンページへの内部リンク）。
 export function seasonKeyForMonth(month: number): string {
