@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import Link from "next/link";
+import IntentLink from "./IntentLink";
 import { logEvent } from "@/lib/logEvent";
 import { textOn, splitRentalServices } from "@/lib/services";
 import { buildServicePlan } from "@/lib/servicePlan";
@@ -182,7 +182,19 @@ function WorkTile({ id, title }: { id: number; title: string }) {
     return (
       <div className="thumb thumb-ai" title={AI_IMAGE_NOTE}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`/works/${id}.jpg`} alt="" loading="lazy" className="thumb-ai-img" />
+        <img
+          src={`/works/${id}.jpg`}
+          alt=""
+          loading="lazy"
+          // 実寸（scripts/gen-thumbnails.js が作る 640×360）を書いておくと、
+          // 読み込み前でもブラウザが場所を確保できる＝画像が入った瞬間に
+          // 下の内容がずれない（Cumulative Layout Shift の対策）。
+          // 表示サイズはCSS（.thumb-ai / .thumb-ai-img）が決める。
+          width={640}
+          height={360}
+          decoding="async"
+          className="thumb-ai-img"
+        />
         <span className="thumb-ai-tag">AI創作</span>
       </div>
     );
@@ -675,6 +687,37 @@ export default function SeasonExplorer({
 
   return (
     <div className="wrap">
+      {/* カードのアイコン（視聴済み＝目・配信通知＝ベル）の実体。1シーズン最大約220枚の
+          カードがそれぞれ同じSVGを2つinlineで持っていたため、HTMLが約90KB・DOMが約690
+          ノード余分に膨らんでいた（実測: /season/2025/summer は880KB・8,699ノード）。
+          symbolを1回だけ置き、各カードは <use href="#i-eye"> で参照する。
+          strokeは currentColor のままなので、視聴済み時の色変化も今までどおり効く。 */}
+      <svg aria-hidden="true" focusable="false" style={{ display: "none" }}>
+        <symbol
+          id="i-eye"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </symbol>
+        <symbol
+          id="i-bell"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+        </symbol>
+      </svg>
       <a href="#main-content" className="skip-link">
         本文へスキップ
       </a>
@@ -1134,9 +1177,9 @@ export default function SeasonExplorer({
                       {it.broadcastTime && (
                         <span className="calendar-time">{it.broadcastTime}</span>
                       )}
-                      <Link href={`/anime/${it.id}`} className="calendar-title">
+                      <IntentLink href={`/anime/${it.id}`} className="calendar-title">
                         {it.title}
-                      </Link>
+                      </IntentLink>
                       {(() => {
                         const { streaming } = splitRentalServices(it.services, RENTAL_SERVICES[it.id]);
                         if (streaming.length === 0 && it.otherServices.length === 0) return null;
@@ -1198,7 +1241,7 @@ export default function SeasonExplorer({
               {/* タイトル（全幅）。 */}
               <div className="card-head">
                 <h3 className="card-title">
-                  <Link href={`/anime/${it.id}`}>{it.title}</Link>
+                  <IntentLink href={`/anime/${it.id}`}>{it.title}</IntentLink>
                 </h3>
               </div>
               {/* 中段：サムネ（左）＋配信サービス（右）。 */}
@@ -1241,20 +1284,10 @@ export default function SeasonExplorer({
                     >
                       {/* 絵文字だと環境依存で表示されない/文字化けすることがあるため、
                           確実に表示されるSVGの目玉アイコンにしている（stroke=currentColorで
-                          視聴済み時の色変化にも追従する）。 */}
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        width="16"
-                        height="16"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                        <circle cx="12" cy="12" r="3" />
+                          視聴済み時の色変化にも追従する）。図形の実体は下部のスプライト
+                          （#i-eye）に1つだけ置き、カードからは参照する。 */}
+                      <svg aria-hidden="true" width="16" height="16">
+                        <use href="#i-eye" />
                       </svg>
                     </button>
                     <button
@@ -1271,19 +1304,8 @@ export default function SeasonExplorer({
                       title="配信開始を通知"
                       onClick={() => toggleNotify(it.id)}
                     >
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        width="16"
-                        height="16"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                      <svg aria-hidden="true" width="16" height="16">
+                        <use href="#i-bell" />
                       </svg>
                     </button>
                   </div>
@@ -1350,11 +1372,11 @@ export default function SeasonExplorer({
                     {e.year ? `${e.year}年 ${e.season ? SEASON_LABEL[e.season] ?? "" : ""}` : "放送時期不明"}
                   </span>
                   <h3 className="card-title">
-                    <Link href={`/anime/${e.id}`}>{e.title}</Link>
+                    <IntentLink href={`/anime/${e.id}`}>{e.title}</IntentLink>
                   </h3>
-                  <Link href={`/anime/${e.id}`} className="official">
+                  <IntentLink href={`/anime/${e.id}`} className="official">
                     配信情報を見る →
-                  </Link>
+                  </IntentLink>
                 </div>
               </article>
             ))}
@@ -1397,7 +1419,7 @@ export default function SeasonExplorer({
               {s.key === season ? (
                 <span aria-current="page">{s.label}</span>
               ) : (
-                <Link href={`/season/${year}/${s.key}`}>{s.label}</Link>
+                <IntentLink href={`/season/${year}/${s.key}`}>{s.label}</IntentLink>
               )}
             </span>
           ))}
@@ -1416,7 +1438,7 @@ export default function SeasonExplorer({
             <span className="season-archive-label">配信サービス別:</span>
             {availableServices.map((s) => (
               <span key={s.key} className="season-archive-item">
-                <Link href={`/service/${s.key}/${year}/${season}`}>{s.short}</Link>
+                <IntentLink href={`/service/${s.key}/${year}/${season}`}>{s.short}</IntentLink>
               </span>
             ))}
           </p>
@@ -1428,7 +1450,7 @@ export default function SeasonExplorer({
               {y === year ? (
                 <span aria-current="page">{y}</span>
               ) : (
-                <Link href={`/season/${y}/${season}`}>{y}</Link>
+                <IntentLink href={`/season/${y}/${season}`}>{y}</IntentLink>
               )}
             </span>
           ))}
@@ -1442,15 +1464,15 @@ export default function SeasonExplorer({
         新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
         「その他配信」は未登録サービスの可能性があり、点線で表示しています。
         {" "}
-        <Link href={`/exclusive/${year}/${season}`}>{year}年{SEASON_LABEL[season]}アニメの独占配信まとめ</Link>
+        <IntentLink href={`/exclusive/${year}/${season}`}>{year}年{SEASON_LABEL[season]}アニメの独占配信まとめ</IntentLink>
         {" ・ "}
-        <Link href={`/rankings/${year}/${season}`}>配信サービス勢力図・ランキング</Link>
+        <IntentLink href={`/rankings/${year}/${season}`}>配信サービス勢力図・ランキング</IntentLink>
         {" ・ "}
-        <Link href="/developers">配信先ウィジェット・公開API</Link>
+        <IntentLink href="/developers">配信先ウィジェット・公開API</IntentLink>
         {" ・ "}
-        <Link href="/about">運営者情報</Link>
+        <IntentLink href="/about">運営者情報</IntentLink>
         {" ・ "}
-        <Link href="/privacy">プライバシーポリシー・広告掲載について</Link>
+        <IntentLink href="/privacy">プライバシーポリシー・広告掲載について</IntentLink>
       </p>
       </main>
 

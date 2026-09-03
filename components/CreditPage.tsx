@@ -1,4 +1,4 @@
-import Link from "next/link";
+import IntentLink from "./IntentLink";
 import { siteUrl } from "@/lib/siteUrl";
 import { creditHeadline } from "@/lib/pageMeta";
 import {
@@ -83,9 +83,9 @@ export function CreditPage({
           </h1>
         </div>
         <div className="meta">
-          <Link href="/" className="official">
+          <IntentLink href="/" className="official">
             ← アニメ視聴ガイドのトップに戻る
-          </Link>
+          </IntentLink>
         </div>
       </header>
 
@@ -100,10 +100,10 @@ export function CreditPage({
               <ul className="detail-list">
                 {shown.map(([id, title, year, season]) => (
                   <li key={id}>
-                    <Link href={`/anime/${id}`}>{title}</Link>{" "}
-                    <Link href={`/season/${year}/${season}`} className="detail-sub">
+                    <IntentLink href={`/anime/${id}`}>{title}</IntentLink>{" "}
+                    <IntentLink href={`/season/${year}/${season}`} className="detail-sub">
                       {year}年{SEASON_LABEL[season] ?? season}
-                    </Link>
+                    </IntentLink>
                   </li>
                 ))}
               </ul>

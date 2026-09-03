@@ -4368,11 +4368,13 @@ let softNg = 0;
       new URL("../components/NotFoundPanel.tsx", import.meta.url),
       "utf8"
     );
-    const links = (nf.match(/<Link href=/g) || []).length;
+    // サイト内リンクの部品は components/IntentLink.tsx（2026-09-03に next/link から
+    // 全面移行。下の「リンクの先読み」節を読むこと）。
+    const links = (nf.match(/<IntentLink href=/g) || []).length;
     softCheck(
       "404ページに戻る導線がある",
       links >= 2,
-      `<Link> が ${links} 本`
+      `<IntentLink> が ${links} 本`
     );
     // ビルド時に事前生成され得るので、日付から組んだURLは古くなる。
     // コメントは除いて見る（「new Date() を使わない」という**注意書き**自体に
@@ -6076,8 +6078,184 @@ let isrNg = 0;
   console.log(`結果（ISRの再生成頻度）: ${isrNg === 0 ? "全てOK" : `${isrNg} 件NG`}`);
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// リンクの先読み（2026-09-03導入・重大度高）
+//
+// App Router の <Link> は既定で「画面に入った（200px手前まで近づいた）リンクの
+// RSCペイロードを先読みする」。このサイトはリンクが多く、1件あたりのペイロードも大きい。
+// ローカル本番ビルドの実測（/season/2025/summer）:
+//   ・/anime/[id] へのリンク 173本 × 11.9KB
+//   ・フッターの /season/[y]/[s] リンク 19本 × 181KB（!）
+//   ・/service/... 12本 × 12.8KB
+//   ・ヘッダーの "/" 1本 × 181KB（**全ページで初期表示と同時に走っていた**）
+// つまり誰も押していないページのために最大5MB超を裏で取りに行っていた。訪問者の回線を
+// 奪って表示が遅くなるだけでなく、Vercelの Function Invocations・ISR Reads/Writes・
+// 転送量まで押されてもいないページのために消費する（Active CPU は2026-09-02実測で
+// 既に通常上限の106%）。
+//
+// いまは components/IntentLink.tsx が「素振り（hover/touchstart）のあったリンクだけ
+// 先読みする」形に一本化してある。この検査が守るのは
+//   ①素の next/link に戻さないこと（1ファイルでも戻ると、その画面だけ先読みが復活する）
+//   ②IntentLink から prefetch={false} や素振りの先読みを外さないこと
+// の2点。**画面を見ても気づけない**（見た目・遷移先は何も変わらず、増えるのは通信と請求）
+// ので機械で見張る。経緯は docs/operations.md の㊴。
+// ────────────────────────────────────────────────────────────────────────────
+let prefetchNg = 0;
+{
+  console.log("\n【リンクの先読み】");
+
+  // 対象は手で並べない（走査して導出する。scripts/lib/app-routes.js と同じ方針）。
+  const linkRoots = ["../app", "../components"].map((r) =>
+    fileURLToPath(new URL(r, import.meta.url))
+  );
+  const linkFiles: string[] = [];
+  const walkTsx = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = `${dir}/${e.name}`;
+      if (e.isDirectory()) walkTsx(p);
+      else if (/\.(tsx|ts)$/.test(e.name)) linkFiles.push(p);
+    }
+  };
+  linkRoots.forEach(walkTsx);
+
+  const scanned = linkFiles.length >= 20;
+  if (!scanned) prefetchNg++;
+  console.log(
+    `${scanned ? "✓" : "✗"}  ${"app/・components/ を走査できている".padEnd(48)} → ${linkFiles.length} ファイル`
+  );
+
+  const intentLinkPath = fileURLToPath(new URL("../components/IntentLink.tsx", import.meta.url));
+  const rel = (f: string) => f.slice(f.indexOf("/animedia/") >= 0 ? f.indexOf("/animedia/") + 10 : 0);
+  const rawLinkUsers = linkFiles.filter(
+    (f) => f !== intentLinkPath && /from "next\/link"/.test(readFileSync(f, "utf8"))
+  );
+  const rawOk = rawLinkUsers.length === 0;
+  if (!rawOk) prefetchNg++;
+  console.log(
+    `${rawOk ? "✓" : "✗"}  ${"next/link を直接使うのは IntentLink だけ".padEnd(48)} → ` +
+      (rawOk
+        ? "他に0ファイル"
+        : `${rawLinkUsers.map(rel).join(", ")} が直接importしている（画面内に入っただけで先読みが走る）`)
+  );
+
+  const intent = readFileSync(intentLinkPath, "utf8");
+  const noViewport = /prefetch=\{false\}/.test(intent);
+  if (!noViewport) prefetchNg++;
+  console.log(
+    `${noViewport ? "✓" : "✗"}  ${"IntentLink が画面内先読みを止めている".padEnd(48)} → ` +
+      (noViewport ? "prefetch={false}" : "prefetch={false} が無い＝既定の画面内先読みに戻っている")
+  );
+
+  // 素振りの先読みまで消すと、作品ページはタップしてから取得が始まる。
+  // app/anime/[id]/page.tsx は「loading.tsx を置くとソフト404になるので置かない。
+  // 代わりに先読みで速さを担保する」方針なので、ここは消してはいけない。
+  // コメントは除いて見る（「router.prefetch を呼ぶ」という**注意書き**自体に
+  // 反応してしまうため。同じ穴を404の検査で1度踏んでいる）。
+  const intentCode = intent.replace(/^\s*\/\/.*$/gm, "");
+  const warmsOnIntent =
+    /router\.prefetch\(/.test(intentCode) &&
+    /onMouseEnter=/.test(intentCode) &&
+    /onTouchStart=/.test(intentCode);
+  if (!warmsOnIntent) prefetchNg++;
+  console.log(
+    `${warmsOnIntent ? "✓" : "✗"}  ${"押しそうな素振りでは先読みする".padEnd(48)} → ` +
+      (warmsOnIntent
+        ? "router.prefetch を onMouseEnter/onTouchStart で呼ぶ"
+        : "素振りの先読みが消えている（タップしてから取得が始まり、作品ページが遅くなる）")
+  );
+
+  const users = linkFiles.filter(
+    (f) => f !== intentLinkPath && /<IntentLink[\s>]/.test(readFileSync(f, "utf8"))
+  );
+  const usersOk = users.length >= 8;
+  if (!usersOk) prefetchNg++;
+  console.log(
+    `${usersOk ? "✓" : "✗"}  ${"サイト内リンクが IntentLink を通っている".padEnd(48)} → ${users.length} ファイル`
+  );
+
+  console.log(`結果（リンクの先読み）: ${prefetchNg === 0 ? "全てOK" : `${prefetchNg} 件NG`}`);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// ログインJSの遅延読み込み（2026-09-03導入）
+//
+// supabase-js は実測で gzip 約51KB・生188KB あり、AuthProvider が静的importして
+// いたためトップ・シーズン一覧の初期JS（実測181KB）に常時含まれていた。ログインが
+// 要るのは視聴済み・配信通知だけで、閲覧・検索・お気に入りは未ログインで完全に動く。
+// いまは「認証Cookieがある人だけが、初回描画の後に動的importで取りに行く」形にしてある
+// （実測: / の First Load JS 181KB → 116KB）。
+//
+// 静的importが1ファイルでも復活すると、そのページの初期JSに丸ごと戻る（画面は何も
+// 変わらないので気づけない）ため機械で見張る。Cookie名の判定規則を1箇所に保つのも
+// ここで見る（middlewareとブラウザで条件がズレると「ログインした人にだけ起きる」
+// 壊れ方になる）。
+// ────────────────────────────────────────────────────────────────────────────
+let authJsNg = 0;
+{
+  console.log("\n【ログインJSの遅延読み込み】");
+
+  const componentsDir = fileURLToPath(new URL("../components", import.meta.url));
+  const componentFiles: string[] = [];
+  const walkComponents = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = `${dir}/${e.name}`;
+      if (e.isDirectory()) walkComponents(p);
+      else if (/\.(tsx|ts)$/.test(e.name)) componentFiles.push(p);
+    }
+  };
+  walkComponents(componentsDir);
+
+  // 静的import（先頭の import 文）だけを見る。動的import（await import(...)）は合格。
+  const staticImporters = componentFiles.filter((f) =>
+    /^import[^\n]*from "@\/lib\/supabase\/client";/m.test(readFileSync(f, "utf8"))
+  );
+  const staticOk = staticImporters.length === 0;
+  if (!staticOk) authJsNg++;
+  console.log(
+    `${staticOk ? "✓" : "✗"}  ${"supabase-js を初期JSに載せていない".padEnd(48)} → ` +
+      (staticOk
+        ? "components/ に静的importは0件"
+        : `${staticImporters.map((f) => f.slice(f.lastIndexOf("/") + 1)).join(", ")} が静的import`)
+  );
+
+  const provider = readFileSync(
+    new URL("../components/AuthProvider.tsx", import.meta.url),
+    "utf8"
+  );
+  const gated =
+    /if \(!hasAuthCookie\(\)\)/.test(provider) && /import\("@\/lib\/supabase\/client"\)/.test(provider);
+  if (!gated) authJsNg++;
+  console.log(
+    `${gated ? "✓" : "✗"}  ${"未ログインでは1バイトも読み込まない".padEnd(48)} → ` +
+      (gated
+        ? "認証Cookieの門番＋動的import"
+        : "AuthProvider の門番か動的importが外れている（閲覧するだけの人が51KBを払う）")
+  );
+
+  // Cookie名の判定は lib/supabase/config.ts の isAuthCookieName **だけ**が持つ。
+  const cfg = readFileSync(new URL("../lib/supabase/config.ts", import.meta.url), "utf8");
+  const mw = readFileSync(new URL("../lib/supabase/middleware.ts", import.meta.url), "utf8");
+  const single =
+    /export function isAuthCookieName/.test(cfg) &&
+    /isAuthCookieName/.test(mw) &&
+    /isAuthCookieName/.test(provider) &&
+    !/auth-token/.test(mw) &&
+    !/"auth-token"|'auth-token'/.test(provider);
+  if (!single) authJsNg++;
+  console.log(
+    `${single ? "✓" : "✗"}  ${"認証Cookieの判定が1箇所".padEnd(48)} → ` +
+      (single
+        ? "config.ts の isAuthCookieName を middleware とブラウザが共有"
+        : "判定が2箇所に分かれている（ズレるとログイン中の人だけ壊れる）")
+  );
+
+  console.log(`結果（ログインJSの遅延読み込み）: ${authJsNg === 0 ? "全てOK" : `${authJsNg} 件NG`}`);
+}
+
 
 if (
+  prefetchNg > 0 ||
+  authJsNg > 0 ||
   isrNg > 0 ||
   autoNg > 0 ||
   datasetNg > 0 ||

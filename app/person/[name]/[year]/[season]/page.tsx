@@ -1,4 +1,4 @@
-import Link from "next/link";
+import IntentLink from "@/components/IntentLink";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
@@ -269,12 +269,12 @@ export default async function PersonPage({ params }: { params: Params }) {
           </h1>
         </div>
         <div className="meta">
-          <Link href="/" className="official">
+          <IntentLink href="/" className="official">
             ← アニメ視聴ガイドのトップに戻る
-          </Link>
-          <Link href={`/season/${year}/${season}`} className="official">
+          </IntentLink>
+          <IntentLink href={`/season/${year}/${season}`} className="official">
             {year}年{label}アニメ 配信情報一覧を見る
-          </Link>
+          </IntentLink>
         </div>
       </header>
 
@@ -315,7 +315,7 @@ export default async function PersonPage({ params }: { params: Params }) {
                   <ul className="detail-list">
                     {works.map((it) => (
                       <li key={it.id}>
-                        <Link href={`/anime/${it.id}`}>{it.title}</Link>
+                        <IntentLink href={`/anime/${it.id}`}>{it.title}</IntentLink>
                       </li>
                     ))}
                   </ul>
@@ -333,10 +333,10 @@ export default async function PersonPage({ params }: { params: Params }) {
                     <ul className="detail-list">
                       {otherWorks.map(([id, title, y, s]) => (
                         <li key={id}>
-                          <Link href={`/anime/${id}`}>{title}</Link>{" "}
-                          <Link href={`/season/${y}/${s}`} className="detail-sub">
+                          <IntentLink href={`/anime/${id}`}>{title}</IntentLink>{" "}
+                          <IntentLink href={`/season/${y}/${s}`} className="detail-sub">
                             {y}年{SEASON_LABEL[s]}
-                          </Link>
+                          </IntentLink>
                         </li>
                       ))}
                     </ul>
@@ -361,9 +361,9 @@ export default async function PersonPage({ params }: { params: Params }) {
                     <ul className="person-season-links">
                       {otherPages.map((p) => (
                         <li key={`${p.year}-${p.season}`}>
-                          <Link href={`/person/${encodeURIComponent(name)}/${p.year}/${p.season}`}>
+                          <IntentLink href={`/person/${encodeURIComponent(name)}/${p.year}/${p.season}`}>
                             {p.year}年{SEASON_LABEL[p.season]}（{p.count}作品）
-                          </Link>
+                          </IntentLink>
                         </li>
                       ))}
                     </ul>

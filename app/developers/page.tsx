@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import IntentLink from "@/components/IntentLink";
 
 import { siteUrl } from "@/lib/siteUrl";
 import { EMBED_FRAME_HEIGHT } from "@/lib/embed";
@@ -105,9 +105,9 @@ export default function DevelopersPage() {
           <h1 className="brand">配信先ウィジェット・公開API</h1>
         </div>
         <div className="meta">
-          <Link href="/" className="official">
+          <IntentLink href="/" className="official">
             ← アニメ視聴ガイドのトップに戻る
-          </Link>
+          </IntentLink>
         </div>
       </header>
 
@@ -119,7 +119,7 @@ export default function DevelopersPage() {
               <p className="detail-text">
                 アニメの感想記事を書くときの「この作品はどこで見られるか」を、自分で調べて書く代わりに
                 貼り付けコード1つで置けます。登録もAPIキーも不要、費用もかかりません。
-                配信情報の一覧は <Link href="/">アニメ視聴ガイド</Link> が Annict
+                配信情報の一覧は <IntentLink href="/">アニメ視聴ガイド</IntentLink> が Annict
                 のデータをもとに毎日更新しています。
               </p>
             </section>
@@ -252,7 +252,7 @@ export default function DevelopersPage() {
                 <strong>出典表記（サイト名とリンク）だけを添えてください</strong>。JSONの応答にも{" "}
                 <code>license</code> と <code>attribution</code> として同じ内容が入っています。
                 作品データ（上の公開API・ウィジェット）と混ぜて使う場合は、そちらの分だけ
-                <Link href="#attribution">出典の書き方</Link>の Annict 併記版をお使いください。
+                <IntentLink href="#attribution">出典の書き方</IntentLink>の Annict 併記版をお使いください。
               </p>
               <p className="detail-text">HTML</p>
               <pre className="detail-code">{datasetAttributionHtml()}</pre>
@@ -300,7 +300,7 @@ export default function DevelopersPage() {
                 記事やアプリに合うものをそのままお使いください。文面を変えても構いません。
                 作品データを返すAPI（<code>/api/work/…</code>・<code>/api/season</code>）の
                 レスポンスにも同じ内容が <code>source</code> として入っています。
-                <Link href="#dataset">配信サービス名寄せ表</Link>だけを使う場合は Annict
+                <IntentLink href="#dataset">配信サービス名寄せ表</IntentLink>だけを使う場合は Annict
                 のデータを含まないため、そちらの節にある Annict 抜きの文面をお使いください。
               </p>
               <p className="detail-text">HTML（ブログ記事の末尾など）</p>
@@ -335,7 +335,7 @@ export default function DevelopersPage() {
                 本サイトは推測でデータを補うことはせず、確認できない情報は「未登録」と表示します。
               </p>
               <p className="detail-text">
-                不具合・要望は <Link href="/about">運営者情報</Link> のお問い合わせ先へどうぞ。
+                不具合・要望は <IntentLink href="/about">運営者情報</IntentLink> のお問い合わせ先へどうぞ。
               </p>
             </section>
           </div>
@@ -344,9 +344,9 @@ export default function DevelopersPage() {
 
       <p className="footnote">
         データ元: Annict（コミュニティ更新ベース）。
-        <Link href="/about">運営者情報</Link>
+        <IntentLink href="/about">運営者情報</IntentLink>
         {" ・ "}
-        <Link href="/privacy">プライバシーポリシー・広告掲載について</Link>
+        <IntentLink href="/privacy">プライバシーポリシー・広告掲載について</IntentLink>
       </p>
     </div>
   );
