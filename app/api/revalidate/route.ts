@@ -1,6 +1,6 @@
-// 現在クールのページだけを「オンデマンドで」再検証するバッチ（2026-08-25導入）。
-// GitHub Actions（.github/workflows/revalidate.yml）から1日2回、x-cron-secret ヘッダー付きで
-// 叩かれる。人間のブラウザからは使わない。
+// 現在クール＋次クールのページだけを「オンデマンドで」再検証するバッチ（2026-08-25導入。
+// 2026-09-03に次クールを追加）。GitHub Actions（.github/workflows/revalidate.yml）から
+// 1日2回、x-cron-secret ヘッダー付きで叩かれる。人間のブラウザからは使わない。
 //
 // 【なぜ必要になったか】
 // 2026-08-24にVercel Hobbyの ISR Writes 上限（30日で200,000）を296,449件で超過し、
@@ -26,8 +26,9 @@
 // **動かない**。動かないものを定期的に作り直すのが今回の超過の本質だった。
 import { NextResponse } from "next/server";
 import { revalidatePath, revalidateTag } from "next/cache";
-import { currentYearSeason } from "@/lib/resolveSeasonParams";
+import { currentYearSeason, nextYearSeason } from "@/lib/resolveSeasonParams";
 import { getSeasonData } from "@/lib/getSeasonData";
+import { workCacheTag } from "@/lib/annict";
 
 // 秘密の照合とrevalidatePathはリクエストごとに必ず走らせる（キャッシュさせない）。
 export const dynamic = "force-dynamic";
@@ -41,36 +42,61 @@ export async function POST(request: Request) {
   }
 
   const { year, season } = currentYearSeason();
-
-  // クール単位のページ。作品数に関わらず必ず対象にする。
-  const paths: string[] = [
-    "/",
-    `/season/${year}/${season}`,
-    `/rankings/${year}/${season}`,
-    `/exclusive/${year}/${season}`,
+  // 次クールも対象にする（2026-09-03追加）。2026-08-31から次クールの作品ページと
+  // シーズンページをsitemapに載せている（app/sitemap.ts）。配信先の発表は9月中旬〜
+  // 10月上旬に集中する（docs/next-season-coverage.md）ので、いちばん内容が動く時期の
+  // ページを1週間TTLに任せると古い情報を出し続ける。対象の作り方をsitemapと
+  // 揃えるため nextYearSeason は lib/resolveSeasonParams.ts の共有版を使う。
+  const nx = nextYearSeason(Number(year), season);
+  const targets = [
+    { year, season },
+    { year: String(nx.year), season: nx.season },
   ];
 
-  // 現在クールの作品ページ。getSeasonData はキャッシュ済みなので追加のAnnict往復は
+  // クール単位のページ。作品数に関わらず必ず対象にする。
+  const paths: string[] = ["/"];
+  for (const t of targets) {
+    paths.push(
+      `/season/${t.year}/${t.season}`,
+      `/rankings/${t.year}/${t.season}`,
+      `/exclusive/${t.year}/${t.season}`
+    );
+  }
+
+  // 対象クールの作品ページ。getSeasonData はキャッシュ済みなので追加のAnnict往復は
   // 基本的に発生しない。取得に失敗してもクール単位のページの再検証は続ける
   // （1つの失敗で全部を巻き添えにしない＝CLAUDE.mdの外部API方針と同じ）。
+  //
+  // 【2026-09-03変更】作品のデータ層は一律の "annict" ではなく**作品ごとのタグ**で
+  // 古くする。従来は revalidateTag("annict") 1回で全作品のキャッシュを捨てており、
+  // 過去クール1,961件のページまで12時間ごとに作り直されていた（実測で /anime/[id] が
+  // 全ルート中Active CPU 1位・起動回数の71%）。ここで名指しする作品だけが対象になる。
+  const workTags: string[] = [];
   let workCount = 0;
-  let seasonError: string | null = null;
-  try {
-    const data = await getSeasonData(year, season);
-    for (const item of data.items) {
-      paths.push(`/anime/${item.id}`);
+  const seasonErrors: string[] = [];
+  for (const t of targets) {
+    try {
+      const data = await getSeasonData(t.year, t.season);
+      for (const item of data.items) {
+        paths.push(`/anime/${item.id}`);
+        workTags.push(workCacheTag(item.id));
+      }
+      workCount += data.items.length;
+    } catch (e) {
+      seasonErrors.push(`${t.year}-${t.season}: ${e instanceof Error ? e.message : String(e)}`);
     }
-    workCount = data.items.length;
-  } catch (e) {
-    seasonError = e instanceof Error ? e.message : String(e);
   }
 
   // データ層（fetch / unstable_cache）はページの再検証では古くならないので、タグで別に
   // 指名する。これが無いとページだけ作り直され、中身は古いキャッシュのまま出てしまう。
-  //   "annict"        … lib/annict.ts のGraphQL応答（TTL 1週間）
+  //   "annict"        … lib/annict.ts のクール一括・索引の応答（TTL 1週間）
   //   "season-current"… lib/getSeasonData.ts の現在クール（TTL 1時間・安全網として据え置き）
+  //   annict-work-<id>… 対象クールの作品1件ぶん（lib/annict.ts の workCacheTag）
   revalidateTag("annict");
   revalidateTag("season-current");
+  for (const tag of workTags) {
+    revalidateTag(tag);
+  }
 
   for (const path of paths) {
     revalidatePath(path);
@@ -79,8 +105,9 @@ export async function POST(request: Request) {
   return NextResponse.json({
     year,
     season,
+    seasons: targets.map((t) => `${t.year}-${t.season}`),
     works: workCount,
     revalidated: paths.length,
-    ...(seasonError ? { seasonError } : {}),
+    ...(seasonErrors.length ? { seasonErrors } : {}),
   });
 }

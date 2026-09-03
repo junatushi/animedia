@@ -337,5 +337,65 @@ console.log("── seo-report.js の回帰テスト ──\n");
   );
 }
 
+// ─────────────────────────────────────────────
+// ⑨ ④面別の週次推移：途中の週に印を付けること（2026-09-01導入）
+//
+// docs/operations.md ㉟の再発防止。途中の週（days<7）を完全な週とそのまま並べて
+// 「表示が増えた/減った」と結論すると、2026-08-25の診断と同じ間違いになる。
+// weeklyByType の partial フラグ（scripts/lib/gsc-page-type.js）を人間の目に
+// 見える形で出すのがこのスクリプトの仕事のはずなので、その表示だけを確認する。
+// ─────────────────────────────────────────────
+{
+  const snap = {
+    "2026-08-15": {
+      totals: { clicks: 1, impressions: 10, ctr: 0.1, position: 5 },
+      range: { startDate: "2026-07-19", endDate: "2026-08-15" },
+      daily: [],
+      queries: [],
+      pages: [page("/anime/1", 1, 10, 5.0)],
+      weeklyByType: [
+        { week: "2026-08-04", type: "作品", clicks: 10, impressions: 500, ctr: 0.02, position: 20, days: 7, partial: false },
+        { week: "2026-08-11", type: "作品", clicks: 3, impressions: 900, ctr: 0.003, position: 20, days: 6, partial: true },
+      ],
+    },
+  };
+  const out = runWith(snap);
+
+  check(
+    "途中の週（partial）のセルに印が付く",
+    /900\*/.test(out) && !/500\*/.test(out),
+    "2026-08-11の900だけに*"
+  );
+  check(
+    "途中の週があることの注記が出る",
+    /完全な週とそのまま比べない/.test(out)
+  );
+  check(
+    "直近2週の増減に「途中」の注記が付く",
+    /\+400.*どちらかの週が途中/.test(out)
+  );
+  check(
+    "途中の週を含む比較への警告が出る",
+    /途中の週を含む比較。傾向として扱わず/.test(out)
+  );
+
+  // 両方とも完全な週なら、印も警告も出ないこと（過剰警告で読み飛ばされるのを防ぐ）。
+  const fullSnap = {
+    "2026-08-15": {
+      ...snap["2026-08-15"],
+      weeklyByType: [
+        { week: "2026-08-04", type: "作品", clicks: 10, impressions: 500, ctr: 0.02, position: 20, days: 7, partial: false },
+        { week: "2026-08-11", type: "作品", clicks: 12, impressions: 520, ctr: 0.02, position: 20, days: 7, partial: false },
+      ],
+    },
+  };
+  const fullOut = runWith(fullSnap);
+  check(
+    "完全な週どうしの比較には印も警告も出ない",
+    !/\*/.test(fullOut.split("④")[1]?.split("⑤")[0] ?? "") &&
+      !/途中の週を含む比較/.test(fullOut)
+  );
+}
+
 console.log(`\n結果（seo-report.js）: ${ok} 件OK / ${ng} 件NG`);
 process.exit(ng > 0 ? 1 : 0);

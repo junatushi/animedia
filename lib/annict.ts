@@ -252,9 +252,36 @@ ${CREDITS_FIELDS_DETAIL}
 // （追い対象13作品時）。追い対象が急増するシーズンで429が出たら4に戻す。
 const PROGRAMS_FETCH_CONCURRENCY = 8;
 
+/**
+ * 作品1件ぶんのキャッシュタグ。
+ *
+ * 【なぜ作品ごとに分けるか・2026-09-03実測】
+ * 以前は `gql()` の全クエリに一律で `["annict"]` を付けていた。`/api/revalidate` は
+ * 1日2回 `revalidateTag("annict")` を呼ぶので、**過去クール1,961件を含む全作品ページの
+ * ISRエントリが12時間ごとに捨てられていた**。下のコメントにある「過去クールは
+ * そもそも内容が動かないので作り直さない」という意図と、コードが食い違っていた。
+ *
+ * 証拠（ローカル本番ビルド）: 過去クール作品を1回描画したあとの
+ * `.next/server/app/anime/13180.meta` が `x-next-cache-tags: annict,...` を持つ
+ * ＝ **revalidateTag はデータ層だけでなくページごと無効化する**。
+ *
+ * 影響（Vercel Observability・12時間の実測）: `/anime/[id]` が起動667回中476回（71%）・
+ * Active CPU 1分00秒で全ルート中1位だった。cronはこの窓でちょうど1回動いている。
+ *
+ * これで `revalidate: 604800`（1週間）が作品ページに対して初めて効くようになり、
+ * 鮮度が要るぶん（現在クール＋次クール）だけを /api/revalidate が名指しで古くする。
+ * 逆戻りは `node scripts/check.ts` の「Annictのキャッシュタグ」節が機械的に禁じている。
+ */
+export function workCacheTag(id: number): string {
+  return `annict-work-${id}`;
+}
+
 async function gql<T>(
   body: { query: string; variables: Record<string, unknown> },
-  token: string
+  token: string,
+  // このクエリの応答に付けるキャッシュタグ。既定はクール一括・索引などの
+  // 「作品に紐づかない」問い合わせ用。作品1件の取得は workCacheTag(id) を渡す。
+  tags: string[] = ["annict"]
 ): Promise<T> {
   const MAX_RETRIES = 3;
   for (let attempt = 0; ; attempt++) {
@@ -278,10 +305,13 @@ async function gql<T>(
       // 時間で刻む限りこの構造は変わらないため、TTLを再訪間隔より十分長い1週間にして
       // 「時間による再生成」を実質止め、鮮度は下のタグで明示的に取りに行く方式へ変えた。
       //
-      // タグ "annict" は /api/revalidate（.github/workflows/revalidate.yml が1日2回叩く）が
+      // タグは /api/revalidate（.github/workflows/revalidate.yml が1日2回叩く）が
       // revalidateTag で古くする。つまり現在クールの鮮度はcronが担保し、過去クールは
-      // そもそも内容が動かないので作り直さない。経緯は docs/operations.md の㉝。
-      next: { revalidate: 604800, tags: ["annict"] },
+      // そもそも内容が動かないので作り直さない。**その意図をコードに一致させるため、
+      // 作品1件の取得だけは作品ごとのタグを使う**（上の workCacheTag の説明を読むこと。
+      // ここを一律 "annict" に戻すと過去クール1,961件が1日2回作り直される）。
+      // 経緯は docs/operations.md の㉝。
+      next: { revalidate: 604800, tags },
     });
 
     if (res.status === 401) {
@@ -336,11 +366,16 @@ async function mapWithConcurrency<T>(
 // query に既定値は持たせない: episode を要求するクエリとしないクエリの取り違えが
 // そのまま「配信情報なし」に化けるため、どちらで取るのかを呼び出し側に毎回書かせる
 // （2026-08-16。既定値が PROGRAMS_QUERY＝episode付きだったことが取りこぼしの一因）。
+// tags にも既定値を持たせない（query と同じ理由）。この関数はクール一括の追い取得
+// （＝"annict"）と作品1件の追い取得（＝workCacheTag）の両方から呼ばれるので、
+// 既定値を置くと呼び分けを間違えても静かに通る。1ページ目と追加ページで違うタグが
+// 付くと、片方だけが古くなって配信サービスが欠けた状態がキャッシュに残る。
 async function fetchProgramsPaged(
   annictId: number,
   token: string,
   query: string,
-  startAfter: string | null
+  startAfter: string | null,
+  tags: string[]
 ): Promise<ProgramConn["nodes"]> {
   const collected: ProgramConn["nodes"] = [];
   let after: string | null = startAfter;
@@ -350,7 +385,8 @@ async function fetchProgramsPaged(
     const data: { searchWorks: { nodes: { programs: ProgramConn | null }[] } } =
       await gql<{ searchWorks: { nodes: { programs: ProgramConn | null }[] } }>(
         { query, variables: { id: annictId, after } },
-        token
+        token,
+        tags
       );
     const conn = data.searchWorks?.nodes?.[0]?.programs;
     if (!conn) break;
@@ -439,7 +475,10 @@ export async function fetchSeasonWorks(
   await mapWithConcurrency(deduped, PROGRAMS_FETCH_CONCURRENCY, async (w) => {
     const pi = w.programs?.pageInfo;
     if (w.programs && pi?.hasNextPage && pi.endCursor) {
-      const extra = await fetchProgramsPaged(w.annictId, token, PROGRAMS_QUERY_LIST, pi.endCursor);
+      // クール一括の取得なので、1ページ目（SEASON_QUERY）と同じ "annict" を付ける。
+      const extra = await fetchProgramsPaged(w.annictId, token, PROGRAMS_QUERY_LIST, pi.endCursor, [
+        "annict",
+      ]);
       w.programs!.nodes.push(...extra);
     }
   });
@@ -471,21 +510,39 @@ export async function fetchWorkById(
   token: string,
   options: { withEpisode?: boolean } = {}
 ): Promise<AnnictWork | null> {
+  // この作品だけのタグを付ける（一律の "annict" は付けない）。理由は workCacheTag の説明。
+  // 追い取得も同じタグにすること（1ページ目と別のタグにすると、片方だけ古くなって
+  // 配信サービスが欠けた状態がキャッシュに残る）。
+  const tags = [workCacheTag(id)];
+
   const data = await gql<{ searchWorks: { nodes: RawWork[] } }>(
     { query: WORK_QUERY, variables: { id } },
-    token
+    token,
+    tags
   );
   const w = data.searchWorks?.nodes?.[0];
   if (!w) return null;
 
   const pi = w.programs?.pageInfo;
   if (w.programs && pi?.hasNextPage && pi.endCursor) {
-    const extra = await fetchProgramsPaged(w.annictId, token, PROGRAMS_QUERY_DETAIL, pi.endCursor);
+    const extra = await fetchProgramsPaged(
+      w.annictId,
+      token,
+      PROGRAMS_QUERY_DETAIL,
+      pi.endCursor,
+      tags
+    );
     w.programs.nodes.push(...extra);
   }
 
   if (options.withEpisode && w.programs) {
-    const withEpisode = await fetchProgramsPaged(w.annictId, token, PROGRAMS_QUERY_EPISODE, null);
+    const withEpisode = await fetchProgramsPaged(
+      w.annictId,
+      token,
+      PROGRAMS_QUERY_EPISODE,
+      null,
+      tags
+    );
     mergeEpisodeInfo(w.programs.nodes, withEpisode);
   }
 

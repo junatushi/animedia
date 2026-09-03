@@ -7,6 +7,9 @@ import {
   PERSON_PAGE_MIN_APPEARANCES,
   shouldIndexPersonSeasonPage,
 } from "@/lib/personPage";
+// 次クールの求め方は lib/resolveSeasonParams.ts **だけ**が持つ（2026-09-03）。
+// /api/revalidate も同じ集合（現在クール＋次クール）を対象にするため。
+import { nextYearSeason } from "@/lib/resolveSeasonParams";
 
 import { siteUrl } from "@/lib/siteUrl";
 
@@ -21,16 +24,6 @@ function currentSeason(): { year: number; season: string } {
   const m = now.getMonth() + 1;
   const season = m <= 3 ? "winter" : m <= 6 ? "spring" : m <= 9 ? "summer" : "autumn";
   return { year, season };
-}
-
-// 次のクール。冬→春→夏→秋→(翌年)冬。
-const SEASON_ORDER = ["winter", "spring", "summer", "autumn"];
-function nextYearSeason(year: number, season: string): { year: number; season: string } {
-  const i = SEASON_ORDER.indexOf(season);
-  if (i < 0) return { year, season };
-  return i === SEASON_ORDER.length - 1
-    ? { year: year + 1, season: SEASON_ORDER[0] }
-    : { year, season: SEASON_ORDER[i + 1] };
 }
 
 // ルートURLに加え、現在のシーズンページ・作品個別ページ、および過去クールの
