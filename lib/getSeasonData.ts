@@ -11,6 +11,7 @@ import { RELEASE_DATES } from "@/content/works/releaseDates";
 // Annictの実データも人力補完も無い作品にだけ効く最下位の層（lib/autoSchedule.ts）。
 import AUTO_SCHEDULE_FILE from "@/content/works/autoSchedule.json";
 import { parseAutoSchedules } from "./autoSchedule";
+import { isSeasonYearInRange } from "./resolveSeasonParams";
 import type { SeasonResponse } from "./types";
 
 // モジュール読み込み時に1回だけ検証する（リクエストごとに全件検証しない）。
@@ -18,8 +19,12 @@ const AUTO_SCHEDULES = parseAutoSchedules(AUTO_SCHEDULE_FILE);
 
 export const VALID_SEASONS = new Set(["winter", "spring", "summer", "autumn"]);
 
+// 年の妥当性は lib/resolveSeasonParams.ts の isSeasonYearInRange **だけ**が持つ
+// （2026-08-31）。ここには「4桁の数字か」しか書いていなかったため、1000〜9999年の
+// 9,000通りが全て有効で、存在しない年のURLがAnnictへのライブ取得とISR書き込みを
+// 無制限に発生させていた。理由と実測は向こうのコメントにある。
 export function isValidYear(year: string): boolean {
-  return /^\d{4}$/.test(year);
+  return isSeasonYearInRange(year);
 }
 
 export function isValidSeason(season: string): boolean {

@@ -6,6 +6,7 @@ import {
   PERSON_PAGE_MIN_APPEARANCES as MIN_APPEARANCES,
   shouldIndexPersonSeasonPage,
 } from "@/lib/personPage";
+import { NOINDEX_FOLLOW } from "@/lib/indexPolicy";
 import { PERSON_FILMOGRAPHY } from "@/content/people/filmography";
 import {
   otherSeasonWorks,
@@ -132,9 +133,14 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     const data = await getSeasonData(year, season);
     works = findWorks(data.items, name);
   } catch {
-    return {};
+    // 取得に失敗したときは索引に載せない（lib/indexPolicy.ts）。
+    // ここで `{}` を返していたため robots メタが出ず、**「Annict API がエラーを
+    // 返しました」という本文のページが 200 ＋ index で公開されていた**（2026-08-31実測）。
+    return { robots: NOINDEX_FOLLOW };
   }
-  if (works.length < MIN_APPEARANCES) return {};
+  // 出演作が閾値に届かないときは下の本体が notFound() する（＝404）。
+  // ただし取得に成功していることが前提なので、ここでも索引は止めておく。
+  if (works.length < MIN_APPEARANCES) return { robots: NOINDEX_FOLLOW };
 
   const label = SEASON_LABEL[season];
   const filmography = PERSON_FILMOGRAPHY[name];
