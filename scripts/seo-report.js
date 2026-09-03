@@ -252,24 +252,44 @@ function main() {
     );
     console.log("\n── ④ 面別の週次推移（クリック/表示） ──");
     console.log(`  ${pad("週", 12)}${types.map((t) => pad(t, 12)).join("")}`);
+    let anyPartial = false;
     for (const wk of weeks) {
       const cells = types.map((t) => {
         const r = weekly.find((x) => x.week === wk && x.type === t);
-        return pad(r ? `${r.clicks}/${r.impressions}` : "-", 12);
+        if (!r) return pad("-", 12);
+        if (r.partial) anyPartial = true;
+        return pad(`${r.clicks}/${r.impressions}${r.partial ? "*" : ""}`, 12);
       });
       console.log(`  ${pad(wk, 12)}${cells.join("")}`);
+    }
+    if (anyPartial) {
+      console.log(
+        "  * は途中まで（GSCの3日ラグ等でその面がまだ7日ぶん揃っていない）のデータ。" +
+          "完全な週とそのまま比べない（docs/operations.md ㉟）。"
+      );
     }
     // 直近2週で表示が増えた面／減った面を名指しする
     if (weeks.length >= 2) {
       const [prev, cur] = weeks.slice(-2);
-      const at = (w, t) => weekly.find((x) => x.week === w && x.type === t)?.impressions || 0;
+      const at = (w, t) => weekly.find((x) => x.week === w && x.type === t) || null;
       const moves = types
-        .map((t) => ({ t, diff: at(cur, t) - at(prev, t) }))
+        .map((t) => {
+          const p = at(prev, t);
+          const c = at(cur, t);
+          return { t, diff: (c?.impressions || 0) - (p?.impressions || 0), partial: !!(p?.partial || c?.partial) };
+        })
         .filter((m) => m.diff !== 0)
         .sort((a, b) => b.diff - a.diff);
       if (moves.length) {
         console.log(`\n  直近2週（${prev} → ${cur}）の表示回数の増減:`);
-        for (const m of moves) console.log(`    ${pad(m.t, 12)}${m.diff > 0 ? "+" : ""}${m.diff}`);
+        for (const m of moves) {
+          console.log(`    ${pad(m.t, 12)}${m.diff > 0 ? "+" : ""}${m.diff}${m.partial ? "  （どちらかの週が途中）" : ""}`);
+        }
+        if (moves.some((m) => m.partial)) {
+          console.log(
+            "  ⚠ 途中の週を含む比較。傾向として扱わず、完全な週が揃ってから判断すること。"
+          );
+        }
       }
     }
   }

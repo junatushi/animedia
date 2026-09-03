@@ -339,12 +339,25 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `app/api/revalidate/route.ts` + `.github/workflows/revalidate.yml` … **鮮度を「時間」ではなく
   「指名」で取りに行く窓口**（2026-08-25導入）。長い裾のページ（作品・声優・サービス別・
   過去クール）の`revalidate`は1週間にしてあり、時間では作り直さない。その代わりこの窓口が
-  `revalidateTag("annict")`と現在クールのページへの`revalidatePath`を実行し、cronが1日2回叩く。
+  タグと`revalidatePath`で**現在クール＋次クール**を名指しし、cronが1日2回叩く。
   **`revalidatePath`は「次に誰かが見に来たら作り直す」印を付けるだけ**なので、呼んだ数だけ
   課金されるわけではない（誰も来ないページでは書き込みが起きない）。
   認証は`/api/notify/run`と同じ`NOTIFY_CRON_SECRET`を使い回す（新設しない＝設定漏れで黙って
   止まるのを避ける）。**タグとパスの両方を古くすること**（ページだけ作り直しても、データ層の
-  キャッシュが生きていると中身は古いまま出る）。検査は`node scripts/check.ts`の
+  キャッシュが生きていると中身は古いまま出る）。
+  **【重要】タグを一括で掛けないこと**（2026-09-03修正・重大度最高）。導入時は
+  `revalidateTag("annict")`1回で済ませていたが、`lib/annict.ts`の`tags: ["annict"]`が
+  `gql()`の中にあり**`fetchWorkById`を含む全クエリに付いていた**。しかも**`revalidateTag`は
+  データ層だけでなくページごと無効化する**（実証: 過去クール作品を1回描画したあとの
+  `.next/server/app/anime/13180.meta`が`x-next-cache-tags: annict,...`を持つ）ので、
+  **過去クール1,961件の作品ページが12時間ごとに作り直されていた**＝`revalidate=604800`は
+  作品ページに一度も効いていなかった。実測（Vercel Observability・12時間）で`/anime/[id]`が
+  起動667回中476回（71%）・Active CPU 1分00秒で全ルート中1位。いまは作品1件の取得だけ
+  `lib/annict.ts`の`workCacheTag(id)`＝`annict-work-<id>`を使い、この窓口が対象クールの
+  作品を1件ずつ名指しする。**画面には何も出ない壊れ方**（内容は正しく表示され、増えるのは
+  請求だけ）なので、`node scripts/check.ts`の「Annictのキャッシュタグ」節が逆戻りを
+  機械的に禁じている。次クールの求め方は`lib/resolveSeasonParams.ts`の`nextYearSeason`
+  **だけ**が持つ（sitemapと対象クールをズラさないため）。検査は`node scripts/check.ts`の
   「ISRの再生成頻度」節。経緯は`docs/operations.md`の㉝
 - `lib/siteUrl.ts` … サイト正準URLの一元定義（2026-07-18導入）。canonical・OGP・sitemap・JSON-LD・
   メール内リンクの全てがここを参照する。独自ドメイン移行時はこの1行＋`docs/domain-migration.md`の手順
