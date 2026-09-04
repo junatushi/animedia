@@ -530,7 +530,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         {WORK_IMAGE_IDS.has(item.id) && (
           <figure className="detail-hero">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/works/${item.id}.jpg`} alt="" className="detail-hero-img" />
+            <img src={`/works/${item.id}.webp`} alt="" className="detail-hero-img" />
             <figcaption className="detail-hero-note">※ {AI_IMAGE_NOTE}</figcaption>
           </figure>
         )}

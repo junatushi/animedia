@@ -183,7 +183,7 @@ function WorkTile({ id, title }: { id: number; title: string }) {
       <div className="thumb thumb-ai" title={AI_IMAGE_NOTE}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={`/works/${id}.jpg`}
+          src={`/works/${id}.webp`}
           alt=""
           loading="lazy"
           // 実寸（scripts/gen-thumbnails.js が作る 640×360）を書いておくと、
@@ -294,7 +294,12 @@ export default function SeasonExplorer({
   // 「SEO用のSSRページ」として作ったページ群が、実際には空のHTMLを返していたことになる。
   // クエリを読むのは呼び出し側（TopPageExplorer）の責任にして、このコンポーネント自身は
   // サーバーで描画できる状態に保つ。
-  const searchParams = new URLSearchParams(urlQuery ?? "");
+  // 【重要】urlQuery は**初期描画には使わない**（2026-09-04変更）。使うと、サーバーが
+  // 描いたHTML（クエリ非依存＝今期）と、クライアントの初回描画（クエリ依存）が食い違い、
+  // React の hydration が壊れる。代わりに下の useEffect でマウント後に反映する。
+  // これによりトップページ "/" も /season/** と同じくサーバー描画できるようになった
+  // （それまで "/" は useSearchParams() のせいで **HTMLが空**だった。下の TopPageExplorer
+  //  と docs/operations.md ㊵ を参照）。
   // サーバー側から年・シーズンを渡された（＝/season/.. ページ）場合は、
   // URLクエリへの同期やクエリからの読み取りをしない「固定表示」モードになる。
   const isFixed = fixedYear !== undefined && fixedSeason !== undefined;
@@ -306,12 +311,12 @@ export default function SeasonExplorer({
   // 共有する（lib/resolveSeasonParams.ts）。isFixed=false（トップページ）の場合、
   // ここで解決する年・シーズンは、SSR側が initialData を取得した際の年・シーズンと
   // 一致する必要がある（一致しないと表示中の年・シーズンとinitialDataの中身がズレる）。
+  // クエリ（?year=&season=）はここでは読まない（上のコメント。読むとサーバーHTMLと
+  // 食い違う）。ディープリンクはマウント後の useEffect が setYear/setSeason で反映し、
+  // 既存の取得 useEffect がそのクールを取りに行く。
   const resolved = isFixed
     ? { year: fixedYear!, season: fixedSeason! }
-    : resolveYearSeason({
-        year: searchParams.get("year") ?? undefined,
-        season: searchParams.get("season") ?? undefined,
-      });
+    : resolveYearSeason({});
   const initialYear = resolved.year;
   const initialSeasonKey = resolved.season;
 
@@ -345,18 +350,39 @@ export default function SeasonExplorer({
   // スクリーンショット撮影がヘッドレスブラウザから直接その画面を開けるようにするため。
   // 2026-07-14導入）。それ以外の通常閲覧では従来通りクリック操作で切り替わる。
   const CALENDAR_DAY_LABELS = ["月", "火", "水", "木", "金", "土", "日", "配信日未定"];
-  const [viewMode, setViewMode] = useState<"grid" | "calendar">(
-    searchParams.get("view") === "calendar" ? "calendar" : "grid"
-  );
+  const [viewMode, setViewMode] = useState<"grid" | "calendar">("grid");
   // カレンダー表示で、特定の曜日だけに絞り込むためのラベル（"all" = 全曜日）。
-  const [calendarDay, setCalendarDay] = useState<string>(() => {
-    const day = searchParams.get("day");
-    return day && CALENDAR_DAY_LABELS.includes(day) ? day : "all";
-  });
+  const [calendarDay, setCalendarDay] = useState<string>("all");
   // ?ranking=open で「今期の注目作 TOP5」パネルを初期状態から開いておける（同上の理由）。
-  const [rankingOpen] = useState(() => searchParams.get("ranking") === "open");
+  const [rankingOpen, setRankingOpen] = useState(false);
   // 複数の配信サービスを選んだ時、いずれか一致（OR）か全て一致（AND）かを切り替える。
   const [andMode, setAndMode] = useState(false);
+
+  // URLクエリ（?year=&season=&view=&day=&ranking=）はマウント後に1回だけ反映する。
+  // 初期描画で読まないのは、サーバーが描いたHTML（クエリ非依存＝今期）と食い違わせない
+  // ため（このファイル冒頭 urlQuery のコメント）。ディープリンクは setYear/setSeason で
+  // 反映し、下の取得 useEffect がそのクールを取りに行く。
+  // 【注意】このコンポーネントには「既定表示ならURLからクエリを消す」同期 useEffect が
+  // あり、宣言順で**この後**に走る。先にここで state を書き換えておくことで、再描画後の
+  // 同期でクエリが正しく組み直される（順序を入れ替えるとディープリンクが消える）。
+  useEffect(() => {
+    if (isFixed || !urlQuery) return;
+    const sp = new URLSearchParams(urlQuery);
+    const r = resolveYearSeason({
+      year: sp.get("year") ?? undefined,
+      season: sp.get("season") ?? undefined,
+    });
+    if (r.year !== year || r.season !== season) {
+      setYear(r.year);
+      setSeason(r.season);
+    }
+    if (sp.get("view") === "calendar") setViewMode("calendar");
+    const day = sp.get("day");
+    if (day && CALENDAR_DAY_LABELS.includes(day)) setCalendarDay(day);
+    if (sp.get("ranking") === "open") setRankingOpen(true);
+    // マウント時の1回だけ（依存に year/season を入れると操作のたびにクエリへ戻る）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // お気に入り＝ログイン不要でブラウザの localStorage に作品IDを保存する。
   // シーズンをまたいで保持したいので、キーはシーズンに依存しないグローバルな1つ。

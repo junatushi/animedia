@@ -88,6 +88,7 @@ import { parseWorkId } from "../lib/workId.ts";
 // 検査の対象を**手で数えず、app/ を走査して導出する**ための道具（2026-08-31導入）。
 // 名指しの列挙が漏れて OG画像ルートだけ検証を通っていなかった事故から入れた。
 import { appRoutes, dynamicRoutes } from "./lib/app-routes.js";
+import { build as buildInlineCss } from "./build-inline-css.js";
 // 配信サービス追加の検知（2026-08-07追加）。純粋関数のみ。
 import { applySightings } from "../lib/serviceAdditions.ts";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
@@ -6253,7 +6254,210 @@ let authJsNg = 0;
 }
 
 
+// ────────────────────────────────────────────────────────────────────────────
+// トップページのサーバー描画（2026-09-04導入・重大度高）
+//
+// 【なぜ要るか】トップページ "/" は 2026-08-05 から 2026-09-04 まで、本番のHTMLが
+// `<div class="wrap"></div>` **だけ**だった（h1が0個・作品への <a href="/anime/..">
+// が0個・カード0件）。原因は TopPageExplorer が useSearchParams() を呼んでいたことで、
+// Next.js 14 はそれを含む Suspense 境界を丸ごとクライアント描画に退避させる。
+// 2026-08-05 に /season/** では同じ壊れ方を直したが、**トップだけ残っていた**。
+// 影響は2つ: ①サイトの正面玄関（canonical の指す先）が検索エンジンに空だった
+// ②本番のPageSpeed実測（モバイル）で Script Evaluation が 802ms（シーズンページは
+// 469ms）、HTMLパースは 8ms（同 50ms）＝「HTMLを読む」より「JSで組み立て直す」ほうが
+// 桁違いに高い。観測FCPも 2813ms 対 2519ms でトップが遅かった。
+//
+// 画面を見ている限り絶対に気づけない（クライアント描画で普通に表示される）ので機械で見張る。
+// ────────────────────────────────────────────────────────────────────────────
+let topSsrNg = 0;
+{
+  console.log("\n【トップページのサーバー描画】");
+
+  const topPage = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const wrapper = readFileSync(
+    new URL("../components/TopPageExplorer.tsx", import.meta.url),
+    "utf8"
+  );
+  const explorer = readFileSync(
+    new URL("../components/SeasonExplorer.tsx", import.meta.url),
+    "utf8"
+  );
+
+  // ① トップページを Suspense で包まない（包む必要があるのは useSearchParams を
+  //    使うときだけで、使わない今それを戻すと「境界の中が空のHTML」に逆戻りする）。
+  const topPageBody = stripCommentLines(topPage);
+  const noSuspense = !/<Suspense[\s>]/.test(topPageBody) && !/\bSuspense\b/.test(topPageBody);
+  if (!noSuspense) topSsrNg++;
+  console.log(
+    `${noSuspense ? "✓" : "✗"}  ${"app/page.tsx が Suspense で包んでいない".padEnd(48)} → ` +
+      (noSuspense ? "サーバー描画のHTMLをそのまま返す" : "境界の中がクライアント描画に退避する")
+  );
+
+  // ② クエリの読み取りに useSearchParams() を使わない（これがある限り退避は起きる）。
+  const noUseSearchParams =
+    !/useSearchParams/.test(stripCommentLines(wrapper)) &&
+    !/useSearchParams/.test(stripCommentLines(explorer));
+  if (!noUseSearchParams) topSsrNg++;
+  console.log(
+    `${noUseSearchParams ? "✓" : "✗"}  ${"useSearchParams を使っていない".padEnd(48)} → ` +
+      (noUseSearchParams
+        ? "window.location.search をhydrationより前に1度だけ読む"
+        : "TopPageExplorer か SeasonExplorer が呼んでいる")
+  );
+
+  // ③ urlQuery を初期描画に使わない。使うとサーバーHTMLとクライアント初回描画が
+  //    食い違い、hydration が壊れる（＝クエリ付きで開いた人にだけ起きる壊れ方）。
+  // urlQuery が出てよい行を**列挙**する（正規表現で「useStateの中か」を判定しようと
+  // すると、`useState(() => new URLSearchParams(urlQuery)...)` のような入れ子で
+  // 静かにすり抜ける＝実際に変異テストで抜けた）。想定外の行に現れたら落とす。
+  const explorerNoComments = stripCommentLines(explorer);
+  const ALLOWED_QUERY_LINES = [
+    "urlQuery?: string;",
+    "urlQuery,",
+    "if (isFixed || !urlQuery) return;",
+    "const sp = new URLSearchParams(urlQuery);",
+  ];
+  const queryLines = explorerNoComments
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.includes("urlQuery"));
+  const strayQueryLines = queryLines.filter((l) => !ALLOWED_QUERY_LINES.includes(l));
+  const noQueryInInitialState =
+    strayQueryLines.length === 0 && queryLines.length === ALLOWED_QUERY_LINES.length;
+  if (!noQueryInInitialState) topSsrNg++;
+  console.log(
+    `${noQueryInInitialState ? "✓" : "✗"}  ${"urlQuery を初期描画に使っていない".padEnd(48)} → ` +
+      (noQueryInInitialState
+        ? `useEffect の中だけで参照（${queryLines.length}行）`
+        : strayQueryLines.length > 0
+          ? `想定外の参照: ${strayQueryLines.slice(0, 2).join(" / ")}`
+          : `参照が ${queryLines.length} 行（想定は ${ALLOWED_QUERY_LINES.length} 行）`)
+  );
+
+  // ④ マウント後に反映する useEffect が実在すること（②③だけだとディープリンク
+  //    ?year=&season=&view=&day=&ranking= が黙って効かなくなる）。
+  const appliesLater =
+    /new URLSearchParams\(urlQuery\)/.test(explorerNoComments) &&
+    /sp\.get\("view"\)/.test(explorerNoComments) &&
+    /sp\.get\("day"\)/.test(explorerNoComments) &&
+    /sp\.get\("ranking"\)/.test(explorerNoComments) &&
+    /setYear\(r\.year\)/.test(explorerNoComments);
+  if (!appliesLater) topSsrNg++;
+  console.log(
+    `${appliesLater ? "✓" : "✗"}  ${"ディープリンクをマウント後に反映している".padEnd(48)} → ` +
+      (appliesLater ? "?year=&season=&view=&day=&ranking= を useEffect で適用" : "反映する経路が無い")
+  );
+
+  console.log(`結果（トップページのサーバー描画）: ${topSsrNg === 0 ? "全てOK" : `${topSsrNg} 件NG`}`);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// CSSの埋め込み（2026-09-04導入）
+//
+// 【なぜ要るか】Next.js は <link rel="stylesheet"> を吐くので、HTMLが届いてから
+// **もう1往復**してCSSを取りに行く。本番のPageSpeed（モバイル）が
+// 「Est savings of 150 ms」と指摘し、ローカル実測でも描画開始が約370ms遅れていた。
+// スマホ主体のサイトなので直撃する。いまは app/inlineCss.ts（app/globals.css から
+// node scripts/build-inline-css.js が生成）を <head> の <style> に直接置いている。
+//
+// 【壊れ方】生成を忘れると「CSSを直したのに見た目が変わらない」、import を戻すと
+// 往復が復活する。どちらも画面から分かりにくいので機械で見張る。
+// ────────────────────────────────────────────────────────────────────────────
+let inlineCssNg = 0;
+{
+  console.log("\n【CSSの埋め込み】");
+
+  const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const layoutNoComments = stripCommentLines(layout);
+
+  const noImport = !/import "\.\/globals\.css"/.test(layoutNoComments);
+  if (!noImport) inlineCssNg++;
+  console.log(
+    `${noImport ? "✓" : "✗"}  ${"globals.css を import していない".padEnd(48)} → ` +
+      (noImport ? "外部CSSの往復が無い" : "import が復活している（往復が戻る）")
+  );
+
+  const inlined =
+    /import \{ INLINE_CSS \} from "\.\/inlineCss"/.test(layoutNoComments) &&
+    /<style dangerouslySetInnerHTML=\{\{ __html: INLINE_CSS \}\} \/>/.test(layoutNoComments);
+  if (!inlined) inlineCssNg++;
+  console.log(
+    `${inlined ? "✓" : "✗"}  ${"<head> に <style> として埋めている".padEnd(48)} → ` +
+      (inlined ? "app/inlineCss.ts を1本だけ埋め込み" : "埋め込みが外れている（無スタイルになる）")
+  );
+
+  // 生成物が元CSSと一致すること（＝再生成し忘れの検出）。
+  const srcCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const committed = readFileSync(new URL("../app/inlineCss.ts", import.meta.url), "utf8");
+  const inSync = buildInlineCss(srcCss) === committed;
+  if (!inSync) inlineCssNg++;
+  console.log(
+    `${inSync ? "✓" : "✗"}  ${"app/inlineCss.ts が globals.css と同期".padEnd(48)} → ` +
+      (inSync
+        ? `${(committed.length / 1024).toFixed(1)}KB（元 ${(srcCss.length / 1024).toFixed(1)}KB）`
+        : "`node scripts/build-inline-css.js` を実行すること")
+  );
+
+  console.log(`結果（CSSの埋め込み）: ${inlineCssNg === 0 ? "全てOK" : `${inlineCssNg} 件NG`}`);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// サムネイル画像の形式（2026-09-04導入）
+//
+// 【なぜ要るか】AI独断解釈サムネはJPEGで1枚40KB前後あり、本番のPageSpeed（モバイル）が
+// トップページで152KBぶんを読み込んで「Est savings of 92 KiB」と指摘していた。
+// 回線の細い端末では、この装飾画像がHTML・CSS・JSと帯域を奪い合う。同じ寸法のまま
+// WebPにすると実測で39%小さくなり、見た目は変わらない（4.11MB → 2.51MB）。
+// ────────────────────────────────────────────────────────────────────────────
+let thumbNg = 0;
+{
+  console.log("\n【サムネイル画像の形式】");
+
+  const worksDir = fileURLToPath(new URL("../public/works", import.meta.url));
+  const files = existsSync(worksDir) ? readdirSync(worksDir) : [];
+  const jpgs = files.filter((f) => f.endsWith(".jpg"));
+  const webps = files.filter((f) => f.endsWith(".webp"));
+  const noJpg = jpgs.length === 0 && webps.length > 0;
+  if (!noJpg) thumbNg++;
+  console.log(
+    `${noJpg ? "✓" : "✗"}  ${"public/works はWebPだけ".padEnd(48)} → ` +
+      (noJpg ? `${webps.length}枚` : `.jpg が ${jpgs.length}枚残っている`)
+  );
+
+  // 参照側（カード一覧・作品ページ）も .webp を指していること。
+  const refFiles = ["../components/SeasonExplorer.tsx", "../app/anime/[id]/page.tsx"].map((r) =>
+    readFileSync(new URL(r, import.meta.url), "utf8")
+  );
+  const refsWebp = refFiles.every(
+    (t) => /\/works\/\$\{[^}]+\}\.webp/.test(t) && !/\/works\/\$\{[^}]+\}\.jpg/.test(t)
+  );
+  if (!refsWebp) thumbNg++;
+  console.log(
+    `${refsWebp ? "✓" : "✗"}  ${"表示側の参照も .webp".padEnd(48)} → ` +
+      (refsWebp ? "カード一覧・作品ページとも一致" : ".jpg を指している箇所がある")
+  );
+
+  // 索引（content/works/imageIds.ts）が実ファイルと一致すること。
+  const manifest = readFileSync(new URL("../content/works/imageIds.ts", import.meta.url), "utf8");
+  const idsInManifest = new Set(
+    (manifest.slice(manifest.indexOf("Set<number>([")).match(/\d+/g) ?? []).map(Number)
+  );
+  const idsOnDisk = new Set(webps.map((f) => Number(f.replace(".webp", ""))));
+  const sameIds =
+    idsInManifest.size === idsOnDisk.size && [...idsOnDisk].every((n) => idsInManifest.has(n));
+  if (!sameIds) thumbNg++;
+  console.log(
+    `${sameIds ? "✓" : "✗"}  ${"imageIds.ts が実ファイルと一致".padEnd(48)} → ` +
+      (sameIds ? `${idsOnDisk.size}件` : `索引${idsInManifest.size}件 / 実ファイル${idsOnDisk.size}件`)
+  );
+
+  console.log(`結果（サムネイル画像の形式）: ${thumbNg === 0 ? "全てOK" : `${thumbNg} 件NG`}`);
+}
+
 if (
+  topSsrNg > 0 ||
+  inlineCssNg > 0 ||
+  thumbNg > 0 ||
   prefetchNg > 0 ||
   authJsNg > 0 ||
   isrNg > 0 ||

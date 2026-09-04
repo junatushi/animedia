@@ -112,6 +112,28 @@ CURRENT_ID=$(pick_with_services "$CURRENT_CANDIDATES") || {
 }
 echo "対象: 現在クール=${YEAR}/${SEASON} 作品#${CURRENT_ID} / 過去クール作品#${PAST_ID}"
 
+# ── A0. トップページのSSR（㊵の再発検知）─────────────────────────
+# 2026-08-05〜2026-09-04、"/" のHTMLは `<div class="wrap"></div>` だけだった
+# （h1が0個・作品リンク0件）。A節はシーズンページしか見ていなかったので、
+# サイトの正面玄関（canonical の指す先）が空であることを1ヶ月間検出できなかった。
+# 同じ壊れ方（useSearchParams によるクライアント描画への退避）なので同じ数え方で見張る。
+echo
+echo "A0. トップページのSSR（/）"
+TOP_HTML=$($CURL "$BASE/")
+TH1=$(grep -o '<h1' <<<"$TOP_HTML" | wc -l | tr -d ' ')
+TLINKS=$(grep -o 'href="/anime/[0-9]*"' <<<"$TOP_HTML" | sort -u | wc -l | tr -d ' ')
+[ "$TH1" -ge 1 ] && ok "<h1> が ${TH1} 個"                  || fail "<h1> が 0 個（クライアント描画へ退避した疑い）"
+[ "$TLINKS" -ge 10 ] && ok "作品ページへのリンクが ${TLINKS} 件"                      || fail "作品ページへのリンクが ${TLINKS} 件しかない（トップが空のHTMLを返している）"
+
+# CSSはHTMLに直接埋め込む方式（㊵）。外部CSSに戻ると往復が1回増える
+# （PageSpeedの見積もりで150ms、ローカル実測で約370ms）。画面は同じに見えるので機械で見張る。
+if grep -q 'rel="stylesheet"' <<<"$TOP_HTML"; then
+  fail "外部CSS（rel=\"stylesheet\"）が復活している＝取得の往復が1回増えている"
+else
+  ok "外部CSSの往復が無い（<style> に埋め込み済み）"
+fi
+grep -q '<style' <<<"$TOP_HTML" && ok "<style> が入っている"                                 || fail "<style> が無い（無スタイルのHTMLを配っている）"
+
 # ── A. SEO用SSRページのHTMLに中身が入っているか（⑦-10の再発検知）──────
 echo
 echo "A. シーズンページのSSR（/season/${YEAR}/${SEASON}）"
@@ -122,6 +144,16 @@ LINKS=$(grep -o 'href="/anime/[0-9]*"' <<<"$SEASON_HTML" | sort -u | wc -l | tr 
 # ⑦-10 の修正後の実測は158件。10を下回るならSuspense退避か取得失敗を疑う。
 [ "$LINKS" -ge 10 ] && ok "作品ページへのリンクが ${LINKS} 件" \
                      || fail "作品ページへのリンクが ${LINKS} 件しかない（修正後の実測は158件）"
+# 成長の見張り（2026-09-04導入）。1クールの作品数は今後も増えるので、HTMLは作品数に
+# 比例して伸びる。2026-09-04の実測は173作品で約800KB（＝1作品あたり約4.6KB）。
+# 2MBを超えたら「1作品あたりのHTMLを削る」を検討する合図にする（それまでは
+# 実測で描画開始への影響は小さい＝HTMLパースは全体の50ms）。
+SEASON_BYTES=$(printf %s "$SEASON_HTML" | wc -c | tr -d ' ')
+if [ "$SEASON_BYTES" -le 2000000 ]; then
+  ok "シーズンページのHTMLは ${SEASON_BYTES} バイト（作品 ${LINKS} 件）"
+else
+  fail "シーズンページのHTMLが ${SEASON_BYTES} バイト（作品 ${LINKS} 件）＝1作品あたりのHTMLを削る時期"
+fi
 
 echo
 echo "A2. 作品ページのSSR（/anime/${CURRENT_ID}）"

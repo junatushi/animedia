@@ -1,6 +1,6 @@
 // AI独断解釈サムネの事前生成スクリプト。
 // Pollinations（無料・APIキー不要）で、作品タイトルから連想した「本編とは無関係な
-// 創作イラスト」を生成し、public/works/{annictId}.jpg として保存する。
+// 創作イラスト」を生成し、public/works/{annictId}.webp として保存する。
 // 実行時に都度生成するのではなく、ここで一度だけ生成して静的ファイルとしてコミットするため、
 // サイトの表示コスト・APIキー・レート制限はゼロ（生成物はリポジトリの資産になる）。
 //
@@ -133,10 +133,27 @@ const PROMPTS = [
   { id: 17902, seed: 563, prompt: "an ancient rune-carved stone tablet glowing faintly in an overgrown fantasy ruin, epic rpg concept art, mystical mist, absolutely no people, no text" },
 ];
 
-function genOne({ id, prompt, seed }) {
+// Pollinationsが返すのはJPEG。そのまま置くと1枚40KB前後になり、スマホの初期表示で
+// 数枚ぶんの帯域（実測: トップページで152KB）を装飾画像に取られる。同じ寸法のまま
+// WebPに変換すると実測で39%小さくなり、**見た目は変わらない**（2026-09-04）。
+// sharpはこのリポジトリの依存に入れていない（Vercelのビルドに載せたくない）ので、
+// 生成するときだけ `npm install --no-save sharp` を先に実行する。
+function loadSharp() {
+  try {
+    return require("sharp");
+  } catch {
+    console.error(
+      "sharp が見つからない。先に `npm install --no-save sharp` を実行すること\n" +
+        "（依存には入れない＝本番ビルドを重くしないため。詳細は CLAUDE.md）。"
+    );
+    process.exit(1);
+  }
+}
+
+function genOne(sharp, { id, prompt, seed }) {
   const encoded = encodeURIComponent(prompt);
   const url = `https://image.pollinations.ai/prompt/${encoded}?width=640&height=360&nologo=true&seed=${seed}`;
-  const file = path.join(OUT_DIR, `${id}.jpg`);
+  const file = path.join(OUT_DIR, `${id}.webp`);
   return new Promise((resolve) => {
     const req = https.get(url, (res) => {
       if (res.statusCode !== 200) {
@@ -144,12 +161,20 @@ function genOne({ id, prompt, seed }) {
         res.resume();
         return resolve(false);
       }
-      const w = fs.createWriteStream(file);
-      res.pipe(w);
-      w.on("finish", () => {
-        const size = fs.statSync(file).size;
-        console.log(`  ✓ ${id}: ${(size / 1024).toFixed(0)}KB`);
-        resolve(size > 1000);
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", async () => {
+        try {
+          const buf = await sharp(Buffer.concat(chunks))
+            .webp({ quality: 78, effort: 6 })
+            .toBuffer();
+          fs.writeFileSync(file, buf);
+          console.log(`  ✓ ${id}: ${(buf.length / 1024).toFixed(0)}KB`);
+          resolve(buf.length > 1000);
+        } catch (e) {
+          console.log(`  ✗ ${id}: ${e.message}`);
+          resolve(false);
+        }
       });
     });
     req.setTimeout(60000, () => {
@@ -165,20 +190,21 @@ function genOne({ id, prompt, seed }) {
 }
 
 async function main() {
+  const sharp = loadSharp();
   fs.mkdirSync(OUT_DIR, { recursive: true });
   console.log(`生成開始（${PROMPTS.length}件）…`);
   for (const p of PROMPTS) {
-    await genOne(p);
+    await genOne(sharp, p);
   }
   // public/works にある画像IDを走査して manifest を更新する。
   const ids = fs
     .readdirSync(OUT_DIR)
-    .filter((f) => f.endsWith(".jpg"))
-    .map((f) => Number(f.replace(".jpg", "")))
+    .filter((f) => f.endsWith(".webp"))
+    .map((f) => Number(f.replace(".webp", "")))
     .filter((n) => Number.isInteger(n))
     .sort((a, b) => a - b);
   const body =
-    "// 自動生成（scripts/gen-thumbnails.js）。AI独断解釈サムネ（public/works/{id}.jpg）が\n" +
+    "// 自動生成（scripts/gen-thumbnails.js）。AI独断解釈サムネ（public/works/{id}.webp）が\n" +
     "// 存在する作品IDの一覧。カード・作品ページはこの集合で画像の有無を判定する。\n" +
     `export const WORK_IMAGE_IDS = new Set<number>([${ids.join(", ")}]);\n`;
   fs.writeFileSync(MANIFEST, body);
