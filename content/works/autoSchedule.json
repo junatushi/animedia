@@ -12,8 +12,10 @@
       "title": "魔法使いの夜"
     },
     "9753": {
-      "date": "2026-10",
-      "precision": "month",
+      "date": "2026-10-07",
+      "precision": "day",
+      "weekday": 3,
+      "time": "21:30",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/152677",
       "fetchedDate": "2026-09-04",
@@ -983,8 +985,8 @@
       "title": "タコピーの原罪 -ありがとう、また明日-"
     },
     "17600": {
-      "date": "2026-10",
-      "precision": "month",
+      "date": "2026-10-04",
+      "precision": "day",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/212667",
       "fetchedDate": "2026-09-04",
@@ -1037,8 +1039,10 @@
       "title": "ゆるゆる図鑑"
     },
     "17813": {
-      "date": "2026-10",
-      "precision": "month",
+      "date": "2026-10-04",
+      "precision": "day",
+      "weekday": 0,
+      "time": "22:30",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/209032",
       "fetchedDate": "2026-09-04",
