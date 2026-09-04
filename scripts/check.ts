@@ -6106,8 +6106,15 @@ let prefetchNg = 0;
   console.log("\n【リンクの先読み】");
 
   // 対象は手で並べない（走査して導出する。scripts/lib/app-routes.js と同じ方針）。
+  //
+  // パスは必ず「/」に寄せてから比較する。Windows の fileURLToPath は
+  // `D:\a\animedia\components\IntentLink.tsx`（円記号）を返すのに、走査側は
+  // `${dir}/${e.name}` で組むので `...\components/IntentLink.tsx` と**混ざる**。
+  // 素の文字列比較だと除外が効かず、**IntentLink 自身を違反として数えて**しまう
+  // （2026-09-04 に Windows の CI だけが落ちて発覚。Linux では永久に緑のまま）。
+  const toPosix = (p: string) => p.replace(/\\/g, "/");
   const linkRoots = ["../app", "../components"].map((r) =>
-    fileURLToPath(new URL(r, import.meta.url))
+    toPosix(fileURLToPath(new URL(r, import.meta.url)))
   );
   const linkFiles: string[] = [];
   const walkTsx = (dir: string) => {
@@ -6125,7 +6132,9 @@ let prefetchNg = 0;
     `${scanned ? "✓" : "✗"}  ${"app/・components/ を走査できている".padEnd(48)} → ${linkFiles.length} ファイル`
   );
 
-  const intentLinkPath = fileURLToPath(new URL("../components/IntentLink.tsx", import.meta.url));
+  const intentLinkPath = toPosix(
+    fileURLToPath(new URL("../components/IntentLink.tsx", import.meta.url))
+  );
   const rel = (f: string) => f.slice(f.indexOf("/animedia/") >= 0 ? f.indexOf("/animedia/") + 10 : 0);
   const rawLinkUsers = linkFiles.filter(
     (f) => f !== intentLinkPath && /from "next\/link"/.test(readFileSync(f, "utf8"))
@@ -6387,9 +6396,16 @@ let inlineCssNg = 0;
   );
 
   // 生成物が元CSSと一致すること（＝再生成し忘れの検出）。
+  //
+  // 行末は LF に寄せてから比べる。このリポジトリは core.autocrlf=true の Windows 機で
+  // 開発しており、.gitattributes で LF に固定してあるのは *.sh と *.yml だけなので、
+  // Windows の作業ツリーでは globals.css も inlineCss.ts も **CRLF で展開される**。
+  // 生成側は "\n" を書くため、内容が同じでもヘッダーの行末だけで不一致になり、
+  // 「再生成し忘れ」と区別が付かない偽陽性になる（2026-09-04 に Windows の CI で発覚）。
+  const toLf = (t: string) => t.replace(/\r\n/g, "\n");
   const srcCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   const committed = readFileSync(new URL("../app/inlineCss.ts", import.meta.url), "utf8");
-  const inSync = buildInlineCss(srcCss) === committed;
+  const inSync = toLf(buildInlineCss(srcCss)) === toLf(committed);
   if (!inSync) inlineCssNg++;
   console.log(
     `${inSync ? "✓" : "✗"}  ${"app/inlineCss.ts が globals.css と同期".padEnd(48)} → ` +
