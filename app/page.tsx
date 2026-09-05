@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import TopPageExplorer from "@/components/TopPageExplorer";
 import { getSeasonData } from "@/lib/getSeasonData";
+import { stripCreditNamesForSsr } from "@/lib/seasonPayload";
 import { currentSeasonKey } from "@/lib/resolveSeasonParams";
 import { siteUrl } from "@/lib/siteUrl";
 import type { SeasonResponse } from "@/lib/types";
@@ -53,5 +54,7 @@ export default async function Page() {
   // ともに0件）。いまはクエリをマウント後に反映する方式（components/TopPageExplorer.tsx）
   // なので境界は要らず、"/" も /season/** と同じくサーバー描画のHTMLを返す。
   // ここに Suspense を戻すと同じ壊れ方に逆戻りする（node scripts/check.ts が検査する）。
-  return <TopPageExplorer initialData={data} />;
+  // creditNames はHTMLに埋め込まない（転送量の11%を占め、画面には出ない）。
+  // 検索でスタッフ名に当てる段になって SeasonExplorer が取りに行く。lib/seasonPayload.ts
+  return <TopPageExplorer initialData={stripCreditNamesForSsr(data)} />;
 }

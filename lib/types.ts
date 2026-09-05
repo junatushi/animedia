@@ -156,6 +156,10 @@ export interface SeasonResponse {
   season: string;
   count: number;
   items: AnimeItem[];
+  // SSRのHTMLに埋め込むときだけ true になる（lib/seasonPayload.ts）。
+  // 「creditNames が空なのは、その作品にスタッフ情報が無いからではなく、
+  // 転送量のために外したから」を表す印。公開API（/api/season）は付けない。
+  creditsOmitted?: boolean;
 }
 
 // クール横断検索用の軽量インデックスの1件。配信・クレジット等の重いデータは持たず、

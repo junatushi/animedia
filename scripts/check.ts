@@ -20,6 +20,7 @@ import {
   type EmbedWork,
 } from "../lib/embed.ts";
 import { siteUrl } from "../lib/siteUrl.ts";
+import { stripCreditNamesForSsr } from "../lib/seasonPayload.ts";
 import { buildCalendar, CALENDAR_REF, type CalendarWork } from "../lib/calendar.ts";
 import { aggregateYear, usableYears, currentState, pct } from "../lib/streamingTrends.ts";
 import {
@@ -6470,7 +6471,126 @@ let thumbNg = 0;
   console.log(`結果（サムネイル画像の形式）: ${thumbNg === 0 ? "全てOK" : `${thumbNg} 件NG`}`);
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// SSRペイロードの creditNames（2026-09-05導入）
+//
+// SeasonExplorer はクライアントコンポーネントなので、渡したpropsがRSCのflight payload
+// として**HTMLにもう一度JSONで載る**。実測（/season/2025/summer・173作品）で
+// HTML全体 gzip 88,426B のうち **50,333B（57%）がflight payload** で、その中の
+// creditNames だけで gzip 9,787B ＝ 文書の11%を占めていた。画面には一度も出ない
+// （用途は検索のスタッフ名マッチだけ）ので、SSRのHTMLからは外して検索時に取りに行く。
+//
+// この節が守るのは4点。どれも**画面を見ても気づけない**:
+//   ①SSRに渡す経路が全部 stripCreditNamesForSsr を通っていること（新しいページを
+//     足して通し忘れると、そのページだけ11%重いHTMLに戻る）
+//   ②公開API（/api/season）は通していないこと（`/developers`が仕様を公開しており、
+//     二次利用側の creditNames が黙って消える）
+//   ③castNames は残っていること（声優チップと絞り込みが消える）
+//   ④検索が castNames にも当たること（外した直後に声優名で引けなくなる）
+// ────────────────────────────────────────────────────────────────────────────
+let ssrPayloadNg = 0;
+{
+  console.log("\n【SSRペイロードの creditNames】");
+
+  const sample = {
+    season: "2025-summer",
+    count: 2,
+    items: [
+      {
+        id: 1, title: "A", castNames: ["上田麗奈"], creditNames: ["上田麗奈", "長原圭太"],
+      } as any,
+      { id: 2, title: "B", castNames: [], creditNames: [] } as any,
+    ],
+  };
+  const slim = stripCreditNamesForSsr(sample as any)!;
+
+  const emptied = slim.items.every((it: any) => it.creditNames.length === 0);
+  if (!emptied) ssrPayloadNg++;
+  console.log(
+    `${emptied ? "✓" : "✗"}  ${"creditNames を落とす".padEnd(48)} → ` +
+      (emptied ? "全作品が空" : "残っている（転送量が戻る）")
+  );
+
+  const flagged = slim.creditsOmitted === true;
+  if (!flagged) ssrPayloadNg++;
+  console.log(
+    `${flagged ? "✓" : "✗"}  ${"外したことを印で伝える".padEnd(48)} → ` +
+      (flagged ? "creditsOmitted: true" : "印が無い＝本当に0件なのか区別できない")
+  );
+
+  const castKept =
+    slim.items[0].castNames.length === 1 && slim.items[0].castNames[0] === "上田麗奈";
+  if (!castKept) ssrPayloadNg++;
+  console.log(
+    `${castKept ? "✓" : "✗"}  ${"castNames は残す".padEnd(48)} → ` +
+      (castKept ? "声優チップ・絞り込みの元データ" : "落ちている（声優チップが消える）")
+  );
+
+  const intact =
+    slim.items.length === sample.items.length &&
+    slim.items.every((it: any, i: number) => it.id === sample.items[i].id && it.title === sample.items[i].title);
+  if (!intact) ssrPayloadNg++;
+  console.log(
+    `${intact ? "✓" : "✗"}  ${"それ以外は変えない".padEnd(48)} → ` +
+      (intact ? "件数・id・titleが一致" : "作品が減っている/入れ替わっている")
+  );
+
+  // 対象は手で並べない。app/ を走査して「SeasonExplorer/TopPageExplorer に initialData を
+  // 渡しているファイル」を導出し、全部が通しているかを見る。
+  const appDir = fileURLToPath(new URL("../app", import.meta.url));
+  const ssrFiles: string[] = [];
+  const walkApp = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const q = `${dir}/${e.name}`;
+      if (e.isDirectory()) walkApp(q);
+      else if (/\.tsx$/.test(e.name)) ssrFiles.push(q);
+    }
+  };
+  walkApp(appDir);
+  const passers = ssrFiles.filter((f) => /initialData=\{/.test(readFileSync(f, "utf8")));
+  const missing = passers.filter(
+    (f) => !/initialData=\{stripCreditNamesForSsr\(/.test(readFileSync(f, "utf8"))
+  );
+  const allPass = passers.length >= 2 && missing.length === 0;
+  if (!allPass) ssrPayloadNg++;
+  console.log(
+    `${allPass ? "✓" : "✗"}  ${"initialData を渡す経路が全部通っている".padEnd(48)} → ` +
+      (allPass
+        ? `${passers.length} ファイル`
+        : `${missing.map((f) => f.slice(f.indexOf("/app/") + 1)).join(", ")} が素通し`)
+  );
+
+  const apiRoute = readFileSync(new URL("../app/api/season/route.ts", import.meta.url), "utf8");
+  const apiUntouched = !/stripCreditNamesForSsr/.test(apiRoute);
+  if (!apiUntouched) ssrPayloadNg++;
+  console.log(
+    `${apiUntouched ? "✓" : "✗"}  ${"公開APIの形は変えていない".padEnd(48)} → ` +
+      (apiUntouched ? "/api/season は creditNames を返したまま" : "公開APIから消えている（/developers の仕様と食い違う）")
+  );
+
+  const explorer = readFileSync(new URL("../components/SeasonExplorer.tsx", import.meta.url), "utf8");
+  const searchesCast = /it\.castNames\.some\(\(n\) => n\.toLowerCase\(\)\.includes\(q\)\)/.test(explorer);
+  if (!searchesCast) ssrPayloadNg++;
+  console.log(
+    `${searchesCast ? "✓" : "✗"}  ${"検索が castNames にも当たる".padEnd(48)} → ` +
+      (searchesCast ? "声優名は取得を待たずに引ける" : "creditNames 頼み＝取得できるまで声優名で引けない")
+  );
+
+  const lazyFetch =
+    /creditsOmitted/.test(explorer) && /creditsRequested/.test(explorer) && /byId\.get\(it\.id\)/.test(explorer);
+  if (!lazyFetch) ssrPayloadNg++;
+  console.log(
+    `${lazyFetch ? "✓" : "✗"}  ${"検索時に creditNames を取りに行く".padEnd(48)} → ` +
+      (lazyFetch ? "creditsOmitted を見て1回だけ取得し重ねる" : "取得経路が無い＝スタッフ名で永久に引けない")
+  );
+
+  console.log(
+    `結果（SSRペイロードの creditNames）: ${ssrPayloadNg === 0 ? "全てOK" : `${ssrPayloadNg} 件NG`}`
+  );
+}
+
 if (
+  ssrPayloadNg > 0 ||
   topSsrNg > 0 ||
   inlineCssNg > 0 ||
   thumbNg > 0 ||
