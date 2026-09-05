@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import TopPageExplorer from "@/components/TopPageExplorer";
 import { getSeasonData } from "@/lib/getSeasonData";
@@ -48,12 +47,11 @@ export default async function Page() {
     data = undefined;
   }
 
-  return (
-    // TopPageExplorer が useSearchParams() を呼ぶため、トップページはこの Suspense 境界の
-    // 内側がクライアント描画になる（ディープリンク ?year=&season= の解決に必要）。
-    // SEOの受け皿である /season/** と /anime/** はサーバー描画のままなので影響しない。
-    <Suspense fallback={<div className="wrap" />}>
-      <TopPageExplorer initialData={data} />
-    </Suspense>
-  );
+  // 【2026-09-04変更】Suspense 境界を外した。以前は TopPageExplorer が useSearchParams()
+  // を呼んでいたため、Next.js 14 がこの境界の内側を丸ごとクライアント描画に退避させ、
+  // **トップページのHTMLが `<div class="wrap"></div>` だけ**になっていた（h1・作品リンク
+  // ともに0件）。いまはクエリをマウント後に反映する方式（components/TopPageExplorer.tsx）
+  // なので境界は要らず、"/" も /season/** と同じくサーバー描画のHTMLを返す。
+  // ここに Suspense を戻すと同じ壊れ方に逆戻りする（node scripts/check.ts が検査する）。
+  return <TopPageExplorer initialData={data} />;
 }

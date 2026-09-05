@@ -1,4 +1,4 @@
-import Link from "next/link";
+import IntentLink from "@/components/IntentLink";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
@@ -200,12 +200,12 @@ export default async function ServicePage({ params }: { params: Params }) {
           </h1>
         </div>
         <div className="meta">
-          <Link href="/" className="official">
+          <IntentLink href="/" className="official">
             ← アニメ視聴ガイドのトップに戻る
-          </Link>
-          <Link href={`/season/${year}/${season}`} className="official">
+          </IntentLink>
+          <IntentLink href={`/season/${year}/${season}`} className="official">
             {year}年{label}アニメ 配信情報一覧を見る
-          </Link>
+          </IntentLink>
         </div>
       </header>
 
@@ -252,14 +252,14 @@ export default async function ServicePage({ params }: { params: Params }) {
                 <ul className="detail-list">
                   {exclusiveItems.map((it) => (
                     <li key={it.id}>
-                      <Link href={`/anime/${it.id}`}>{it.title}</Link>
+                      <IntentLink href={`/anime/${it.id}`}>{it.title}</IntentLink>
                     </li>
                   ))}
                 </ul>
                 <p className="detail-text">
-                  <Link href={`/exclusive/${year}/${season}`}>
+                  <IntentLink href={`/exclusive/${year}/${season}`}>
                     {year}年{label}アニメの独占配信まとめ（全サービス）を見る
-                  </Link>
+                  </IntentLink>
                 </p>
               </section>
             )}
@@ -280,7 +280,7 @@ export default async function ServicePage({ params }: { params: Params }) {
                 <ul className="detail-list">
                   {items.map((it) => (
                     <li key={it.id}>
-                      <Link href={`/anime/${it.id}`}>{it.title}</Link>
+                      <IntentLink href={`/anime/${it.id}`}>{it.title}</IntentLink>
                       {it.rental && "（レンタル/都度課金）"}
                     </li>
                   ))}

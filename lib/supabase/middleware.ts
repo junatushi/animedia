@@ -3,17 +3,13 @@
 // （getSession()だけではリフレッシュされないため、getUser()を使う）。
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isSupabaseConfigured } from "./config";
+import { isAuthCookieName, isSupabaseConfigured } from "./config";
 
-// Supabaseの認証Cookieが1つでも付いているか。@supabase/ssr が発行するCookie名は
-// `sb-<プロジェクト参照>-auth-token` で、値が大きいときは `.0` `.1` … と分割される。
-// プロジェクト参照は環境によって変わるので、名前の形だけで判定する。
-// ここを厳しくしすぎる（＝ログイン中なのに素通ししてしまう）とセッションが更新されなく
-// なるため、判定は「sb- で始まり auth-token を含む」という緩い条件にしてある。
+// Supabaseの認証Cookieが1つでも付いているか。名前の形の判定は config.ts の
+// isAuthCookieName が持つ（ブラウザ側の AuthProvider と同じ規則を使うため。
+// 片方だけ条件がズレると「ログインした人にだけ起きる」壊れ方になる）。
 export function hasAuthCookie(request: NextRequest): boolean {
-  return request.cookies
-    .getAll()
-    .some((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"));
+  return request.cookies.getAll().some((c) => isAuthCookieName(c.name));
 }
 
 export async function updateSession(request: NextRequest) {

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import IntentLink from "./IntentLink";
 
 import ARCHIVE_INDEX from "@/content/archive/index.json";
 import { SEASON_LABEL } from "@/lib/resolveSeasonParams";
@@ -63,9 +63,9 @@ export default function NotFoundPanel() {
           <h1 className="brand">ページが見つかりません</h1>
         </div>
         <div className="meta">
-          <Link href="/" className="official">
+          <IntentLink href="/" className="official">
             ← アニメ視聴ガイドのトップに戻る
-          </Link>
+          </IntentLink>
         </div>
       </header>
 
@@ -82,7 +82,7 @@ export default function NotFoundPanel() {
             <section className="detail-section">
               <h2 className="detail-heading">今期のアニメを探す</h2>
               <p className="detail-text">
-                <Link href="/">アニメ視聴ガイドのトップ</Link>
+                <IntentLink href="/">アニメ視聴ガイドのトップ</IntentLink>
                 では、今期の放送・配信作品を配信サービス別に絞り込めます。作品名・声優名での
                 検索もこちらから行えます。
               </p>
@@ -93,9 +93,9 @@ export default function NotFoundPanel() {
               <ul className="detail-list">
                 {RECENT_SEASONS.map((s) => (
                   <li key={`${s.year}-${s.season}`}>
-                    <Link href={`/season/${s.year}/${s.season}`}>
+                    <IntentLink href={`/season/${s.year}/${s.season}`}>
                       {s.year}年{SEASON_LABEL[s.season]}アニメ
-                    </Link>
+                    </IntentLink>
                   </li>
                 ))}
               </ul>
@@ -105,10 +105,10 @@ export default function NotFoundPanel() {
               <h2 className="detail-heading">このサイトについて</h2>
               <ul className="detail-list">
                 <li>
-                  <Link href="/about">運営者情報・お問い合わせ</Link>
+                  <IntentLink href="/about">運営者情報・お問い合わせ</IntentLink>
                 </li>
                 <li>
-                  <Link href="/developers">配信先ウィジェット・公開API</Link>
+                  <IntentLink href="/developers">配信先ウィジェット・公開API</IntentLink>
                 </li>
               </ul>
             </section>

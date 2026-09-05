@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import Link from "next/link";
+import IntentLink from "./IntentLink";
 import { logEvent } from "@/lib/logEvent";
 import { textOn, splitRentalServices } from "@/lib/services";
 import { buildServicePlan } from "@/lib/servicePlan";
@@ -182,7 +182,19 @@ function WorkTile({ id, title }: { id: number; title: string }) {
     return (
       <div className="thumb thumb-ai" title={AI_IMAGE_NOTE}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`/works/${id}.jpg`} alt="" loading="lazy" className="thumb-ai-img" />
+        <img
+          src={`/works/${id}.webp`}
+          alt=""
+          loading="lazy"
+          // 実寸（scripts/gen-thumbnails.js が作る 640×360）を書いておくと、
+          // 読み込み前でもブラウザが場所を確保できる＝画像が入った瞬間に
+          // 下の内容がずれない（Cumulative Layout Shift の対策）。
+          // 表示サイズはCSS（.thumb-ai / .thumb-ai-img）が決める。
+          width={640}
+          height={360}
+          decoding="async"
+          className="thumb-ai-img"
+        />
         <span className="thumb-ai-tag">AI創作</span>
       </div>
     );
@@ -282,7 +294,12 @@ export default function SeasonExplorer({
   // 「SEO用のSSRページ」として作ったページ群が、実際には空のHTMLを返していたことになる。
   // クエリを読むのは呼び出し側（TopPageExplorer）の責任にして、このコンポーネント自身は
   // サーバーで描画できる状態に保つ。
-  const searchParams = new URLSearchParams(urlQuery ?? "");
+  // 【重要】urlQuery は**初期描画には使わない**（2026-09-04変更）。使うと、サーバーが
+  // 描いたHTML（クエリ非依存＝今期）と、クライアントの初回描画（クエリ依存）が食い違い、
+  // React の hydration が壊れる。代わりに下の useEffect でマウント後に反映する。
+  // これによりトップページ "/" も /season/** と同じくサーバー描画できるようになった
+  // （それまで "/" は useSearchParams() のせいで **HTMLが空**だった。下の TopPageExplorer
+  //  と docs/operations.md ㊵ を参照）。
   // サーバー側から年・シーズンを渡された（＝/season/.. ページ）場合は、
   // URLクエリへの同期やクエリからの読み取りをしない「固定表示」モードになる。
   const isFixed = fixedYear !== undefined && fixedSeason !== undefined;
@@ -294,12 +311,12 @@ export default function SeasonExplorer({
   // 共有する（lib/resolveSeasonParams.ts）。isFixed=false（トップページ）の場合、
   // ここで解決する年・シーズンは、SSR側が initialData を取得した際の年・シーズンと
   // 一致する必要がある（一致しないと表示中の年・シーズンとinitialDataの中身がズレる）。
+  // クエリ（?year=&season=）はここでは読まない（上のコメント。読むとサーバーHTMLと
+  // 食い違う）。ディープリンクはマウント後の useEffect が setYear/setSeason で反映し、
+  // 既存の取得 useEffect がそのクールを取りに行く。
   const resolved = isFixed
     ? { year: fixedYear!, season: fixedSeason! }
-    : resolveYearSeason({
-        year: searchParams.get("year") ?? undefined,
-        season: searchParams.get("season") ?? undefined,
-      });
+    : resolveYearSeason({});
   const initialYear = resolved.year;
   const initialSeasonKey = resolved.season;
 
@@ -333,18 +350,39 @@ export default function SeasonExplorer({
   // スクリーンショット撮影がヘッドレスブラウザから直接その画面を開けるようにするため。
   // 2026-07-14導入）。それ以外の通常閲覧では従来通りクリック操作で切り替わる。
   const CALENDAR_DAY_LABELS = ["月", "火", "水", "木", "金", "土", "日", "配信日未定"];
-  const [viewMode, setViewMode] = useState<"grid" | "calendar">(
-    searchParams.get("view") === "calendar" ? "calendar" : "grid"
-  );
+  const [viewMode, setViewMode] = useState<"grid" | "calendar">("grid");
   // カレンダー表示で、特定の曜日だけに絞り込むためのラベル（"all" = 全曜日）。
-  const [calendarDay, setCalendarDay] = useState<string>(() => {
-    const day = searchParams.get("day");
-    return day && CALENDAR_DAY_LABELS.includes(day) ? day : "all";
-  });
+  const [calendarDay, setCalendarDay] = useState<string>("all");
   // ?ranking=open で「今期の注目作 TOP5」パネルを初期状態から開いておける（同上の理由）。
-  const [rankingOpen] = useState(() => searchParams.get("ranking") === "open");
+  const [rankingOpen, setRankingOpen] = useState(false);
   // 複数の配信サービスを選んだ時、いずれか一致（OR）か全て一致（AND）かを切り替える。
   const [andMode, setAndMode] = useState(false);
+
+  // URLクエリ（?year=&season=&view=&day=&ranking=）はマウント後に1回だけ反映する。
+  // 初期描画で読まないのは、サーバーが描いたHTML（クエリ非依存＝今期）と食い違わせない
+  // ため（このファイル冒頭 urlQuery のコメント）。ディープリンクは setYear/setSeason で
+  // 反映し、下の取得 useEffect がそのクールを取りに行く。
+  // 【注意】このコンポーネントには「既定表示ならURLからクエリを消す」同期 useEffect が
+  // あり、宣言順で**この後**に走る。先にここで state を書き換えておくことで、再描画後の
+  // 同期でクエリが正しく組み直される（順序を入れ替えるとディープリンクが消える）。
+  useEffect(() => {
+    if (isFixed || !urlQuery) return;
+    const sp = new URLSearchParams(urlQuery);
+    const r = resolveYearSeason({
+      year: sp.get("year") ?? undefined,
+      season: sp.get("season") ?? undefined,
+    });
+    if (r.year !== year || r.season !== season) {
+      setYear(r.year);
+      setSeason(r.season);
+    }
+    if (sp.get("view") === "calendar") setViewMode("calendar");
+    const day = sp.get("day");
+    if (day && CALENDAR_DAY_LABELS.includes(day)) setCalendarDay(day);
+    if (sp.get("ranking") === "open") setRankingOpen(true);
+    // マウント時の1回だけ（依存に year/season を入れると操作のたびにクエリへ戻る）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // お気に入り＝ログイン不要でブラウザの localStorage に作品IDを保存する。
   // シーズンをまたいで保持したいので、キーはシーズンに依存しないグローバルな1つ。
@@ -582,6 +620,31 @@ export default function SeasonExplorer({
   // 軽量インデックスから拾う（タイトル・読み仮名・通称/略称で一致）。配信サービス
   // 絞り込み・お気に入りは重いデータが無いインデックスには適用できないため、無指定時のみ出す。
   const CROSS_LIMIT = 60;
+  // カードを12枚ずつ <Suspense> で包む（2026-09-03導入）。
+  //
+  // 【なぜ】このコンポーネントは1クールぶん（最大約220枚）のカードを1本の
+  // クライアントコンポーネントとして水和（hydration）する。境界が無いとReactは
+  // 全体を1つの長いタスクで水和するため、その間タップにもスクロールにも反応しない。
+  // Suspense境界があるとReactは境界ごとに水和を切り、間で他の処理に譲る。
+  //
+  // 【実測】同じビルド同士で5回ずつ測った中央値（CPU4倍・1.6Mbps・390×844）:
+  //   境界なし … TBT 1,404ms / ロングタスク 9本
+  //   境界あり … TBT 1,135ms / ロングタスク21本（**−19%**。範囲も重なっていない）
+  // FCP・LCPは変わらない（描画そのものは同じ量なので当然）。効くのは
+  // 「出てから触れるようになるまで」。手順は scripts/measure-pages.js。
+  //
+  // 【注意】ここは**見た目もHTMLの中身も変えない**（Suspenseの子が同期的に描けるので
+  // fallbackは出ない。サーバー側HTMLは境界のコメントマーカーが増えるだけ）。
+  // 数を増やすと境界のオーバーヘッドが勝ち、減らすと1本が長くなる。12は実測値。
+  const CARD_HYDRATION_CHUNK = 12;
+  const cardChunks = useMemo(() => {
+    const out: AnimeItem[][] = [];
+    for (let i = 0; i < filtered.length; i += CARD_HYDRATION_CHUNK) {
+      out.push(filtered.slice(i, i + CARD_HYDRATION_CHUNK));
+    }
+    return out;
+  }, [filtered]);
+
   const crossMatches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (q === "" || searchIndex.length === 0) return [];
@@ -675,6 +738,37 @@ export default function SeasonExplorer({
 
   return (
     <div className="wrap">
+      {/* カードのアイコン（視聴済み＝目・配信通知＝ベル）の実体。1シーズン最大約220枚の
+          カードがそれぞれ同じSVGを2つinlineで持っていたため、HTMLが約90KB・DOMが約690
+          ノード余分に膨らんでいた（実測: /season/2025/summer は880KB・8,699ノード）。
+          symbolを1回だけ置き、各カードは <use href="#i-eye"> で参照する。
+          strokeは currentColor のままなので、視聴済み時の色変化も今までどおり効く。 */}
+      <svg aria-hidden="true" focusable="false" style={{ display: "none" }}>
+        <symbol
+          id="i-eye"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </symbol>
+        <symbol
+          id="i-bell"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+        </symbol>
+      </svg>
       <a href="#main-content" className="skip-link">
         本文へスキップ
       </a>
@@ -1134,9 +1228,9 @@ export default function SeasonExplorer({
                       {it.broadcastTime && (
                         <span className="calendar-time">{it.broadcastTime}</span>
                       )}
-                      <Link href={`/anime/${it.id}`} className="calendar-title">
+                      <IntentLink href={`/anime/${it.id}`} className="calendar-title">
                         {it.title}
-                      </Link>
+                      </IntentLink>
                       {(() => {
                         const { streaming } = splitRentalServices(it.services, RENTAL_SERVICES[it.id]);
                         if (streaming.length === 0 && it.otherServices.length === 0) return null;
@@ -1178,7 +1272,9 @@ export default function SeasonExplorer({
       {viewMode === "grid" && !loading && !error && data && filtered.length > 0 && (
         <>
           <div className="grid">
-          {filtered.map((it) => (
+          {cardChunks.map((group, gi) => (
+          <Suspense key={gi}>
+          {group.map((it) => (
             <article key={it.id} className="card">
               <span className="slash" aria-hidden="true" />
               {/* 上部バー：放送タイミング（左）＋クール（右）。 */}
@@ -1198,7 +1294,7 @@ export default function SeasonExplorer({
               {/* タイトル（全幅）。 */}
               <div className="card-head">
                 <h3 className="card-title">
-                  <Link href={`/anime/${it.id}`}>{it.title}</Link>
+                  <IntentLink href={`/anime/${it.id}`}>{it.title}</IntentLink>
                 </h3>
               </div>
               {/* 中段：サムネ（左）＋配信サービス（右）。 */}
@@ -1241,20 +1337,10 @@ export default function SeasonExplorer({
                     >
                       {/* 絵文字だと環境依存で表示されない/文字化けすることがあるため、
                           確実に表示されるSVGの目玉アイコンにしている（stroke=currentColorで
-                          視聴済み時の色変化にも追従する）。 */}
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        width="16"
-                        height="16"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                        <circle cx="12" cy="12" r="3" />
+                          視聴済み時の色変化にも追従する）。図形の実体は下部のスプライト
+                          （#i-eye）に1つだけ置き、カードからは参照する。 */}
+                      <svg aria-hidden="true" width="16" height="16">
+                        <use href="#i-eye" />
                       </svg>
                     </button>
                     <button
@@ -1271,19 +1357,8 @@ export default function SeasonExplorer({
                       title="配信開始を通知"
                       onClick={() => toggleNotify(it.id)}
                     >
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        width="16"
-                        height="16"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                      <svg aria-hidden="true" width="16" height="16">
+                        <use href="#i-bell" />
                       </svg>
                     </button>
                   </div>
@@ -1319,6 +1394,8 @@ export default function SeasonExplorer({
               </div>
             </article>
           ))}
+          </Suspense>
+          ))}
           </div>
           {/* ステマ規制（景表法）対応: カード一覧では ServiceMarks を hideDisclosure 付きで
               呼んでおり作品ごとの開示文は出さないため、一覧全体につき1回だけここで開示する
@@ -1350,11 +1427,11 @@ export default function SeasonExplorer({
                     {e.year ? `${e.year}年 ${e.season ? SEASON_LABEL[e.season] ?? "" : ""}` : "放送時期不明"}
                   </span>
                   <h3 className="card-title">
-                    <Link href={`/anime/${e.id}`}>{e.title}</Link>
+                    <IntentLink href={`/anime/${e.id}`}>{e.title}</IntentLink>
                   </h3>
-                  <Link href={`/anime/${e.id}`} className="official">
+                  <IntentLink href={`/anime/${e.id}`} className="official">
                     配信情報を見る →
-                  </Link>
+                  </IntentLink>
                 </div>
               </article>
             ))}
@@ -1397,7 +1474,7 @@ export default function SeasonExplorer({
               {s.key === season ? (
                 <span aria-current="page">{s.label}</span>
               ) : (
-                <Link href={`/season/${year}/${s.key}`}>{s.label}</Link>
+                <IntentLink href={`/season/${year}/${s.key}`}>{s.label}</IntentLink>
               )}
             </span>
           ))}
@@ -1416,7 +1493,7 @@ export default function SeasonExplorer({
             <span className="season-archive-label">配信サービス別:</span>
             {availableServices.map((s) => (
               <span key={s.key} className="season-archive-item">
-                <Link href={`/service/${s.key}/${year}/${season}`}>{s.short}</Link>
+                <IntentLink href={`/service/${s.key}/${year}/${season}`}>{s.short}</IntentLink>
               </span>
             ))}
           </p>
@@ -1428,7 +1505,7 @@ export default function SeasonExplorer({
               {y === year ? (
                 <span aria-current="page">{y}</span>
               ) : (
-                <Link href={`/season/${y}/${season}`}>{y}</Link>
+                <IntentLink href={`/season/${y}/${season}`}>{y}</IntentLink>
               )}
             </span>
           ))}
@@ -1442,15 +1519,15 @@ export default function SeasonExplorer({
         新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
         「その他配信」は未登録サービスの可能性があり、点線で表示しています。
         {" "}
-        <Link href={`/exclusive/${year}/${season}`}>{year}年{SEASON_LABEL[season]}アニメの独占配信まとめ</Link>
+        <IntentLink href={`/exclusive/${year}/${season}`}>{year}年{SEASON_LABEL[season]}アニメの独占配信まとめ</IntentLink>
         {" ・ "}
-        <Link href={`/rankings/${year}/${season}`}>配信サービス勢力図・ランキング</Link>
+        <IntentLink href={`/rankings/${year}/${season}`}>配信サービス勢力図・ランキング</IntentLink>
         {" ・ "}
-        <Link href="/developers">配信先ウィジェット・公開API</Link>
+        <IntentLink href="/developers">配信先ウィジェット・公開API</IntentLink>
         {" ・ "}
-        <Link href="/about">運営者情報</Link>
+        <IntentLink href="/about">運営者情報</IntentLink>
         {" ・ "}
-        <Link href="/privacy">プライバシーポリシー・広告掲載について</Link>
+        <IntentLink href="/privacy">プライバシーポリシー・広告掲載について</IntentLink>
       </p>
       </main>
 

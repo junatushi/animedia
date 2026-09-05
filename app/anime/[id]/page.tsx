@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import Link from "next/link";
+import IntentLink from "@/components/IntentLink";
 import { getWorkData } from "@/lib/getWorkData";
 import { getSeasonData } from "@/lib/getSeasonData";
 import { splitRentalServices, getServiceKana, sortServicesForMetadata } from "@/lib/services";
@@ -98,7 +98,7 @@ export const revalidate = 604800;
 // ビルド時に全部焼くのは現実的でなく、実際にタップされたものだけキャッシュすれば足りる。
 //
 // 副次効果（Next.jsの仕様。実機での計測は未実施）: ルートが静的扱い（ビルド出力の ●）に
-// なると <Link> が画面内に入ったカードのRSCペイロードを先読みするようになる。動的ルートの
+// なると <IntentLink> が画面内に入ったカードのRSCペイロードを先読みするようになる。動的ルートの
 // ままだと loading.tsx が無い限り一切先読みしないので、この点でも体感が変わるはず。
 //
 // なお、ここに loading.tsx を置くとタップ直後に骨組みを出せるが、ストリーミングで
@@ -515,13 +515,13 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
           </p>
         )}
         <div className="meta">
-          <Link href="/" className="official">
+          <IntentLink href="/" className="official">
             ← アニメ視聴ガイドのトップに戻る
-          </Link>
+          </IntentLink>
           {workSeason && (
-            <Link href={`/season/${workSeason.year}/${workSeason.key}`} className="official">
+            <IntentLink href={`/season/${workSeason.year}/${workSeason.key}`} className="official">
               {workSeason.year}年{workSeason.label}アニメ一覧を見る
-            </Link>
+            </IntentLink>
           )}
         </div>
       </header>
@@ -530,7 +530,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         {WORK_IMAGE_IDS.has(item.id) && (
           <figure className="detail-hero">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/works/${item.id}.jpg`} alt="" className="detail-hero-img" />
+            <img src={`/works/${item.id}.webp`} alt="" className="detail-hero-img" />
             <figcaption className="detail-hero-note">※ {AI_IMAGE_NOTE}</figcaption>
           </figure>
         )}
@@ -676,12 +676,12 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                       <li key={i} className="detail-cast">
                         {c.characterName && <span className="detail-cast-role">{c.characterName}</span>}
                         {workSeason && linkableCastNames.has(c.personName) ? (
-                          <Link
+                          <IntentLink
                             href={`/person/${encodeURIComponent(c.personName)}/${workSeason.year}/${workSeason.key}`}
                             className="detail-cast-name"
                           >
                             {c.personName}
-                          </Link>
+                          </IntentLink>
                         ) : (
                           <span className="detail-cast-name">{c.personName}</span>
                         )}
@@ -704,9 +704,9 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                   <h2 className="detail-heading">監督</h2>
                   <p className="detail-text">
                     {hasCreditPage(STUDIO_INDEX, "director", credits.director) ? (
-                      <Link href={`/director/${encodeURIComponent(credits.director)}`}>
+                      <IntentLink href={`/director/${encodeURIComponent(credits.director)}`}>
                         {credits.director}
-                      </Link>
+                      </IntentLink>
                     ) : (
                       credits.director
                     )}
@@ -719,9 +719,9 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                   <h2 className="detail-heading">製作会社</h2>
                   <p className="detail-text">
                     {hasCreditPage(STUDIO_INDEX, "studio", credits.productionCompany) ? (
-                      <Link href={`/studio/${encodeURIComponent(credits.productionCompany)}`}>
+                      <IntentLink href={`/studio/${encodeURIComponent(credits.productionCompany)}`}>
                         {credits.productionCompany}
-                      </Link>
+                      </IntentLink>
                     ) : (
                       credits.productionCompany
                     )}
@@ -767,9 +767,9 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
               <ul className="related-works">
                 {seriesOthers.map((w) => (
                   <li key={w.id} className="related-work">
-                    <Link href={`/anime/${w.id}`} className="related-work-title">
+                    <IntentLink href={`/anime/${w.id}`} className="related-work-title">
                       {series.title}（{w.label}）
-                    </Link>
+                    </IntentLink>
                     <span className="related-work-sub">配信情報を見る</span>
                   </li>
                 ))}
@@ -800,9 +800,9 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                   const names = [...it.services.map((s) => s.short), ...it.otherServices];
                   return (
                     <li key={it.id} className="related-work">
-                      <Link href={`/anime/${it.id}`} className="related-work-title">
+                      <IntentLink href={`/anime/${it.id}`} className="related-work-title">
                         {it.title}
-                      </Link>
+                      </IntentLink>
                       <span className="related-work-sub">
                         {names.length > 0
                           ? `${names.slice(0, 3).join("・")}${names.length > 3 ? `ほか${names.length - 3}件` : ""}で配信`
@@ -814,9 +814,9 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                 })}
               </ul>
               <p className="related-works-more">
-                <Link href={`/season/${workSeason.year}/${workSeason.key}`}>
+                <IntentLink href={`/season/${workSeason.year}/${workSeason.key}`}>
                   {workSeason.year}年{workSeason.label}アニメの配信情報をすべて見る →
-                </Link>
+                </IntentLink>
               </p>
               {/* 配信サービス別ページへの導線（2026-08-07追加）。
                   /service/[key]/[year]/[season] はsitemapにしか載っておらず、
@@ -830,9 +830,9 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                   {streamingServices.map((s, i) => (
                     <span key={s.key}>
                       {i > 0 && " ・ "}
-                      <Link href={`/service/${s.key}/${workSeason.year}/${workSeason.key}`}>
+                      <IntentLink href={`/service/${s.key}/${workSeason.year}/${workSeason.key}`}>
                         {s.short}で見られる{workSeason.year}年{workSeason.label}アニメ
-                      </Link>
+                      </IntentLink>
                     </span>
                   ))}
                 </p>
@@ -859,11 +859,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
         「その他配信」は未登録サービスの可能性があり、点線で表示しています。
         {" "}
-        <Link href="/developers">配信先ウィジェット・公開API</Link>
+        <IntentLink href="/developers">配信先ウィジェット・公開API</IntentLink>
         {" ・ "}
-        <Link href="/about">運営者情報</Link>
+        <IntentLink href="/about">運営者情報</IntentLink>
         {" ・ "}
-        <Link href="/privacy">プライバシーポリシー・広告掲載について</Link>
+        <IntentLink href="/privacy">プライバシーポリシー・広告掲載について</IntentLink>
       </p>
     </div>
   );

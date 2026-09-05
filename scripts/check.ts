@@ -88,6 +88,7 @@ import { parseWorkId } from "../lib/workId.ts";
 // 検査の対象を**手で数えず、app/ を走査して導出する**ための道具（2026-08-31導入）。
 // 名指しの列挙が漏れて OG画像ルートだけ検証を通っていなかった事故から入れた。
 import { appRoutes, dynamicRoutes } from "./lib/app-routes.js";
+import { build as buildInlineCss } from "./build-inline-css.js";
 // 配信サービス追加の検知（2026-08-07追加）。純粋関数のみ。
 import { applySightings } from "../lib/serviceAdditions.ts";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
@@ -4368,11 +4369,13 @@ let softNg = 0;
       new URL("../components/NotFoundPanel.tsx", import.meta.url),
       "utf8"
     );
-    const links = (nf.match(/<Link href=/g) || []).length;
+    // サイト内リンクの部品は components/IntentLink.tsx（2026-09-03に next/link から
+    // 全面移行。下の「リンクの先読み」節を読むこと）。
+    const links = (nf.match(/<IntentLink href=/g) || []).length;
     softCheck(
       "404ページに戻る導線がある",
       links >= 2,
-      `<Link> が ${links} 本`
+      `<IntentLink> が ${links} 本`
     );
     // ビルド時に事前生成され得るので、日付から組んだURLは古くなる。
     // コメントは除いて見る（「new Date() を使わない」という**注意書き**自体に
@@ -6076,8 +6079,403 @@ let isrNg = 0;
   console.log(`結果（ISRの再生成頻度）: ${isrNg === 0 ? "全てOK" : `${isrNg} 件NG`}`);
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// リンクの先読み（2026-09-03導入・重大度高）
+//
+// App Router の <Link> は既定で「画面に入った（200px手前まで近づいた）リンクの
+// RSCペイロードを先読みする」。このサイトはリンクが多く、1件あたりのペイロードも大きい。
+// ローカル本番ビルドの実測（/season/2025/summer）:
+//   ・/anime/[id] へのリンク 173本 × 11.9KB
+//   ・フッターの /season/[y]/[s] リンク 19本 × 181KB（!）
+//   ・/service/... 12本 × 12.8KB
+//   ・ヘッダーの "/" 1本 × 181KB（**全ページで初期表示と同時に走っていた**）
+// つまり誰も押していないページのために最大5MB超を裏で取りに行っていた。訪問者の回線を
+// 奪って表示が遅くなるだけでなく、Vercelの Function Invocations・ISR Reads/Writes・
+// 転送量まで押されてもいないページのために消費する（Active CPU は2026-09-02実測で
+// 既に通常上限の106%）。
+//
+// いまは components/IntentLink.tsx が「素振り（hover/touchstart）のあったリンクだけ
+// 先読みする」形に一本化してある。この検査が守るのは
+//   ①素の next/link に戻さないこと（1ファイルでも戻ると、その画面だけ先読みが復活する）
+//   ②IntentLink から prefetch={false} や素振りの先読みを外さないこと
+// の2点。**画面を見ても気づけない**（見た目・遷移先は何も変わらず、増えるのは通信と請求）
+// ので機械で見張る。経緯は docs/operations.md の㊴。
+// ────────────────────────────────────────────────────────────────────────────
+let prefetchNg = 0;
+{
+  console.log("\n【リンクの先読み】");
+
+  // 対象は手で並べない（走査して導出する。scripts/lib/app-routes.js と同じ方針）。
+  //
+  // パスは必ず「/」に寄せてから比較する。Windows の fileURLToPath は
+  // `D:\a\animedia\components\IntentLink.tsx`（円記号）を返すのに、走査側は
+  // `${dir}/${e.name}` で組むので `...\components/IntentLink.tsx` と**混ざる**。
+  // 素の文字列比較だと除外が効かず、**IntentLink 自身を違反として数えて**しまう
+  // （2026-09-04 に Windows の CI だけが落ちて発覚。Linux では永久に緑のまま）。
+  const toPosix = (p: string) => p.replace(/\\/g, "/");
+  const linkRoots = ["../app", "../components"].map((r) =>
+    toPosix(fileURLToPath(new URL(r, import.meta.url)))
+  );
+  const linkFiles: string[] = [];
+  const walkTsx = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = `${dir}/${e.name}`;
+      if (e.isDirectory()) walkTsx(p);
+      else if (/\.(tsx|ts)$/.test(e.name)) linkFiles.push(p);
+    }
+  };
+  linkRoots.forEach(walkTsx);
+
+  const scanned = linkFiles.length >= 20;
+  if (!scanned) prefetchNg++;
+  console.log(
+    `${scanned ? "✓" : "✗"}  ${"app/・components/ を走査できている".padEnd(48)} → ${linkFiles.length} ファイル`
+  );
+
+  const intentLinkPath = toPosix(
+    fileURLToPath(new URL("../components/IntentLink.tsx", import.meta.url))
+  );
+  const rel = (f: string) => f.slice(f.indexOf("/animedia/") >= 0 ? f.indexOf("/animedia/") + 10 : 0);
+  const rawLinkUsers = linkFiles.filter(
+    (f) => f !== intentLinkPath && /from "next\/link"/.test(readFileSync(f, "utf8"))
+  );
+  const rawOk = rawLinkUsers.length === 0;
+  if (!rawOk) prefetchNg++;
+  console.log(
+    `${rawOk ? "✓" : "✗"}  ${"next/link を直接使うのは IntentLink だけ".padEnd(48)} → ` +
+      (rawOk
+        ? "他に0ファイル"
+        : `${rawLinkUsers.map(rel).join(", ")} が直接importしている（画面内に入っただけで先読みが走る）`)
+  );
+
+  const intent = readFileSync(intentLinkPath, "utf8");
+  const noViewport = /prefetch=\{false\}/.test(intent);
+  if (!noViewport) prefetchNg++;
+  console.log(
+    `${noViewport ? "✓" : "✗"}  ${"IntentLink が画面内先読みを止めている".padEnd(48)} → ` +
+      (noViewport ? "prefetch={false}" : "prefetch={false} が無い＝既定の画面内先読みに戻っている")
+  );
+
+  // 素振りの先読みまで消すと、作品ページはタップしてから取得が始まる。
+  // app/anime/[id]/page.tsx は「loading.tsx を置くとソフト404になるので置かない。
+  // 代わりに先読みで速さを担保する」方針なので、ここは消してはいけない。
+  // コメントは除いて見る（「router.prefetch を呼ぶ」という**注意書き**自体に
+  // 反応してしまうため。同じ穴を404の検査で1度踏んでいる）。
+  const intentCode = intent.replace(/^\s*\/\/.*$/gm, "");
+  const warmsOnIntent =
+    /router\.prefetch\(/.test(intentCode) &&
+    /onMouseEnter=/.test(intentCode) &&
+    /onTouchStart=/.test(intentCode);
+  if (!warmsOnIntent) prefetchNg++;
+  console.log(
+    `${warmsOnIntent ? "✓" : "✗"}  ${"押しそうな素振りでは先読みする".padEnd(48)} → ` +
+      (warmsOnIntent
+        ? "router.prefetch を onMouseEnter/onTouchStart で呼ぶ"
+        : "素振りの先読みが消えている（タップしてから取得が始まり、作品ページが遅くなる）")
+  );
+
+  const users = linkFiles.filter(
+    (f) => f !== intentLinkPath && /<IntentLink[\s>]/.test(readFileSync(f, "utf8"))
+  );
+  const usersOk = users.length >= 8;
+  if (!usersOk) prefetchNg++;
+  console.log(
+    `${usersOk ? "✓" : "✗"}  ${"サイト内リンクが IntentLink を通っている".padEnd(48)} → ${users.length} ファイル`
+  );
+
+  console.log(`結果（リンクの先読み）: ${prefetchNg === 0 ? "全てOK" : `${prefetchNg} 件NG`}`);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// ログインJSの遅延読み込み（2026-09-03導入）
+//
+// supabase-js は実測で gzip 約51KB・生188KB あり、AuthProvider が静的importして
+// いたためトップ・シーズン一覧の初期JS（実測181KB）に常時含まれていた。ログインが
+// 要るのは視聴済み・配信通知だけで、閲覧・検索・お気に入りは未ログインで完全に動く。
+// いまは「認証Cookieがある人だけが、初回描画の後に動的importで取りに行く」形にしてある
+// （実測: / の First Load JS 181KB → 116KB）。
+//
+// 静的importが1ファイルでも復活すると、そのページの初期JSに丸ごと戻る（画面は何も
+// 変わらないので気づけない）ため機械で見張る。Cookie名の判定規則を1箇所に保つのも
+// ここで見る（middlewareとブラウザで条件がズレると「ログインした人にだけ起きる」
+// 壊れ方になる）。
+// ────────────────────────────────────────────────────────────────────────────
+let authJsNg = 0;
+{
+  console.log("\n【ログインJSの遅延読み込み】");
+
+  const componentsDir = fileURLToPath(new URL("../components", import.meta.url));
+  const componentFiles: string[] = [];
+  const walkComponents = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = `${dir}/${e.name}`;
+      if (e.isDirectory()) walkComponents(p);
+      else if (/\.(tsx|ts)$/.test(e.name)) componentFiles.push(p);
+    }
+  };
+  walkComponents(componentsDir);
+
+  // 静的import（先頭の import 文）だけを見る。動的import（await import(...)）は合格。
+  const staticImporters = componentFiles.filter((f) =>
+    /^import[^\n]*from "@\/lib\/supabase\/client";/m.test(readFileSync(f, "utf8"))
+  );
+  const staticOk = staticImporters.length === 0;
+  if (!staticOk) authJsNg++;
+  console.log(
+    `${staticOk ? "✓" : "✗"}  ${"supabase-js を初期JSに載せていない".padEnd(48)} → ` +
+      (staticOk
+        ? "components/ に静的importは0件"
+        : `${staticImporters.map((f) => f.slice(f.lastIndexOf("/") + 1)).join(", ")} が静的import`)
+  );
+
+  const provider = readFileSync(
+    new URL("../components/AuthProvider.tsx", import.meta.url),
+    "utf8"
+  );
+  const gated =
+    /if \(!hasAuthCookie\(\)\)/.test(provider) && /import\("@\/lib\/supabase\/client"\)/.test(provider);
+  if (!gated) authJsNg++;
+  console.log(
+    `${gated ? "✓" : "✗"}  ${"未ログインでは1バイトも読み込まない".padEnd(48)} → ` +
+      (gated
+        ? "認証Cookieの門番＋動的import"
+        : "AuthProvider の門番か動的importが外れている（閲覧するだけの人が51KBを払う）")
+  );
+
+  // Cookie名の判定は lib/supabase/config.ts の isAuthCookieName **だけ**が持つ。
+  const cfg = readFileSync(new URL("../lib/supabase/config.ts", import.meta.url), "utf8");
+  const mw = readFileSync(new URL("../lib/supabase/middleware.ts", import.meta.url), "utf8");
+  const single =
+    /export function isAuthCookieName/.test(cfg) &&
+    /isAuthCookieName/.test(mw) &&
+    /isAuthCookieName/.test(provider) &&
+    !/auth-token/.test(mw) &&
+    !/"auth-token"|'auth-token'/.test(provider);
+  if (!single) authJsNg++;
+  console.log(
+    `${single ? "✓" : "✗"}  ${"認証Cookieの判定が1箇所".padEnd(48)} → ` +
+      (single
+        ? "config.ts の isAuthCookieName を middleware とブラウザが共有"
+        : "判定が2箇所に分かれている（ズレるとログイン中の人だけ壊れる）")
+  );
+
+  console.log(`結果（ログインJSの遅延読み込み）: ${authJsNg === 0 ? "全てOK" : `${authJsNg} 件NG`}`);
+}
+
+
+// ────────────────────────────────────────────────────────────────────────────
+// トップページのサーバー描画（2026-09-04導入・重大度高）
+//
+// 【なぜ要るか】トップページ "/" は 2026-08-05 から 2026-09-04 まで、本番のHTMLが
+// `<div class="wrap"></div>` **だけ**だった（h1が0個・作品への <a href="/anime/..">
+// が0個・カード0件）。原因は TopPageExplorer が useSearchParams() を呼んでいたことで、
+// Next.js 14 はそれを含む Suspense 境界を丸ごとクライアント描画に退避させる。
+// 2026-08-05 に /season/** では同じ壊れ方を直したが、**トップだけ残っていた**。
+// 影響は2つ: ①サイトの正面玄関（canonical の指す先）が検索エンジンに空だった
+// ②本番のPageSpeed実測（モバイル）で Script Evaluation が 802ms（シーズンページは
+// 469ms）、HTMLパースは 8ms（同 50ms）＝「HTMLを読む」より「JSで組み立て直す」ほうが
+// 桁違いに高い。観測FCPも 2813ms 対 2519ms でトップが遅かった。
+//
+// 画面を見ている限り絶対に気づけない（クライアント描画で普通に表示される）ので機械で見張る。
+// ────────────────────────────────────────────────────────────────────────────
+let topSsrNg = 0;
+{
+  console.log("\n【トップページのサーバー描画】");
+
+  const topPage = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const wrapper = readFileSync(
+    new URL("../components/TopPageExplorer.tsx", import.meta.url),
+    "utf8"
+  );
+  const explorer = readFileSync(
+    new URL("../components/SeasonExplorer.tsx", import.meta.url),
+    "utf8"
+  );
+
+  // ① トップページを Suspense で包まない（包む必要があるのは useSearchParams を
+  //    使うときだけで、使わない今それを戻すと「境界の中が空のHTML」に逆戻りする）。
+  const topPageBody = stripCommentLines(topPage);
+  const noSuspense = !/<Suspense[\s>]/.test(topPageBody) && !/\bSuspense\b/.test(topPageBody);
+  if (!noSuspense) topSsrNg++;
+  console.log(
+    `${noSuspense ? "✓" : "✗"}  ${"app/page.tsx が Suspense で包んでいない".padEnd(48)} → ` +
+      (noSuspense ? "サーバー描画のHTMLをそのまま返す" : "境界の中がクライアント描画に退避する")
+  );
+
+  // ② クエリの読み取りに useSearchParams() を使わない（これがある限り退避は起きる）。
+  const noUseSearchParams =
+    !/useSearchParams/.test(stripCommentLines(wrapper)) &&
+    !/useSearchParams/.test(stripCommentLines(explorer));
+  if (!noUseSearchParams) topSsrNg++;
+  console.log(
+    `${noUseSearchParams ? "✓" : "✗"}  ${"useSearchParams を使っていない".padEnd(48)} → ` +
+      (noUseSearchParams
+        ? "window.location.search をhydrationより前に1度だけ読む"
+        : "TopPageExplorer か SeasonExplorer が呼んでいる")
+  );
+
+  // ③ urlQuery を初期描画に使わない。使うとサーバーHTMLとクライアント初回描画が
+  //    食い違い、hydration が壊れる（＝クエリ付きで開いた人にだけ起きる壊れ方）。
+  // urlQuery が出てよい行を**列挙**する（正規表現で「useStateの中か」を判定しようと
+  // すると、`useState(() => new URLSearchParams(urlQuery)...)` のような入れ子で
+  // 静かにすり抜ける＝実際に変異テストで抜けた）。想定外の行に現れたら落とす。
+  const explorerNoComments = stripCommentLines(explorer);
+  const ALLOWED_QUERY_LINES = [
+    "urlQuery?: string;",
+    "urlQuery,",
+    "if (isFixed || !urlQuery) return;",
+    "const sp = new URLSearchParams(urlQuery);",
+  ];
+  const queryLines = explorerNoComments
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.includes("urlQuery"));
+  const strayQueryLines = queryLines.filter((l) => !ALLOWED_QUERY_LINES.includes(l));
+  const noQueryInInitialState =
+    strayQueryLines.length === 0 && queryLines.length === ALLOWED_QUERY_LINES.length;
+  if (!noQueryInInitialState) topSsrNg++;
+  console.log(
+    `${noQueryInInitialState ? "✓" : "✗"}  ${"urlQuery を初期描画に使っていない".padEnd(48)} → ` +
+      (noQueryInInitialState
+        ? `useEffect の中だけで参照（${queryLines.length}行）`
+        : strayQueryLines.length > 0
+          ? `想定外の参照: ${strayQueryLines.slice(0, 2).join(" / ")}`
+          : `参照が ${queryLines.length} 行（想定は ${ALLOWED_QUERY_LINES.length} 行）`)
+  );
+
+  // ④ マウント後に反映する useEffect が実在すること（②③だけだとディープリンク
+  //    ?year=&season=&view=&day=&ranking= が黙って効かなくなる）。
+  const appliesLater =
+    /new URLSearchParams\(urlQuery\)/.test(explorerNoComments) &&
+    /sp\.get\("view"\)/.test(explorerNoComments) &&
+    /sp\.get\("day"\)/.test(explorerNoComments) &&
+    /sp\.get\("ranking"\)/.test(explorerNoComments) &&
+    /setYear\(r\.year\)/.test(explorerNoComments);
+  if (!appliesLater) topSsrNg++;
+  console.log(
+    `${appliesLater ? "✓" : "✗"}  ${"ディープリンクをマウント後に反映している".padEnd(48)} → ` +
+      (appliesLater ? "?year=&season=&view=&day=&ranking= を useEffect で適用" : "反映する経路が無い")
+  );
+
+  console.log(`結果（トップページのサーバー描画）: ${topSsrNg === 0 ? "全てOK" : `${topSsrNg} 件NG`}`);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// CSSの埋め込み（2026-09-04導入）
+//
+// 【なぜ要るか】Next.js は <link rel="stylesheet"> を吐くので、HTMLが届いてから
+// **もう1往復**してCSSを取りに行く。本番のPageSpeed（モバイル）が
+// 「Est savings of 150 ms」と指摘し、ローカル実測でも描画開始が約370ms遅れていた。
+// スマホ主体のサイトなので直撃する。いまは app/inlineCss.ts（app/globals.css から
+// node scripts/build-inline-css.js が生成）を <head> の <style> に直接置いている。
+//
+// 【壊れ方】生成を忘れると「CSSを直したのに見た目が変わらない」、import を戻すと
+// 往復が復活する。どちらも画面から分かりにくいので機械で見張る。
+// ────────────────────────────────────────────────────────────────────────────
+let inlineCssNg = 0;
+{
+  console.log("\n【CSSの埋め込み】");
+
+  const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const layoutNoComments = stripCommentLines(layout);
+
+  const noImport = !/import "\.\/globals\.css"/.test(layoutNoComments);
+  if (!noImport) inlineCssNg++;
+  console.log(
+    `${noImport ? "✓" : "✗"}  ${"globals.css を import していない".padEnd(48)} → ` +
+      (noImport ? "外部CSSの往復が無い" : "import が復活している（往復が戻る）")
+  );
+
+  const inlined =
+    /import \{ INLINE_CSS \} from "\.\/inlineCss"/.test(layoutNoComments) &&
+    /<style dangerouslySetInnerHTML=\{\{ __html: INLINE_CSS \}\} \/>/.test(layoutNoComments);
+  if (!inlined) inlineCssNg++;
+  console.log(
+    `${inlined ? "✓" : "✗"}  ${"<head> に <style> として埋めている".padEnd(48)} → ` +
+      (inlined ? "app/inlineCss.ts を1本だけ埋め込み" : "埋め込みが外れている（無スタイルになる）")
+  );
+
+  // 生成物が元CSSと一致すること（＝再生成し忘れの検出）。
+  //
+  // 行末は LF に寄せてから比べる。このリポジトリは core.autocrlf=true の Windows 機で
+  // 開発しており、.gitattributes で LF に固定してあるのは *.sh と *.yml だけなので、
+  // Windows の作業ツリーでは globals.css も inlineCss.ts も **CRLF で展開される**。
+  // 生成側は "\n" を書くため、内容が同じでもヘッダーの行末だけで不一致になり、
+  // 「再生成し忘れ」と区別が付かない偽陽性になる（2026-09-04 に Windows の CI で発覚）。
+  const toLf = (t: string) => t.replace(/\r\n/g, "\n");
+  const srcCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const committed = readFileSync(new URL("../app/inlineCss.ts", import.meta.url), "utf8");
+  const inSync = toLf(buildInlineCss(srcCss)) === toLf(committed);
+  if (!inSync) inlineCssNg++;
+  console.log(
+    `${inSync ? "✓" : "✗"}  ${"app/inlineCss.ts が globals.css と同期".padEnd(48)} → ` +
+      (inSync
+        ? `${(committed.length / 1024).toFixed(1)}KB（元 ${(srcCss.length / 1024).toFixed(1)}KB）`
+        : "`node scripts/build-inline-css.js` を実行すること")
+  );
+
+  console.log(`結果（CSSの埋め込み）: ${inlineCssNg === 0 ? "全てOK" : `${inlineCssNg} 件NG`}`);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// サムネイル画像の形式（2026-09-04導入）
+//
+// 【なぜ要るか】AI独断解釈サムネはJPEGで1枚40KB前後あり、本番のPageSpeed（モバイル）が
+// トップページで152KBぶんを読み込んで「Est savings of 92 KiB」と指摘していた。
+// 回線の細い端末では、この装飾画像がHTML・CSS・JSと帯域を奪い合う。同じ寸法のまま
+// WebPにすると実測で39%小さくなり、見た目は変わらない（4.11MB → 2.51MB）。
+// ────────────────────────────────────────────────────────────────────────────
+let thumbNg = 0;
+{
+  console.log("\n【サムネイル画像の形式】");
+
+  const worksDir = fileURLToPath(new URL("../public/works", import.meta.url));
+  const files = existsSync(worksDir) ? readdirSync(worksDir) : [];
+  const jpgs = files.filter((f) => f.endsWith(".jpg"));
+  const webps = files.filter((f) => f.endsWith(".webp"));
+  const noJpg = jpgs.length === 0 && webps.length > 0;
+  if (!noJpg) thumbNg++;
+  console.log(
+    `${noJpg ? "✓" : "✗"}  ${"public/works はWebPだけ".padEnd(48)} → ` +
+      (noJpg ? `${webps.length}枚` : `.jpg が ${jpgs.length}枚残っている`)
+  );
+
+  // 参照側（カード一覧・作品ページ）も .webp を指していること。
+  const refFiles = ["../components/SeasonExplorer.tsx", "../app/anime/[id]/page.tsx"].map((r) =>
+    readFileSync(new URL(r, import.meta.url), "utf8")
+  );
+  const refsWebp = refFiles.every(
+    (t) => /\/works\/\$\{[^}]+\}\.webp/.test(t) && !/\/works\/\$\{[^}]+\}\.jpg/.test(t)
+  );
+  if (!refsWebp) thumbNg++;
+  console.log(
+    `${refsWebp ? "✓" : "✗"}  ${"表示側の参照も .webp".padEnd(48)} → ` +
+      (refsWebp ? "カード一覧・作品ページとも一致" : ".jpg を指している箇所がある")
+  );
+
+  // 索引（content/works/imageIds.ts）が実ファイルと一致すること。
+  const manifest = readFileSync(new URL("../content/works/imageIds.ts", import.meta.url), "utf8");
+  const idsInManifest = new Set(
+    (manifest.slice(manifest.indexOf("Set<number>([")).match(/\d+/g) ?? []).map(Number)
+  );
+  const idsOnDisk = new Set(webps.map((f) => Number(f.replace(".webp", ""))));
+  const sameIds =
+    idsInManifest.size === idsOnDisk.size && [...idsOnDisk].every((n) => idsInManifest.has(n));
+  if (!sameIds) thumbNg++;
+  console.log(
+    `${sameIds ? "✓" : "✗"}  ${"imageIds.ts が実ファイルと一致".padEnd(48)} → ` +
+      (sameIds ? `${idsOnDisk.size}件` : `索引${idsInManifest.size}件 / 実ファイル${idsOnDisk.size}件`)
+  );
+
+  console.log(`結果（サムネイル画像の形式）: ${thumbNg === 0 ? "全てOK" : `${thumbNg} 件NG`}`);
+}
 
 if (
+  topSsrNg > 0 ||
+  inlineCssNg > 0 ||
+  thumbNg > 0 ||
+  prefetchNg > 0 ||
+  authJsNg > 0 ||
   isrNg > 0 ||
   autoNg > 0 ||
   datasetNg > 0 ||

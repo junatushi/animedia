@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import IntentLink from "@/components/IntentLink";
 
 import { siteUrl } from "@/lib/siteUrl";
 
@@ -44,12 +44,12 @@ export default function PrivacyPage() {
           <h1 className="brand">プライバシーポリシー・広告掲載について</h1>
         </div>
         <div className="meta">
-          <Link href="/" className="official">
+          <IntentLink href="/" className="official">
             ← アニメ視聴ガイドのトップに戻る
-          </Link>
-          <Link href="/about" className="official">
+          </IntentLink>
+          <IntentLink href="/about" className="official">
             運営者情報を見る
-          </Link>
+          </IntentLink>
         </div>
       </header>
 
@@ -85,7 +85,7 @@ export default function PrivacyPage() {
               <p className="detail-text">
                 「視聴済み」「配信開始をメールで通知」機能を利用する場合のみ、Googleアカウントでのログインが必要です。
                 ログイン時に取得・保存する情報とその利用目的、メール配信・解除方法、データ削除の依頼方法は
-                <Link href="/about">運営者情報</Link>ページの「ログイン機能について」に記載しています。
+                <IntentLink href="/about">運営者情報</IntentLink>ページの「ログイン機能について」に記載しています。
                 ログインしない場合、個人を特定する情報は取得しません。
               </p>
             </section>
@@ -102,7 +102,7 @@ export default function PrivacyPage() {
             <section className="detail-section">
               <h2 className="detail-heading">お問い合わせ</h2>
               <p className="detail-text">
-                本ポリシーに関するお問い合わせは、<Link href="/about">運営者情報</Link>ページ記載の連絡先までお願いします。
+                本ポリシーに関するお問い合わせは、<IntentLink href="/about">運営者情報</IntentLink>ページ記載の連絡先までお願いします。
                 掲載内容に変更がある場合は、本ページを更新してご案内します。
               </p>
             </section>

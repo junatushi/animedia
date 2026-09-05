@@ -1,4 +1,11 @@
-import "./globals.css";
+// 【重要】globals.css は import しない（2026-09-04変更）。import すると Next.js が
+// <link rel="stylesheet"> を吐き、HTMLが届いてから**もう1往復**してCSSを取りに行く。
+// 本番のPageSpeed（モバイル）実測で「Est savings of 150 ms」と指摘され、ローカルの
+// 実測でも描画開始が約370ms遅れていた（スマホ主体のサイトなので直撃する）。
+// 代わりに app/inlineCss.ts（node scripts/build-inline-css.js が app/globals.css から
+// 生成・コミット）を <head> の <style> に埋め込む。**スタイルを書き換えるときは
+// app/globals.css を直してから必ず再生成する**（ズレは node scripts/check.ts が検出）。
+import { INLINE_CSS } from "./inlineCss";
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
 import AuthProvider from "@/components/AuthProvider";
@@ -90,6 +97,8 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <head>
+        {/* CSSは外部ファイルにせずここへ直接置く（往復を1回減らす。上のコメント参照）。 */}
+        <style dangerouslySetInnerHTML={{ __html: INLINE_CSS }} />
         {/* ライトモードの選択を、描画前に <html data-theme="light"> として反映する
             （ちらつき防止のため、他のスクリプトより先に同期実行する）。 */}
         <script

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import IntentLink from "@/components/IntentLink";
 
 import { siteUrl } from "@/lib/siteUrl";
 const OPERATOR_NAME = "アニメディア";
@@ -42,9 +42,9 @@ export default function AboutPage() {
           <h1 className="brand">運営者情報</h1>
         </div>
         <div className="meta">
-          <Link href="/" className="official">
+          <IntentLink href="/" className="official">
             ← アニメ視聴ガイドのトップに戻る
-          </Link>
+          </IntentLink>
         </div>
       </header>
 
@@ -116,7 +116,7 @@ export default function AboutPage() {
               <h2 className="detail-heading">プライバシー・広告について</h2>
               <p className="detail-text">
                 アクセス解析の内容・ログイン時に取得する情報・広告（アフィリエイトプログラム）の掲載方針は、
-                <Link href="/privacy">プライバシーポリシー・広告掲載について</Link>をご覧ください。
+                <IntentLink href="/privacy">プライバシーポリシー・広告掲載について</IntentLink>をご覧ください。
               </p>
             </section>
 

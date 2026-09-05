@@ -258,6 +258,20 @@ function startStub(broken) {
         }"></head><body><h1>声優</h1></body></html>`
       );
     }
+    // トップページ（A0節）。㊵の壊れ方（HTMLが `<div class="wrap"></div>` だけ）と、
+    // CSSを外部ファイルに戻した状態の両方を再現できるようにする。
+    if (p === "/") {
+      if (has("top-empty")) {
+        return send(`<!doctype html><html><head><style>b{}</style></head><body><div class="wrap"></div></body></html>`);
+      }
+      const topLinks = Array.from({ length: 158 }, (_, i) => `<a href="/anime/${1000 + i}">作品${i}</a>`).join("");
+      const head = has("css-external")
+        ? `<link rel="stylesheet" href="/_next/static/css/x.css">`
+        : `<style>.card{color:#fff}</style>`;
+      return send(
+        `<!doctype html><html><head>${head}</head><body><h1>アニメ視聴ガイド</h1>${topLinks}</body></html>`
+      );
+    }
     if (p.startsWith("/season/")) {
       const sYear = p.split("/").filter(Boolean)[1];
       if (!yearInRange(sYear) && !has("soft-404")) return notFoundPage(res);
@@ -389,7 +403,7 @@ async function main() {
   // 検査を削ると気づけるように件数も固定する
   // （A:2 A2:1 B:6 C:2 D:3 E:3 F:4 G:7 H:4 I:3 = 35。
   //  verify-production.sh に検査を足したらこの数も更新する）。
-  check("① OKが35件（検査の取りこぼしが無い）", okCount === 35, `${okCount}件`);
+  check("① OKが40件（検査の取りこぼしが無い）", okCount === 40, `${okCount}件`);
 
   // ①-2 sitemap全体からの抜き取りが**実際に1件以上叩いている**こと。
   // ここは「0件でもOKを出す」形で静かに無力化していた（awk の NR % s == 1 が s=1 のとき
@@ -407,6 +421,8 @@ async function main() {
   //    1項目ずつ壊して「その事故だけを捕まえる」ことを確かめる。
   const faults = [
     ["season-empty", "シーズンページが空HTML（⑦-10の再現）", "<h1> が 0 個"],
+    ["top-empty", "トップページが空HTML（㊵の再現）", "作品ページへのリンクが 0 件"],
+    ["css-external", "外部CSSに戻った（㊵の再現）", "外部CSS"],
     ["current-no-h1", "作品ページに<h1>が無い", "<h1> が 0 個"],
     ["past-wording", "過去作に「視聴できます」（⑰の再現）", "現在形の断定をしていない"],
     ["past-confirm-word", "「確認日」と書いてしまった", "取得日と書いている"],

@@ -73,6 +73,12 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   約1〜1.5ヶ月前（8/11/2/5月の下旬）ならIssue本文をstdoutに出し、窓の外なら**何も出さない**。
   `.github/workflows/season-prep.yml`が毎日呼ぶ。窓の定義は`scripts/lib/build-season-prep.js`
   **だけ**が持ち、YAMLに月日を書かない（`node scripts/check.ts`が検査する）。ネットワーク不要
+- `node scripts/build-inline-css.js` … **CSSをHTMLに焼き込む生成**（2026-09-04導入）。
+  `app/globals.css` を `app/inlineCss.ts`（文字列定数）に変換する。`npm run dev` と
+  `npm run build` の前に自動で走る（`predev`/`prebuild`）ので**手で実行する必要は普通は無い**。
+  なぜ埋め込むか: Next.jsが `<link rel="stylesheet">` を吐くとHTMLの後にもう1往復
+  掛かり、実測で描画開始が約370ms遅れていた（PageSpeedの見積もりは150ms）。
+  スマホ主体のサイトなので直撃する。ネットワーク不要。経緯は`docs/operations.md`の㊵
 - `node scripts/build-studio-index.ts` … 制作会社・監督の索引。スナップショットの`roleCredits`から
   `content/archive/studios.json`を作る。ネットワーク不要。
   **スナップショットを追加・再生成したら必ず実行する**。
@@ -181,6 +187,14 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   個人の投稿」を`content/demand/raw/`から拾い、作品を`/api/search-index`で`/anime/{id}`に解決して
   **貼れる返信下書き**を`docs/leads-<日付>.md`に出す。接触は手動。リンクに`?ref=<媒体>`を付け流入実測。
   週次Xキットのリーチ枠への転用が狙い。手順は`docs/demand-scan.md`の後半
+- `node scripts/measure-pages.js <URL>` … **表示の速さの実測**（2026-09-03導入）。
+  先に`npm run build && npx next start -p 3100`を動かしてからURLを渡す。スマホ相当の条件
+  （CPU4倍スロットル・1.6Mbps・390×844）でFCP/LCP・TBT（操作をブロックする時間）・DOMノード数・
+  **初期表示のバイト数**・**下までスクロールしたときに増える通信**を出す。最後の1つがこの道具の
+  存在理由で、画面を見ても絶対に気づけない（実測: 対策前はスクロールだけで120リクエスト・528KBの
+  先読みが飛んでいた）。ネットワークには出ないが**ブラウザが要る**ので手元（PC）専用。
+  `npm run check`にもCIにも入れない。数字は±15%ぶれるので比較は3〜5回の中央値で見る。
+  経緯は`docs/operations.md`の㊴
 
 ## 環境変数
 - `ANNICT_TOKEN` … Annict の個人用アクセストークン（Read 権限）。`.env.local` に置く。
@@ -315,6 +329,23 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   （`.claude/agents/*.md` の `model:` — sonnet中心、品質重視のsns-marketerのみopus）で指定する。
 
 ## 主要ファイル
+- `components/IntentLink.tsx` … **サイト内リンクの共通部品**（2026-09-03導入）。
+  `next/link`を直接importしてよいのは**このファイルだけ**。App Routerの`<Link>`は既定で
+  「画面に近づいたリンクのRSCペイロードを先読みする」が、このサイトはリンクが多く1件が重い
+  （実測: `/anime/[id]` 11.9KB×173本、フッターの`/season/[y]/[s]` **181KB**×19本、
+  ヘッダーの`"/"` 181KB＝**全ページで初期表示と同時**）。シーズン一覧を下まで見るだけで
+  最大5MB超を、押されてもいないページのために取っていた（実測でスクロール中に120リクエスト・
+  528KB）。訪問者の回線を奪うだけでなく、Function Invocations・ISR・転送量にも乗る。
+  いまは**hover/touchstartの素振りがあったときだけ**先読みする。
+  **作品ページの`loading.tsx`を置かない方針（ソフト404回避）の代替が先読みなので、
+  素振りの先読みまで消さないこと**。検査は`node scripts/check.ts`の「リンクの先読み」節
+- `app/inlineCss.ts` + `scripts/build-inline-css.js` + `scripts/lib/minify-css.js` …
+  **HTMLに直接埋め込むCSS**（2026-09-04導入）。`app/layout.tsx` は `globals.css` を
+  **import しない**（importするとNext.jsが `<link rel="stylesheet">` を吐き、往復が1回増える）。
+  スタイルを変えるときは**`app/globals.css` を直す**（`app/inlineCss.ts` は自動生成なので
+  手で編集しない）。ズレは`node scripts/check.ts`の「CSSの埋め込み」節が検出し、
+  `predev`/`prebuild` が自動で再生成する。ミニファイアは「壊れると全ページ無スタイル」
+  なので賢い最適化をしない方針（コメント除去と空白畳みだけ・文字列の中身は触らない）
 - `vercel.json` … **表示に使わないデータのコミットで本番デプロイを起こさないための門番**
   （2026-08-25導入）。`ignoreCommand`が「`content/analytics/`・`content/coverage/`・
   `content/demand/`・`docs/`しか変更していないコミット」を判定し、その場合はビルドをスキップする
@@ -427,7 +458,7 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `content/works/{annictId}.json` + `content/works/index.ts` … 作品個別ページの「あらすじ・見どころ・出版社」と、任意の`faq`（「2期から見ても大丈夫？」等のよくある質問。2026-07-27追加。可視テキストとFAQPage構造化データの両方に出る）。Annictに無いデータのため人力で追記する補足コンテンツ（`docs/operations.md`の「⑧作品詳細コンテンツの追記」参照）。`faq`は実測で需要が確認できた作品にだけ付ける（全作品分の維持は続かないため）。未整備の作品は単純に省略表示される
 - `app/api/sns-image/route.tsx` … SNS投稿に添付する公開PNG（2026-07-27導入）。`?kind=ranking` と `?kind=airing&day=月`。**Threadsは画像のバイナリ投稿に対応せず公開URL（`image_url`）しか受け付けない**ため、Playwrightのスクリーンショットを添付できない。その回避としてサイト自身が同等の画像を配信する。既存OG画像2本と同じ`runtime="edge"`（nodejs runtimeにすると`next/og`がWindowsのローカル開発機で必ず例外になり手元で検証できなくなる）。データはedgeで`fs`が使えないため`/api/season`から取る。Threads固有の注意点は`docs/threads-setup.md`の⑦
 - `content/sns/spotlight.js` … SNS投稿の「スポットライト枠」で日替わりに紹介する作品リスト（2026-07-27導入）。GSC・Vercel Analyticsの実測で需要が確認できた作品だけを載せ、推測で足さない。`hashtag`は作品名タグで、タイトルからの自動生成はせず手で書く（期数・記号を落とす。`☆`等はSNS側のタグ解析を壊すため使わない）。生成は`scripts/lib/build-digest.js`の`buildSpotlight`
-- `scripts/gen-thumbnails.js` + `public/works/{annictId}.jpg` + `content/works/imageIds.ts` … AI独断解釈サムネ。権利者の画像は使わず、Pollinations（無料・APIキー不要）でタイトルから連想した**本作品と無関係な創作イラスト**を事前生成し静的ファイルとして保存（表示コスト・キー・レート制限ゼロ）。カード左タイル・作品ページに表示し、必ず「本作品との関連性はありません」の注釈を添える。画像がある作品IDは`imageIds.ts`の`WORK_IMAGE_IDS`で判定。未生成の作品はモノグラムタイルにフォールバック
+- `scripts/gen-thumbnails.js` + `public/works/{annictId}.webp` + `content/works/imageIds.ts` … AI独断解釈サムネ。権利者の画像は使わず、Pollinations（無料・APIキー不要）でタイトルから連想した**本作品と無関係な創作イラスト**を事前生成し静的ファイルとして保存（表示コスト・キー・レート制限ゼロ）。カード左タイル・作品ページに表示し、必ず「本作品との関連性はありません」の注釈を添える。画像がある作品IDは`imageIds.ts`の`WORK_IMAGE_IDS`で判定。未生成の作品はモノグラムタイルにフォールバック
 - `lib/workTitle.ts` … 作品ページの`<title>`組み立て（2026-08-05導入）。検索結果で切り捨てられない
   幅（`TITLE_WIDTH_BUDGET`）に収まる分だけ配信サービス名を入れる。`.tsx`だと
   `node scripts/check.ts`からimportできない（NodeはJSXを解釈しない）ので素の`.ts`に置いてある
@@ -835,6 +866,54 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `content/works/` のあらすじ・見どころ・出版社も同様に、公式サイト等の一次情報で確認できた
   事実だけを書く（創作しない）。未整備の作品はファイルを作らず省略表示に任せる。
   進め方は `docs/operations.md` の「⑧作品詳細コンテンツの追記」を参照。
+- **【基本ルール】サイト内リンクは`IntentLink`を通す。画面内の先読みを復活させない（2026-09-03導入・重大度高）**:
+  `next/link`の`<Link>`を直接使うと、そのページだけ「画面に入ったリンクを全部先読みする」
+  挙動に戻る。1ファイル戻すだけで、そのページの訪問者は押してもいないページのために
+  数MBを取らされる（実測は`components/IntentLink.tsx`の冒頭と`docs/operations.md`の㊴）。
+  **画面を見ても気づけない**（見た目も遷移先も変わらず、増えるのは通信とVercelの請求だけ）
+  ので、`node scripts/check.ts`の「リンクの先読み」節が機械的に見張る。この検査を消さないこと。
+  逆に**素振り（hover/touchstart）の先読みを消すのも駄目**（作品ページはソフト404を避けるため
+  `loading.tsx`を置かない設計で、タップ後の待ち時間を先読みで埋めている）。
+- **【基本ルール】トップページ "/" をクライアント描画に戻さない（2026-09-04導入・重大度高）**:
+  `useSearchParams()` を呼ぶコンポーネントがあると、Next.js 14 はその Suspense 境界を
+  丸ごとクライアント描画へ退避させ、**サーバーHTMLには fallback しか出さない**。
+  2026-08-05に`/season/**`はこれを直したが、**トップだけ「ディープリンクに必要」として
+  残していた**。実測（本番HTMLをcurl）で `/` は `<div class="wrap"></div>` だけ＝
+  h1が0個・作品リンク0件で、サイトの正面玄関（canonicalの指す先）が1ヶ月間空だった。
+  速度でも本番PageSpeed実測でトップだけ Script Evaluation 802ms（シーズンページは469ms）・
+  HTMLパース8ms（同50ms）＝「HTMLを読む」より「JSで組み立て直す」ほうが桁違いに高い。
+  クエリは`components/TopPageExplorer.tsx`が**hydrationより前に**
+  `window.location.search`から1度だけ読み、`SeasonExplorer`は**初期描画では使わず**
+  マウント後の`useEffect`で反映する（初期描画で使うとサーバーHTMLと食い違い
+  hydrationが壊れる＝クエリ付きで開いた人にだけ起きる壊れ方）。
+  検査は`node scripts/check.ts`の「トップページのサーバー描画」節と
+  `scripts/verify-production.sh`のA0節。経緯は`docs/operations.md`の㊵
+- **【基本ルール】CSSを外部ファイルに戻さない（2026-09-04導入）**:
+  `app/layout.tsx` で `import "./globals.css"` を復活させると `<link rel="stylesheet">` が
+  出て、HTMLが届いた後にもう1往復掛かる（本番PageSpeedの見積もり150ms、
+  ローカル実測で約370ms）。**画面はまったく同じに見える**ので気づけない。
+  検査は`node scripts/check.ts`の「CSSの埋め込み」節と`verify-production.sh`のA0節
+- **【基本ルール】サムネイルはWebPで持つ（2026-09-04導入）**:
+  `public/works/{id}.webp`。JPEGだと1枚40KB前後になり、スマホの初期表示で装飾画像が
+  HTML・CSS・JSと帯域を奪い合う（本番PageSpeedがトップで152KB読み込み「Est savings of
+  92 KiB」と指摘）。同じ寸法(640×360)のままWebPにすると実測で39%小さくなり
+  **見た目は変わらない**（4.11MB→2.51MB）。`sharp`は依存に入れない（本番ビルドを
+  重くしない）ので、再生成時だけ `npm install --no-save sharp` を先に実行する。
+  検査は`node scripts/check.ts`の「サムネイル画像の形式」節
+- **【基本ルール】ログイン用のJSを初期バンドルに戻さない（2026-09-03導入）**:
+  supabase-jsはgzip 51KB・生188KBあり、`components/`のどこか1ファイルが静的importするだけで
+  全ページの初期JSに載る（実測: トップのFirst Load JS 181KB→117KBの差がこれ）。閲覧・検索・
+  お気に入りはログイン無しで完全に動くので、**認証Cookieを持つ人だけが動的importで取りに行く**。
+  Cookie名の判定は`lib/supabase/config.ts`の`isAuthCookieName`**だけ**が持ち、middleware
+  （サーバー）とAuthProvider（ブラウザ）が共有する。片方だけズラすと「ログインした人にだけ
+  起きる」壊れ方になる。検査は`node scripts/check.ts`の「ログインJSの遅延読み込み」節。
+- **【計測の前提】「速くなった」は測ってから言う（2026-09-03導入）**:
+  この作業環境からは本番URLへ出られない（プロキシが403）。速さの主張は
+  `node scripts/measure-pages.js`でローカル本番ビルドを実測してから書くこと。
+  実測すると**削ったバイト数がそのまま体感にならない**ことがはっきり分かる
+  （初期JSを181KB→117KBにしてもFCPは1msも動かず、効いたのは通信量とTBTだった）。
+  同じ失敗は㉝で2回起きている（revalidateを延ばしても書き込みは減らなかった／
+  取得データを減らしてもCPUは0.3%しか減らなかった）。
 - 返答は日本語で。
 
 ## ネットワークの注意（サンドボックス等で動かす場合）

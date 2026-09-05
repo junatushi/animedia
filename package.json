@@ -6,7 +6,9 @@
     "node": ">=18.17.0"
   },
   "scripts": {
+    "predev": "node scripts/build-inline-css.js",
     "dev": "next dev",
+    "prebuild": "node scripts/build-inline-css.js",
     "build": "next build",
     "start": "next start",
     "check": "npx tsc --noEmit && node scripts/check.ts && node scripts/check-threads.js && node scripts/check-verify-production.js && node scripts/check-gsc.js && node scripts/check-probe-series.js && node scripts/check-track-season.js && node scripts/check-fetch-upcoming.js && node scripts/check-site-analytics.js && node scripts/check-seo-report.js && node scripts/check-patrol.js && node scripts/check-freshness.js"

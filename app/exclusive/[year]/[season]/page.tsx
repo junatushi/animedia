@@ -1,4 +1,4 @@
-import Link from "next/link";
+import IntentLink from "@/components/IntentLink";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
@@ -177,12 +177,12 @@ export default async function ExclusivePage({ params }: { params: Params }) {
           </h1>
         </div>
         <div className="meta">
-          <Link href="/" className="official">
+          <IntentLink href="/" className="official">
             ← アニメ視聴ガイドのトップに戻る
-          </Link>
-          <Link href={`/season/${year}/${season}`} className="official">
+          </IntentLink>
+          <IntentLink href={`/season/${year}/${season}`} className="official">
             {year}年{label}アニメ 配信情報一覧を見る
-          </Link>
+          </IntentLink>
         </div>
       </header>
 
@@ -216,12 +216,12 @@ export default async function ExclusivePage({ params }: { params: Params }) {
               groups.map((g) => (
                 <section className="detail-section" key={g.tag.key}>
                   <h2 className="detail-heading" style={{ color: g.tag.color }}>
-                    <Link href={`/service/${g.tag.key}/${year}/${season}`}>{g.tag.name}</Link>独占（{g.items.length}作品）
+                    <IntentLink href={`/service/${g.tag.key}/${year}/${season}`}>{g.tag.name}</IntentLink>独占（{g.items.length}作品）
                   </h2>
                   <ul className="detail-list">
                     {g.items.map((it) => (
                       <li key={it.id}>
-                        <Link href={`/anime/${it.id}`}>{it.title}</Link>
+                        <IntentLink href={`/anime/${it.id}`}>{it.title}</IntentLink>
                       </li>
                     ))}
                   </ul>

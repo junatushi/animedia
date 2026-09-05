@@ -1,4 +1,4 @@
-import Link from "next/link";
+import IntentLink from "@/components/IntentLink";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
@@ -200,15 +200,15 @@ export default async function RankingsPage({ params }: { params: Params }) {
           </h1>
         </div>
         <div className="meta">
-          <Link href="/" className="official">
+          <IntentLink href="/" className="official">
             ← アニメ視聴ガイドのトップに戻る
-          </Link>
-          <Link href={`/season/${year}/${season}`} className="official">
+          </IntentLink>
+          <IntentLink href={`/season/${year}/${season}`} className="official">
             {year}年{label}アニメ 配信情報一覧を見る
-          </Link>
-          <Link href={`/exclusive/${year}/${season}`} className="official">
+          </IntentLink>
+          <IntentLink href={`/exclusive/${year}/${season}`} className="official">
             独占配信まとめを見る
-          </Link>
+          </IntentLink>
         </div>
       </header>
 
@@ -234,7 +234,7 @@ export default async function RankingsPage({ params }: { params: Params }) {
                   <ol className="detail-list">
                     {coverage.map((c) => (
                       <li key={c.tag.key}>
-                        <Link href={`/service/${c.tag.key}/${year}/${season}`}>{c.tag.name}</Link>
+                        <IntentLink href={`/service/${c.tag.key}/${year}/${season}`}>{c.tag.name}</IntentLink>
                         {" "}— {c.count}作品
                         <span
                           aria-hidden="true"
@@ -258,12 +258,12 @@ export default async function RankingsPage({ params }: { params: Params }) {
                   <p className="detail-text">
                     見放題配信サービスが1社だけの「独占配信」作品数の多い順。
                     {exclusive[0] && `${exclusive[0].tag.name}が${exclusive[0].count}作品で最多。`}
-                    詳細は<Link href={`/exclusive/${year}/${season}`}>独占配信まとめ</Link>を参照。
+                    詳細は<IntentLink href={`/exclusive/${year}/${season}`}>独占配信まとめ</IntentLink>を参照。
                   </p>
                   <ol className="detail-list">
                     {exclusive.map((c) => (
                       <li key={c.tag.key}>
-                        <Link href={`/service/${c.tag.key}/${year}/${season}`}>{c.tag.name}</Link>
+                        <IntentLink href={`/service/${c.tag.key}/${year}/${season}`}>{c.tag.name}</IntentLink>
                         {" "}— {c.count}作品
                       </li>
                     ))}
@@ -279,7 +279,7 @@ export default async function RankingsPage({ params }: { params: Params }) {
                   <ol className="detail-list">
                     {earliest.map((it) => (
                       <li key={it.id}>
-                        <Link href={`/anime/${it.id}`}>{it.title}</Link>
+                        <IntentLink href={`/anime/${it.id}`}>{it.title}</IntentLink>
                         {" "}— {it.broadcastStartDate}
                         {it.broadcastWeekday !== null && `（${WEEKDAY_LABEL[it.broadcastWeekday]}）`}
                       </li>

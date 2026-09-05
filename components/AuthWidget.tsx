@@ -1,6 +1,5 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useAuth } from "./AuthProvider";
 
@@ -21,6 +20,9 @@ export default function AuthWidget() {
     // Redirect URL許可リストとの完全一致に失敗し、登録したSite URL（本番ドメイン）へ
     // フォールバックしてしまう事例があったため、常にクエリ無しの固定URLに戻す
     // （ログイン後は常にトップページに戻る。動作優先でシンプルにしている）。
+    // supabase-js は初期JSに含めず、ログインボタンを押した人だけが取りに行く
+    // （2026-09-03。AuthProvider と同じ理由＝閲覧するだけの人に51KBを配らない）。
+    const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
     await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -29,6 +31,7 @@ export default function AuthWidget() {
   }
 
   async function signOut() {
+    const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
     await supabase.auth.signOut();
   }
