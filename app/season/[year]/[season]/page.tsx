@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import SeasonExplorer from "@/components/SeasonExplorer";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
+import { stripCreditNamesForSsr } from "@/lib/seasonPayload";
 import type { SeasonResponse } from "@/lib/types";
 
 import ARCHIVE_INDEX from "@/content/archive/index.json";
@@ -163,7 +164,12 @@ export default async function SeasonPage({ params }: { params: Params }) {
         />
       )}
       <Suspense fallback={<div className="wrap" />}>
-        <SeasonExplorer initialYear={Number(year)} initialSeason={season} initialData={data} />
+        {/* creditNames はHTMLに埋め込まない（転送量の11%・画面には出ない）。lib/seasonPayload.ts */}
+        <SeasonExplorer
+          initialYear={Number(year)}
+          initialSeason={season}
+          initialData={stripCreditNamesForSsr(data)}
+        />
       </Suspense>
     </>
   );

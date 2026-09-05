@@ -520,6 +520,49 @@ export default function SeasonExplorer({
     };
   }, [year, season]);
 
+  // creditNames（スタッフ名での検索用）の遅延取得（2026-09-05導入）。
+  //
+  // SSRのHTMLからは creditNames を外してある（lib/seasonPayload.ts。転送量の11%を
+  // 占めるのに画面には一度も出ないため）。検索欄に何か入力された時点で初めて
+  // /api/season から取りに行き、いま表示している items に**上書きではなく重ねる**。
+  // items の並び・同一性を保ちたいので setData(取得結果) にはしない
+  // （入力中に一覧が丸ごと差し替わると、絞り込みの見え方が跳ねる）。
+  //
+  // 取りに行くのは1回だけ。失敗しても黙って諦める（作品名・声優名での検索は
+  // 取得できなくても効いているので、ここで検索そのものを壊さない）。
+  const creditsRequested = useRef(false);
+  useEffect(() => {
+    if (!query.trim()) return;
+    if (!data?.creditsOmitted) return;
+    if (creditsRequested.current) return;
+    creditsRequested.current = true;
+    let abort = false;
+    fetch(`/api/season?year=${year}&season=${season}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: SeasonResponse | null) => {
+        if (abort || !j) return;
+        const byId = new Map(j.items.map((it) => [it.id, it.creditNames]));
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                creditsOmitted: false,
+                items: prev.items.map((it) => {
+                  const names = byId.get(it.id);
+                  return names && names.length > 0 ? { ...it, creditNames: names } : it;
+                }),
+              }
+            : prev
+        );
+      })
+      .catch(() => {
+        // 取れなくても作品名・声優名の検索は動く。
+      });
+    return () => {
+      abort = true;
+    };
+  }, [query, data, year, season]);
+
   // データに登場する配信サービスを、登場頻度（=何本その配信で観られるか）順に集計する。
   // 絞り込みチップ（タグのみ）と比較表（件数つき）の両方がこの集計を使う。
   const serviceUsage = useMemo<{ tag: ServiceTag; n: number }[]>(() => {
@@ -589,6 +632,10 @@ export default function SeasonExplorer({
       const okText =
         q === "" ||
         it.title.toLowerCase().includes(q) ||
+        // castNames を先に見る。SSRのHTMLでは creditNames を外してあるので
+        // （lib/seasonPayload.ts）、声優名はこちらで即座に当たる。スタッフ名は
+        // 下の creditNames 側で当たり、その中身は下の useEffect が取りに行く。
+        it.castNames.some((n) => n.toLowerCase().includes(q)) ||
         it.creditNames.some((n) => n.toLowerCase().includes(q)) ||
         aliases.some((a) => a.toLowerCase().includes(q));
       const matchesKey = (k: string) => {
