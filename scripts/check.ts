@@ -6468,6 +6468,53 @@ let thumbNg = 0;
       (sameIds ? `${idsOnDisk.size}件` : `索引${idsInManifest.size}件 / 実ファイル${idsOnDisk.size}件`)
   );
 
+  // サムネイルを出す <img> は必ず width/height を持つこと（2026-09-05追加）。
+  //
+  // 【なぜ要るか】属性が無いとブラウザは画像が届くまで場所を確保できず、届いた瞬間に
+  // 下の内容が押し下げられる（Cumulative Layout Shift）。**画面をゆっくり見ていると
+  // 気づけない**（速い回線では一瞬で終わる）。実際、シーズン一覧の .thumb-ai-img には
+  // 前から指定してあったのに、作品ページの .detail-hero-img だけ抜けていた。
+  //
+  // 対象は**走査して導出する**（㊳: 名指しで数えると、次に足した1枚が永久に漏れる）。
+  // app/ と components/ の .tsx から「/works/ を指す <img>」を全部拾う。
+  {
+    const roots = ["../app", "../components"].map((r) => fileURLToPath(new URL(r, import.meta.url)));
+    const tsxFiles: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const full = `${dir}/${e.name}`;
+        if (e.isDirectory()) walk(full);
+        else if (e.name.endsWith(".tsx")) tsxFiles.push(full);
+      }
+    };
+    for (const r of roots) if (existsSync(r)) walk(r);
+
+    const offenders: string[] = [];
+    let imgCount = 0;
+    for (const f of tsxFiles) {
+      const text = readFileSync(f, "utf8");
+      // <img ... /> を1つずつ取り出し、src が /works/ を指すものだけ見る。
+      for (const m of text.matchAll(/<img\b[\s\S]*?\/>/g)) {
+        const tag = m[0];
+        if (!/\/works\//.test(tag)) continue;
+        imgCount++;
+        if (!/\bwidth=/.test(tag) || !/\bheight=/.test(tag)) {
+          offenders.push(f.slice(f.lastIndexOf("/app/") >= 0 ? f.lastIndexOf("/app/") + 1 : f.lastIndexOf("/components/") + 1));
+        }
+      }
+    }
+    const allSized = imgCount > 0 && offenders.length === 0;
+    if (!allSized) thumbNg++;
+    console.log(
+      `${allSized ? "✓" : "✗"}  ${"サムネイルの img に width/height".padEnd(48)} → ` +
+        (allSized
+          ? `${imgCount}箇所すべて指定済み`
+          : imgCount === 0
+            ? "対象の <img> が1つも見つからない（走査が壊れている）"
+            : `未指定: ${offenders.join(", ")}`)
+    );
+  }
+
   console.log(`結果（サムネイル画像の形式）: ${thumbNg === 0 ? "全てOK" : `${thumbNg} 件NG`}`);
 }
 

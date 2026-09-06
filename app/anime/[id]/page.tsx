@@ -530,7 +530,23 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         {WORK_IMAGE_IDS.has(item.id) && (
           <figure className="detail-hero">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/works/${item.id}.webp`} alt="" className="detail-hero-img" />
+            <img
+              src={`/works/${item.id}.webp`}
+              alt=""
+              // 実寸（scripts/gen-thumbnails.js が作る 640×360）を書いておくと、
+              // 読み込み前でもブラウザが場所を確保できる＝画像が入った瞬間に
+              // 下の「どこで配信されているか」がずれない（CLS対策）。
+              // 表示サイズはCSS（.detail-hero-img の width:100% / aspect-ratio:16/9）が
+              // 決めるので、この属性を足しても見た目は変わらない。
+              // シーズン一覧の .thumb-ai-img は前から指定してあり、ここだけ抜けていた。
+              //
+              // **loading="lazy" は足さないこと**。この画像はファーストビューに入り
+              // LCP要素になり得るので、遅延させると逆に遅くなる。
+              width={640}
+              height={360}
+              decoding="async"
+              className="detail-hero-img"
+            />
             <figcaption className="detail-hero-note">※ {AI_IMAGE_NOTE}</figcaption>
           </figure>
         )}
