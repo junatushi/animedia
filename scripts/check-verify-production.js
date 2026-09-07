@@ -138,6 +138,16 @@ function startStub(broken) {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://x");
     const p = url.pathname;
+
+    // サイトが丸ごと止まっている状態（2026-09-07追加）。
+    // 402＝Vercelの無料枠超過で全ルートが停止（㉝で実際に丸一日起きた）。
+    // 事前検査がここで打ち切らないと、以降の全項目が「HTMLが空」として落ち、
+    // 自動起票されるIssueに**原因が書かれない**。
+    for (const [flag, code] of [["down-402", 402], ["down-429", 429], ["down-500", 500]]) {
+      if (broken.has(flag)) {
+        return res.writeHead(code, { "Content-Type": "text/html; charset=utf-8" }).end("");
+      }
+    }
     const send = (body, type = "text/html; charset=utf-8", extra = {}) =>
       res.writeHead(200, { "Content-Type": type, ...extra }).end(body);
 
@@ -403,7 +413,7 @@ async function main() {
   // 検査を削ると気づけるように件数も固定する
   // （A:2 A2:1 B:6 C:2 D:3 E:3 F:4 G:7 H:4 I:3 = 35。
   //  verify-production.sh に検査を足したらこの数も更新する）。
-  check("① OKが40件（検査の取りこぼしが無い）", okCount === 40, `${okCount}件`);
+  check("① OKが41件（検査の取りこぼしが無い）", okCount === 41, `${okCount}件`);
 
   // ①-2 sitemap全体からの抜き取りが**実際に1件以上叩いている**こと。
   // ここは「0件でもOKを出す」形で静かに無力化していた（awk の NR % s == 1 が s=1 のとき
@@ -459,6 +469,46 @@ async function main() {
     const failed = r.code !== 0;
     const mentioned = new RegExp(`^\\s*NG\\s+.*${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "m").test(r.out);
     check(`② ${label}`, failed && mentioned, failed ? (mentioned ? "NGで検出" : `exit1だが該当NG無し`) : "見逃した");
+  }
+
+  // ②-2 サイトが丸ごと止まっているとき、**原因を名指しして即座に打ち切る**
+  //      （2026-09-07追加）。
+  //
+  // 402は「コードの不具合」ではなく「無料枠の超過で停止」なので、直し方がまったく違う。
+  // ここで打ち切らないと、以降の全項目が「HTMLが空」として落ち、自動起票される
+  // Issueには原因が1文字も書かれない（㉝が丸一日続いたときの状況）。
+  {
+    const down = await withStub(["down-402"], runScript);
+    check(
+      "②-2 402（無料枠の超過）を名指しする",
+      down.code !== 0 && /402/.test(down.out) && /無料枠を超過/.test(down.out),
+      down.code !== 0 ? (/無料枠を超過/.test(down.out) ? "NGで検出" : "落ちたが原因を書いていない") : "見逃した"
+    );
+    check(
+      "②-2 コードの不具合ではないと明記する",
+      /コードの不具合ではありません/.test(down.out),
+      /コードの不具合ではありません/.test(down.out) ? "明記あり" : "無し"
+    );
+    // 打ち切らずに走ると、無関係なNGが大量に出て原因が埋もれる。
+    // 打ち切りは fail() ではなく `echo "NG: ..."` で出す（既存の中断と同じ形）ので、
+    // 両方の書式を数える。
+    const laterNg = (down.out.match(/^\s*NG[:\s]/gm) || []).length;
+    check("②-2 打ち切って余計なNGを出さない", laterNg === 1, `NG ${laterNg}件`);
+    check("②-2 以降の検査に進まない", !down.out.includes("A0."), down.out.includes("A0.") ? "進んでしまった" : "打ち切った");
+
+    const rate = await withStub(["down-429"], runScript);
+    check(
+      "②-2 429（レート制限）を402と区別する",
+      rate.code !== 0 && /429/.test(rate.out) && !/無料枠を超過/.test(rate.out),
+      rate.code !== 0 ? "NGで検出" : "見逃した"
+    );
+
+    const err = await withStub(["down-500"], runScript);
+    check(
+      "②-2 その他のコードでも打ち切って番号を出す",
+      err.code !== 0 && /500/.test(err.out),
+      err.code !== 0 ? "NGで検出" : "見逃した"
+    );
   }
 
   // ③ 全部まとめて壊しても、1件目で止まらず最後まで検査する

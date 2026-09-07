@@ -113,6 +113,31 @@ import {
 import { AFFILIATE_PROGRAMS } from "../content/affiliate/programs.ts";
 
 
+// `generateMetadata` を持つページのうち、title / description を
+// `lib/pageMeta.ts` に通す義務があるもの（＝作品ページ以外）を**走査して導出**する。
+//
+// 【なぜ関数にするか】以前はこの7ファイルの配列が
+// 「titleを直書きしない」節と「descriptionを直書きしない」節に**独立して手書き**されていた。
+// 中身は同じだったので実害は出ていなかったが、面を1つ足したとき片方だけ更新すると
+// **一方は幅の検査あり・他方は無し**という食い違いが静かに生まれる。㊳の
+// 「検査の対象を手で数えない。走査して導出する」に反していた（2026-09-07修正）。
+//
+// 作品ページ（`app/anime/[id]/page.tsx`）だけは別扱い。titleは `lib/workTitle.ts` の
+// `buildWorkTitle`、descriptionは `fitDescServices` が幅を詰める専用の経路を持つ。
+function pageMetaTargets(): string[] {
+  const dir = new URL("../app/", import.meta.url);
+  const out: string[] = [];
+  for (const f of listSourceFiles(dir)) {
+    if (!/\/page\.tsx$/.test(f.pathname)) continue;
+    const rel = f.pathname.slice(dir.pathname.length);
+    if (rel === "anime/[id]/page.tsx") continue;
+    if (!/export\s+async\s+function\s+generateMetadata|export\s+function\s+generateMetadata/.test(
+        readFileSync(f, "utf8"))) continue;
+    out.push(rel);
+  }
+  return out.sort();
+}
+
 // ディレクトリ配下の .ts/.tsx を再帰的に列挙する（行動ログの配線検査で使う）。
 function listSourceFiles(dir: URL): URL[] {
   const out: URL[] = [];
@@ -1765,25 +1790,19 @@ let pageTitleNg = 0;
   // ④ 逆戻り防止: 各ページの generateMetadata が title を直書きしないこと。
   //    直書きに戻ると③の検査を素通りする（検査は lib/pageMeta.ts しか見ないため）。
   {
-    const pages = [
-      "../app/season/[year]/[season]/page.tsx",
-      "../app/person/[name]/[year]/[season]/page.tsx",
-      "../app/service/[key]/[year]/[season]/page.tsx",
-      "../app/exclusive/[year]/[season]/page.tsx",
-      "../app/rankings/[year]/[season]/page.tsx",
-      "../app/studio/[name]/page.tsx",
-      "../app/director/[name]/page.tsx",
-    ];
+    // 対象は手で並べない（走査して導出する）。定義は pageMetaTargets()。
+    const pages = pageMetaTargets();
     const bad: string[] = [];
     for (const p of pages) {
-      const src = readFileSync(new URL(p, import.meta.url), "utf8");
-      if (/const title = `/.test(src)) bad.push(p.replace("../app/", ""));
+      const src = readFileSync(new URL(`../app/${p}`, import.meta.url), "utf8");
+      if (/const title = `/.test(src)) bad.push(p);
     }
-    const pass = bad.length === 0;
+    // 対象が痩せたら（走査が壊れたら）黙って緑にならないよう、下限も見る。
+    const pass = bad.length === 0 && pages.length >= 7;
     if (!pass) pageTitleNg++;
     console.log(
       `${pass ? "✓" : "✗"}  ${"titleを直書きせずlib/pageMeta.tsを通す".padEnd(33)} → ${pages.length}ページ中 直書き${bad.length}件` +
-        (pass ? "" : `  (${bad.join(", ")})`)
+        (pass ? "" : `  (${bad.join(", ") || "対象が7ページ未満＝走査が壊れている"})`)
     );
   }
 }
@@ -2073,23 +2092,17 @@ let descNg = 0;
 
   // ④ 逆戻り防止。ページ側で description を直書きしない。
   {
-    const pages = [
-      "../app/season/[year]/[season]/page.tsx",
-      "../app/person/[name]/[year]/[season]/page.tsx",
-      "../app/service/[key]/[year]/[season]/page.tsx",
-      "../app/exclusive/[year]/[season]/page.tsx",
-      "../app/rankings/[year]/[season]/page.tsx",
-      "../app/studio/[name]/page.tsx",
-      "../app/director/[name]/page.tsx",
-    ];
+    // 対象は手で並べない（走査して導出する）。title 側と**同じ関数**を使う
+    // ＝面を1つ足したとき、両方の検査に自動で乗る。
+    const pages = pageMetaTargets();
     const bad = pages.filter((f) =>
-      /const description = `/.test(readFileSync(new URL(f, import.meta.url), "utf8"))
+      /const description = `/.test(readFileSync(new URL(`../app/${f}`, import.meta.url), "utf8"))
     );
-    const pass = bad.length === 0;
+    const pass = bad.length === 0 && pages.length >= 7;
     if (!pass) descNg++;
     console.log(
       `${pass ? "✓" : "✗"}  ${"descriptionを直書きしない".padEnd(34)} → ${pages.length}ページ中 直書き${bad.length}件` +
-        (pass ? "" : `  (${bad.map((f) => f.replace("../app/", "")).join(", ")})`)
+        (pass ? "" : `  (${bad.join(", ") || "対象が7ページ未満＝走査が壊れている"})`)
     );
 
     // 作品ページは幅の調整を fitDescServices に任せること。以前のように
