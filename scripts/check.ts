@@ -20,6 +20,11 @@ import {
   type EmbedWork,
 } from "../lib/embed.ts";
 import { siteUrl } from "../lib/siteUrl.ts";
+import {
+  isMalformedRoutePath,
+  WORK_ID_ROUTES,
+  SEASON_YEAR_ROUTES,
+} from "../lib/routeGuard.ts";
 import { stripCreditNamesForSsr } from "../lib/seasonPayload.ts";
 import { buildCalendar, CALENDAR_REF, type CalendarWork } from "../lib/calendar.ts";
 import { aggregateYear, usableYears, currentState, pct } from "../lib/streamingTrends.ts";
@@ -4524,7 +4529,10 @@ let softNg = 0;
     }
     softCheck(
       "作品IDの窓口がすべて lib/workId.ts を通る",
-      looseId.length === 0 && idRoutes.length >= 4,
+      // 下限は3（2026-09-06に4から下げた）。`app/anime/[id]/opengraph-image.tsx` を
+      // 削除し、作品ページはルートの `app/opengraph-image.tsx` を継承するようにしたため
+      // （動的セグメントを持つOG画像が無くなり、URLが1本になった）。経緯は㊶。
+      looseId.length === 0 && idRoutes.length >= 3,
       looseId.length
         ? `自前で Number() を書いている: ${looseId.join(" / ")}（502・重複URLの原因）`
         : `${idRoutes.length} 件すべてが parseWorkId を使う`
@@ -4621,6 +4629,175 @@ let nextSeasonNg = 0;
   );
 
   console.log(`結果（次クール）: ${nextSeasonNg === 0 ? "全件OK" : nextSeasonNg + " 件NG"}`);
+}
+
+// ─────────────────────────────────────────────
+// 不正な形のURLを描画前に弾く（2026-09-06追加・重大度高）
+//
+// 経緯: Next.js の未修正バグ #73101 で、`notFound()` を呼んで404を返したページも
+// **ISRキャッシュに書き込まれる**。ローカル本番ビルドで実測すると
+// `/anime/0x3374` は404を返しつつ `.next/server/app/anime/0x3374.{html,meta,rsc}`
+// （3ファイル・約110KB）を新規生成し、未見の文字列を叩くたびに増えていった。
+// `parseWorkId` は形しか見ないので不正な形のURL空間は事実上無限にある。
+// ISR Writes の超過は2026-08-24に本番を丸一日停止させている（㉝）。
+//
+// 皮肉なことに、この穴を開けたのは㊲の対処そのものだった（値域を閉じて
+// notFound() するようにしたことで、404を返すたびに書き込みが起きる形になった）。
+// Next.js 14 には「このリクエストだけキャッシュしない」逃げ道が無いので、
+// middleware で**描画させない**しかない。判定は lib/routeGuard.ts。
+//
+// この検査が守るのは2つ。①窓口を手で数えない（㊳。app/ の走査から導出して、
+// 新しい [id]/[year] ルートを足したら自動で落ちる）②誤判定しない
+// （正常なURLを404にするのは、取りこぼしより桁違いに重い事故）。
+// ─────────────────────────────────────────────
+console.log("\n── 不正な形のURLを描画前に弾く ──");
+let guardNg = 0;
+{
+  const gCheck = (label: string, ok: boolean, detail: string) => {
+    if (!ok) guardNg++;
+    console.log(`${ok ? "✓" : "✗"}  ${label.padEnd(44)} → ${detail}`);
+  };
+
+  // ① 対象を走査から導出し、routeGuard の表と突き合わせる。
+  const gAppDir = fileURLToPath(new URL("../app", import.meta.url));
+  const gRoutes = dynamicRoutes(gAppDir);
+  const missing: string[] = [];
+  const covered = (
+    routePath: string,
+    seg: string,
+    table: { prefix: string; index: number }[]
+  ): boolean => {
+    const parts = routePath.split("/");
+    const idx = parts.indexOf(`[${seg}]`);
+    if (idx < 0) return true;
+    // 接頭辞は「最初の動的セグメントの手前まで」。判定は pathname.startsWith() で
+    // 行うので、`/person/[name]/[year]/[season]` の接頭辞は `/person/[name]/` では
+    // なく **`/person/`** で、年の位置だけが3になる（[name] は任意の文字列＝
+    // 接頭辞に含められない）。ここを取り違えると、表が正しくても検査だけが落ちる。
+    const firstDyn = parts.findIndex((x) => /^\[.*\]$/.test(x));
+    const prefix = parts.slice(0, firstDyn).join("/") + "/";
+    return table.some((t) => t.prefix === prefix && t.index === idx);
+  };
+  for (const r of gRoutes) {
+    if (r.segments.includes("id") && !covered(r.routePath, "id", WORK_ID_ROUTES)) {
+      missing.push(`${r.routePath}（作品ID）`);
+    }
+    if (r.segments.includes("year") && !covered(r.routePath, "year", SEASON_YEAR_ROUTES)) {
+      missing.push(`${r.routePath}（年）`);
+    }
+  }
+  gCheck(
+    "[id]/[year] の窓口がすべて routeGuard の表に載る",
+    missing.length === 0 && gRoutes.length >= 8,
+    missing.length
+      ? `表に無い: ${missing.join(" / ")}（不正な形が描画され、ISRに書き込まれる）`
+      : `${gRoutes.length} 件を走査して全部が対象`
+  );
+
+  // ② 落ちるべきときに落ちる／落ちてはいけないときに落ちない。
+  // 年の上限は「今年+1」なので、日付を固定しないと年明けに検査自体が壊れる。
+  const gNow = new Date("2026-09-06T00:00:00Z");
+  const bad = [
+    "/anime/0x3374",
+    "/anime/1e20",
+    "/anime/012",
+    "/anime/0",
+    "/anime/99999999999999999999",
+    "/anime/0x3374/",
+    "/api/work/0x10",
+    "/embed/anime/abc",
+    "/season/9999/spring",
+    "/season/1500/spring",
+    "/season/20x6/spring",
+    "/rankings/9999/spring",
+    "/exclusive/9999/spring",
+    "/service/d_anime/9999/summer",
+    "/person/%E6%82%A0%E6%9C%A8%E7%A2%A7/9999/summer",
+  ];
+  const good = [
+    "/",
+    "/about",
+    "/developers",
+    "/api/season",
+    "/api/work",
+    "/anime/13180",
+    "/anime/13180/",
+    "/api/work/13180",
+    "/embed/anime/13180",
+    "/season/2026/spring",
+    "/season/2010/winter",
+    "/season/2027/winter",
+    "/rankings/2026/summer",
+    "/exclusive/2026/summer",
+    "/service/d_anime/2026/summer",
+    "/person/%E6%82%A0%E6%9C%A8%E7%A2%A7/2026/summer",
+    "/studio/MAPPA",
+    "/director/%E6%96%B0%E6%B5%B7%E8%AA%A0",
+  ];
+  const missedBad = bad.filter((u) => !isMalformedRoutePath(u, gNow));
+  const falsePositive = good.filter((u) => isMalformedRoutePath(u, gNow));
+  gCheck(
+    "不正な形を弾く",
+    missedBad.length === 0,
+    missedBad.length ? `素通し: ${missedBad.join(" / ")}` : `${bad.length} 件すべてを弾いた`
+  );
+  // こちらのほうが重い。正常なURLを404にすると、サイトの一部が丸ごと消える。
+  gCheck(
+    "正常なURLを弾かない",
+    falsePositive.length === 0,
+    falsePositive.length
+      ? `誤って404にする: ${falsePositive.join(" / ")}（正常なページが消える）`
+      : `${good.length} 件すべて素通し`
+  );
+
+  // ③ middleware が、Supabaseのセッション更新**より前**に判定していること。
+  // 後ろに置くと、弾くはずのリクエストでも先に Supabase 側の処理が走る。
+  const mwSrc = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
+  const iGuard = mwSrc.indexOf("isMalformedRoutePath(");
+  const iSession = mwSrc.indexOf("updateSession(");
+  const orderOk = iGuard > 0 && iSession > 0 && iGuard < iSession;
+  gCheck(
+    "middleware が描画前に判定する",
+    orderOk,
+    orderOk
+      ? "isMalformedRoutePath → updateSession の順"
+      : "middleware.ts が routeGuard を先に呼んでいない（ISRへの書き込みが止まらない）"
+  );
+
+  console.log(`結果（不正な形のURL）: ${guardNg === 0 ? "全件OK" : guardNg + " 件NG"}`);
+}
+
+// ─────────────────────────────────────────────
+// sitemapのlastModified（2026-09-06追加）
+//
+// 経緯: 今期・次クール・固定ページに `lastModified: new Date()` を入れていた＝
+// 「sitemapを生成した瞬間」を更新日として申告していた。/about も /privacy も
+// 数ヶ月動かないのに毎回「今日更新」と言っていたことになる。
+// Google は lastmod を「一貫して検証可能なほど正確なときだけ使う」とし、
+// Gary Illyes は「信じるかどうかは**サイト単位**の二択」「不正確なら無い方がまし」
+// と述べている。つまり不正確な lastmod は、**正しく省略している過去クールの分**まで
+// 巻き添えで無視させる。正確な更新時刻を持っていないなら申告しないのが正しい。
+// ─────────────────────────────────────────────
+console.log("\n── sitemapのlastModified ──");
+let lastmodNg = 0;
+{
+  const lmSrc = readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+  // コメントは除いてから見る（この経緯を説明したコメント自体に反応させない）。
+  const lmCode = lmSrc
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((line) => !/^\s*\/\//.test(line))
+    .join("\n");
+  const hits = lmCode.match(/lastModified\s*:/g) ?? [];
+  const ok = hits.length === 0;
+  if (!ok) lastmodNg++;
+  console.log(
+    `${ok ? "✓" : "✗"}  ${"生成時刻を更新日として申告しない".padEnd(44)} → ` +
+      (ok
+        ? "lastModified を1つも付けていない"
+        : `${hits.length} 件の lastModified が残っている（サイト全体のlastmodが無視される）`)
+  );
+  console.log(`結果（sitemapのlastModified）: ${lastmodNg === 0 ? "全件OK" : lastmodNg + " 件NG"}`);
 }
 
 // ─────────────────────────────────────────────
@@ -5751,12 +5928,17 @@ let isrNg = 0;
   // OGP画像は force-dynamic＝毎リクエスト関数が起動する。明示のCache-Controlが唯一の歯止め。
   // **画像ルートも走査から導出する**（手で並べると、新しく足した画像ルートだけ
   // 歯止めが無いまま毎リクエスト外向き通信する状態になる）。
+  //
+  // 下限は1（2026-09-06に2から下げた）。作品ごとのOG画像は**動的セグメントを持つ**ため、
+  // 作品1,961件をクローラーが1件ずつ舐める＝エッジキャッシュが構造的に当たらず、
+  // 1リクエスト205〜224ms（HTMLページの約50倍）を払い続けていた。ルート直下の
+  // `app/opengraph-image.tsx` を継承させれば**URLが1本**になり、s-maxage が実際に効く。
   const imageRoutes = appRoutes(appDirForIsr).filter(
     (r) => r.kind === "asset" && /image/.test(r.basename)
   );
-  if (imageRoutes.length < 2) isrNg++;
+  if (imageRoutes.length < 1) isrNg++;
   console.log(
-    `${imageRoutes.length >= 2 ? "✓" : "✗"}  ${"画像ルートを走査できている".padEnd(48)} → ` +
+    `${imageRoutes.length >= 1 ? "✓" : "✗"}  ${"画像ルートを走査できている".padEnd(48)} → ` +
       `${imageRoutes.length} 件`
   );
   for (const r of imageRoutes) {
@@ -6659,6 +6841,8 @@ if (
   orphanNg > 0 ||
   thinPersonNg > 0 ||
   nextSeasonNg > 0 ||
+  guardNg > 0 ||
+  lastmodNg > 0 ||
   prerenderNg > 0 ||
   softNg > 0 ||
   partialWeekNg > 0 ||

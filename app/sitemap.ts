@@ -43,23 +43,39 @@ function currentSeason(): { year: number; season: string } {
 // 「配信情報なし」としか答えられない薄いページで、これを大量に送るとサイト全体の
 // 評価を下げうる。content/archive/index.json は「配信1件以上」の作品IDだけを
 // 持っており（1,961件。生成は node scripts/build-archive-index.ts）、それを載せる。
+// 【lastModified を一切付けない・2026-09-06】
+// 以前は今期・次クール・固定ページに `lastModified: new Date()` を入れていた。
+// つまり「このsitemapを生成した瞬間」＝実質いつでも「今日更新した」と申告していた。
+// 実際には /about も /privacy も数ヶ月動かないし、作品ページが動くのは Annict 側の
+// データが変わったときだけで、生成時刻とは何の関係も無い。
+//
+// Google の Search Central は lastmod を「一貫して検証可能なほど正確なときだけ使う」
+// とし、意味のある更新（本文・構造化データ・リンク）だけを反映すべきだと明記している。
+// さらに Gary Illyes は「lastmod を信じるかどうかは**サイト単位**で決める（二択）」
+// 「不正確なら **無い方がまし**」と述べている。
+//
+// つまり不正確な lastmod は、その面だけでなく **サイト全体の lastmod を無視させる**。
+// 過去クール（下の方）は放送終了済みで動かないため正しく省略してあったのに、
+// 上の方の `new Date()` がサイト全体の信用を落として、その正しい省略ごと
+// 無意味にしていた可能性がある。
+//
+// 正確な更新時刻を持っていないのだから、**申告しない**のが正しい。
+// これは「分からないなら付けない」という過去クール側の設計を全面に広げただけ。
+// 検査は node scripts/check.ts の「sitemapのlastModified」節。
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [
     {
       url: siteUrl,
-      lastModified: new Date(),
       changeFrequency: "daily",
       priority: 1,
     },
     {
       url: `${siteUrl}/about`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.3,
     },
     {
       url: `${siteUrl}/privacy`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.2,
     },
@@ -67,7 +83,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // 条件を確認する先であり、被リンクを受ける入口としても機能させたいので載せる。
     {
       url: `${siteUrl}/developers`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.4,
     },
@@ -78,26 +93,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const data = await getSeasonData(String(year), season);
     entries.push({
       url: `${siteUrl}/season/${year}/${season}`,
-      lastModified: new Date(),
       changeFrequency: "daily",
       priority: 0.9,
     });
     entries.push({
       url: `${siteUrl}/exclusive/${year}/${season}`,
-      lastModified: new Date(),
       changeFrequency: "daily",
       priority: 0.85,
     });
     entries.push({
       url: `${siteUrl}/rankings/${year}/${season}`,
-      lastModified: new Date(),
       changeFrequency: "daily",
       priority: 0.8,
     });
     for (const it of data.items) {
       entries.push({
         url: `${siteUrl}/anime/${it.id}`,
-        lastModified: new Date(),
         changeFrequency: "weekly",
         priority: 0.6,
       });
@@ -113,7 +124,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const key of serviceKeys) {
       entries.push({
         url: `${siteUrl}/service/${key}/${year}/${season}`,
-        lastModified: new Date(),
         changeFrequency: "daily",
         priority: 0.7,
       });
@@ -134,7 +144,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       if (count < PERSON_PAGE_MIN_APPEARANCES) continue;
       entries.push({
         url: `${siteUrl}/person/${encodeURIComponent(castName)}/${year}/${season}`,
-        lastModified: new Date(),
         changeFrequency: "daily",
         priority: 0.5,
       });
@@ -161,14 +170,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const nextData = await getSeasonData(String(next.year), next.season);
     entries.push({
       url: `${siteUrl}/season/${next.year}/${next.season}`,
-      lastModified: new Date(),
       changeFrequency: "daily",
       priority: 0.9,
     });
     for (const it of nextData.items) {
       entries.push({
         url: `${siteUrl}/anime/${it.id}`,
-        lastModified: new Date(),
         changeFrequency: "daily",
         priority: 0.6,
       });

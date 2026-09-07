@@ -31,6 +31,16 @@ const ALLOWED_EVENTS = new Set([
   // （2026-08-07追加。components/SeasonExplorer.tsx / lib/servicePlan.ts）。
   // 加入判断に最も近い操作なので、affiliate_click と並べて転換を見る。
   "plan_open",
+  // 実利用者の表示速度（2026-09-06追加。components/WebVitals.tsx）。
+  // data は { LCP, CLS, INP, FCP, TTFB, face } で、1ページビューにつき1件だけ届く。
+  // このサイトは「2秒未満」を目標にしながら実利用者の速度を一度も測っていなかった
+  // （PSIのラボ値はノイズ±300ms・CrUXにデータ無し・@vercel/analyticsはCWVを測らない）。
+  "web_vitals",
+  // 外から来た経路のホスト名（2026-09-06追加。同上）。
+  // data は { ref: ホスト名, face }。**生のURLは保存しない**（検索語を含みうるため）。
+  // これが無いと docs/ai-era-strategy-2026-08-13.md の「AI検索からの流入が
+  // 月1件以上あるか」という判定が、実際に流入があっても0件のまま期限を迎える。
+  "page_view",
 ]);
 
 export async function POST(request: Request) {

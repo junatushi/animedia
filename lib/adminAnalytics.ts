@@ -48,6 +48,8 @@ export const EVENT_LABELS: Record<string, string> = {
   affiliate_click: "広告リンクをクリック（提携済み）",
   official_link_click: "公式サイトへ（未提携）",
   embed_copy: "埋め込みコードをコピー",
+  web_vitals: "表示速度の実測（1ページビュー1件）",
+  page_view: "外部からの流入（リファラあり）",
 };
 
 export function countBy(rows: EventRow[], since: Date | null): Record<string, number> {
@@ -74,6 +76,47 @@ export function countByDataField(rows: EventRow[], eventName: string, field: str
   return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
 }
 
+/**
+ * 実利用者の表示速度（web_vitals）を、面ごと・指標ごとに p75 で出す。
+ *
+ * **なぜ平均ではなく p75 か**: Google の Core Web Vitals の判定も p75 で、
+ * 平均は少数の極端に遅い回線に引きずられる。
+ *
+ * **件数を必ず一緒に返すこと。** このサイトの実トラフィックは小さく
+ * （GSC実測で作品ページ81ページ・28日で77クリック）、数件の p75 を
+ * 「速くなった／遅くなった」の根拠にすると㉞・㊶と同じ「少数からの一般化」を
+ * 繰り返すことになる。読む側が件数を見て判断できるようにする。
+ */
+export function vitalsP75(
+  rows: EventRow[]
+): { face: string; metric: string; p75: number; count: number }[] {
+  const buckets = new Map<string, number[]>();
+  for (const row of rows) {
+    if (row.event_name !== "web_vitals") continue;
+    const d = row.event_data;
+    if (!d) continue;
+    const face = typeof d.face === "string" ? d.face : "other";
+    for (const [metric, value] of Object.entries(d)) {
+      if (metric === "face") continue;
+      if (typeof value !== "number" || !Number.isFinite(value)) continue;
+      const key = `${face}\u0000${metric}`;
+      const arr = buckets.get(key);
+      if (arr) arr.push(value);
+      else buckets.set(key, [value]);
+    }
+  }
+  const out: { face: string; metric: string; p75: number; count: number }[] = [];
+  for (const [key, values] of buckets) {
+    const [face, metric] = key.split("\u0000");
+    values.sort((a, b) => a - b);
+    // 最近傍順位法。値が1件なら その値自身が p75 になる。
+    const idx = Math.min(values.length - 1, Math.ceil(values.length * 0.75) - 1);
+    out.push({ face, metric, p75: values[Math.max(0, idx)], count: values.length });
+  }
+  // 面 → 指標 の順に並べて、画面でもJSONでも同じ並びになるようにする。
+  return out.sort((a, b) => a.face.localeCompare(b.face) || a.metric.localeCompare(b.metric));
+}
+
 export type AnalyticsSnapshot = {
   windowDays: number;
   /** 何行を集計したか。MAX_ROWS と同じなら**打ち切られている**＝合計を過小に読まないこと。 */
@@ -83,6 +126,10 @@ export type AnalyticsSnapshot = {
   filterService: [string, number][];
   officialClicks: [string, number][];
   affiliateClicks: [string, number][];
+  /** 実利用者の表示速度。面ごと・指標ごとの p75 と件数（2026-09-06追加）。 */
+  vitals: { face: string; metric: string; p75: number; count: number }[];
+  /** 外から来た経路のホスト名の多い順（同上）。AI検索からの流入もここに出る。 */
+  referrers: [string, number][];
 };
 
 /**
@@ -108,5 +155,7 @@ export function buildSnapshot(rows: EventRow[], now = new Date()): AnalyticsSnap
     filterService: countByDataField(rows, "filter_service", "service"),
     officialClicks: countByDataField(rows, "official_link_click", "service"),
     affiliateClicks: countByDataField(rows, "affiliate_click", "service"),
+    vitals: vitalsP75(rows),
+    referrers: countByDataField(rows, "page_view", "ref"),
   };
 }

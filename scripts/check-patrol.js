@@ -249,9 +249,30 @@ async function main() {
       missed.length === 0,
       missed.length ? `崩していない: ${missed.map((r) => r.routePath).join(" / ")}` : `${routes.length} ルート全部を崩した`
     );
-    // 画像ルート（OG画像）も崩している。初版が取りこぼした実物なので名指しで固定する。
-    const og = listed.includes("/anime/[id]/opengraph-image [id]/");
-    check("⑤ OG画像のルートも崩している", og, og ? "崩している" : "初版と同じ取りこぼし");
+    // 画像ルート（OG画像など）も崩していること。
+    //
+    // 【2026-09-06に名指しをやめた】ここは長らく
+    // `listed.includes("/anime/[id]/opengraph-image [id]/")` と**実物を名指し**していた。
+    // 初版が取りこぼした実物だったからだが、㊳の「対象を手で数えない」に反していた。
+    // 実際、作品ごとのOG画像ルートを削除した日（作品ページはルート直下の
+    // app/opengraph-image.tsx を継承する形にした）に、**このチェックだけが陳腐化して
+    // 落ちた**。名指しは「そのファイルがある限り正しく動く」が、無くなった/増えたときに
+    // 追随しない。
+    //
+    // そこで**走査から導出する**: 動的セグメントを持つ画像ルートが1件でもあれば
+    // 全部崩していること。0件のときは「0件である」と明示して通す（黙って素通しすると、
+    // 画像ルートが検査対象外になったことに気づけない）。
+    const assetRoutes = routes.filter((r) => r.kind === "asset");
+    const missedAsset = assetRoutes.filter((r) => !listed.includes(`${r.routePath} [`));
+    check(
+      "⑤ 動的セグメントを持つ画像ルートも崩している",
+      missedAsset.length === 0,
+      assetRoutes.length === 0
+        ? "対象0件（動的セグメントを持つ画像ルートは無い）"
+        : missedAsset.length
+          ? `崩していない: ${missedAsset.map((r) => r.routePath).join(" / ")}`
+          : `${assetRoutes.length} 件すべてを崩した`
+    );
   }
 
   console.log(`\n結果: ${ng === 0 ? "全件OK" : `${ng} 件NG`}`);

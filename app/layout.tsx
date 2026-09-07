@@ -9,6 +9,7 @@ import { INLINE_CSS } from "./inlineCss";
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
 import AuthProvider from "@/components/AuthProvider";
+import WebVitals from "@/components/WebVitals";
 
 const title = "アニメ視聴ガイド";
 const description = "シーズンごとのアニメを、観られる国内配信サービス別に一覧。配信情報は Annict からリアルタイム取得。";
@@ -120,6 +121,10 @@ export default function RootLayout({
           {/* Vercel Web Analytics（Cookieレス・個人特定なし）。ページビューと
               page.tsx で track() する行動イベントを収集する。 */}
           <Analytics />
+          {/* 実利用者の表示速度と、外から来た経路のホスト名を記録する。
+              @vercel/analytics はCWVを測らない（別製品）ので重複しない。
+              何も描画しない（return null）。理由は components/WebVitals.tsx の冒頭。 */}
+          <WebVitals />
         </AuthProvider>
       </body>
     </html>
