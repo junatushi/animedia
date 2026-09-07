@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import IntentLink from "@/components/IntentLink";
 
 import { siteUrl } from "@/lib/siteUrl";
+import { OG_IMAGES } from "@/lib/ogImage";
 const OPERATOR_NAME = "アニメディア";
 
 const title = "運営者情報";
@@ -11,8 +12,8 @@ export const metadata: Metadata = {
   title,
   description,
   alternates: { canonical: `${siteUrl}/about` },
-  openGraph: { title, description, url: `${siteUrl}/about`, type: "website" },
-  twitter: { card: "summary", title, description },
+  openGraph: { title, description, url: `${siteUrl}/about`, type: "website", images: OG_IMAGES },
+  twitter: { card: "summary", title, description, images: OG_IMAGES },
 };
 
 // E-E-A-T（発信者の実在性・信頼性）向上のための運営者情報ページ。

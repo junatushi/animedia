@@ -7,6 +7,7 @@ import { titleText } from "@/lib/pageTitle";
 import { decodeParamName } from "@/lib/staticParams";
 import { creditMap, creditWorks, type StudioIndex } from "@/lib/studioIndex";
 import studioIndexJson from "@/content/archive/studios.json";
+import { OG_IMAGES } from "@/lib/ogImage";
 
 // 制作会社ページ（2026-08-12導入）。/studio/[name]
 //
@@ -49,8 +50,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title: titleText(title), description, url, type: "website" },
-    twitter: { card: "summary_large_image", title: titleText(title), description },
+    openGraph: { title: titleText(title), description, url, type: "website", images: OG_IMAGES },
+    twitter: { card: "summary_large_image", title: titleText(title), description, images: OG_IMAGES },
   };
 }
 

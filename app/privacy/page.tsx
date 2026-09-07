@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import IntentLink from "@/components/IntentLink";
 
 import { siteUrl } from "@/lib/siteUrl";
+import { OG_IMAGES } from "@/lib/ogImage";
 
 const title = "プライバシーポリシー・広告掲載について";
 const description =
@@ -11,8 +12,8 @@ export const metadata: Metadata = {
   title,
   description,
   alternates: { canonical: `${siteUrl}/privacy` },
-  openGraph: { title, description, url: `${siteUrl}/privacy`, type: "website" },
-  twitter: { card: "summary", title, description },
+  openGraph: { title, description, url: `${siteUrl}/privacy`, type: "website", images: OG_IMAGES },
+  twitter: { card: "summary", title, description, images: OG_IMAGES },
 };
 
 // プライバシーポリシー＋広告掲載方針のページ。

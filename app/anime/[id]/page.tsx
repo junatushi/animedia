@@ -61,6 +61,7 @@ function formatAutoScheduleDate(auto: AutoScheduleEntry): string {
 import type { AutoScheduleEntry } from "@/lib/types";
 import { siteUrl } from "@/lib/siteUrl";
 import { parseWorkId } from "@/lib/workId";
+import { OG_IMAGES } from "@/lib/ogImage";
 
 type Params = { id: string };
 
@@ -172,8 +173,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     title: { absolute: title },
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, type: "website" },
-    twitter: { card: "summary", title, description },
+    openGraph: { title, description, url, type: "website", images: OG_IMAGES },
+    twitter: { card: "summary", title, description, images: OG_IMAGES },
   };
 }
 

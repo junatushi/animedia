@@ -4801,6 +4801,103 @@ let lastmodNg = 0;
 }
 
 // ─────────────────────────────────────────────
+// 共有カードの画像（2026-09-06追加）
+//
+// 経緯: Next.js の File-based Metadata（`app/opengraph-image.tsx` を置くだけで
+// og:image が入る規約）は、**子のルートが generateMetadata で openGraph を返すと
+// 効かなくなる**。openGraph はフィールド単位ではなく**まるごと**置き換わるため。
+//
+// ローカル本番ビルドのHTMLを実際に数えたところ、og:image が入っていたのは
+// **トップページだけ**で、/about も /season/** も /studio/** も0個だった。
+// つまりSNSで共有しても画像の無いカードになっていた。しかも
+// `twitter: { card: "summary_large_image" }` を宣言しているページが複数あり、
+// **画像の無い large_image カードはカードとして成立しない**。
+//
+// 自分のサイトを見ても分からず、SNSに貼って初めて分かる＝**画面を見ても
+// 気づけない**壊れ方なので、機械で見張る。対象は手で数えず app/ を走査する（㊳）。
+// ─────────────────────────────────────────────
+console.log("\n── 共有カードの画像 ──");
+let ogImgNg = 0;
+{
+  const ogCheck = (label: string, ok: boolean, detail: string) => {
+    if (!ok) ogImgNg++;
+    console.log(`${ok ? "✓" : "✗"}  ${label.padEnd(44)} → ${detail}`);
+  };
+
+  // `X: {` から対応する `}` までを取り出す（テンプレートリテラルの `${}` も
+  // 波括弧が釣り合うので、素朴な対応付けで足りる）。
+  const objectAfter = (src: string, key: string): string[] => {
+    const out: string[] = [];
+    let from = 0;
+    for (;;) {
+      const at = src.indexOf(`${key}: {`, from);
+      if (at < 0) break;
+      let depth = 0;
+      let i = at + key.length + 2;
+      for (; i < src.length; i++) {
+        if (src[i] === "{") depth++;
+        else if (src[i] === "}") {
+          depth--;
+          if (depth === 0) break;
+        }
+      }
+      out.push(src.slice(at, i + 1));
+      from = i + 1;
+    }
+    return out;
+  };
+
+  // app/ 以下の .tsx を走査する（ページ種別を足したら自動で対象になる）。
+  const ogAppDir = fileURLToPath(new URL("../app", import.meta.url));
+  const tsxFiles: string[] = [];
+  const walkTsx = (dir: string) => {
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      const full = `${dir}/${ent.name}`;
+      if (ent.isDirectory()) walkTsx(full);
+      else if (ent.name.endsWith(".tsx")) tsxFiles.push(full);
+    }
+  };
+  walkTsx(ogAppDir);
+
+  const stripComments = (t: string) =>
+    t
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n")
+      .filter((line) => !/^\s*\/\//.test(line))
+      .join("\n");
+
+  const missingOg: string[] = [];
+  let declared = 0;
+  for (const file of tsxFiles) {
+    const src = stripComments(readFileSync(file, "utf8"));
+    for (const key of ["openGraph", "twitter"]) {
+      for (const obj of objectAfter(src, key)) {
+        declared++;
+        if (!/\bimages\s*:/.test(obj)) {
+          missingOg.push(`${file.slice(ogAppDir.length - 3)} の ${key}`);
+        }
+      }
+    }
+  }
+
+  // 走査が壊れて0件になると静かに緑になるので、下限を置く。
+  ogCheck(
+    "openGraph/twitter の宣言を走査できている",
+    declared >= 20,
+    `${declared} 件（app/ の .tsx を走査）`
+  );
+  ogCheck(
+    "共有カードの宣言すべてに画像がある",
+    missingOg.length === 0,
+    missingOg.length
+      ? `画像が無い: ${missingOg.join(" / ")}（SNSで画像の無いカードになる）`
+      : `${declared} 件すべてに images がある`
+  );
+
+  console.log(`結果（共有カードの画像）: ${ogImgNg === 0 ? "全件OK" : ogImgNg + " 件NG"}`);
+}
+
+// ─────────────────────────────────────────────
 // 途中の週と完全な週を取り違えない（2026-08-31追加）
 //
 // 経緯: GSCは3日ラグがあるので最新の週は必ず途中までしか埋まっていない。
@@ -6842,6 +6939,7 @@ if (
   thinPersonNg > 0 ||
   nextSeasonNg > 0 ||
   guardNg > 0 ||
+  ogImgNg > 0 ||
   lastmodNg > 0 ||
   prerenderNg > 0 ||
   softNg > 0 ||

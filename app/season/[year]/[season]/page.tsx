@@ -11,6 +11,7 @@ import { siteUrl } from "@/lib/siteUrl";
 import { seasonPageTitle, seasonPageDescription } from "@/lib/pageMeta";
 import { robotsFor } from "@/lib/indexPolicy";
 import { titleText } from "@/lib/pageTitle";
+import { OG_IMAGES } from "@/lib/ogImage";
 
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
@@ -100,8 +101,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     description,
     alternates: { canonical: url },
     ...robotsFor(failed, count),
-    openGraph: { title: titleText(title), description, url, type: "website" },
-    twitter: { card: "summary_large_image", title: titleText(title), description },
+    openGraph: { title: titleText(title), description, url, type: "website", images: OG_IMAGES },
+    twitter: { card: "summary_large_image", title: titleText(title), description, images: OG_IMAGES },
   };
 }
 

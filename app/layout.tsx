@@ -17,6 +17,7 @@ const description = "シーズンごとのアニメを、観られる国内配�
 // SNSカードの og:image / twitter:image を絶対URLで解決するために必要。
 // 実際の公開ドメインに合わせて変更する（複数ドメイン運用時は環境変数化を検討）。
 import { siteUrl } from "@/lib/siteUrl";
+import { OG_IMAGES } from "@/lib/ogImage";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -31,11 +32,13 @@ export const metadata: Metadata = {
     locale: "ja_JP",
     siteName: title,
     url: siteUrl,
+    images: OG_IMAGES,
   },
   twitter: {
     card: "summary_large_image",
     title,
     description,
+    images: OG_IMAGES,
   },
   robots: { index: true, follow: true },
   // Google Search Console の所有権確認（HTMLタグ方式）。
