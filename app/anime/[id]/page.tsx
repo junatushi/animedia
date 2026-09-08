@@ -274,11 +274,19 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
     workLd.alternateName = alias.names;
   }
   if (credits.casts.length > 0) {
-    workLd.actor = credits.casts.map((c) => ({
-      "@type": "Person",
-      name: c.personName,
-      ...(c.characterName ? { characterName: c.characterName } : {}),
-    }));
+    // 【2026-09-07修正】`characterName` は `Person` のプロパティではない
+    // （schema.org では `PerformanceRole` が持つ）。`Person` に直接乗せると
+    // 語彙上は意味を持たない＝機械可読の層にだけ、解釈できない主張が残る。
+    // 役名がある場合だけ `PerformanceRole` で包み、無い場合は素の `Person` にする。
+    workLd.actor = credits.casts.map((c) =>
+      c.characterName
+        ? {
+            "@type": "PerformanceRole",
+            characterName: c.characterName,
+            actor: { "@type": "Person", name: c.personName },
+          }
+        : { "@type": "Person", name: c.personName }
+    );
   }
   if (credits.director) {
     workLd.director = { "@type": "Person", name: credits.director };

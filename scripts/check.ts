@@ -4501,18 +4501,53 @@ let softNg = 0;
     JSON.stringify(rf)
   );
 
-  // ④ クール単位の5面が、この判定を通していること。
+  // ④ 「Annictを叩いて、失敗を握って200を返す」ページが全部この判定を通していること。
   //    ここを通さないページは、Annict障害中に「エラー」本文つきで索引されうる。
-  const seasonScoped: [string, string][] = [
-    ["../app/season/[year]/[season]/page.tsx", "シーズンページ"],
-    ["../app/rankings/[year]/[season]/page.tsx", "ランキングページ"],
-    ["../app/exclusive/[year]/[season]/page.tsx", "独占配信ページ"],
-    ["../app/service/[key]/[year]/[season]/page.tsx", "サービス別ページ"],
-    ["../app/person/[name]/[year]/[season]/page.tsx", "声優ページ"],
-  ];
+  //
+  // **対象は手で並べない**（㊳の規則）。以前は5面を名指ししていたため、
+  // **トップページ（"/"）だけが対象から漏れていた**のを2026-09-07まで検出できなかった。
+  // トップは `getSeasonData` を同じ形（try/catch で握る）で呼びながら
+  // 静的な `metadata` しか持たず、Annict障害中は
+  // **HTTP200・index,follow・作品リンク0件**のHTMLを公開していた。
+  // サイトの正面玄関でcanonicalの指す先なので、5面より影響が大きい。
+  //
+  // いまは `app/` を走査して「`getSeasonData` を呼ぶ page.tsx」を導出する。
+  // 新しい面が同じ形で増えたら**自動で対象に入る**。
+  // `/anime/[id]` は `getWorkData` を使う別経路で、独自の `UNAVAILABLE_METADATA` を
+  // 持つので対象外（`getSeasonData` を呼ばないので、この導出には最初から入らない）。
+  const seasonScoped: [string, string][] = [];
+  {
+    const appDir = new URL("../app/", import.meta.url);
+    for (const f of listSourceFiles(appDir)) {
+      if (!/\/page\.tsx$/.test(f.pathname)) continue;
+      const src = readFileSync(f, "utf8");
+      if (!/getSeasonData\s*\(/.test(src)) continue;
+      const rel = f.pathname.slice(appDir.pathname.length);
+      seasonScoped.push([`../app/${rel}`, rel === "page.tsx" ? "トップページ" : rel.replace("/page.tsx", "")]);
+    }
+    seasonScoped.sort((a, b) => a[0].localeCompare(b[0]));
+    // 走査が痩せて黙って緑にならないよう下限を見る（5面＋トップ＝6）。
+    const enough = seasonScoped.length >= 6;
+    softCheck(
+      "索引判定の対象を走査で導出している",
+      enough,
+      enough
+        ? `${seasonScoped.length}ページ（getSeasonData を呼ぶ page.tsx）`
+        : `${seasonScoped.length}ページしか見つからない＝走査が壊れている`
+    );
+  }
   for (const [rel, label] of seasonScoped) {
     const src = readFileSync(new URL(rel, import.meta.url), "utf8");
-    const uses = src.includes("robotsFor(") || src.includes("NOINDEX_FOLLOW");
+    // 作品ページ（/anime/[id]）は `getSeasonData` を「関連作の表示」に使うだけで、
+    // 本体の取得は `getWorkData`。取れなかったときは専用の `UNAVAILABLE_METADATA`
+    // （index:false, follow:false）を返す＝**同じ穴は塞がっている**。
+    // 2026-09-07に本番同等の条件（ANNICT_TOKEN無し）で実測し、
+    // `/anime/999999999` が `noindex, nofollow` を返すことを確認済み。
+    // 判定の道具が違うだけなので、どちらでも通す。
+    const uses =
+      src.includes("robotsFor(") ||
+      src.includes("NOINDEX_FOLLOW") ||
+      src.includes("UNAVAILABLE_METADATA");
     softCheck(
       `${label}が索引の判定を通す`,
       uses,

@@ -16,9 +16,10 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `npm run dev` … 開発サーバー起動 → http://localhost:3000
 - `npm run build` … 本番ビルド
 - `npm run check` … **コミット前はこれ1本**（2026-08-11導入）。下の検査スクリプトを
-  CIと同じ順で全部回す（`tsc --noEmit` → `check.ts` → `check-threads.js` →
-  `check-verify-production.js` → `check-gsc.js` → `check-probe-series.js` →
-  `check-track-season.js` → `check-fetch-upcoming.js` → `check-site-analytics.js`）。
+  CIと同じ順で全部回す。**この並びをここに書き写さないこと**（2026-09-07訂正。
+  以前は9本だけ列挙してあり、`check-seo-report.js`・`check-patrol.js`・`check-freshness.js`の
+  3本が**抜けたまま放置**されていた＝この節自身が「検査が分かれていると全部は回されない」
+  という警告を実演していた）。**実際の並びは`package.json`の`check`を見る**（現在12本）。
   検査が6コマンドに分かれていると実際には全部は回されず、2件が数セッション赤いまま
   放置された（`docs/operations.md`の㉔追記2）。CIの`run:`とこのコマンドが同じ検査を
   並べていることは`node scripts/check.ts`が突き合わせる。ネットワークには出ない
@@ -511,7 +512,9 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   「他のクールの出演作」の元データ。**そのクールの出演作しか出せない**という制約を外す
   ためのもので、Annictへの追加取得はゼロ（スナップショットの`castNames`から作る）。
   収録は`content/archive/index.json`と同じ方針で**配信情報が1件以上ある作品だけ**、
-  かつ出演2作品以上の人だけ（787人・出演7,721件）。**載っているのは「そのクールの番組表に
+  かつ出演2作品以上の人だけ（**1,531人・出演21,505件**。2026-09-07実測。
+  以前ここに書いてあった「787人・出演7,721件」は`CASTS_LIST`が5件だった頃の値で、
+  スナップショット再生成後の実数と2倍近く食い違ったまま放置されていた）。**載っているのは「そのクールの番組表に
   配信の記録があった」事実であって、いま配信されているかではない**ので、表示側は
   「配信情報がある」までに留める（`lib/workAvailability.ts`と同じ扱い）。
   素の`.ts`なのは`scripts/check.ts`から検査するため
