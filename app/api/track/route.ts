@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { sanitizeEventData } from "@/lib/trackEventData";
 
 // クライアント（components/SeasonExplorer.tsx・components/ServiceMarks.tsx）が送る
 // イベント名のみ許可する（任意の値の書き込みを防ぐ）。
@@ -62,10 +63,15 @@ export async function POST(request: Request) {
   if (typeof event !== "string" || !ALLOWED_EVENTS.has(event)) {
     return NextResponse.json({ error: "unknown event" }, { status: 400 });
   }
-  // dataは付随情報（例: { service: "d_anime" }）のみ想定。プレーンオブジェクト以外は捨てる
-  // （個人情報が紛れ込む余地を作らない。呼び出し元も文字列程度しか渡していない）。
-  const eventData =
-    data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+  // dataは付随情報（例: { service: "d_anime" }）のみ想定。
+  //
+  // 【重要】ここは**無認証の口**で、しかも書いた値が
+  // Supabase → lib/adminAnalytics.ts → content/analytics/site/<日付>.json → main へのコミット
+  // と伝わり、docs/daily-ops.md が「毎日読む」と指示しているファイルに載る。
+  // 以前は「プレーンオブジェクトか」しか見ておらず、**誰でも任意の文章を
+  // リポジトリの「実測データ」に載せられた**（偽の流入元の捏造・指示の注入）。
+  // 判定の中身と経緯は lib/trackEventData.ts の冒頭。**この検証を外さないこと。**
+  const eventData = sanitizeEventData(data);
 
   const supabase = createServiceClient();
   const { error } = await supabase

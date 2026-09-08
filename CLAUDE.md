@@ -419,6 +419,22 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   審査対応）。実際に行っていることだけを書く方針。計測・ログイン情報の記載を変えたら実装と同期させる
 - `lib/logEvent.ts` … クライアント行動ログの共通ヘルパー（SeasonExplorer/ServiceMarksが使用。
   イベント名は`app/api/track/route.ts`のALLOWED_EVENTSで許可制）
+- `lib/trackEventData.ts` … **`/api/track` に届いた `data` の検証**（2026-09-07導入・重大度中）。
+  `/api/track`は**無認証・Origin検査なし・レート制限なし**の口で、しかも書いた値が
+  `Supabase` → `lib/adminAnalytics.ts` → `content/analytics/site/<日付>.json` →
+  **mainへのコミット** と伝わり、`docs/daily-ops.md`が「毎日読む」と指示しているファイルに載る。
+  以前は「プレーンオブジェクトか」しか見ておらず、**誰でも任意の文章を
+  リポジトリの「実測データ」に載せられた**（偽の流入元の捏造・指示の注入）。
+  縛りは2段階で、①全フィールド共通の上限（キー12個・文字列64文字・数値は有限）
+  ②**コミットされるJSONに入るフィールドだけ形まで**（`ref`はホスト名のみ・
+  `service`は`[a-z0-9_]`のみ・`face`は小文字英字のみ）。`title`（作品名）や`cast`（声優名）は
+  日本語の自由文だがJSONには出ないので長さだけ。**落とすのはフィールド単位**
+  （1つ変な値が混ざっても残りは記録する＝計測がユーザーの操作を邪魔しない）。
+  **クライアントの検証は当てにしない**（`components/WebVitals.tsx`はホスト名だけを送るが、
+  それは正直なクライアントの話）。`route.ts`は`next/server`依存でNodeからimportできないので
+  素の`.ts`に置く。検査は`node scripts/check.ts`の「行動ログの付随データ」節。
+  **この検証を外さないこと**（外しても画面には何も出ず、気づくのは
+  リポジトリに変な文字列が載った後）。経緯は`docs/operations.md`の㊶-2
 - `lib/services.ts` … 配信サービスの正準リスト `SERVICES` と判定 `classifyChannel`、`AnnictWork`→`AnimeItem`変換 `toAnimeItem`、`AnnictWork`→`AnimeDetail`変換 `toAnimeDetail`（声優・監督・製作会社・原作者を導出）。`AnimeItem.hasBroadcastData`はAnnictにprograms（TV含む）が1件でもあるかのフラグで、配信サービス0件のときUI（`ServiceMarks`）が「配信情報なし」（データ自体なし）と「TV放送のみ（配信情報は未登録の可能性）」を出し分けるのに使う
 - `lib/annict.ts` … Annict GraphQL クエリ（サーバー側専用）。シーズン一括取得 `fetchSeasonWorks` と単一作品取得 `fetchWorkById`。どちらも programs（放送/配信）と casts/staffs（声優・スタッフ）を取得する。**【重要】どのクエリでも `episode` を要求しないこと**（2026-08-16修正・重大度高）。Annictの`Program.episode`はnon-nullなのに話数未紐付けのprogramが実在し、要求するとGraphQLのnull伝播で**programノードが丸ごとnullになりchannel＝配信サービスごと消える**。2026-07-12に「300件超の追い取得」だけを直したが、1ページ目を取る`WORK_QUERY`が要求したままで、**一覧（/api/season）には出るのに作品ページだけ「配信情報なし」**という食い違いが残っていた（実例: 17359 スティール・ボール・ランはprograms11件が11件ともnull）。programsのフィールドは用途別の3定数（`PROGRAM_FIELDS_LIST`／`PROGRAM_FIELDS_DETAIL`＝＋rebroadcast／`PROGRAM_FIELDS_EPISODE`＝＋episode）にまとめてあり、episodeを含むのは配信開始通知メールの話数表示専用の`PROGRAMS_QUERY_EPISODE`**だけ**。通知は`fetchWorkById(id, token, { withEpisode: true })`で2本目を投げ、`mergeEpisodeInfo`がchannel名＋startedAtを鍵に話数だけを重ねる（baseのノードは絶対に減らさない）。`node scripts/check.ts`が「episodeを書いてよいのは1箇所だけ」「withEpisodeを使うのは通知バッチだけ」を機械的に検査するので消さないこと。経緯は`docs/operations.md`の㉙
 - `scripts/audit-coverage.ts` … 配信データ網羅率の点検スクリプト（`node scripts/audit-coverage.ts [year] [season]`）。season-updater/service-mapperエージェントが使う

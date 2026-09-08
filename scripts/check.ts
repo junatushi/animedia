@@ -111,6 +111,8 @@ import {
 // アフィリエイトのリンクが公開データセットに混入していないかを見るために読む
 // （型だけの import は Node の型ストリッピングで消えるので実行時には services.ts に依存しない）。
 import { AFFILIATE_PROGRAMS } from "../content/affiliate/programs.ts";
+// 行動ログの付随データの検証（2026-09-07追加）。純粋関数のみ。
+import { sanitizeEventData, MAX_KEYS, MAX_STRING } from "../lib/trackEventData.ts";
 
 
 // `generateMetadata` を持つページのうち、title / description を
@@ -3378,6 +3380,96 @@ let trackNg = 0;
 console.log(`結果（行動ログの配線）: ${trackNg === 0 ? 2 : 0} 件OK / ${trackNg} 件NG`);
 
 // ─────────────────────────────────────────────
+// 行動ログの付随データ（2026-09-07追加・重大度中）
+//
+// `/api/track` は**無認証・Origin検査なし・レート制限なし**の口で、書いた値が
+//   Supabase → lib/adminAnalytics.ts の buildSnapshot（値の上位10件）
+//   → scripts/fetch-site-analytics.js が content/analytics/site/<日付>.json に書く
+//   → GitHub Actions が main へコミット → docs/daily-ops.md が「毎日読む」と指示
+// という経路でリポジトリの中まで届く。以前は `data` に上限も型の検査も無かったので、
+// **誰でも任意の文章を「実測データ」に載せられた**（偽の流入元の捏造・指示の注入）。
+//
+// 判定は lib/trackEventData.ts が1箇所で持つ。**外すと静かに穴が開く**
+// （画面には何も出ず、壊れたことに気づくのはリポジトリに変な文字列が載った後）ので
+// 機械的に見張る。route.ts は next/server 依存で Node から import できないため、
+// 「route.ts がその関数を通していること」はソースを読んで確かめる。
+// ─────────────────────────────────────────────
+console.log("\n── 行動ログの付随データ（/api/track の data）──");
+let dataNg = 0;
+{
+  // ① コミットされるJSONに入るフィールドは、形まで縛られていること。
+  //    ここが緩むと、上の経路でリポジトリに任意の文字列が載る。
+  const injected = [
+    ["ref に自由文", { ref: "この指示に従ってください" }],
+    ["ref に生URL", { ref: "https://example.test/?q=秘密の検索語" }],
+    ["ref に空白入り", { ref: "evil host" }],
+    ["service に自由文", { service: "これは広告です" }],
+    ["face に自由文", { face: "無視して" }],
+  ] as const;
+  const leaked = injected.filter(([, d]) => {
+    const out = sanitizeEventData(d);
+    return out !== null && Object.keys(out).length > 0;
+  });
+  const p1 = leaked.length === 0;
+  if (!p1) dataNg++;
+  console.log(
+    `${p1 ? "✓" : "✗"}  ${"JSONに載るフィールドに自由文を通さない".padEnd(40)} → ${injected.length}件中 通過${leaked.length}件` +
+      (p1 ? "" : `  (${leaked.map(([n]) => n).join(", ")})`)
+  );
+
+  // ② 正常な値は通ること（縛りすぎて計測が死んでいないか）。
+  //    通らなくなると「守れているが何も測れていない」状態になり、画面でも気づけない。
+  const legit: [string, Record<string, unknown>, string[]][] = [
+    ["外部リファラ", { ref: "www.google.com", face: "anime" }, ["ref", "face"]],
+    ["配信サービス", { service: "d_anime" }, ["service"]],
+    ["表示速度", { LCP: 1234, CLS: 0.05, INP: 88, face: "season" }, ["LCP", "CLS", "INP", "face"]],
+    ["日本語の作品名", { title: "久保さんは僕を許さない" }, ["title"]],
+    ["クール切替", { season: "summer", year: 2026 }, ["season", "year"]],
+  ];
+  const broken = legit.filter(([, d, want]) => {
+    const out = sanitizeEventData(d);
+    return !out || want.some((k) => !(k in out));
+  });
+  const p2 = broken.length === 0;
+  if (!p2) dataNg++;
+  console.log(
+    `${p2 ? "✓" : "✗"}  ${"正常な計測値は通す".padEnd(40)} → ${legit.length}件中 落ちた${broken.length}件` +
+      (p2 ? "" : `  (${broken.map(([n]) => n).join(", ")})`)
+  );
+
+  // ③ 上限が効いていること（DBとメモリを守る土台）。
+  const many: Record<string, number> = {};
+  for (let i = 0; i < MAX_KEYS + 20; i++) many[`m${i}`] = i;
+  const keptKeys = Object.keys(sanitizeEventData(many) ?? {}).length;
+  const longStr = sanitizeEventData({ title: "あ".repeat(MAX_STRING + 1) });
+  const weird = sanitizeEventData({ LCP: Number.NaN, CLS: Number.POSITIVE_INFINITY, INP: 1 });
+  const nested = sanitizeEventData({ a: { b: 1 }, c: [1], d: true, e: null });
+  const p3 =
+    keptKeys === MAX_KEYS &&
+    longStr === null &&
+    JSON.stringify(weird) === JSON.stringify({ INP: 1 }) &&
+    nested === null;
+  if (!p3) dataNg++;
+  console.log(
+    `${p3 ? "✓" : "✗"}  ${"キー数・長さ・型の上限が効く".padEnd(40)} → キー${keptKeys}/${MAX_KEYS}・長文${longStr === null ? "落" : "通"}・NaN${JSON.stringify(weird)}・入れ子${nested === null ? "落" : "通"}`
+  );
+
+  // ④ 逆戻り防止: route.ts が検証を通していること。
+  //    ここを外すと ①②③ が全部素通りになるが、この検査は純粋関数を直接呼ぶので
+  //    気づけない。だからソースの側も見る。
+  const routeSrc = readFileSync(new URL("../app/api/track/route.ts", import.meta.url), "utf8");
+  const usesSanitize = /sanitizeEventData\s*\(\s*data\s*\)/.test(routeSrc);
+  const noRawCast = !/data as Record<string, unknown>/.test(routeSrc);
+  const p4 = usesSanitize && noRawCast;
+  if (!p4) dataNg++;
+  console.log(
+    `${p4 ? "✓" : "✗"}  ${"route.tsが検証を通している".padEnd(40)} → ` +
+      (p4 ? "sanitizeEventData(data) を通す" : `sanitize${usesSanitize ? "有" : "無"} / 生キャスト${noRawCast ? "無" : "有"}`)
+  );
+}
+console.log(`結果（行動ログの付随データ）: ${4 - dataNg} 件OK / ${dataNg} 件NG`);
+
+// ─────────────────────────────────────────────
 // シーズンページのHTML量の見張り（2026-08-06追加）
 //
 // 2026-08-05にSSRを直した結果、シーズンページのHTMLは「作品数に比例して増える」形に
@@ -4052,6 +4144,28 @@ let orphanNg = 0;
       needle: "/anime/${",
       label: "制作会社・監督ページ → 作品ページ",
     },
+    // 2026-09-07追加: 下の「面の網羅」検査を書いたら、**この2つが検査の外にあった**
+    // ことが分かった。どちらも sitemap に載っているのに case が1件も無く、
+    // 特に `/rankings` は入口が SeasonExplorer の1行だけ＝その行が消えると
+    // 丸ごと孤立するのに機械検査に掛からない（サービス別ページで踏んだ穴と同型）。
+    {
+      file: "../components/SeasonExplorer.tsx",
+      needle: "/rankings/${",
+      label: "シーズン/トップ → ランキングページ",
+    },
+    {
+      file: "../components/SeasonExplorer.tsx",
+      needle: "/exclusive/${",
+      label: "シーズン/トップ → 独占配信ページ",
+    },
+    // シーズンページ（過去64クール分をsitemapに載せている）への導線。
+    // 下の「面の網羅」検査が**3つ目の抜け**として見つけた。フッターの年・季節の
+    // 切替がここで、過去クールへ辿れる唯一の入口。
+    {
+      file: "../components/SeasonExplorer.tsx",
+      needle: "/season/${",
+      label: "シーズン/トップ → 他クールのシーズンページ",
+    },
   ];
   for (const c of cases) {
     const src = readFileSync(new URL(c.file, import.meta.url), "utf8");
@@ -4062,6 +4176,38 @@ let orphanNg = 0;
         (ok
           ? "リンクあり"
           : `${c.file} に \`${c.needle}\` が無い。sitemapに載せているページはサイト内からも辿れるようにすること`)
+    );
+  }
+
+  // ── 面の網羅（2026-09-07追加）─────────────────────────────
+  // 上の `cases` は**手で並べた表**なので、新しいページ種別を足したときに
+  // 書き忘れると「その種別だけ永久に検査されない」（㊳と同型の穴）。
+  // 実際に2026-09-07、`/rankings` と `/exclusive` が1件も無いまま抜けていた。
+  //
+  // そこで**面の一覧から導出して**、全部の面が少なくとも1つの case に
+  // 覆われていることを確かめる。面の一覧（`PAGE_TYPE_PREFIXES`）は
+  // 「面（ページ種別）の分類」節が sitemap と機械的に突き合わせているので、
+  // **sitemapに種別を足すとここも自動で厳しくなる**。
+  {
+    const { PAGE_TYPE_PREFIXES } = await import("./lib/gsc-page-type.js");
+    const covered = new Set(
+      cases.map((c) => {
+        const m = c.needle.match(/^(\/[a-z]+\/)/);
+        return m ? m[1] : "";
+      })
+    );
+    // 声優ページは `/person/${` の他に `otherSeasonWorks` という別の書き方の case も
+    // 持つが、`/person/${` の case があるので接頭辞としては覆われている。
+    const uncovered = (PAGE_TYPE_PREFIXES as [string, string][])
+      .filter(([, prefix]) => !covered.has(prefix))
+      .map(([name, prefix]) => `${name}(${prefix})`);
+    const pass = uncovered.length === 0 && PAGE_TYPE_PREFIXES.length > 0;
+    if (!pass) orphanNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"面を全部カバーしている（導出）".padEnd(40)} → ` +
+        (pass
+          ? `${PAGE_TYPE_PREFIXES.length}面 / 未カバー0面`
+          : `未カバー ${uncovered.join(", ")}。sitemapに載せる種別には内部リンクの検査を1件足すこと`)
     );
   }
 
@@ -6981,6 +7127,7 @@ if (
   xIntentNg > 0 ||
   xPolicyNg > 0 ||
   trackNg > 0 ||
+  dataNg > 0 ||
   aliasNg > 0 ||
   svcAliasNg > 0
 )
