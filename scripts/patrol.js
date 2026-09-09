@@ -36,54 +36,18 @@
 // シークレット不要・公開URLの読み取りのみ。回帰テストは scripts/check-patrol.js。
 // 経緯は docs/operations.md の㊲。
 // ───────────────────────────────────────────────────────────────
-const fs = require("node:fs");
 const path = require("node:path");
 const { dynamicRoutes } = require("./lib/app-routes.js");
+// 実在する値の選び方は scripts/lib/route-samples.js が1箇所で持つ
+// （本番の表示速度を測る scripts/measure-production.js と共有する。
+//  2箇所に書くと、片方だけが新しいページ種別に追随して、もう片方が
+//  静かに対象から外れる＝㊳と同じ形になる）。
+const { realValues, realFor } = require("./lib/route-samples.js");
 
 const REPO = path.join(__dirname, "..");
 const BASE = process.env.BASE || "https://animedia-khaki.vercel.app";
 const CONC = Number(process.env.PATROL_CONC || 6);
 const E = encodeURIComponent;
-
-// ── 実在する値を索引から取る（ハードコードしない）───────────────
-function readJson(rel) {
-  return JSON.parse(fs.readFileSync(path.join(REPO, rel), "utf8"));
-}
-function realValues() {
-  const studios = readJson("content/archive/studios.json");
-  const archive = readJson("content/archive/index.json");
-  const people = readJson("content/archive/people.json").people;
-  // 配信1件以上の作品を持つ、いちばん新しい過去クール。
-  const season = [...archive.seasons].filter((s) => s.workIds.length > 0).at(-1);
-  // 声優は「そのクールに2作品以上」の人を1人。ページが実在する条件と同じ。
-  let person = null;
-  const counts = new Map();
-  for (const [name, works] of Object.entries(people)) {
-    for (const w of works) {
-      if (w[2] === season.year && w[3] === season.season) {
-        counts.set(name, (counts.get(name) || 0) + 1);
-      }
-    }
-  }
-  const eligible = [...counts].filter(([, c]) => c >= 2).map(([n]) => n);
-  person = eligible.find((n) => [...n].some((ch) => ch.codePointAt(0) > 0x7f)) ?? eligible[0] ?? null;
-  // 配信サービスのキーは lib/services.ts の正準リストから読む。
-  const svcSrc = fs.readFileSync(path.join(REPO, "lib/services.ts"), "utf8");
-  const serviceKey = (svcSrc.match(/\{\s*key:\s*"([a-z_]+)"/) || [])[1] || "d_anime";
-  // **非ASCIIの名前を優先して選ぶ**。2026-08-31の事故（㊱）は日本語名にだけ出たので、
-  // ASCII名を選ぶと崩し方の大半が恒等写像になり、検査が素通りする。
-  const preferNonAscii = (names) =>
-    names.find((n) => [...n].some((ch) => ch.codePointAt(0) > 0x7f)) ?? names[0];
-  return {
-    studio: preferNonAscii(Object.keys(studios.studios)),
-    director: preferNonAscii(Object.keys(studios.directors)),
-    person: person,
-    workId: String(season.workIds[0]),
-    year: String(season.year),
-    season: season.season,
-    serviceKey,
-  };
-}
 
 // ── 崩し方 ────────────────────────────────────────────────
 // 名前（[name] セグメント）
@@ -131,20 +95,6 @@ function yearShapes() {
   ];
 }
 
-// 動的セグメントの名前 → そこに入る「実在する値」。
-// [name] はルートによって指すものが違う（制作会社／監督／声優）。
-function realFor(segment, route, v) {
-  if (segment === "id") return v.workId;
-  if (segment === "year") return v.year;
-  if (segment === "season") return v.season;
-  if (segment === "key") return v.serviceKey;
-  if (segment === "name") {
-    if (route.routePath.startsWith("/studio/")) return v.studio;
-    if (route.routePath.startsWith("/director/")) return v.director;
-    return v.person;
-  }
-  return null; // 知らないセグメント名 → そのルートは崩さない（下で報告する）
-}
 
 // 動的セグメントの名前 → 崩し方。
 function shapesFor(segment, real, localOnly) {

@@ -193,6 +193,21 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   個人の投稿」を`content/demand/raw/`から拾い、作品を`/api/search-index`で`/anime/{id}`に解決して
   **貼れる返信下書き**を`docs/leads-<日付>.md`に出す。接触は手動。リンクに`?ref=<媒体>`を付け流入実測。
   週次Xキットのリーチ枠への転用が狙い。手順は`docs/demand-scan.md`の後半
+- `node scripts/speed-report.js` … **表示速度の「判定」レポート**（2026-09-09導入）。
+  コミット済みの`content/analytics/speed/*.json`（合成計測）と
+  `content/analytics/site/*.json`の`vitals`（実利用者＝RUM）を1本に束ね、
+  ①面ごとのLCPと目標(2秒)に対する判定 ②前回比・7日前比 ③RUMのp75と**件数**
+  ④スクロール中の先読みの復活（㊴）を出す。ネットワークには出ない。
+  **表示速度の話をする前にこれを実行する**（見ずに「速くなった」と書かない）。
+  **数字をドキュメントに転記しないこと**。回帰テストは`node scripts/check-speed-report.js`
+- `node scripts/measure-production.js` … **本番の表示速度を1日1回実測する**（2026-09-09導入）。
+  `.github/workflows/measure-speed.yml`が毎日回すので**手で実行する必要は無い**
+  （本番へ出られる環境でのみ動く＝それが自動化した理由）。
+  対象URLは`scripts/lib/route-samples.js`が`app/`を走査して導出し、実在する名前・IDで
+  動的セグメントを埋める（新しいページ種別を足すと自動で対象に入る。robots.txtが
+  拒否している面は`app/robots.ts`から読んで除く）。条件は`measure-pages.js`と同一
+  （`scripts/lib/measure-page.js`が1箇所で持つ）。1URLにつき3回測って中央値を採る。
+  結果は`content/analytics/speed/<日付>.json`。読むのは上の`speed-report.js`
 - `node scripts/measure-pages.js <URL>` … **表示の速さの実測**（2026-09-03導入）。
   先に`npm run build && npx next start -p 3100`を動かしてからURLを渡す。スマホ相当の条件
   （CPU4倍スロットル・1.6Mbps・390×844）でFCP/LCP・TBT（操作をブロックする時間）・DOMノード数・

@@ -71,6 +71,22 @@ const SERIES = [
     recoverNote: "直近30日の移動集計なので翌日のファイルが同じ期間を覆う",
   },
   {
+    key: "speed",
+    label: "本番の表示速度（合成計測）",
+    kind: "dir",
+    rel: "content/analytics/speed",
+    script: "scripts/measure-production.js",
+    // 1日1回・本番URLを実測する。欠測が続くとGitHub Actions側で
+    // ブラウザの起動に失敗している（依存の更新でよく起きる）ことが多い。
+    staleDays: 2,
+    // 「その日の本番がどれだけ速かったか」は後から取り直せない。ただし表示速度は
+    // 日々そう大きく動かないので、1日の欠測で判断を誤ることは無い＝警告に留める
+    // （first-seen と違い、欠測日そのものが測定対象ではない）。
+    recoverable: true,
+    recoverNote: "翌日の計測が同じ条件で取れる（欠測日の値そのものは取り返せない）",
+    since: "2026-09-09",
+  },
+  {
     key: "first-seen",
     label: "クール別の初出日",
     kind: "first-seen",
@@ -195,7 +211,11 @@ function checkRegistration() {
       : `${found.length} 件すべて登録済み`
   );
   // 逆に、登録したのに実物が無い（改名・移動）ことも見る。
-  const ghosts = [...registered].filter((r) => !fs.existsSync(path.join(ROOT, r)));
+  // 開始直後のシリーズは、まだ1件目が入っていない＝ディレクトリが存在しなくて当然。
+  const graceRels = new Set(SERIES.filter(inStartGrace).map((s) => s.rel));
+  const ghosts = [...registered].filter(
+    (r) => !fs.existsSync(path.join(ROOT, r)) && !graceRels.has(r)
+  );
   if (ghosts.length) fail++;
   line(
     ghosts.length ? "✗" : "✓",
@@ -204,17 +224,42 @@ function checkRegistration() {
   );
 }
 
+/**
+ * 収集を始めたばかりのシリーズか（`since` から staleDays 以内か）。
+ *
+ * **初日から赤い検査を作らないための猶予。** 毎日赤い検査は数日で読まれなくなり、
+ * そのうち新しい欠測も一緒に見逃す（㉔）。しかも git は空ディレクトリを追跡しないので、
+ * 収集先を1本足すと**1件目が入るまでディレクトリ自体が存在しない**＝
+ * 猶予が無いと必ず赤くなる。猶予を過ぎても1件も無ければ、そこで初めて失敗にする。
+ */
+function inStartGrace(s) {
+  return Boolean(s.since) && diffDays(TODAY, s.since) <= s.staleDays;
+}
+
 function checkSeries(s) {
   const arms = armsOf(s);
   if (arms === null) {
+    if (inStartGrace(s)) {
+      warn++;
+      line("・", s.label, `${s.since} から収集開始（まだ1件目を待っている） / ${s.script}`);
+      return;
+    }
     fail++;
     line("✗", s.label, `${s.rel} が無い（${s.script} が一度も成功していない）`);
     return;
   }
   for (const { arm, dates } of arms) {
     if (dates.length === 0) {
+      // **収集を始めたばかりのシリーズを、初日から赤くしない。**
+      // 毎日赤い検査は数日で読まれなくなり、そのうち新しい欠測も一緒に見逃す（㉔）。
+      // since を書いたシリーズは、そこから staleDays を過ぎるまでは「開始待ち」。
+      if (inStartGrace(s)) {
+        warn++;
+        line("・", arm, `${s.since} から収集開始（まだ1件目を待っている） / ${s.script}`);
+        continue;
+      }
       fail++;
-      line("✗", arm, "日付が1件も無い");
+      line("✗", arm, s.since ? `${s.since} に開始したのに1件も無い / ${s.script}` : "日付が1件も無い");
       continue;
     }
     const latest = [...dates].sort().at(-1);

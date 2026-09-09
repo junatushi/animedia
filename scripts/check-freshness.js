@@ -41,6 +41,7 @@ const day = (base, offset) => {
  * @param {object} o
  * @param {string[]} o.gsc          GSCのファイル日付
  * @param {string[]} o.site         行動ログのファイル日付
+ * @param {string[]} [o.speed]      本番の表示速度（合成計測）のファイル日付
  * @param {Record<string,string[]>} o.firstSeen  "情報源 クール" → 日付の並び
  * @param {string[]} [o.extraDirs]  登録されていない収集先（登録漏れの再現）
  */
@@ -53,6 +54,16 @@ function fixture(o) {
   };
   for (const d of o.gsc || []) w(`content/analytics/gsc/${d}.json`, "{}");
   for (const d of o.site || []) w(`content/analytics/site/${d}.json`, "{}");
+  // 既定で健全な speed を置く。**シリーズを1本足したらここも足す**（足さないと
+  // 「健全なら失敗0」が落ちるので、登録漏れがテスト側で必ず露見する）。
+  // speed: null … ディレクトリごと作らない（git は空ディレクトリを追跡しないので、
+  //   収集先を1本足した直後の clone はこの状態になる）
+  // speed: []   … ディレクトリはあるがファイルが無い
+  if (o.speed !== null) {
+    const speedDates = o.speed ?? streak(o.today ?? TODAY, 10);
+    fs.mkdirSync(path.join(root, "content/analytics/speed"), { recursive: true });
+    for (const d of speedDates) w(`content/analytics/speed/${d}.json`, "{}");
+  }
   if (o.firstSeen) {
     const sources = {};
     for (const [arm, dates] of Object.entries(o.firstSeen)) {
@@ -187,6 +198,34 @@ function main() {
     );
     const caught = r2.code !== 0 && r2.out.includes(other);
     check("⑥ 記録は同じ腕の別の日には効かない", caught, caught ? `${other} を失敗として検出` : "見逃した");
+  }
+
+  // ⑧ since を書いた新しいシリーズは、開始直後は失敗にしない（初日から赤い検査を作らない）。
+  //    ただし猶予（staleDays）を過ぎても1件も無ければ失敗にする＝黙って止まったままにしない。
+  {
+    const r = run(use({ gsc: gscHealthy, site: siteHealthy, firstSeen: fsHealthy, speed: [] }), TODAY);
+    check("⑧ 開始直後は失敗にしない", /まだ1件目を待っている/.test(r.out) && r.code === 0, `exit=${r.code}`);
+  }
+  {
+    // 開始から十分経っているのに1件も無い＝収集が動いていない。
+    const late = day(TODAY, 30);
+    const r = run(
+      use({
+        gsc: streak(day(late, -3), 10),
+        site: streak(late, 10),
+        firstSeen: { "annict 2026-autumn": streak(late, 10), "anilist 2026-autumn": streak(late, 10) },
+        speed: [],
+      }),
+      late
+    );
+    check("⑧ 猶予を過ぎたら失敗になる", /1件も無い/.test(r.out) && r.code !== 0, `exit=${r.code}`);
+  }
+
+  {
+    // git は空ディレクトリを追跡しないので、収集先を足した直後は**ディレクトリ自体が無い**。
+    // ここに猶予が効かないと、1件目が入るまで毎日必ず赤くなる。
+    const r = run(use({ gsc: gscHealthy, site: siteHealthy, firstSeen: fsHealthy, speed: null }), TODAY);
+    check("⑧ 開始直後はディレクトリが無くても失敗にしない", r.code === 0 && /まだ1件目を待っている/.test(r.out), `exit=${r.code}`);
   }
 
   // ⑦ 収集先そのものが無いときに静かに成功しない（この種の道具の最悪の壊れ方）。

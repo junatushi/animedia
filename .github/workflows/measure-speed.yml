@@ -1,0 +1,66 @@
+name: 本番の表示速度の計測
+
+# 【なぜ Actions でやるか】
+# セッション（Claude）の作業環境は本番URLへ出られない（プロキシが403）。ローカルの
+# 本番ビルドは実データ・実画像を描けないので、そこで測れるのは「空に近いページの速さ」
+# だけ（docs/operations.md の㊶）。PageSpeed は人が手で開く必要があり、CrUX は
+# トラフィックが閾値に届かずデータが無い。実利用者の実測（RUM）は真値だが、
+# 検索からの流入が1日数クリックなので p75 が意味を持つまで時間が掛かる。
+# 結果として「いま速いのか」に答えられる手段が1つも無かった。
+# 本番へ到達できるのは Actions なので、GSC・行動ログと同じ形
+# （Actionsが取ってリポジトリに置き、セッションはコミット済みのJSONを読む）に載せる。
+#
+# 条件は scripts/lib/measure-page.js が1箇所で持つ（YAMLに数値を書かない）。
+# 対象URLは app/ の走査から導出する（scripts/lib/route-samples.js）ので、
+# 新しいページ種別を足すと自動で対象に入る。
+# 読むのは `node scripts/speed-report.js`。
+
+on:
+  schedule:
+    # 1日1回。schedule は数時間遅れる前提だが、この計測は時刻に依存しない
+    # （どの時刻でも「その日の本番の速さ」として比較できる）。
+    - cron: "41 19 * * *" # 04:41 JST 前後
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# 同じ日に二重に走らせない（同じ日付のファイルを上書きし合う）。
+concurrency:
+  group: measure-speed
+  cancel-in-progress: false
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # 計測に要るのは playwright と chromium だけ。本番ビルドはしない。
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: 本番を実測する
+        run: node scripts/measure-production.js
+
+      - name: 結果をコミットする
+        run: |
+          if [ -z "$(git status --porcelain content/analytics/speed)" ]; then
+            echo "変化なし（同じ日に2回走った）。コミットしない。"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add content/analytics/speed
+          git commit -m "本番の表示速度の計測（$(TZ=Asia/Tokyo date +%Y-%m-%d)）"
+          # 他のcronと衝突しうるので、押し込む前に取り込む。
+          for i in 1 2 3 4; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            sleep $((2 ** i))
+          done
+          echo "push に失敗した"
+          exit 1
