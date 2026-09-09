@@ -14,6 +14,7 @@ import { useLoginGatedWorkSet } from "./useLoginGatedWorkSet";
 import FollowLinks from "@/components/FollowLinks";
 import ScrollTopButton from "./ScrollTopButton";
 import ServiceMarks from "./ServiceMarks";
+import { hasAnyActiveAffiliate } from "@/lib/affiliate";
 import type { AnimeItem, SeasonResponse, ServiceTag, SearchIndexEntry } from "@/lib/types";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
@@ -1447,11 +1448,15 @@ export default function SeasonExplorer({
           {/* ステマ規制（景表法）対応: カード一覧では ServiceMarks を hideDisclosure 付きで
               呼んでおり作品ごとの開示文は出さないため、一覧全体につき1回だけここで開示する
               （消費者庁ステマ規制Q&A Q13: 広告リンクである旨の明瞭な表示が必要）。
-              filtered.length > 0 の条件節の中にあるので、表示作品が0件のときは出ない。 */}
-          <p className="svc-disclosure">
-            配信サービスのボタンには広告リンク（アフィリエイト）が含まれます。
-            リンク経由の登録等により、当サイトが報酬を受け取ることがあります。
-          </p>
+              filtered.length > 0 の条件節の中にあるので、表示作品が0件のときは出ない。
+              hasAnyActiveAffiliate() で門番するのは、広告リンクを1本も出していないときに
+              「広告リンクが含まれます」と書くと事実でない記述になるため（2026-09-09）。 */}
+          {hasAnyActiveAffiliate() && (
+            <p className="svc-disclosure">
+              配信サービスのボタンには広告リンク（アフィリエイト）が含まれます。
+              リンク経由の登録等により、当サイトが報酬を受け取ることがあります。
+            </p>
+          )}
         </>
       )}
 

@@ -1,4 +1,19 @@
 // ───────────────────────────────────────────────────────────────
+// 【重要】2026-09-09、登録済みの全リンクを active: false にして停止した。
+//   Vercelサポートへの問い合わせに対する回答:
+//     「アフィリエイトリンクの設置は、収益化がサイトの主目的ではない場合や機能の一部で
+//       ある場合であっても、収益や報酬の発生を伴う要素となるため、商用利用とみなされます。
+//       そのためHobbyプランの規約に抵触する可能性が高く、Proプランへのアップグレードが
+//       必要となります」
+//   このサイトには「恒久的にVercelの無料枠を超えない」という運用上の絶対条件があるため、
+//   移行先を検討する間、**リンクの掲出だけを止める**（データは消さない）。
+//   active を true に戻せばそのまま復旧するので、**行を消さないこと**。
+//   停止すると pickAffiliate が null を返し、バッジは officialUrl（公式サイト）への
+//   フォールバックに戻る。**バッジの表示件数は変わらない**（元からその設計）。
+//   広告の開示文（.svc-disclosure）も自動で消える（実際に広告リンクが無いのに
+//   「広告リンクが含まれます」と書くのは事実でない記述になるため）。
+//   経緯は docs/operations.md の㊷。
+// ───────────────────────────────────────────────────────────────
 // アフィリエイトプログラムの登録データ（人力更新）
 //   ・各配信サービスに対して、提携済みASPのリンクと報酬額を登録する。
 //   ・表示時は「active かつ rewardYen が最大」のリンクが自動採用される
@@ -33,11 +48,11 @@ export interface AffiliateProgram {
 // ],
 export const AFFILIATE_PROGRAMS: Partial<Record<ServiceKey, AffiliateProgram[]>> = {
   abema: [
-    { asp: "A8.net", url: "https://px.a8.net/svt/ejp?a8mat=4B83D3+16V93U+4EKC+60WN6", rewardYen: 902, rewardNote: "税込・新規会員登録（ABEMAプレミアム）", confirmedDate: "2026-07-24", active: true },
+    { asp: "A8.net", url: "https://px.a8.net/svt/ejp?a8mat=4B83D3+16V93U+4EKC+60WN6", rewardYen: 902, rewardNote: "税込・新規会員登録（ABEMAプレミアム）", confirmedDate: "2026-07-24", active: false },
   ],
   prime: [
-    { asp: "afb", url: "https://t.afi-b.com/visit.php?a=915733P-r510403Z&p=i9877067", rewardYen: 845, rewardNote: "税込・新規登録後7日以内のプライムビデオ初回視聴（1動画を10分以上）。他にチャンネル登録100円、レンタル・購入は税込8.47%", confirmedDate: "2026-07-28", active: true },
-    { asp: "バリューコマース", url: "https://primevideojapan.sjv.io/MKAnAo", rewardYen: 836, rewardNote: "税込・新規登録後の動画視聴。他に月額サブスクリプション契約209円、レンタル・購入は税込8.36%、新規登録のみは0円", confirmedDate: "2026-07-24", active: true },
+    { asp: "afb", url: "https://t.afi-b.com/visit.php?a=915733P-r510403Z&p=i9877067", rewardYen: 845, rewardNote: "税込・新規登録後7日以内のプライムビデオ初回視聴（1動画を10分以上）。他にチャンネル登録100円、レンタル・購入は税込8.47%", confirmedDate: "2026-07-28", active: false },
+    { asp: "バリューコマース", url: "https://primevideojapan.sjv.io/MKAnAo", rewardYen: 836, rewardNote: "税込・新規登録後の動画視聴。他に月額サブスクリプション契約209円、レンタル・購入は税込8.36%、新規登録のみは0円", confirmedDate: "2026-07-24", active: false },
   ],
   // 広告ID 506241 を採用。afbのHuluは広告IDごとに訴求（コナン／日テレドラマ／韓流／海外ドラマ）が
   // 分かれており、遷移先もその特集になりうる。このサイトのバッジは全アニメ作品の下に同じものが
@@ -46,6 +61,6 @@ export const AFFILIATE_PROGRAMS: Partial<Record<ServiceKey, AffiliateProgram[]>>
   // （バッジはただのテキストリンクであり、他所で実行されるJSを持ち込まない方針）。
   // afbのインプレッション計測用<img>は入れていない。成果はvisit.php経由のクリックで計上される。
   hulu: [
-    { asp: "afb", url: "https://t.afi-b.com/visit.php?a=G8792C-u506241i&p=i9877067", rewardYen: 2368, rewardNote: "税込・定額報酬（Hulu月額有料会員登録）", confirmedDate: "2026-08-10", active: true },
+    { asp: "afb", url: "https://t.afi-b.com/visit.php?a=G8792C-u506241i&p=i9877067", rewardYen: 2368, rewardNote: "税込・定額報酬（Hulu月額有料会員登録）", confirmedDate: "2026-08-10", active: false },
   ],
 };

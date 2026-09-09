@@ -5,6 +5,16 @@
 import { AFFILIATE_PROGRAMS, type AffiliateProgram } from "@/content/affiliate/programs";
 import type { ServiceKey } from "@/lib/services";
 
+// 広告の開示文（.svc-disclosure）を出してよいかの判定。
+// 一覧画面は ServiceMarks を hideDisclosure 付きで呼び、開示文を画面につき1回だけ
+// 呼び出し側が出す責任を負っている。そこが無条件だと、全リンクを止めた日に
+// 「広告リンクが含まれます」という**事実でない記述だけが残る**（2026-09-09に実際に
+// この状態になりかけた）。ステマ規制の要求は「広告なのに広告と分からないこと」を
+// 防ぐことなので、広告が無いときに広告だと書くのは要求を満たすどころか嘘になる。
+export function hasAnyActiveAffiliate(): boolean {
+  return Object.values(AFFILIATE_PROGRAMS).some((list) => list?.some((p) => p.active));
+}
+
 export function pickAffiliate(serviceKey: string): AffiliateProgram | null {
   const list = AFFILIATE_PROGRAMS[serviceKey as ServiceKey];
   if (!list || list.length === 0) return null;

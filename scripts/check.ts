@@ -637,6 +637,88 @@ let badgeNg = 0;
 }
 console.log(`結果（配信バッジの遷移先）: ${badgeNg === 0 ? 1 : 0} 件OK / ${badgeNg} 件NG`);
 
+// ── 広告の開示文は、実際に広告リンクがあるときだけ出す（2026-09-09導入）──
+// 2026-09-09にVercelの規約対応で全アフィリエイトを停止したとき、
+// components/SeasonExplorer.tsx の開示文だけが**無条件**で出ており、広告リンクを
+// 1本も出していないのに「広告リンクが含まれます」と書く状態になりかけた。
+// ステマ規制が求めているのは「広告なのに広告だと分からないこと」を防ぐことなので、
+// 広告が無いのに広告だと書くのは、要求を満たすどころか事実でない記述になる。
+// ServiceMarks 側は元から hasAnyAffiliate で門番していたが、hideDisclosure を使う
+// 呼び出し側（一覧画面）が自前で出す分だけが素通りしていた＝**片方だけ直っている**形。
+// 対象は走査して導出する（開示文を出す3つ目のファイルが増えた日に自動で効く・㊳）。
+let discloseNg = 0;
+{
+  const roots = ["../app", "../components"].map((r) => fileURLToPath(new URL(r, import.meta.url)));
+  const files: string[] = [];
+  const walkDisc = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = `${dir}/${e.name}`;
+      if (e.isDirectory()) walkDisc(p);
+      else if (e.name.endsWith(".tsx")) files.push(p);
+    }
+  };
+  roots.forEach(walkDisc);
+
+  const MARK = 'className="svc-disclosure"';
+  const emitters = files.filter((f) => readFileSync(f, "utf8").includes(MARK));
+  const foundEmitters = emitters.length >= 2;
+  if (!foundEmitters) discloseNg++;
+  console.log(
+    `${foundEmitters ? "✓" : "✗"}  ${"開示文を出す箇所を走査できている".padEnd(44)} → ${emitters.length} ファイル` +
+      (foundEmitters ? "" : "  (期待: 2件以上＝ServiceMarksと一覧側。目印を変えたなら検査も直す)")
+  );
+
+  // 「importだけ残して条件を外す」壊れ方を捕まえるため、ファイル内に門番の名前が
+  // あるかではなく、**出力箇所の手前600文字**の範囲に条件があるかで見る。
+  // **コメントは先に落とす**。この検査を書いた当日、門番を外す変異を当てたのに
+  // 「門番を外すな」と説明した*コメント*が手前にあるせいで検査が通ってしまった
+  // （検査自身が、名前の出現と実装の存在を取り違えていた）。
+  // import 行も落とす（門番を import したまま条件だけ外す壊れ方を、import で
+  // 通してしまわないため）。ServiceMarks は真偽値の定数、一覧側は関数呼び出しと
+  // 使い方が違うので、残った本文に**識別子が現れるか**だけで見る。
+  const stripComments = (s: string) =>
+    s
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^[ \t]*\/\/[^\n]*$/gm, "")
+      .replace(/^import[^\n]*$/gm, "");
+  const GATE = /hasAnyA(ctiveA)?ffiliate/;
+  for (const f of emitters) {
+    const src = stripComments(readFileSync(f, "utf8"));
+    const rel = f.replace(/\\/g, "/").split("/").slice(-2).join("/");
+    let ok = src.includes(MARK);
+    for (let idx = src.indexOf(MARK); idx >= 0; idx = src.indexOf(MARK, idx + 1)) {
+      if (!GATE.test(src.slice(Math.max(0, idx - 600), idx))) ok = false;
+    }
+    if (!ok) discloseNg++;
+    console.log(
+      `${ok ? "✓" : "✗"}  ${`門番つきで開示: ${rel}`.padEnd(44)} → ${ok ? "OK" : "無条件で出している"}` +
+        (ok ? "" : "  (期待: hasAnyAffiliate / hasAnyActiveAffiliate の条件の中に置く)")
+    );
+  }
+
+  // 門番の実装が active を見ていること（常に true を返す実装に退化していないこと）。
+  const affSrc = readFileSync(new URL("../lib/affiliate.ts", import.meta.url), "utf8");
+  // 窓は**その関数の本体だけ**に閉じる。固定長（400文字）で切ると次の関数まで届き、
+  // pickAffiliate の `p.active` を拾って変異を見逃した（この検査を書いた当日に実証）。
+  const gateAt = affSrc.indexOf("export function hasAnyActiveAffiliate");
+  const gateEnd = gateAt >= 0 ? affSrc.indexOf("\n}", gateAt) : -1;
+  const looksAtActive = gateAt >= 0 && gateEnd > gateAt && /\.active/.test(affSrc.slice(gateAt, gateEnd));
+  if (!looksAtActive) discloseNg++;
+  console.log(
+    `${looksAtActive ? "✓" : "✗"}  ${"門番が active を見ている".padEnd(44)} → ${looksAtActive ? "OK" : "見ていない（門番が効かない）"}`
+  );
+
+  // いまの状態。停止中でも再開後でも失敗にしない（不変条件ではないため情報表示に留める）。
+  const activeCount = Object.values(AFFILIATE_PROGRAMS)
+    .flatMap((l) => l ?? [])
+    .filter((p) => p.active).length;
+  console.log(
+    `ℹ  有効な広告リンク${" ".repeat(28)} → ${activeCount} 件${activeCount === 0 ? "（掲載停止中・2026-09-09〜）" : ""}`
+  );
+}
+console.log(`結果（広告の開示文）: ${discloseNg === 0 ? 1 : 0} 件OK / ${discloseNg} 件NG`);
+
 // ── 日付アンカー（anchorToSlotDate）の回帰テスト（2026-08-05導入）──
 // GitHub Actionsのscheduleは予定より数時間遅れて発火する（実測最大6.4時間）。旧cron
 // （1日1回・21:00 JST枠）はJST日付が変わるまで3時間しか余裕が無く、遅延した実行が
@@ -7154,6 +7236,7 @@ if (
   extraNg > 0 ||
   tagNg > 0 ||
   badgeNg > 0 ||
+  discloseNg > 0 ||
   anchorNg > 0 ||
   slotNg > 0 ||
   embedNg > 0 ||
