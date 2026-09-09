@@ -20,6 +20,11 @@ import {
   type EmbedWork,
 } from "../lib/embed.ts";
 import { siteUrl } from "../lib/siteUrl.ts";
+import {
+  isMalformedRoutePath,
+  WORK_ID_ROUTES,
+  SEASON_YEAR_ROUTES,
+} from "../lib/routeGuard.ts";
 import { stripCreditNamesForSsr } from "../lib/seasonPayload.ts";
 import { buildCalendar, CALENDAR_REF, type CalendarWork } from "../lib/calendar.ts";
 import { aggregateYear, usableYears, currentState, pct } from "../lib/streamingTrends.ts";
@@ -106,7 +111,34 @@ import {
 // アフィリエイトのリンクが公開データセットに混入していないかを見るために読む
 // （型だけの import は Node の型ストリッピングで消えるので実行時には services.ts に依存しない）。
 import { AFFILIATE_PROGRAMS } from "../content/affiliate/programs.ts";
+// 行動ログの付随データの検証（2026-09-07追加）。純粋関数のみ。
+import { sanitizeEventData, MAX_KEYS, MAX_STRING } from "../lib/trackEventData.ts";
 
+
+// `generateMetadata` を持つページのうち、title / description を
+// `lib/pageMeta.ts` に通す義務があるもの（＝作品ページ以外）を**走査して導出**する。
+//
+// 【なぜ関数にするか】以前はこの7ファイルの配列が
+// 「titleを直書きしない」節と「descriptionを直書きしない」節に**独立して手書き**されていた。
+// 中身は同じだったので実害は出ていなかったが、面を1つ足したとき片方だけ更新すると
+// **一方は幅の検査あり・他方は無し**という食い違いが静かに生まれる。㊳の
+// 「検査の対象を手で数えない。走査して導出する」に反していた（2026-09-07修正）。
+//
+// 作品ページ（`app/anime/[id]/page.tsx`）だけは別扱い。titleは `lib/workTitle.ts` の
+// `buildWorkTitle`、descriptionは `fitDescServices` が幅を詰める専用の経路を持つ。
+function pageMetaTargets(): string[] {
+  const dir = new URL("../app/", import.meta.url);
+  const out: string[] = [];
+  for (const f of listSourceFiles(dir)) {
+    if (!/\/page\.tsx$/.test(f.pathname)) continue;
+    const rel = f.pathname.slice(dir.pathname.length);
+    if (rel === "anime/[id]/page.tsx") continue;
+    if (!/export\s+async\s+function\s+generateMetadata|export\s+function\s+generateMetadata/.test(
+        readFileSync(f, "utf8"))) continue;
+    out.push(rel);
+  }
+  return out.sort();
+}
 
 // ディレクトリ配下の .ts/.tsx を再帰的に列挙する（行動ログの配線検査で使う）。
 function listSourceFiles(dir: URL): URL[] {
@@ -1760,25 +1792,19 @@ let pageTitleNg = 0;
   // ④ 逆戻り防止: 各ページの generateMetadata が title を直書きしないこと。
   //    直書きに戻ると③の検査を素通りする（検査は lib/pageMeta.ts しか見ないため）。
   {
-    const pages = [
-      "../app/season/[year]/[season]/page.tsx",
-      "../app/person/[name]/[year]/[season]/page.tsx",
-      "../app/service/[key]/[year]/[season]/page.tsx",
-      "../app/exclusive/[year]/[season]/page.tsx",
-      "../app/rankings/[year]/[season]/page.tsx",
-      "../app/studio/[name]/page.tsx",
-      "../app/director/[name]/page.tsx",
-    ];
+    // 対象は手で並べない（走査して導出する）。定義は pageMetaTargets()。
+    const pages = pageMetaTargets();
     const bad: string[] = [];
     for (const p of pages) {
-      const src = readFileSync(new URL(p, import.meta.url), "utf8");
-      if (/const title = `/.test(src)) bad.push(p.replace("../app/", ""));
+      const src = readFileSync(new URL(`../app/${p}`, import.meta.url), "utf8");
+      if (/const title = `/.test(src)) bad.push(p);
     }
-    const pass = bad.length === 0;
+    // 対象が痩せたら（走査が壊れたら）黙って緑にならないよう、下限も見る。
+    const pass = bad.length === 0 && pages.length >= 7;
     if (!pass) pageTitleNg++;
     console.log(
       `${pass ? "✓" : "✗"}  ${"titleを直書きせずlib/pageMeta.tsを通す".padEnd(33)} → ${pages.length}ページ中 直書き${bad.length}件` +
-        (pass ? "" : `  (${bad.join(", ")})`)
+        (pass ? "" : `  (${bad.join(", ") || "対象が7ページ未満＝走査が壊れている"})`)
     );
   }
 }
@@ -2068,23 +2094,17 @@ let descNg = 0;
 
   // ④ 逆戻り防止。ページ側で description を直書きしない。
   {
-    const pages = [
-      "../app/season/[year]/[season]/page.tsx",
-      "../app/person/[name]/[year]/[season]/page.tsx",
-      "../app/service/[key]/[year]/[season]/page.tsx",
-      "../app/exclusive/[year]/[season]/page.tsx",
-      "../app/rankings/[year]/[season]/page.tsx",
-      "../app/studio/[name]/page.tsx",
-      "../app/director/[name]/page.tsx",
-    ];
+    // 対象は手で並べない（走査して導出する）。title 側と**同じ関数**を使う
+    // ＝面を1つ足したとき、両方の検査に自動で乗る。
+    const pages = pageMetaTargets();
     const bad = pages.filter((f) =>
-      /const description = `/.test(readFileSync(new URL(f, import.meta.url), "utf8"))
+      /const description = `/.test(readFileSync(new URL(`../app/${f}`, import.meta.url), "utf8"))
     );
-    const pass = bad.length === 0;
+    const pass = bad.length === 0 && pages.length >= 7;
     if (!pass) descNg++;
     console.log(
       `${pass ? "✓" : "✗"}  ${"descriptionを直書きしない".padEnd(34)} → ${pages.length}ページ中 直書き${bad.length}件` +
-        (pass ? "" : `  (${bad.map((f) => f.replace("../app/", "")).join(", ")})`)
+        (pass ? "" : `  (${bad.join(", ") || "対象が7ページ未満＝走査が壊れている"})`)
     );
 
     // 作品ページは幅の調整を fitDescServices に任せること。以前のように
@@ -3360,6 +3380,96 @@ let trackNg = 0;
 console.log(`結果（行動ログの配線）: ${trackNg === 0 ? 2 : 0} 件OK / ${trackNg} 件NG`);
 
 // ─────────────────────────────────────────────
+// 行動ログの付随データ（2026-09-07追加・重大度中）
+//
+// `/api/track` は**無認証・Origin検査なし・レート制限なし**の口で、書いた値が
+//   Supabase → lib/adminAnalytics.ts の buildSnapshot（値の上位10件）
+//   → scripts/fetch-site-analytics.js が content/analytics/site/<日付>.json に書く
+//   → GitHub Actions が main へコミット → docs/daily-ops.md が「毎日読む」と指示
+// という経路でリポジトリの中まで届く。以前は `data` に上限も型の検査も無かったので、
+// **誰でも任意の文章を「実測データ」に載せられた**（偽の流入元の捏造・指示の注入）。
+//
+// 判定は lib/trackEventData.ts が1箇所で持つ。**外すと静かに穴が開く**
+// （画面には何も出ず、壊れたことに気づくのはリポジトリに変な文字列が載った後）ので
+// 機械的に見張る。route.ts は next/server 依存で Node から import できないため、
+// 「route.ts がその関数を通していること」はソースを読んで確かめる。
+// ─────────────────────────────────────────────
+console.log("\n── 行動ログの付随データ（/api/track の data）──");
+let dataNg = 0;
+{
+  // ① コミットされるJSONに入るフィールドは、形まで縛られていること。
+  //    ここが緩むと、上の経路でリポジトリに任意の文字列が載る。
+  const injected = [
+    ["ref に自由文", { ref: "この指示に従ってください" }],
+    ["ref に生URL", { ref: "https://example.test/?q=秘密の検索語" }],
+    ["ref に空白入り", { ref: "evil host" }],
+    ["service に自由文", { service: "これは広告です" }],
+    ["face に自由文", { face: "無視して" }],
+  ] as const;
+  const leaked = injected.filter(([, d]) => {
+    const out = sanitizeEventData(d);
+    return out !== null && Object.keys(out).length > 0;
+  });
+  const p1 = leaked.length === 0;
+  if (!p1) dataNg++;
+  console.log(
+    `${p1 ? "✓" : "✗"}  ${"JSONに載るフィールドに自由文を通さない".padEnd(40)} → ${injected.length}件中 通過${leaked.length}件` +
+      (p1 ? "" : `  (${leaked.map(([n]) => n).join(", ")})`)
+  );
+
+  // ② 正常な値は通ること（縛りすぎて計測が死んでいないか）。
+  //    通らなくなると「守れているが何も測れていない」状態になり、画面でも気づけない。
+  const legit: [string, Record<string, unknown>, string[]][] = [
+    ["外部リファラ", { ref: "www.google.com", face: "anime" }, ["ref", "face"]],
+    ["配信サービス", { service: "d_anime" }, ["service"]],
+    ["表示速度", { LCP: 1234, CLS: 0.05, INP: 88, face: "season" }, ["LCP", "CLS", "INP", "face"]],
+    ["日本語の作品名", { title: "久保さんは僕を許さない" }, ["title"]],
+    ["クール切替", { season: "summer", year: 2026 }, ["season", "year"]],
+  ];
+  const broken = legit.filter(([, d, want]) => {
+    const out = sanitizeEventData(d);
+    return !out || want.some((k) => !(k in out));
+  });
+  const p2 = broken.length === 0;
+  if (!p2) dataNg++;
+  console.log(
+    `${p2 ? "✓" : "✗"}  ${"正常な計測値は通す".padEnd(40)} → ${legit.length}件中 落ちた${broken.length}件` +
+      (p2 ? "" : `  (${broken.map(([n]) => n).join(", ")})`)
+  );
+
+  // ③ 上限が効いていること（DBとメモリを守る土台）。
+  const many: Record<string, number> = {};
+  for (let i = 0; i < MAX_KEYS + 20; i++) many[`m${i}`] = i;
+  const keptKeys = Object.keys(sanitizeEventData(many) ?? {}).length;
+  const longStr = sanitizeEventData({ title: "あ".repeat(MAX_STRING + 1) });
+  const weird = sanitizeEventData({ LCP: Number.NaN, CLS: Number.POSITIVE_INFINITY, INP: 1 });
+  const nested = sanitizeEventData({ a: { b: 1 }, c: [1], d: true, e: null });
+  const p3 =
+    keptKeys === MAX_KEYS &&
+    longStr === null &&
+    JSON.stringify(weird) === JSON.stringify({ INP: 1 }) &&
+    nested === null;
+  if (!p3) dataNg++;
+  console.log(
+    `${p3 ? "✓" : "✗"}  ${"キー数・長さ・型の上限が効く".padEnd(40)} → キー${keptKeys}/${MAX_KEYS}・長文${longStr === null ? "落" : "通"}・NaN${JSON.stringify(weird)}・入れ子${nested === null ? "落" : "通"}`
+  );
+
+  // ④ 逆戻り防止: route.ts が検証を通していること。
+  //    ここを外すと ①②③ が全部素通りになるが、この検査は純粋関数を直接呼ぶので
+  //    気づけない。だからソースの側も見る。
+  const routeSrc = readFileSync(new URL("../app/api/track/route.ts", import.meta.url), "utf8");
+  const usesSanitize = /sanitizeEventData\s*\(\s*data\s*\)/.test(routeSrc);
+  const noRawCast = !/data as Record<string, unknown>/.test(routeSrc);
+  const p4 = usesSanitize && noRawCast;
+  if (!p4) dataNg++;
+  console.log(
+    `${p4 ? "✓" : "✗"}  ${"route.tsが検証を通している".padEnd(40)} → ` +
+      (p4 ? "sanitizeEventData(data) を通す" : `sanitize${usesSanitize ? "有" : "無"} / 生キャスト${noRawCast ? "無" : "有"}`)
+  );
+}
+console.log(`結果（行動ログの付随データ）: ${4 - dataNg} 件OK / ${dataNg} 件NG`);
+
+// ─────────────────────────────────────────────
 // シーズンページのHTML量の見張り（2026-08-06追加）
 //
 // 2026-08-05にSSRを直した結果、シーズンページのHTMLは「作品数に比例して増える」形に
@@ -4034,6 +4144,28 @@ let orphanNg = 0;
       needle: "/anime/${",
       label: "制作会社・監督ページ → 作品ページ",
     },
+    // 2026-09-07追加: 下の「面の網羅」検査を書いたら、**この2つが検査の外にあった**
+    // ことが分かった。どちらも sitemap に載っているのに case が1件も無く、
+    // 特に `/rankings` は入口が SeasonExplorer の1行だけ＝その行が消えると
+    // 丸ごと孤立するのに機械検査に掛からない（サービス別ページで踏んだ穴と同型）。
+    {
+      file: "../components/SeasonExplorer.tsx",
+      needle: "/rankings/${",
+      label: "シーズン/トップ → ランキングページ",
+    },
+    {
+      file: "../components/SeasonExplorer.tsx",
+      needle: "/exclusive/${",
+      label: "シーズン/トップ → 独占配信ページ",
+    },
+    // シーズンページ（過去64クール分をsitemapに載せている）への導線。
+    // 下の「面の網羅」検査が**3つ目の抜け**として見つけた。フッターの年・季節の
+    // 切替がここで、過去クールへ辿れる唯一の入口。
+    {
+      file: "../components/SeasonExplorer.tsx",
+      needle: "/season/${",
+      label: "シーズン/トップ → 他クールのシーズンページ",
+    },
   ];
   for (const c of cases) {
     const src = readFileSync(new URL(c.file, import.meta.url), "utf8");
@@ -4044,6 +4176,38 @@ let orphanNg = 0;
         (ok
           ? "リンクあり"
           : `${c.file} に \`${c.needle}\` が無い。sitemapに載せているページはサイト内からも辿れるようにすること`)
+    );
+  }
+
+  // ── 面の網羅（2026-09-07追加）─────────────────────────────
+  // 上の `cases` は**手で並べた表**なので、新しいページ種別を足したときに
+  // 書き忘れると「その種別だけ永久に検査されない」（㊳と同型の穴）。
+  // 実際に2026-09-07、`/rankings` と `/exclusive` が1件も無いまま抜けていた。
+  //
+  // そこで**面の一覧から導出して**、全部の面が少なくとも1つの case に
+  // 覆われていることを確かめる。面の一覧（`PAGE_TYPE_PREFIXES`）は
+  // 「面（ページ種別）の分類」節が sitemap と機械的に突き合わせているので、
+  // **sitemapに種別を足すとここも自動で厳しくなる**。
+  {
+    const { PAGE_TYPE_PREFIXES } = await import("./lib/gsc-page-type.js");
+    const covered = new Set(
+      cases.map((c) => {
+        const m = c.needle.match(/^(\/[a-z]+\/)/);
+        return m ? m[1] : "";
+      })
+    );
+    // 声優ページは `/person/${` の他に `otherSeasonWorks` という別の書き方の case も
+    // 持つが、`/person/${` の case があるので接頭辞としては覆われている。
+    const uncovered = (PAGE_TYPE_PREFIXES as [string, string][])
+      .filter(([, prefix]) => !covered.has(prefix))
+      .map(([name, prefix]) => `${name}(${prefix})`);
+    const pass = uncovered.length === 0 && PAGE_TYPE_PREFIXES.length > 0;
+    if (!pass) orphanNg++;
+    console.log(
+      `${pass ? "✓" : "✗"}  ${"面を全部カバーしている（導出）".padEnd(40)} → ` +
+        (pass
+          ? `${PAGE_TYPE_PREFIXES.length}面 / 未カバー0面`
+          : `未カバー ${uncovered.join(", ")}。sitemapに載せる種別には内部リンクの検査を1件足すこと`)
     );
   }
 
@@ -4337,18 +4501,53 @@ let softNg = 0;
     JSON.stringify(rf)
   );
 
-  // ④ クール単位の5面が、この判定を通していること。
+  // ④ 「Annictを叩いて、失敗を握って200を返す」ページが全部この判定を通していること。
   //    ここを通さないページは、Annict障害中に「エラー」本文つきで索引されうる。
-  const seasonScoped: [string, string][] = [
-    ["../app/season/[year]/[season]/page.tsx", "シーズンページ"],
-    ["../app/rankings/[year]/[season]/page.tsx", "ランキングページ"],
-    ["../app/exclusive/[year]/[season]/page.tsx", "独占配信ページ"],
-    ["../app/service/[key]/[year]/[season]/page.tsx", "サービス別ページ"],
-    ["../app/person/[name]/[year]/[season]/page.tsx", "声優ページ"],
-  ];
+  //
+  // **対象は手で並べない**（㊳の規則）。以前は5面を名指ししていたため、
+  // **トップページ（"/"）だけが対象から漏れていた**のを2026-09-07まで検出できなかった。
+  // トップは `getSeasonData` を同じ形（try/catch で握る）で呼びながら
+  // 静的な `metadata` しか持たず、Annict障害中は
+  // **HTTP200・index,follow・作品リンク0件**のHTMLを公開していた。
+  // サイトの正面玄関でcanonicalの指す先なので、5面より影響が大きい。
+  //
+  // いまは `app/` を走査して「`getSeasonData` を呼ぶ page.tsx」を導出する。
+  // 新しい面が同じ形で増えたら**自動で対象に入る**。
+  // `/anime/[id]` は `getWorkData` を使う別経路で、独自の `UNAVAILABLE_METADATA` を
+  // 持つので対象外（`getSeasonData` を呼ばないので、この導出には最初から入らない）。
+  const seasonScoped: [string, string][] = [];
+  {
+    const appDir = new URL("../app/", import.meta.url);
+    for (const f of listSourceFiles(appDir)) {
+      if (!/\/page\.tsx$/.test(f.pathname)) continue;
+      const src = readFileSync(f, "utf8");
+      if (!/getSeasonData\s*\(/.test(src)) continue;
+      const rel = f.pathname.slice(appDir.pathname.length);
+      seasonScoped.push([`../app/${rel}`, rel === "page.tsx" ? "トップページ" : rel.replace("/page.tsx", "")]);
+    }
+    seasonScoped.sort((a, b) => a[0].localeCompare(b[0]));
+    // 走査が痩せて黙って緑にならないよう下限を見る（5面＋トップ＝6）。
+    const enough = seasonScoped.length >= 6;
+    softCheck(
+      "索引判定の対象を走査で導出している",
+      enough,
+      enough
+        ? `${seasonScoped.length}ページ（getSeasonData を呼ぶ page.tsx）`
+        : `${seasonScoped.length}ページしか見つからない＝走査が壊れている`
+    );
+  }
   for (const [rel, label] of seasonScoped) {
     const src = readFileSync(new URL(rel, import.meta.url), "utf8");
-    const uses = src.includes("robotsFor(") || src.includes("NOINDEX_FOLLOW");
+    // 作品ページ（/anime/[id]）は `getSeasonData` を「関連作の表示」に使うだけで、
+    // 本体の取得は `getWorkData`。取れなかったときは専用の `UNAVAILABLE_METADATA`
+    // （index:false, follow:false）を返す＝**同じ穴は塞がっている**。
+    // 2026-09-07に本番同等の条件（ANNICT_TOKEN無し）で実測し、
+    // `/anime/999999999` が `noindex, nofollow` を返すことを確認済み。
+    // 判定の道具が違うだけなので、どちらでも通す。
+    const uses =
+      src.includes("robotsFor(") ||
+      src.includes("NOINDEX_FOLLOW") ||
+      src.includes("UNAVAILABLE_METADATA");
     softCheck(
       `${label}が索引の判定を通す`,
       uses,
@@ -4524,7 +4723,10 @@ let softNg = 0;
     }
     softCheck(
       "作品IDの窓口がすべて lib/workId.ts を通る",
-      looseId.length === 0 && idRoutes.length >= 4,
+      // 下限は3（2026-09-06に4から下げた）。`app/anime/[id]/opengraph-image.tsx` を
+      // 削除し、作品ページはルートの `app/opengraph-image.tsx` を継承するようにしたため
+      // （動的セグメントを持つOG画像が無くなり、URLが1本になった）。経緯は㊶。
+      looseId.length === 0 && idRoutes.length >= 3,
       looseId.length
         ? `自前で Number() を書いている: ${looseId.join(" / ")}（502・重複URLの原因）`
         : `${idRoutes.length} 件すべてが parseWorkId を使う`
@@ -4621,6 +4823,272 @@ let nextSeasonNg = 0;
   );
 
   console.log(`結果（次クール）: ${nextSeasonNg === 0 ? "全件OK" : nextSeasonNg + " 件NG"}`);
+}
+
+// ─────────────────────────────────────────────
+// 不正な形のURLを描画前に弾く（2026-09-06追加・重大度高）
+//
+// 経緯: Next.js の未修正バグ #73101 で、`notFound()` を呼んで404を返したページも
+// **ISRキャッシュに書き込まれる**。ローカル本番ビルドで実測すると
+// `/anime/0x3374` は404を返しつつ `.next/server/app/anime/0x3374.{html,meta,rsc}`
+// （3ファイル・約110KB）を新規生成し、未見の文字列を叩くたびに増えていった。
+// `parseWorkId` は形しか見ないので不正な形のURL空間は事実上無限にある。
+// ISR Writes の超過は2026-08-24に本番を丸一日停止させている（㉝）。
+//
+// 皮肉なことに、この穴を開けたのは㊲の対処そのものだった（値域を閉じて
+// notFound() するようにしたことで、404を返すたびに書き込みが起きる形になった）。
+// Next.js 14 には「このリクエストだけキャッシュしない」逃げ道が無いので、
+// middleware で**描画させない**しかない。判定は lib/routeGuard.ts。
+//
+// この検査が守るのは2つ。①窓口を手で数えない（㊳。app/ の走査から導出して、
+// 新しい [id]/[year] ルートを足したら自動で落ちる）②誤判定しない
+// （正常なURLを404にするのは、取りこぼしより桁違いに重い事故）。
+// ─────────────────────────────────────────────
+console.log("\n── 不正な形のURLを描画前に弾く ──");
+let guardNg = 0;
+{
+  const gCheck = (label: string, ok: boolean, detail: string) => {
+    if (!ok) guardNg++;
+    console.log(`${ok ? "✓" : "✗"}  ${label.padEnd(44)} → ${detail}`);
+  };
+
+  // ① 対象を走査から導出し、routeGuard の表と突き合わせる。
+  const gAppDir = fileURLToPath(new URL("../app", import.meta.url));
+  const gRoutes = dynamicRoutes(gAppDir);
+  const missing: string[] = [];
+  const covered = (
+    routePath: string,
+    seg: string,
+    table: { prefix: string; index: number }[]
+  ): boolean => {
+    const parts = routePath.split("/");
+    const idx = parts.indexOf(`[${seg}]`);
+    if (idx < 0) return true;
+    // 接頭辞は「最初の動的セグメントの手前まで」。判定は pathname.startsWith() で
+    // 行うので、`/person/[name]/[year]/[season]` の接頭辞は `/person/[name]/` では
+    // なく **`/person/`** で、年の位置だけが3になる（[name] は任意の文字列＝
+    // 接頭辞に含められない）。ここを取り違えると、表が正しくても検査だけが落ちる。
+    const firstDyn = parts.findIndex((x) => /^\[.*\]$/.test(x));
+    const prefix = parts.slice(0, firstDyn).join("/") + "/";
+    return table.some((t) => t.prefix === prefix && t.index === idx);
+  };
+  for (const r of gRoutes) {
+    if (r.segments.includes("id") && !covered(r.routePath, "id", WORK_ID_ROUTES)) {
+      missing.push(`${r.routePath}（作品ID）`);
+    }
+    if (r.segments.includes("year") && !covered(r.routePath, "year", SEASON_YEAR_ROUTES)) {
+      missing.push(`${r.routePath}（年）`);
+    }
+  }
+  gCheck(
+    "[id]/[year] の窓口がすべて routeGuard の表に載る",
+    missing.length === 0 && gRoutes.length >= 8,
+    missing.length
+      ? `表に無い: ${missing.join(" / ")}（不正な形が描画され、ISRに書き込まれる）`
+      : `${gRoutes.length} 件を走査して全部が対象`
+  );
+
+  // ② 落ちるべきときに落ちる／落ちてはいけないときに落ちない。
+  // 年の上限は「今年+1」なので、日付を固定しないと年明けに検査自体が壊れる。
+  const gNow = new Date("2026-09-06T00:00:00Z");
+  const bad = [
+    "/anime/0x3374",
+    "/anime/1e20",
+    "/anime/012",
+    "/anime/0",
+    "/anime/99999999999999999999",
+    "/anime/0x3374/",
+    "/api/work/0x10",
+    "/embed/anime/abc",
+    "/season/9999/spring",
+    "/season/1500/spring",
+    "/season/20x6/spring",
+    "/rankings/9999/spring",
+    "/exclusive/9999/spring",
+    "/service/d_anime/9999/summer",
+    "/person/%E6%82%A0%E6%9C%A8%E7%A2%A7/9999/summer",
+  ];
+  const good = [
+    "/",
+    "/about",
+    "/developers",
+    "/api/season",
+    "/api/work",
+    "/anime/13180",
+    "/anime/13180/",
+    "/api/work/13180",
+    "/embed/anime/13180",
+    "/season/2026/spring",
+    "/season/2010/winter",
+    "/season/2027/winter",
+    "/rankings/2026/summer",
+    "/exclusive/2026/summer",
+    "/service/d_anime/2026/summer",
+    "/person/%E6%82%A0%E6%9C%A8%E7%A2%A7/2026/summer",
+    "/studio/MAPPA",
+    "/director/%E6%96%B0%E6%B5%B7%E8%AA%A0",
+  ];
+  const missedBad = bad.filter((u) => !isMalformedRoutePath(u, gNow));
+  const falsePositive = good.filter((u) => isMalformedRoutePath(u, gNow));
+  gCheck(
+    "不正な形を弾く",
+    missedBad.length === 0,
+    missedBad.length ? `素通し: ${missedBad.join(" / ")}` : `${bad.length} 件すべてを弾いた`
+  );
+  // こちらのほうが重い。正常なURLを404にすると、サイトの一部が丸ごと消える。
+  gCheck(
+    "正常なURLを弾かない",
+    falsePositive.length === 0,
+    falsePositive.length
+      ? `誤って404にする: ${falsePositive.join(" / ")}（正常なページが消える）`
+      : `${good.length} 件すべて素通し`
+  );
+
+  // ③ middleware が、Supabaseのセッション更新**より前**に判定していること。
+  // 後ろに置くと、弾くはずのリクエストでも先に Supabase 側の処理が走る。
+  const mwSrc = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
+  const iGuard = mwSrc.indexOf("isMalformedRoutePath(");
+  const iSession = mwSrc.indexOf("updateSession(");
+  const orderOk = iGuard > 0 && iSession > 0 && iGuard < iSession;
+  gCheck(
+    "middleware が描画前に判定する",
+    orderOk,
+    orderOk
+      ? "isMalformedRoutePath → updateSession の順"
+      : "middleware.ts が routeGuard を先に呼んでいない（ISRへの書き込みが止まらない）"
+  );
+
+  console.log(`結果（不正な形のURL）: ${guardNg === 0 ? "全件OK" : guardNg + " 件NG"}`);
+}
+
+// ─────────────────────────────────────────────
+// sitemapのlastModified（2026-09-06追加）
+//
+// 経緯: 今期・次クール・固定ページに `lastModified: new Date()` を入れていた＝
+// 「sitemapを生成した瞬間」を更新日として申告していた。/about も /privacy も
+// 数ヶ月動かないのに毎回「今日更新」と言っていたことになる。
+// Google は lastmod を「一貫して検証可能なほど正確なときだけ使う」とし、
+// Gary Illyes は「信じるかどうかは**サイト単位**の二択」「不正確なら無い方がまし」
+// と述べている。つまり不正確な lastmod は、**正しく省略している過去クールの分**まで
+// 巻き添えで無視させる。正確な更新時刻を持っていないなら申告しないのが正しい。
+// ─────────────────────────────────────────────
+console.log("\n── sitemapのlastModified ──");
+let lastmodNg = 0;
+{
+  const lmSrc = readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+  // コメントは除いてから見る（この経緯を説明したコメント自体に反応させない）。
+  const lmCode = lmSrc
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((line) => !/^\s*\/\//.test(line))
+    .join("\n");
+  const hits = lmCode.match(/lastModified\s*:/g) ?? [];
+  const ok = hits.length === 0;
+  if (!ok) lastmodNg++;
+  console.log(
+    `${ok ? "✓" : "✗"}  ${"生成時刻を更新日として申告しない".padEnd(44)} → ` +
+      (ok
+        ? "lastModified を1つも付けていない"
+        : `${hits.length} 件の lastModified が残っている（サイト全体のlastmodが無視される）`)
+  );
+  console.log(`結果（sitemapのlastModified）: ${lastmodNg === 0 ? "全件OK" : lastmodNg + " 件NG"}`);
+}
+
+// ─────────────────────────────────────────────
+// 共有カードの画像（2026-09-06追加）
+//
+// 経緯: Next.js の File-based Metadata（`app/opengraph-image.tsx` を置くだけで
+// og:image が入る規約）は、**子のルートが generateMetadata で openGraph を返すと
+// 効かなくなる**。openGraph はフィールド単位ではなく**まるごと**置き換わるため。
+//
+// ローカル本番ビルドのHTMLを実際に数えたところ、og:image が入っていたのは
+// **トップページだけ**で、/about も /season/** も /studio/** も0個だった。
+// つまりSNSで共有しても画像の無いカードになっていた。しかも
+// `twitter: { card: "summary_large_image" }` を宣言しているページが複数あり、
+// **画像の無い large_image カードはカードとして成立しない**。
+//
+// 自分のサイトを見ても分からず、SNSに貼って初めて分かる＝**画面を見ても
+// 気づけない**壊れ方なので、機械で見張る。対象は手で数えず app/ を走査する（㊳）。
+// ─────────────────────────────────────────────
+console.log("\n── 共有カードの画像 ──");
+let ogImgNg = 0;
+{
+  const ogCheck = (label: string, ok: boolean, detail: string) => {
+    if (!ok) ogImgNg++;
+    console.log(`${ok ? "✓" : "✗"}  ${label.padEnd(44)} → ${detail}`);
+  };
+
+  // `X: {` から対応する `}` までを取り出す（テンプレートリテラルの `${}` も
+  // 波括弧が釣り合うので、素朴な対応付けで足りる）。
+  const objectAfter = (src: string, key: string): string[] => {
+    const out: string[] = [];
+    let from = 0;
+    for (;;) {
+      const at = src.indexOf(`${key}: {`, from);
+      if (at < 0) break;
+      let depth = 0;
+      let i = at + key.length + 2;
+      for (; i < src.length; i++) {
+        if (src[i] === "{") depth++;
+        else if (src[i] === "}") {
+          depth--;
+          if (depth === 0) break;
+        }
+      }
+      out.push(src.slice(at, i + 1));
+      from = i + 1;
+    }
+    return out;
+  };
+
+  // app/ 以下の .tsx を走査する（ページ種別を足したら自動で対象になる）。
+  const ogAppDir = fileURLToPath(new URL("../app", import.meta.url));
+  const tsxFiles: string[] = [];
+  const walkTsx = (dir: string) => {
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      const full = `${dir}/${ent.name}`;
+      if (ent.isDirectory()) walkTsx(full);
+      else if (ent.name.endsWith(".tsx")) tsxFiles.push(full);
+    }
+  };
+  walkTsx(ogAppDir);
+
+  const stripComments = (t: string) =>
+    t
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n")
+      .filter((line) => !/^\s*\/\//.test(line))
+      .join("\n");
+
+  const missingOg: string[] = [];
+  let declared = 0;
+  for (const file of tsxFiles) {
+    const src = stripComments(readFileSync(file, "utf8"));
+    for (const key of ["openGraph", "twitter"]) {
+      for (const obj of objectAfter(src, key)) {
+        declared++;
+        if (!/\bimages\s*:/.test(obj)) {
+          missingOg.push(`${file.slice(ogAppDir.length - 3)} の ${key}`);
+        }
+      }
+    }
+  }
+
+  // 走査が壊れて0件になると静かに緑になるので、下限を置く。
+  ogCheck(
+    "openGraph/twitter の宣言を走査できている",
+    declared >= 20,
+    `${declared} 件（app/ の .tsx を走査）`
+  );
+  ogCheck(
+    "共有カードの宣言すべてに画像がある",
+    missingOg.length === 0,
+    missingOg.length
+      ? `画像が無い: ${missingOg.join(" / ")}（SNSで画像の無いカードになる）`
+      : `${declared} 件すべてに images がある`
+  );
+
+  console.log(`結果（共有カードの画像）: ${ogImgNg === 0 ? "全件OK" : ogImgNg + " 件NG"}`);
 }
 
 // ─────────────────────────────────────────────
@@ -5751,12 +6219,17 @@ let isrNg = 0;
   // OGP画像は force-dynamic＝毎リクエスト関数が起動する。明示のCache-Controlが唯一の歯止め。
   // **画像ルートも走査から導出する**（手で並べると、新しく足した画像ルートだけ
   // 歯止めが無いまま毎リクエスト外向き通信する状態になる）。
+  //
+  // 下限は1（2026-09-06に2から下げた）。作品ごとのOG画像は**動的セグメントを持つ**ため、
+  // 作品1,961件をクローラーが1件ずつ舐める＝エッジキャッシュが構造的に当たらず、
+  // 1リクエスト205〜224ms（HTMLページの約50倍）を払い続けていた。ルート直下の
+  // `app/opengraph-image.tsx` を継承させれば**URLが1本**になり、s-maxage が実際に効く。
   const imageRoutes = appRoutes(appDirForIsr).filter(
     (r) => r.kind === "asset" && /image/.test(r.basename)
   );
-  if (imageRoutes.length < 2) isrNg++;
+  if (imageRoutes.length < 1) isrNg++;
   console.log(
-    `${imageRoutes.length >= 2 ? "✓" : "✗"}  ${"画像ルートを走査できている".padEnd(48)} → ` +
+    `${imageRoutes.length >= 1 ? "✓" : "✗"}  ${"画像ルートを走査できている".padEnd(48)} → ` +
       `${imageRoutes.length} 件`
   );
   for (const r of imageRoutes) {
@@ -6468,6 +6941,53 @@ let thumbNg = 0;
       (sameIds ? `${idsOnDisk.size}件` : `索引${idsInManifest.size}件 / 実ファイル${idsOnDisk.size}件`)
   );
 
+  // サムネイルを出す <img> は必ず width/height を持つこと（2026-09-05追加）。
+  //
+  // 【なぜ要るか】属性が無いとブラウザは画像が届くまで場所を確保できず、届いた瞬間に
+  // 下の内容が押し下げられる（Cumulative Layout Shift）。**画面をゆっくり見ていると
+  // 気づけない**（速い回線では一瞬で終わる）。実際、シーズン一覧の .thumb-ai-img には
+  // 前から指定してあったのに、作品ページの .detail-hero-img だけ抜けていた。
+  //
+  // 対象は**走査して導出する**（㊳: 名指しで数えると、次に足した1枚が永久に漏れる）。
+  // app/ と components/ の .tsx から「/works/ を指す <img>」を全部拾う。
+  {
+    const roots = ["../app", "../components"].map((r) => fileURLToPath(new URL(r, import.meta.url)));
+    const tsxFiles: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const full = `${dir}/${e.name}`;
+        if (e.isDirectory()) walk(full);
+        else if (e.name.endsWith(".tsx")) tsxFiles.push(full);
+      }
+    };
+    for (const r of roots) if (existsSync(r)) walk(r);
+
+    const offenders: string[] = [];
+    let imgCount = 0;
+    for (const f of tsxFiles) {
+      const text = readFileSync(f, "utf8");
+      // <img ... /> を1つずつ取り出し、src が /works/ を指すものだけ見る。
+      for (const m of text.matchAll(/<img\b[\s\S]*?\/>/g)) {
+        const tag = m[0];
+        if (!/\/works\//.test(tag)) continue;
+        imgCount++;
+        if (!/\bwidth=/.test(tag) || !/\bheight=/.test(tag)) {
+          offenders.push(f.slice(f.lastIndexOf("/app/") >= 0 ? f.lastIndexOf("/app/") + 1 : f.lastIndexOf("/components/") + 1));
+        }
+      }
+    }
+    const allSized = imgCount > 0 && offenders.length === 0;
+    if (!allSized) thumbNg++;
+    console.log(
+      `${allSized ? "✓" : "✗"}  ${"サムネイルの img に width/height".padEnd(48)} → ` +
+        (allSized
+          ? `${imgCount}箇所すべて指定済み`
+          : imgCount === 0
+            ? "対象の <img> が1つも見つからない（走査が壊れている）"
+            : `未指定: ${offenders.join(", ")}`)
+    );
+  }
+
   console.log(`結果（サムネイル画像の形式）: ${thumbNg === 0 ? "全てOK" : `${thumbNg} 件NG`}`);
 }
 
@@ -6612,6 +7132,9 @@ if (
   orphanNg > 0 ||
   thinPersonNg > 0 ||
   nextSeasonNg > 0 ||
+  guardNg > 0 ||
+  ogImgNg > 0 ||
+  lastmodNg > 0 ||
   prerenderNg > 0 ||
   softNg > 0 ||
   partialWeekNg > 0 ||
@@ -6639,6 +7162,7 @@ if (
   xIntentNg > 0 ||
   xPolicyNg > 0 ||
   trackNg > 0 ||
+  dataNg > 0 ||
   aliasNg > 0 ||
   svcAliasNg > 0
 )

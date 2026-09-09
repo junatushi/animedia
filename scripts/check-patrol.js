@@ -87,6 +87,12 @@ function startStub(broken) {
     // 名前セグメント（/studio /director /person）。索引にある名前だけ200。
     if (["studio", "director", "person"].includes(seg[0])) {
       const name = seg[1] ?? "";
+      // `pregen-404`: **実在する名前のページまで404を返す**（㊱の再現）。
+      // 2026-08-31、事前生成した制作会社・監督・声優のページが本番で全て404を返し、
+      // sitemapに載せていて404だったのは約2,826ページだった（重大度最高）。
+      // 巡回は実在する名前を非ASCII優先で対照に使うので、㊱が再発すれば
+      // 対照が404になる。それを違反として出せるかを固定する。
+      if (has("pregen-404")) return html("nf", 404);
       if (!KNOWN_NAMES.has(name)) return html("nf", 404);
       // **声優ページは名前だけでなく年・クールも持つ**。ここを見ていないと、
       // 巡回が `/person/名前/99999/autumn` を投げても200が返り、スタブ側の都合で
@@ -197,6 +203,11 @@ async function main() {
     ["error-body", "200なのにエラー本文が出ている", "200なのに「エラーを返しました」"],
     ["no-h1", "200なのに見出しが無い", "200なのに<h1>が無い"],
     ["out-of-range-200", "範囲外の年が200を返す（㊲の再現）", "崩した形なのに200を返した"],
+    // 2026-09-07追加。patrol.js の buildCases に「これが200で返らないなら巡回自体が
+    // 壊れている」と**書いてあったのに判定が実装されておらず**、対照が404でも
+    // 違反0件・exit 0 のまま緑になっていた。㊱（重大度最高）の再発を
+    // この道具が構造的に見逃す状態だったので、ここで固定する。
+    ["pregen-404", "実在する名前のページが404（㊱の再現）", "対照が200を返さない（404）"],
   ];
   for (const [fault, label, needle] of faults) {
     const r = await withStub([fault], runPatrol);
@@ -249,9 +260,30 @@ async function main() {
       missed.length === 0,
       missed.length ? `崩していない: ${missed.map((r) => r.routePath).join(" / ")}` : `${routes.length} ルート全部を崩した`
     );
-    // 画像ルート（OG画像）も崩している。初版が取りこぼした実物なので名指しで固定する。
-    const og = listed.includes("/anime/[id]/opengraph-image [id]/");
-    check("⑤ OG画像のルートも崩している", og, og ? "崩している" : "初版と同じ取りこぼし");
+    // 画像ルート（OG画像など）も崩していること。
+    //
+    // 【2026-09-06に名指しをやめた】ここは長らく
+    // `listed.includes("/anime/[id]/opengraph-image [id]/")` と**実物を名指し**していた。
+    // 初版が取りこぼした実物だったからだが、㊳の「対象を手で数えない」に反していた。
+    // 実際、作品ごとのOG画像ルートを削除した日（作品ページはルート直下の
+    // app/opengraph-image.tsx を継承する形にした）に、**このチェックだけが陳腐化して
+    // 落ちた**。名指しは「そのファイルがある限り正しく動く」が、無くなった/増えたときに
+    // 追随しない。
+    //
+    // そこで**走査から導出する**: 動的セグメントを持つ画像ルートが1件でもあれば
+    // 全部崩していること。0件のときは「0件である」と明示して通す（黙って素通しすると、
+    // 画像ルートが検査対象外になったことに気づけない）。
+    const assetRoutes = routes.filter((r) => r.kind === "asset");
+    const missedAsset = assetRoutes.filter((r) => !listed.includes(`${r.routePath} [`));
+    check(
+      "⑤ 動的セグメントを持つ画像ルートも崩している",
+      missedAsset.length === 0,
+      assetRoutes.length === 0
+        ? "対象0件（動的セグメントを持つ画像ルートは無い）"
+        : missedAsset.length
+          ? `崩していない: ${missedAsset.map((r) => r.routePath).join(" / ")}`
+          : `${assetRoutes.length} 件すべてを崩した`
+    );
   }
 
   console.log(`\n結果: ${ng === 0 ? "全件OK" : `${ng} 件NG`}`);

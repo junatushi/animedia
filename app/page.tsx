@@ -4,6 +4,8 @@ import { getSeasonData } from "@/lib/getSeasonData";
 import { stripCreditNamesForSsr } from "@/lib/seasonPayload";
 import { currentSeasonKey } from "@/lib/resolveSeasonParams";
 import { siteUrl } from "@/lib/siteUrl";
+import { robotsFor } from "@/lib/indexPolicy";
+import { OG_IMAGES } from "@/lib/ogImage";
 import type { SeasonResponse } from "@/lib/types";
 
 // トップは同じ内容が複数URLで存在しうる（?year=&season= のディープリンク、SNS/リード
@@ -11,9 +13,43 @@ import type { SeasonResponse } from "@/lib/types";
 // 宣言していなかったため、Search Console で「重複しています。ユーザーにより、正規ページ
 // として選択されていません」（Duplicate without user-selected canonical）が発生していた
 // （2026-07-28）。他のページ（/season/** /anime/** など）は各 page.tsx で canonical 済み。
-export const metadata: Metadata = {
-  alternates: { canonical: siteUrl },
-};
+//
+// 【2026-09-07変更】静的な `metadata` から `generateMetadata` にした。
+//
+// **トップページだけ `lib/indexPolicy.ts` を通していなかった**（㊲と同じ穴）。
+// 下の本体は `try { getSeasonData() } catch { data = undefined }` で失敗を握って
+// SeasonExplorer のエラー表示に委ねる＝**HTTPは200のまま**。ところが robots の
+// 判定が無いので、Annictが落ちている間にクローラーが来ると
+// **HTTP200・`index, follow`・作品リンク0件のHTMLが公開され、`revalidate=3600` で
+// ISRにも書き込まれる**（この環境で `ANNICT_TOKEN` 無しに再現して実測した）。
+//
+// ㊲で5面（season/rankings/exclusive/service/person）を直したときに、
+// **トップだけが対象から漏れていた**。しかも `scripts/check.ts` の検査が
+// その5面を**手書きで名指し**していたため、漏れが構造的に見つからなかった（㊳と同型）。
+// いまは検査側も走査して導出する。
+//
+// サイトの正面玄関でcanonicalの指す先なので、5面より影響が大きい。
+export async function generateMetadata(): Promise<Metadata> {
+  const year = String(new Date().getFullYear());
+  const season = currentSeasonKey();
+
+  // 取得に失敗したとき・作品が1件も無いときは索引に載せない（lib/indexPolicy.ts）。
+  // getSeasonData は unstable_cache を通るので、本体との二重取得にはならない。
+  let failed = false;
+  let count = 0;
+  try {
+    count = (await getSeasonData(year, season)).items.length;
+  } catch {
+    failed = true;
+  }
+
+  return {
+    alternates: { canonical: siteUrl },
+    openGraph: { url: siteUrl, images: OG_IMAGES },
+    twitter: { images: OG_IMAGES },
+    ...robotsFor(failed, count),
+  };
+}
 
 // ISR化（2026-07-21）。以前は searchParams（?year=&season=）をサーバー側で読んでいたため、
 // Next.js はこのページを動的レンダリング（no-store）にせざるを得ず、毎リクエストをサーバー

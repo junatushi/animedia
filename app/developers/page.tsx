@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import IntentLink from "@/components/IntentLink";
 
 import { siteUrl } from "@/lib/siteUrl";
+import { OG_IMAGES } from "@/lib/ogImage";
 import { EMBED_FRAME_HEIGHT } from "@/lib/embed";
 import {
   attributionHtml,
@@ -29,8 +30,8 @@ export const metadata: Metadata = {
   title,
   description,
   alternates: { canonical: `${siteUrl}/developers` },
-  openGraph: { title, description, url: `${siteUrl}/developers`, type: "website" },
-  twitter: { card: "summary", title, description },
+  openGraph: { title, description, url: `${siteUrl}/developers`, type: "website", images: OG_IMAGES },
+  twitter: { card: "summary", title, description, images: OG_IMAGES },
 };
 
 // 配信先ウィジェット（他サイトへの埋め込み）と公開APIの案内ページ（2026-08-06導入）。

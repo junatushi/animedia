@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { sanitizeEventData } from "@/lib/trackEventData";
 
 // クライアント（components/SeasonExplorer.tsx・components/ServiceMarks.tsx）が送る
 // イベント名のみ許可する（任意の値の書き込みを防ぐ）。
@@ -31,6 +32,16 @@ const ALLOWED_EVENTS = new Set([
   // （2026-08-07追加。components/SeasonExplorer.tsx / lib/servicePlan.ts）。
   // 加入判断に最も近い操作なので、affiliate_click と並べて転換を見る。
   "plan_open",
+  // 実利用者の表示速度（2026-09-06追加。components/WebVitals.tsx）。
+  // data は { LCP, CLS, INP, FCP, TTFB, face } で、1ページビューにつき1件だけ届く。
+  // このサイトは「2秒未満」を目標にしながら実利用者の速度を一度も測っていなかった
+  // （PSIのラボ値はノイズ±300ms・CrUXにデータ無し・@vercel/analyticsはCWVを測らない）。
+  "web_vitals",
+  // 外から来た経路のホスト名（2026-09-06追加。同上）。
+  // data は { ref: ホスト名, face }。**生のURLは保存しない**（検索語を含みうるため）。
+  // これが無いと docs/ai-era-strategy-2026-08-13.md の「AI検索からの流入が
+  // 月1件以上あるか」という判定が、実際に流入があっても0件のまま期限を迎える。
+  "page_view",
 ]);
 
 export async function POST(request: Request) {
@@ -52,10 +63,15 @@ export async function POST(request: Request) {
   if (typeof event !== "string" || !ALLOWED_EVENTS.has(event)) {
     return NextResponse.json({ error: "unknown event" }, { status: 400 });
   }
-  // dataは付随情報（例: { service: "d_anime" }）のみ想定。プレーンオブジェクト以外は捨てる
-  // （個人情報が紛れ込む余地を作らない。呼び出し元も文字列程度しか渡していない）。
-  const eventData =
-    data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+  // dataは付随情報（例: { service: "d_anime" }）のみ想定。
+  //
+  // 【重要】ここは**無認証の口**で、しかも書いた値が
+  // Supabase → lib/adminAnalytics.ts → content/analytics/site/<日付>.json → main へのコミット
+  // と伝わり、docs/daily-ops.md が「毎日読む」と指示しているファイルに載る。
+  // 以前は「プレーンオブジェクトか」しか見ておらず、**誰でも任意の文章を
+  // リポジトリの「実測データ」に載せられた**（偽の流入元の捏造・指示の注入）。
+  // 判定の中身と経緯は lib/trackEventData.ts の冒頭。**この検証を外さないこと。**
+  const eventData = sanitizeEventData(data);
 
   const supabase = createServiceClient();
   const { error } = await supabase

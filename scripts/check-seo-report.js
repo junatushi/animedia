@@ -142,21 +142,66 @@ console.log("── seo-report.js の回帰テスト ──\n");
 }
 
 // ─────────────────────────────────────────────
-// ③ 表示回数ゼロの面を名指しすること
-//    （作ったが回収できていない投資が黙って消えると、畳む判断ができない）
+// ③ 出ていない面を名指しすること。ただし
+//    「本当に表示ゼロ」と「③の上位ページに出ていないだけ」を**混ぜないこと**
+//
+// 【なぜ分けるか】③が読む `pages` はGSCの「ページ別・上位N件」で打ち切られている。
+// 表示が少ない面はそこに載らないだけで、表示はある。混ぜて「表示回数ゼロ」と呼ぶと、
+// `docs/seo-operations.md` 3節の撤退条件（「表示回数ゼロのまま」）に
+// **シーズンページのような表示のある面が該当してしまう**。
+// 実測（2026-09-02）で、③に出ない3面のうち監督だけが真のゼロで、
+// シーズン49表示・独占11表示は weeklyByType に存在していた。
 // ─────────────────────────────────────────────
 {
-  const out = runWith({
+  const base = {
+    totals: { clicks: 1, impressions: 10, ctr: 0.1, position: 5 },
+    range: { startDate: "2026-07-19", endDate: "2026-08-15" },
+    daily: [],
+    queries: [],
+    pages: [page("/person/A/2026/summer", 1, 10, 5.0)],
+  };
+
+  // (1) weeklyByType が無い＝切り分けられない。**嘘の断定をしない**こと。
+  const outNoWeekly = runWith({ "2026-08-15": base });
+  check(
+    "切り分けられないときは「表示回数ゼロ」と断定しない",
+    !/表示回数ゼロの面/.test(outNoWeekly),
+    "weeklyByType が無いスナップショット"
+  );
+  check(
+    "それでも出ていない面は名指しする（黙って消えない）",
+    /③の上位ページに出ていない面/.test(outNoWeekly) &&
+      /監督/.test(outNoWeekly) &&
+      /制作会社/.test(outNoWeekly)
+  );
+
+  // (2) weeklyByType があるときは、真のゼロだけを「表示回数ゼロ」と呼ぶ。
+  const outSplit = runWith({
     "2026-08-15": {
-      totals: { clicks: 1, impressions: 10, ctr: 0.1, position: 5 },
-      range: { startDate: "2026-07-19", endDate: "2026-08-15" },
-      daily: [],
-      queries: [],
-      pages: [page("/person/A/2026/summer", 1, 10, 5.0)],
+      ...base,
+      weeklyByType: [
+        { week: "2026-08-04", type: "シーズン", clicks: 0, impressions: 23, ctr: 0, position: 30, days: 7, partial: false },
+        { week: "2026-08-11", type: "独占", clicks: 0, impressions: 5, ctr: 0, position: 40, days: 7, partial: false },
+      ],
     },
   });
-  check("表示ゼロの面を警告する", /表示回数ゼロの面/.test(out), "⚠ が出る");
-  check("監督・制作会社が名指しされる", /監督/.test(out) && /制作会社/.test(out));
+  const zeroLine = (outSplit.match(/⚠ 表示回数ゼロの面: (.*)/) || [])[1] || "";
+  const lowLine = (outSplit.match(/ℹ ③の上位ページに出ていない面: (.*)/) || [])[1] || "";
+  check("真に表示ゼロの面だけを ⚠ に出す", /監督/.test(zeroLine) && /制作会社/.test(zeroLine));
+  check(
+    "表示のある面を「表示回数ゼロ」に混ぜない",
+    !/シーズン/.test(zeroLine) && !/独占/.test(zeroLine),
+    zeroLine.trim() || "(空)"
+  );
+  check(
+    "表示のある面は ℹ 側に、表示回数つきで出す",
+    /シーズン/.test(lowLine) && /独占/.test(lowLine) && /23表示/.test(lowLine) && /5表示/.test(lowLine),
+    lowLine.trim() || "(空)"
+  );
+  check(
+    "撤退条件に当てはまらないことを明記する",
+    /撤退条件の「表示回数ゼロ」には当てはまらない/.test(outSplit)
+  );
 }
 
 // ─────────────────────────────────────────────

@@ -233,13 +233,44 @@ function main() {
     );
   }
 
-  // 表示ゼロの面＝作ったが回収できていない投資。黙って消えないよう名指しする。
+  // 作ったが回収できていない投資を、黙って消えないよう名指しする。
+  //
+  // 【重要】③に出ないことと、表示がゼロであることは**別物**（2026-09-07修正）。
+  // ③が読む `d.pages` はGSCの「ページ別・上位N件」で、**打ち切られている**。
+  // 表示が少ない面はそこに載らないだけで、表示はある。
+  // 実測（2026-09-02のスナップショット）では ③に出ない3面のうち
+  //   ・監督   … weeklyByType にも存在しない ＝ **本当に表示ゼロ**
+  //   ・シーズン … weeklyByType では 49表示（長期）
+  //   ・独占   … weeklyByType では 11表示（長期）
+  // だった。3つまとめて「表示回数ゼロ」と呼ぶと、`docs/seo-operations.md` 3節の
+  // 撤退条件（「表示回数ゼロのまま」）に**シーズンページが該当してしまう**。
+  // シーズンページはこのサイトのSEOの土台なので、誤判定の代償が大きい。
   const seen = new Set(rows.map((r) => r.type));
-  const silent = PAGE_TYPES.filter((t) => !seen.has(t));
-  if (silent.length) {
-    console.log(`\n  ⚠ 表示回数ゼロの面: ${silent.join(" / ")}`);
+  const weeklyImpressions = new Map();
+  for (const r of d.weeklyByType || []) {
+    weeklyImpressions.set(r.type, (weeklyImpressions.get(r.type) || 0) + (r.impressions || 0));
+  }
+  const absent = PAGE_TYPES.filter((t) => !seen.has(t));
+  // weeklyByType を持たない古いスナップショットでは切り分けられないので、
+  // その場合は従来どおり「③に出ていない」とだけ言う（嘘の断定をしない）。
+  const canSplit = weeklyImpressions.size > 0;
+  const zero = canSplit ? absent.filter((t) => !weeklyImpressions.get(t)) : [];
+  const lowOnly = canSplit ? absent.filter((t) => weeklyImpressions.get(t)) : absent;
+
+  if (zero.length) {
+    console.log(`\n  ⚠ 表示回数ゼロの面: ${zero.join(" / ")}`);
     console.log(
-      "    （作ったが検索に出ていない。導線が無い＝孤立か、そもそも検索需要が無いかを切り分ける）"
+      "    （作ったが検索に一度も出ていない。導線が無い＝孤立か、そもそも検索需要が無いかを切り分ける）"
+    );
+  }
+  if (lowOnly.length) {
+    const detail = lowOnly
+      .map((t) => (canSplit ? `${t}（④では${weeklyImpressions.get(t)}表示）` : t))
+      .join(" / ");
+    console.log(`\n  ℹ ③の上位ページに出ていない面: ${detail}`);
+    console.log(
+      "    （表示はある。GSCのページ別が上位N件で打ち切られているだけ。" +
+        "**撤退条件の「表示回数ゼロ」には当てはまらない**）"
     );
   }
 

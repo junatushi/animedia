@@ -11,6 +11,7 @@ import { siteUrl } from "@/lib/siteUrl";
 import { seasonPageTitle, seasonPageDescription } from "@/lib/pageMeta";
 import { robotsFor } from "@/lib/indexPolicy";
 import { titleText } from "@/lib/pageTitle";
+import { OG_IMAGES } from "@/lib/ogImage";
 
 const SEASON_LABEL: Record<string, string> = {
   winter: "冬",
@@ -100,8 +101,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     description,
     alternates: { canonical: url },
     ...robotsFor(failed, count),
-    openGraph: { title: titleText(title), description, url, type: "website" },
-    twitter: { card: "summary_large_image", title: titleText(title), description },
+    openGraph: { title: titleText(title), description, url, type: "website", images: OG_IMAGES },
+    twitter: { card: "summary_large_image", title: titleText(title), description, images: OG_IMAGES },
   };
 }
 
@@ -125,9 +126,15 @@ export default async function SeasonPage({ params }: { params: Params }) {
 
   // 生成AI検索・検索エンジンが「その年その季節のアニメ一覧」を機械可読に把握できるよう、
   // シーズンの全作品を ItemList 構造化データとして出す（各作品は個別ページへリンク）。
-  // 併せてパンくず（Home → シーズン）と確認日（dateModified）も宣言する。
+  // 併せてパンくず（Home → シーズン）も宣言する。
+  //
+  // 【2026-09-07修正】`dateModified` を外した。`ItemList` は `Intangible` の下で
+  // `CreativeWork` ではないので、`dateModified` は語彙上そこに存在しない。
+  // 「取得日」を機械可読で出したいなら `lib/workAvailability.ts` の
+  // `buildDataProvenance` と同じく**独立した `WebPage` ノード**で出すのが筋
+  // （作品ノードに `citation` を混ぜて「このアニメがAnnictを引用している」という
+  // 事実でない主張になっていたのを2026-08-16に直したのと同じ型の誤り）。
   const label = SEASON_LABEL[season];
-  const checkedDate = new Date().toISOString().slice(0, 10);
   const structuredLd = data
     ? [
         {
@@ -135,7 +142,6 @@ export default async function SeasonPage({ params }: { params: Params }) {
           "@type": "ItemList",
           name: `${year}年${label}アニメ 配信情報一覧`,
           numberOfItems: data.items.length,
-          dateModified: checkedDate,
           itemListElement: data.items.map((it, i) => ({
             "@type": "ListItem",
             position: i + 1,
