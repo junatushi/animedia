@@ -1,7 +1,15 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { classifyChannel, toAnimeItem, SERVICES } from "../lib/services.ts";
+import {
+  classifyChannel,
+  toAnimeItem,
+  SERVICES,
+  textOn,
+  contrastRatio,
+  MARK_DARK,
+  MARK_LIGHT,
+} from "../lib/services.ts";
 import {
   SEASON_QUERY,
   WORK_QUERY,
@@ -718,6 +726,147 @@ let discloseNg = 0;
   );
 }
 console.log(`結果（広告の開示文）: ${discloseNg === 0 ? 1 : 0} 件OK / ${discloseNg} 件NG`);
+
+// ── 文字色のコントラスト（2026-09-09導入）──────────────────────
+// ライトテーマの実測で、本文以外の文字がほぼ全部 WCAG AA(4.5:1) を割っていた
+// （--accent 1.86:1 / --accent-2 2.82:1 / --muted-2 2.75:1、フォーカスリング 2.60:1 は
+// 非テキストUIの 3:1 も未達）。ダークテーマも --muted-2 が 3.03:1 で落ちていた
+// ＝「ライトだけの問題」ではない。**画面を見て「少し薄い」としか思えない壊れ方**なので
+// 目視では見つからず、比を計算しないと分からない。
+//
+// 対象は**走査して導出する**（㊳）。色の組を手で並べると、変数を1つ足した日に
+// その1つだけ検査されないまま残る。
+//   ・文字色  … `color:` プロパティに現れる var(--X) を全部集める（`border-color:` 等は除外）
+//   ・リング  … `outline:` に現れる var(--X)
+//   ・背景    … ページと card の実面である --bg / --paper / --paper-2 の3つに限る
+//     （全変数の総当たりにすると、DOM上ありえない組でも落ちて意味が無くなる）
+{
+  let contrastNg = 0;
+  console.log("\n── 文字色のコントラスト ──");
+
+  // ① textOn がしきい値ではなく実際の比で選んでいること。
+  //    旧実装は (0.299R+0.587G+0.114B)/255 > 0.6 という NTSC の知覚輝度で、
+  //    ガンマを戻さないうえ 0.6 という定数に根拠が無く、17社中9社が AA 未満だった
+  //    （最悪 Hulu 2.00:1）。**両方の比を出して高いほうを返す**のが不変条件。
+  let markWorst = { key: "", ratio: Infinity };
+  let markNg = 0;
+  for (const s of SERVICES) {
+    const chosen = textOn(s.color);
+    const other = chosen === MARK_DARK ? MARK_LIGHT : MARK_DARK;
+    if (contrastRatio(s.color, chosen) < contrastRatio(s.color, other)) {
+      markNg++;
+      console.log(`✗  バッジ ${s.key}: ${chosen} より ${other} のほうが読みやすい`);
+    }
+    const r = contrastRatio(s.color, chosen);
+    if (r < markWorst.ratio) markWorst = { key: s.key, ratio: r };
+  }
+  if (markNg > 0) contrastNg += markNg;
+  console.log(
+    `${markNg === 0 ? "✓" : "✗"}  ${`textOn が ${SERVICES.length} 社すべてで良いほうを選ぶ`.padEnd(44)} → ` +
+      `${markNg === 0 ? `OK（最悪 ${markWorst.key} ${markWorst.ratio.toFixed(2)}:1）` : `${markNg} 社で不一致`}`
+  );
+
+  // ② globals.css が「文字色」に装飾用の変数を直接使っていないこと。
+  //    --accent / --accent-2 は枠線とグラデーション（＝背景）にも使うので、
+  //    文字が読めるまで暗くすると塗りまで暗くなる。用途で変数を分けてある。
+  const cssSrc = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const bareText = [...cssSrc.matchAll(/(?<![-\w])color:\s*var\((--accent(?:-2)?)\)/g)].map((m) => m[1]);
+  if (bareText.length > 0) contrastNg++;
+  console.log(
+    `${bareText.length === 0 ? "✓" : "✗"}  ${"文字色は ink 版の変数を使う".padEnd(44)} → ` +
+      `${bareText.length === 0 ? "OK" : `${bareText.length}箇所が素の ${[...new Set(bareText)].join("/")} を文字に使っている`}`
+  );
+
+  // ③ 実際の比を、globals.css の値そのものから計算する（②だけだと、ink 版に
+  //    薄い色を入れた日に素通りする）。rgba() の面は --bg に重ねて解決する。
+  const blockOf = (sel: string): string => {
+    const i = cssSrc.indexOf(sel + " {");
+    if (i < 0) return "";
+    const j = cssSrc.indexOf("\n}", i);
+    return j > i ? cssSrc.slice(i, j) : "";
+  };
+  const varsOf = (block: string): Record<string, string> => {
+    const out: Record<string, string> = {};
+    for (const m of block.matchAll(/(--[\w-]+):\s*([^;]+);/g)) out[m[1]] = m[2].trim();
+    return out;
+  };
+  const resolve = (name: string, map: Record<string, string>, depth = 0): string | null => {
+    const v = map[name];
+    if (v === undefined || depth > 5) return null;
+    const indirect = v.match(/^var\((--[\w-]+)\)$/);
+    if (indirect) return resolve(indirect[1], map, depth + 1);
+    if (/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase();
+    const rgba = v.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,/\s]+([\d.]+))?\s*\)$/i);
+    if (rgba) {
+      const a = rgba[4] === undefined ? 1 : parseFloat(rgba[4]);
+      const under = resolve("--bg", map, depth + 1);
+      if (!under) return null;
+      const u = [0, 2, 4].map((i) => parseInt(under.slice(1).slice(i, i + 2), 16));
+      const c = [1, 2, 3].map((i) => Math.round(parseInt(rgba[i], 10) * a + u[i - 1] * (1 - a)));
+      return "#" + c.map((x) => x.toString(16).padStart(2, "0")).join("");
+    }
+    return null;
+  };
+  const baseVars = varsOf(blockOf(":root"));
+  const themes: [string, Record<string, string>][] = [
+    ["ダーク", baseVars],
+    ["ライト", { ...baseVars, ...varsOf(blockOf(':root[data-theme="light"]')) }],
+  ];
+  const textVars = new Set<string>();
+  for (const m of cssSrc.matchAll(/(?<![-\w])color:\s*var\((--[\w-]+)\)/g)) textVars.add(m[1]);
+  const ringVars = new Set<string>();
+  for (const m of cssSrc.matchAll(/outline:[^;]*var\((--[\w-]+)\)/g)) ringVars.add(m[1]);
+  const SURFACES = ["--bg", "--paper", "--paper-2"];
+  // AA は本文 4.5:1、フォーカスリングなど非テキストUIは 1.4.11 の 3:1。
+  const groups: [string, Set<string>, number][] = [
+    ["文字", textVars, 4.5],
+    ["リング", ringVars, 3.0],
+  ];
+  let worst = { label: "", ratio: Infinity, need: 0 };
+  let pairs = 0;
+  for (const [themeName, map] of themes) {
+    for (const [kind, set, need] of groups) {
+      for (const t of set) {
+        const fg = resolve(t, map);
+        if (!fg) {
+          contrastNg++;
+          console.log(`✗  ${themeName} の ${t} が色に解決できない（検査できていない）`);
+          continue;
+        }
+        for (const sn of SURFACES) {
+          const bg = resolve(sn, map);
+          if (!bg) {
+            contrastNg++;
+            console.log(`✗  ${themeName} の ${sn} が色に解決できない`);
+            continue;
+          }
+          pairs++;
+          const r = contrastRatio(fg, bg);
+          if (r < need) {
+            contrastNg++;
+            console.log(
+              `✗  ${themeName} ${kind} ${t} ${fg} on ${sn} ${bg} → ${r.toFixed(2)}:1（必要 ${need}:1）`
+            );
+          } else if (r / need < worst.ratio / (worst.need || 1)) {
+            worst = { label: `${themeName} ${t} on ${sn}`, ratio: r, need };
+          }
+        }
+      }
+    }
+  }
+  // 走査が空振り（正規表現が壊れて0件）でも「OK」に見えてしまうのを防ぐ。
+  if (textVars.size < 3 || ringVars.size < 1 || pairs < 12) {
+    contrastNg++;
+    console.log(`✗  走査が空振りしている（文字色${textVars.size}／リング${ringVars.size}／組${pairs}）`);
+  }
+  console.log(
+    `${contrastNg === 0 ? "✓" : "✗"}  ${`実測コントラスト（${pairs}組）`.padEnd(44)} → ` +
+      `${contrastNg === 0 ? `OK（最も余裕が無いのは ${worst.label} ${worst.ratio.toFixed(2)}:1）` : `${contrastNg} 件NG`}`
+  );
+
+  globalThis.__contrastNg = contrastNg;
+  console.log(`結果（文字色のコントラスト）: ${contrastNg === 0 ? 1 : 0} 件OK / ${contrastNg} 件NG`);
+}
 
 // ── 日付アンカー（anchorToSlotDate）の回帰テスト（2026-08-05導入）──
 // GitHub Actionsのscheduleは予定より数時間遅れて発火する（実測最大6.4時間）。旧cron
@@ -7237,6 +7386,7 @@ if (
   tagNg > 0 ||
   badgeNg > 0 ||
   discloseNg > 0 ||
+  (globalThis.__contrastNg ?? 0) > 0 ||
   anchorNg > 0 ||
   slotNg > 0 ||
   embedNg > 0 ||

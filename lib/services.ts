@@ -151,14 +151,42 @@ export function splitRentalServices(
   };
 }
 
-// バッジ背景色に対して読みやすい文字色（黒 or 白）を返す
-export function textOn(hex: string): string {
+// バッジの単色（.svc-chip-mark の文字色）に使う黒/白。
+// 文字を置く色は SERVICES[].color（各社のブランド色）なので、テーマには依存しない。
+export const MARK_DARK = "#10141f";
+export const MARK_LIGHT = "#ffffff";
+
+// WCAG 2.1 の相対輝度（sRGB のガンマを戻してから重み付けする）。
+// 2026-09-09まで textOn は (0.299R + 0.587G + 0.114B) / 255 > 0.6 で判定していたが、
+// これは NTSC の**知覚輝度**であってコントラスト比の式ではない。ガンマを戻さないので
+// 中間色を実際より明るく見積もり、しきい値 0.6 も「どちらが読みやすいか」とは無関係。
+// 実測で 17 社中 9 社が AA(4.5:1) 未満になっており、最悪は Hulu の **2.00:1**
+// （#10d27a に白文字。黒文字なら 9.21:1）だった。画面で見ると「薄いな」で済むので
+// 気づきにくい。**推測のしきい値ではなく、両方の比を出して高いほうを採る。**
+export function relativeLuminance(hex: string): number {
   const h = hex.replace("#", "");
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6 ? "#10141f" : "#ffffff";
+  const ch = [0, 2, 4].map((i) => {
+    const v = parseInt(h.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+}
+
+// WCAG のコントラスト比 (L1 + 0.05) / (L2 + 0.05)。1.0〜21.0 を返す。
+export function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+// バッジ背景色に対して読みやすい文字色（黒 or 白）を返す。
+// **しきい値で決めず、実際のコントラスト比が高いほうを返す**こと（上のコメント参照）。
+// なお 2 社（U-NEXT #8b5cf6・WOWOWオンデマンド #1f7ae0）は黒白どちらでも 4.5:1 に
+// わずかに届かない（最良で 4.34 / 4.31）。ブランド色そのものを変えるしかないので
+// ここでは触らない。この文字は aria-hidden で、隣に同じサービス名が
+// .svc-chip-name として出ている（読み上げには sr-only の正式名が入る）。
+export function textOn(hex: string): string {
+  return contrastRatio(hex, MARK_DARK) >= contrastRatio(hex, MARK_LIGHT) ? MARK_DARK : MARK_LIGHT;
 }
 
 // 呼び出し側でカード表示対象（配信サービス・その他配信）に絞り込んだ startedAt から、
