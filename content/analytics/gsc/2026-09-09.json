@@ -1,0 +1,2719 @@
+{
+  "fetchedAt": "2026-09-12T23:22:01.093Z",
+  "siteUrl": "https://animedia-khaki.vercel.app/",
+  "range": {
+    "startDate": "2026-08-13",
+    "endDate": "2026-09-09"
+  },
+  "longRange": {
+    "startDate": "2025-05-18",
+    "endDate": "2026-09-09"
+  },
+  "totals": {
+    "clicks": 123,
+    "impressions": 11843,
+    "ctr": 0.010385881955585577,
+    "position": 24.411382251118805
+  },
+  "daily": [
+    {
+      "keys": [
+        "2026-08-13"
+      ],
+      "clicks": 0,
+      "impressions": 23,
+      "ctr": 0,
+      "position": 16.73913043478261
+    },
+    {
+      "keys": [
+        "2026-08-14"
+      ],
+      "clicks": 1,
+      "impressions": 17,
+      "ctr": 0.058823529411764705,
+      "position": 13.588235294117647
+    },
+    {
+      "keys": [
+        "2026-08-15"
+      ],
+      "clicks": 1,
+      "impressions": 17,
+      "ctr": 0.058823529411764705,
+      "position": 16.823529411764707
+    },
+    {
+      "keys": [
+        "2026-08-16"
+      ],
+      "clicks": 0,
+      "impressions": 26,
+      "ctr": 0,
+      "position": 22.03846153846154
+    },
+    {
+      "keys": [
+        "2026-08-17"
+      ],
+      "clicks": 1,
+      "impressions": 20,
+      "ctr": 0.05,
+      "position": 11.95
+    },
+    {
+      "keys": [
+        "2026-08-18"
+      ],
+      "clicks": 1,
+      "impressions": 23,
+      "ctr": 0.043478260869565216,
+      "position": 14.826086956521738
+    },
+    {
+      "keys": [
+        "2026-08-19"
+      ],
+      "clicks": 3,
+      "impressions": 287,
+      "ctr": 0.010452961672473868,
+      "position": 15.64459930313589
+    },
+    {
+      "keys": [
+        "2026-08-20"
+      ],
+      "clicks": 8,
+      "impressions": 848,
+      "ctr": 0.009433962264150943,
+      "position": 25.994103773584907
+    },
+    {
+      "keys": [
+        "2026-08-21"
+      ],
+      "clicks": 10,
+      "impressions": 805,
+      "ctr": 0.012422360248447204,
+      "position": 23.79751552795031
+    },
+    {
+      "keys": [
+        "2026-08-22"
+      ],
+      "clicks": 12,
+      "impressions": 697,
+      "ctr": 0.01721664275466284,
+      "position": 20.024390243902438
+    },
+    {
+      "keys": [
+        "2026-08-23"
+      ],
+      "clicks": 6,
+      "impressions": 619,
+      "ctr": 0.009693053311793215,
+      "position": 20.489499192245557
+    },
+    {
+      "keys": [
+        "2026-08-24"
+      ],
+      "clicks": 5,
+      "impressions": 571,
+      "ctr": 0.008756567425569177,
+      "position": 19.644483362521893
+    },
+    {
+      "keys": [
+        "2026-08-25"
+      ],
+      "clicks": 3,
+      "impressions": 591,
+      "ctr": 0.005076142131979695,
+      "position": 22.727580372250422
+    },
+    {
+      "keys": [
+        "2026-08-26"
+      ],
+      "clicks": 10,
+      "impressions": 684,
+      "ctr": 0.014619883040935672,
+      "position": 23.72222222222222
+    },
+    {
+      "keys": [
+        "2026-08-27"
+      ],
+      "clicks": 5,
+      "impressions": 633,
+      "ctr": 0.007898894154818325,
+      "position": 26.38862559241706
+    },
+    {
+      "keys": [
+        "2026-08-28"
+      ],
+      "clicks": 10,
+      "impressions": 771,
+      "ctr": 0.01297016861219196,
+      "position": 22.529182879377434
+    },
+    {
+      "keys": [
+        "2026-08-29"
+      ],
+      "clicks": 7,
+      "impressions": 555,
+      "ctr": 0.012612612612612612,
+      "position": 25.218018018018018
+    },
+    {
+      "keys": [
+        "2026-08-30"
+      ],
+      "clicks": 9,
+      "impressions": 489,
+      "ctr": 0.018404907975460124,
+      "position": 25.167689161554193
+    },
+    {
+      "keys": [
+        "2026-08-31"
+      ],
+      "clicks": 6,
+      "impressions": 511,
+      "ctr": 0.011741682974559686,
+      "position": 35.00195694716243
+    },
+    {
+      "keys": [
+        "2026-09-01"
+      ],
+      "clicks": 1,
+      "impressions": 425,
+      "ctr": 0.002352941176470588,
+      "position": 27.39294117647059
+    },
+    {
+      "keys": [
+        "2026-09-02"
+      ],
+      "clicks": 2,
+      "impressions": 392,
+      "ctr": 0.00510204081632653,
+      "position": 26.022959183673468
+    },
+    {
+      "keys": [
+        "2026-09-03"
+      ],
+      "clicks": 5,
+      "impressions": 527,
+      "ctr": 0.009487666034155597,
+      "position": 35.67172675521822
+    },
+    {
+      "keys": [
+        "2026-09-04"
+      ],
+      "clicks": 5,
+      "impressions": 472,
+      "ctr": 0.01059322033898305,
+      "position": 25.527542372881356
+    },
+    {
+      "keys": [
+        "2026-09-05"
+      ],
+      "clicks": 4,
+      "impressions": 457,
+      "ctr": 0.0087527352297593,
+      "position": 24.205689277899342
+    },
+    {
+      "keys": [
+        "2026-09-06"
+      ],
+      "clicks": 1,
+      "impressions": 304,
+      "ctr": 0.003289473684210526,
+      "position": 23.388157894736842
+    },
+    {
+      "keys": [
+        "2026-09-07"
+      ],
+      "clicks": 0,
+      "impressions": 301,
+      "ctr": 0,
+      "position": 23.55481727574751
+    },
+    {
+      "keys": [
+        "2026-09-08"
+      ],
+      "clicks": 3,
+      "impressions": 396,
+      "ctr": 0.007575757575757576,
+      "position": 23.752525252525253
+    },
+    {
+      "keys": [
+        "2026-09-09"
+      ],
+      "clicks": 4,
+      "impressions": 382,
+      "ctr": 0.010471204188481676,
+      "position": 21.523560209424083
+    }
+  ],
+  "queries": [
+    {
+      "keys": [
+        "2.5次元の誘惑 ネトフリ"
+      ],
+      "clicks": 1,
+      "impressions": 18,
+      "ctr": 0.05555555555555555,
+      "position": 9.555555555555555
+    },
+    {
+      "keys": [
+        "acca13 区監察課 どこで 見れる"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 22
+    },
+    {
+      "keys": [
+        "ssss dynazenon netflix"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 12
+    },
+    {
+      "keys": [
+        "あなたの子じゃないの アニメ"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 12
+    },
+    {
+      "keys": [
+        "こちら葛飾区亀有公園前派出所 the final 両津勘吉最後の日 配信"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 19
+    },
+    {
+      "keys": [
+        "つうかあ 配信"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 16
+    },
+    {
+      "keys": [
+        "アンデッドガール・マーダーファルス 配信"
+      ],
+      "clicks": 1,
+      "impressions": 3,
+      "ctr": 0.3333333333333333,
+      "position": 20.333333333333332
+    },
+    {
+      "keys": [
+        "コードギアス 奪還のロゼ abema"
+      ],
+      "clicks": 1,
+      "impressions": 4,
+      "ctr": 0.25,
+      "position": 18.75
+    },
+    {
+      "keys": [
+        "ゴジラsp 配信"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 11.5
+    },
+    {
+      "keys": [
+        "シャインポスト アニメ 配信"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 20
+    },
+    {
+      "keys": [
+        "バトルスピリッツミラージュ 配信"
+      ],
+      "clicks": 1,
+      "impressions": 3,
+      "ctr": 0.3333333333333333,
+      "position": 13.666666666666666
+    },
+    {
+      "keys": [
+        "ベルセルク 黄金時代篇iii 降臨 配信"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 11
+    },
+    {
+      "keys": [
+        "久保さんは僕を許さない アマプラ"
+      ],
+      "clicks": 1,
+      "impressions": 28,
+      "ctr": 0.03571428571428571,
+      "position": 10.428571428571429
+    },
+    {
+      "keys": [
+        "同級生 アニメ 配信"
+      ],
+      "clicks": 1,
+      "impressions": 3,
+      "ctr": 0.3333333333333333,
+      "position": 29.666666666666668
+    },
+    {
+      "keys": [
+        "天官賜福 アニメ ユーネクスト"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 17
+    },
+    {
+      "keys": [
+        "宮野真守 2026 アニメ"
+      ],
+      "clicks": 1,
+      "impressions": 13,
+      "ctr": 0.07692307692307693,
+      "position": 7.384615384615385
+    },
+    {
+      "keys": [
+        "愛され末っ子は初めてでアニメ"
+      ],
+      "clicks": 1,
+      "impressions": 15,
+      "ctr": 0.06666666666666667,
+      "position": 9.6
+    },
+    {
+      "keys": [
+        "推しが武道館いってくれたら死ぬ ネトフリ"
+      ],
+      "clicks": 1,
+      "impressions": 7,
+      "ctr": 0.14285714285714285,
+      "position": 10.285714285714286
+    },
+    {
+      "keys": [
+        "森川智之 キャラ一覧"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 60
+    },
+    {
+      "keys": [
+        "渡くんの が崩壊寸前 dアニメ"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 24
+    },
+    {
+      "keys": [
+        "無能なナナ 配信"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 20
+    },
+    {
+      "keys": [
+        "約束のネバーランド アニメ 配信"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 21
+    },
+    {
+      "keys": [
+        "薔薇王の葬列 アニメ 配信"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 14
+    },
+    {
+      "keys": [
+        "黒の召喚士 配信"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 13
+    },
+    {
+      "keys": [
+        "0歳児スタートダッシュ物語 配信"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 32
+    },
+    {
+      "keys": [
+        "100万の命の上に アニメ どこで 見れる"
+      ],
+      "clicks": 0,
+      "impressions": 23,
+      "ctr": 0,
+      "position": 10.782608695652174
+    },
+    {
+      "keys": [
+        "15歳、今日から同棲はじめます 無料"
+      ],
+      "clicks": 0,
+      "impressions": 17,
+      "ctr": 0,
+      "position": 77.6470588235294
+    },
+    {
+      "keys": [
+        "2.5次元の誘惑 配信"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 26
+    },
+    {
+      "keys": [
+        "2010年冬アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 16
+    },
+    {
+      "keys": [
+        "2014 夏 アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 72
+    },
+    {
+      "keys": [
+        "2017 冬アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 21
+    },
+    {
+      "keys": [
+        "2017 秋アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 47
+    },
+    {
+      "keys": [
+        "2018 夏アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 32
+    },
+    {
+      "keys": [
+        "2020 夏アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 35.5
+    },
+    {
+      "keys": [
+        "2021 夏アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 24
+    },
+    {
+      "keys": [
+        "2021夏アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 27
+    },
+    {
+      "keys": [
+        "2021年 夏アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 22
+    },
+    {
+      "keys": [
+        "2023 夏アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 7,
+      "ctr": 0,
+      "position": 65.57142857142857
+    },
+    {
+      "keys": [
+        "2023夏アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 70.75
+    },
+    {
+      "keys": [
+        "2023夏アニメ一覧"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 85
+    },
+    {
+      "keys": [
+        "2023年 夏アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 65
+    },
+    {
+      "keys": [
+        "2023年夏アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 65
+    },
+    {
+      "keys": [
+        "2025年 秋アニメ 一覧"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 3
+    },
+    {
+      "keys": [
+        "2026"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 3
+    },
+    {
+      "keys": [
+        "2026 年秋 アニメ一覧"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 64
+    },
+    {
+      "keys": [
+        "2026 秋アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 7,
+      "ctr": 0,
+      "position": 37
+    },
+    {
+      "keys": [
+        "2026年 秋アニメ 一覧"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 1.5
+    },
+    {
+      "keys": [
+        "2026年秋アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 47
+    },
+    {
+      "keys": [
+        "2026秋アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 31.666666666666668
+    },
+    {
+      "keys": [
+        "29歳独身冒険者の日常 アニメ 配信"
+      ],
+      "clicks": 0,
+      "impressions": 11,
+      "ctr": 0,
+      "position": 27.181818181818183
+    },
+    {
+      "keys": [
+        "6hp 配信"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 10
+    },
+    {
+      "keys": [
+        "86 アニメ netflix"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 18.5
+    },
+    {
+      "keys": [
+        "86 アニメ ネトフリ"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 15
+    },
+    {
+      "keys": [
+        "86 アマプラ"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 16
+    },
+    {
+      "keys": [
+        "86 アマプラ 配信終了"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 9.5
+    },
+    {
+      "keys": [
+        "86 サブスク"
+      ],
+      "clicks": 0,
+      "impressions": 9,
+      "ctr": 0,
+      "position": 24.555555555555557
+    },
+    {
+      "keys": [
+        "86 ネットフリックス"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 11.5
+    },
+    {
+      "keys": [
+        "86 ネトフリ"
+      ],
+      "clicks": 0,
+      "impressions": 5,
+      "ctr": 0,
+      "position": 18.6
+    },
+    {
+      "keys": [
+        "86 配信"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 25
+    },
+    {
+      "keys": [
+        "86配信"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 61
+    },
+    {
+      "keys": [
+        "acca13区監察課 サブスク"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 42
+    },
+    {
+      "keys": [
+        "acca13区監察課 配信"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 31
+    },
+    {
+      "keys": [
+        "amazon プライム 夏 アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 24.333333333333332
+    },
+    {
+      "keys": [
+        "amazonプライム アニメ 無料 一覧 2024"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 23.5
+    },
+    {
+      "keys": [
+        "amazonプライム 夏アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 11
+    },
+    {
+      "keys": [
+        "bleach 千年血戦篇-相剋譚- 配信"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 40.5
+    },
+    {
+      "keys": [
+        "bleach 千年血戦篇-禍進譚- 配信"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 79
+    },
+    {
+      "keys": [
+        "bleach 配信"
+      ],
+      "clicks": 0,
+      "impressions": 10,
+      "ctr": 0,
+      "position": 87.5
+    },
+    {
+      "keys": [
+        "bloodivores"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 30
+    },
+    {
+      "keys": [
+        "bloodivores どこで 見れる"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 21
+    },
+    {
+      "keys": [
+        "bloodivores 配信"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 17
+    },
+    {
+      "keys": [
+        "bラッパーズ ストリート"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 36.25
+    },
+    {
+      "keys": [
+        "c station"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 19
+    },
+    {
+      "keys": [
+        "c-station アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 15
+    },
+    {
+      "keys": [
+        "c2c アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 5,
+      "ctr": 0,
+      "position": 24.2
+    },
+    {
+      "keys": [
+        "c2c アニメ 一覧"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 11
+    },
+    {
+      "keys": [
+        "captain harlock"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 30
+    },
+    {
+      "keys": [
+        "city the animation 配信"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 26
+    },
+    {
+      "keys": [
+        "city アニメ どこで 見れる"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 20
+    },
+    {
+      "keys": [
+        "cloverworks アニメ 一覧"
+      ],
+      "clicks": 0,
+      "impressions": 72,
+      "ctr": 0,
+      "position": 10.527777777777779
+    },
+    {
+      "keys": [
+        "cloverworks アニメ一覧"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 10
+    },
+    {
+      "keys": [
+        "connect アニメ"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 10.5
+    },
+    {
+      "keys": [
+        "crunchyroll アニメ 一覧"
+      ],
+      "clicks": 0,
+      "impressions": 13,
+      "ctr": 0,
+      "position": 13.23076923076923
+    },
+    {
+      "keys": [
+        "d gray man hallow"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 25
+    },
+    {
+      "keys": [
+        "d gray man hallow 見る 方法"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 42.5
+    },
+    {
+      "keys": [
+        "d gray man hallow 配信"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 20
+    },
+    {
+      "keys": [
+        "d アニメ 作品 一覧"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 20
+    },
+    {
+      "keys": [
+        "d.gray-man hallow 見る 方法"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 40
+    },
+    {
+      "keys": [
+        "d.gray-man hallow 配信"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 19
+    },
+    {
+      "keys": [
+        "dmm tv アニメ一覧"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 25
+    },
+    {
+      "keys": [
+        "dmm アニメ 一覧"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 24
+    },
+    {
+      "keys": [
+        "duel masters lost 追憶の水晶 配信"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 26
+    },
+    {
+      "keys": [
+        "dグレイマン アニメ 配信"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 72
+    },
+    {
+      "keys": [
+        "engi アニメ 一覧"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 11
+    },
+    {
+      "keys": [
+        "engi 作品"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 11
+    },
+    {
+      "keys": [
+        "fairy tail 100年クエスト 配信"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 31
+    },
+    {
+      "keys": [
+        "fate apocrypha 配信"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 21
+    },
+    {
+      "keys": [
+        "fate heaven's feel 配信"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 60.5
+    },
+    {
+      "keys": [
+        "fate ヘブンズフィール 3章 配信"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 82
+    },
+    {
+      "keys": [
+        "fate/stay night (heaven's feel 3章 配信)"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 74
+    }
+  ],
+  "pages": [
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/person/%E6%82%A0%E6%9C%A8%E7%A2%A7/2026/summer"
+      ],
+      "clicks": 7,
+      "impressions": 65,
+      "ctr": 0.1076923076923077,
+      "position": 7.338461538461538
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/11176"
+      ],
+      "clicks": 4,
+      "impressions": 57,
+      "ctr": 0.07017543859649122,
+      "position": 11.789473684210526
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/rankings/2026/autumn"
+      ],
+      "clicks": 3,
+      "impressions": 20,
+      "ctr": 0.15,
+      "position": 9.5
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/11470"
+      ],
+      "clicks": 2,
+      "impressions": 4,
+      "ctr": 0.5,
+      "position": 15.75
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/17464"
+      ],
+      "clicks": 2,
+      "impressions": 6,
+      "ctr": 0.3333333333333333,
+      "position": 8.833333333333332
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/17972"
+      ],
+      "clicks": 2,
+      "impressions": 38,
+      "ctr": 0.05263157894736842,
+      "position": 8.105263157894736
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/4939"
+      ],
+      "clicks": 2,
+      "impressions": 14,
+      "ctr": 0.14285714285714285,
+      "position": 14.714285714285714
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/9655"
+      ],
+      "clicks": 2,
+      "impressions": 145,
+      "ctr": 0.013793103448275862,
+      "position": 11.8
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/service/netflix/2026/autumn"
+      ],
+      "clicks": 2,
+      "impressions": 8,
+      "ctr": 0.25,
+      "position": 5.375
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/?ref=credit"
+      ],
+      "clicks": 1,
+      "impressions": 4,
+      "ctr": 0.25,
+      "position": 3.75
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/10235"
+      ],
+      "clicks": 1,
+      "impressions": 51,
+      "ctr": 0.0196078431372549,
+      "position": 10.117647058823529
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/10604"
+      ],
+      "clicks": 1,
+      "impressions": 21,
+      "ctr": 0.047619047619047616,
+      "position": 19.285714285714285
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/10879"
+      ],
+      "clicks": 1,
+      "impressions": 10,
+      "ctr": 0.1,
+      "position": 7.2
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/10965"
+      ],
+      "clicks": 1,
+      "impressions": 3,
+      "ctr": 0.3333333333333333,
+      "position": 20
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/10987"
+      ],
+      "clicks": 1,
+      "impressions": 12,
+      "ctr": 0.08333333333333333,
+      "position": 19.583333333333332
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/11782"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 8.5
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/12947"
+      ],
+      "clicks": 1,
+      "impressions": 3,
+      "ctr": 0.3333333333333333,
+      "position": 14.666666666666666
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/13891"
+      ],
+      "clicks": 1,
+      "impressions": 20,
+      "ctr": 0.05,
+      "position": 12
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/14147"
+      ],
+      "clicks": 1,
+      "impressions": 72,
+      "ctr": 0.013888888888888888,
+      "position": 10.194444444444445
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/14413"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 2
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/14750"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 7
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/14873"
+      ],
+      "clicks": 1,
+      "impressions": 3,
+      "ctr": 0.3333333333333333,
+      "position": 58.333333333333336
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/16692"
+      ],
+      "clicks": 1,
+      "impressions": 3,
+      "ctr": 0.3333333333333333,
+      "position": 8.666666666666668
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/16904"
+      ],
+      "clicks": 1,
+      "impressions": 42,
+      "ctr": 0.023809523809523808,
+      "position": 8.404761904761905
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/17370"
+      ],
+      "clicks": 1,
+      "impressions": 21,
+      "ctr": 0.047619047619047616,
+      "position": 13.857142857142858
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/17394"
+      ],
+      "clicks": 1,
+      "impressions": 4,
+      "ctr": 0.25,
+      "position": 6.25
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/17949"
+      ],
+      "clicks": 1,
+      "impressions": 3,
+      "ctr": 0.3333333333333333,
+      "position": 14.333333333333334
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/17955"
+      ],
+      "clicks": 1,
+      "impressions": 5,
+      "ctr": 0.2,
+      "position": 6.6
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/17974"
+      ],
+      "clicks": 1,
+      "impressions": 4,
+      "ctr": 0.25,
+      "position": 10.25
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/18053"
+      ],
+      "clicks": 1,
+      "impressions": 4,
+      "ctr": 0.25,
+      "position": 9.5
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/2679"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 6
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/3090"
+      ],
+      "clicks": 1,
+      "impressions": 10,
+      "ctr": 0.1,
+      "position": 6.9
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/4373"
+      ],
+      "clicks": 1,
+      "impressions": 15,
+      "ctr": 0.06666666666666667,
+      "position": 40.46666666666667
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/4789"
+      ],
+      "clicks": 1,
+      "impressions": 17,
+      "ctr": 0.058823529411764705,
+      "position": 36.529411764705884
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/4806"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 7.5
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/4830"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 11
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/4956"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 19
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/5065"
+      ],
+      "clicks": 1,
+      "impressions": 22,
+      "ctr": 0.045454545454545456,
+      "position": 28.818181818181817
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/5246"
+      ],
+      "clicks": 1,
+      "impressions": 21,
+      "ctr": 0.047619047619047616,
+      "position": 7
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/5266"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 3
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/5423"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 16
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/5766"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 5
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/5848"
+      ],
+      "clicks": 1,
+      "impressions": 6,
+      "ctr": 0.16666666666666666,
+      "position": 2
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/5877"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 5
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/5953"
+      ],
+      "clicks": 1,
+      "impressions": 6,
+      "ctr": 0.16666666666666666,
+      "position": 5.5
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/5963"
+      ],
+      "clicks": 1,
+      "impressions": 5,
+      "ctr": 0.2,
+      "position": 8.6
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/5970"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 4
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/6059"
+      ],
+      "clicks": 1,
+      "impressions": 17,
+      "ctr": 0.058823529411764705,
+      "position": 10
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/6079"
+      ],
+      "clicks": 1,
+      "impressions": 70,
+      "ctr": 0.014285714285714285,
+      "position": 10.128571428571428
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/6181"
+      ],
+      "clicks": 1,
+      "impressions": 12,
+      "ctr": 0.08333333333333333,
+      "position": 9.083333333333334
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/6462"
+      ],
+      "clicks": 1,
+      "impressions": 62,
+      "ctr": 0.016129032258064516,
+      "position": 13.96774193548387
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/6508"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 7
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/6585"
+      ],
+      "clicks": 1,
+      "impressions": 3,
+      "ctr": 0.3333333333333333,
+      "position": 9
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/6672"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 14
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/6734"
+      ],
+      "clicks": 1,
+      "impressions": 3,
+      "ctr": 0.3333333333333333,
+      "position": 11.333333333333334
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/6773"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 41
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7002"
+      ],
+      "clicks": 1,
+      "impressions": 9,
+      "ctr": 0.1111111111111111,
+      "position": 10.666666666666666
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7005"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 2
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7121"
+      ],
+      "clicks": 1,
+      "impressions": 32,
+      "ctr": 0.03125,
+      "position": 11.59375
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7199"
+      ],
+      "clicks": 1,
+      "impressions": 11,
+      "ctr": 0.09090909090909091,
+      "position": 18.636363636363637
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7218"
+      ],
+      "clicks": 1,
+      "impressions": 84,
+      "ctr": 0.011904761904761904,
+      "position": 15.345238095238095
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7340"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 10.5
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7393"
+      ],
+      "clicks": 1,
+      "impressions": 56,
+      "ctr": 0.017857142857142856,
+      "position": 17.785714285714285
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7420"
+      ],
+      "clicks": 1,
+      "impressions": 5,
+      "ctr": 0.2,
+      "position": 15.2
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7473"
+      ],
+      "clicks": 1,
+      "impressions": 3,
+      "ctr": 0.3333333333333333,
+      "position": 16.666666666666664
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7503"
+      ],
+      "clicks": 1,
+      "impressions": 6,
+      "ctr": 0.16666666666666666,
+      "position": 19.333333333333332
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7505"
+      ],
+      "clicks": 1,
+      "impressions": 24,
+      "ctr": 0.041666666666666664,
+      "position": 9.541666666666666
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7551"
+      ],
+      "clicks": 1,
+      "impressions": 52,
+      "ctr": 0.019230769230769232,
+      "position": 10.288461538461538
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7604"
+      ],
+      "clicks": 1,
+      "impressions": 4,
+      "ctr": 0.25,
+      "position": 11.25
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7605"
+      ],
+      "clicks": 1,
+      "impressions": 51,
+      "ctr": 0.0196078431372549,
+      "position": 8.725490196078432
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7642"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 3
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7684"
+      ],
+      "clicks": 1,
+      "impressions": 18,
+      "ctr": 0.05555555555555555,
+      "position": 9.11111111111111
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7708"
+      ],
+      "clicks": 1,
+      "impressions": 16,
+      "ctr": 0.0625,
+      "position": 11.3125
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/7897"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 24
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/8313"
+      ],
+      "clicks": 1,
+      "impressions": 5,
+      "ctr": 0.2,
+      "position": 21.2
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/8461"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 12
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/8802"
+      ],
+      "clicks": 1,
+      "impressions": 29,
+      "ctr": 0.034482758620689655,
+      "position": 10.89655172413793
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/8965"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 12
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/9042"
+      ],
+      "clicks": 1,
+      "impressions": 4,
+      "ctr": 0.25,
+      "position": 15.75
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/9067"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 20
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/9071"
+      ],
+      "clicks": 1,
+      "impressions": 10,
+      "ctr": 0.1,
+      "position": 12.1
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/9092"
+      ],
+      "clicks": 1,
+      "impressions": 30,
+      "ctr": 0.03333333333333333,
+      "position": 35.8
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/9244"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 8.5
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/9344"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 13
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/9484"
+      ],
+      "clicks": 1,
+      "impressions": 7,
+      "ctr": 0.14285714285714285,
+      "position": 8.857142857142858
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/959"
+      ],
+      "clicks": 1,
+      "impressions": 4,
+      "ctr": 0.25,
+      "position": 8.5
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/9616"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 4
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/anime/9757"
+      ],
+      "clicks": 1,
+      "impressions": 65,
+      "ctr": 0.015384615384615385,
+      "position": 13.4
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/developers"
+      ],
+      "clicks": 1,
+      "impressions": 18,
+      "ctr": 0.05555555555555555,
+      "position": 9.88888888888889
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/person/%E5%89%8D%E9%87%8E%E6%99%BA%E6%98%AD/2017/winter"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 4
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/person/%E5%AE%AE%E9%87%8E%E7%9C%9F%E5%AE%88/2026/winter"
+      ],
+      "clicks": 1,
+      "impressions": 43,
+      "ctr": 0.023255813953488372,
+      "position": 7.511627906976744
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/person/%E5%B0%8F%E9%87%8E%E5%A4%A7%E8%BC%94/2026/winter"
+      ],
+      "clicks": 1,
+      "impressions": 7,
+      "ctr": 0.14285714285714285,
+      "position": 3.857142857142857
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/person/%E6%96%89%E8%97%A4%E5%A3%AE%E9%A6%AC/2024/summer"
+      ],
+      "clicks": 1,
+      "impressions": 8,
+      "ctr": 0.125,
+      "position": 9.375
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/person/%E6%A3%AE%E5%B7%9D%E6%99%BA%E4%B9%8B/2019/spring"
+      ],
+      "clicks": 1,
+      "impressions": 6,
+      "ctr": 0.16666666666666666,
+      "position": 72.16666666666667
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/person/%E6%AB%BB%E4%BA%95%E5%AD%9D%E5%AE%8F/2023/summer"
+      ],
+      "clicks": 1,
+      "impressions": 19,
+      "ctr": 0.05263157894736842,
+      "position": 52.68421052631579
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/person/%E6%B0%B8%E7%80%AC%E3%82%A2%E3%83%B3%E3%83%8A/2026/winter"
+      ],
+      "clicks": 1,
+      "impressions": 3,
+      "ctr": 0.3333333333333333,
+      "position": 5
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/person/%E8%8C%85%E9%87%8E%E6%84%9B%E8%A1%A3/2025/spring"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 2
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/person/%E8%AB%8F%E8%A8%AA%E9%83%A8%E9%A0%86%E4%B8%80/2026/winter"
+      ],
+      "clicks": 1,
+      "impressions": 13,
+      "ctr": 0.07692307692307693,
+      "position": 9
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/person/%E8%B0%B7%E5%B1%B1%E7%B4%80%E7%AB%A0/2026/winter"
+      ],
+      "clicks": 1,
+      "impressions": 4,
+      "ctr": 0.25,
+      "position": 3.75
+    },
+    {
+      "keys": [
+        "https://animedia-khaki.vercel.app/rankings/2010/winter"
+      ],
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 10
+    }
+  ],
+  "queryBands": [
+    {
+      "band": "1-10",
+      "rows": 135,
+      "clicks": 5,
+      "impressions": 653,
+      "ctr": 0.007656967840735069,
+      "position": 8.909647779479327
+    },
+    {
+      "band": "11-20",
+      "rows": 306,
+      "clicks": 14,
+      "impressions": 912,
+      "ctr": 0.015350877192982455,
+      "position": 14.452850877192983
+    },
+    {
+      "band": "21-30",
+      "rows": 279,
+      "clicks": 4,
+      "impressions": 1056,
+      "ctr": 0.003787878787878788,
+      "position": 25.533143939393938
+    },
+    {
+      "band": "31-50",
+      "rows": 371,
+      "clicks": 0,
+      "impressions": 1887,
+      "ctr": 0,
+      "position": 38.490196078431374
+    },
+    {
+      "band": "51-100",
+      "rows": 399,
+      "clicks": 1,
+      "impressions": 1215,
+      "ctr": 0.0008230452674897119,
+      "position": 70.16213991769547
+    },
+    {
+      "band": "101+",
+      "rows": 7,
+      "clicks": 0,
+      "impressions": 9,
+      "ctr": 0,
+      "position": 112
+    }
+  ],
+  "pageBands": [
+    {
+      "band": "1-10",
+      "rows": 867,
+      "clicks": 68,
+      "impressions": 3696,
+      "ctr": 0.0183982683982684,
+      "position": 8.4237012987013
+    },
+    {
+      "band": "11-20",
+      "rows": 545,
+      "clicks": 44,
+      "impressions": 3119,
+      "ctr": 0.014107085604360373,
+      "position": 14.271882013465854
+    },
+    {
+      "band": "21-30",
+      "rows": 243,
+      "clicks": 4,
+      "impressions": 1608,
+      "ctr": 0.0024875621890547263,
+      "position": 25.31405472636816
+    },
+    {
+      "band": "31-50",
+      "rows": 340,
+      "clicks": 4,
+      "impressions": 2075,
+      "ctr": 0.0019277108433734939,
+      "position": 38.70120481927711
+    },
+    {
+      "band": "51-100",
+      "rows": 390,
+      "clicks": 3,
+      "impressions": 1874,
+      "ctr": 0.0016008537886872999,
+      "position": 66.90821771611526
+    },
+    {
+      "band": "101+",
+      "rows": 12,
+      "clicks": 0,
+      "impressions": 40,
+      "ctr": 0,
+      "position": 110.9
+    }
+  ],
+  "weeklyByType": [
+    {
+      "week": "2026-07-06",
+      "type": "トップ",
+      "clicks": 4,
+      "impressions": 25,
+      "ctr": 0.16,
+      "position": 8.6,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-07-13",
+      "type": "作品",
+      "clicks": 0,
+      "impressions": 42,
+      "ctr": 0,
+      "position": 20.666666666666668,
+      "days": 3,
+      "partial": true
+    },
+    {
+      "week": "2026-07-13",
+      "type": "声優",
+      "clicks": 0,
+      "impressions": 7,
+      "ctr": 0,
+      "position": 6.571428571428571,
+      "days": 2,
+      "partial": true
+    },
+    {
+      "week": "2026-07-20",
+      "type": "トップ",
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 18,
+      "days": 1,
+      "partial": true
+    },
+    {
+      "week": "2026-07-20",
+      "type": "作品",
+      "clicks": 4,
+      "impressions": 215,
+      "ctr": 0.018604651162790697,
+      "position": 22.134883720930233,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-07-20",
+      "type": "声優",
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 8.333333333333334,
+      "days": 2,
+      "partial": true
+    },
+    {
+      "week": "2026-07-20",
+      "type": "サービス別",
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 5,
+      "days": 1,
+      "partial": true
+    },
+    {
+      "week": "2026-07-27",
+      "type": "トップ",
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 1,
+      "days": 1,
+      "partial": true
+    },
+    {
+      "week": "2026-07-27",
+      "type": "作品",
+      "clicks": 2,
+      "impressions": 188,
+      "ctr": 0.010638297872340425,
+      "position": 24.93617021276596,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-07-27",
+      "type": "声優",
+      "clicks": 2,
+      "impressions": 28,
+      "ctr": 0.07142857142857142,
+      "position": 5.464285714285714,
+      "days": 5,
+      "partial": true
+    },
+    {
+      "week": "2026-07-27",
+      "type": "サービス別",
+      "clicks": 1,
+      "impressions": 1,
+      "ctr": 1,
+      "position": 2,
+      "days": 1,
+      "partial": true
+    },
+    {
+      "week": "2026-08-03",
+      "type": "トップ",
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 29,
+      "days": 2,
+      "partial": true
+    },
+    {
+      "week": "2026-08-03",
+      "type": "作品",
+      "clicks": 2,
+      "impressions": 186,
+      "ctr": 0.010752688172043012,
+      "position": 19.774193548387096,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-08-03",
+      "type": "声優",
+      "clicks": 5,
+      "impressions": 32,
+      "ctr": 0.15625,
+      "position": 5.3125,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-08-10",
+      "type": "トップ",
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10,
+      "days": 1,
+      "partial": true
+    },
+    {
+      "week": "2026-08-10",
+      "type": "作品",
+      "clicks": 2,
+      "impressions": 137,
+      "ctr": 0.014598540145985401,
+      "position": 21.7007299270073,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-08-10",
+      "type": "声優",
+      "clicks": 2,
+      "impressions": 43,
+      "ctr": 0.046511627906976744,
+      "position": 5.883720930232558,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-08-17",
+      "type": "トップ",
+      "clicks": 1,
+      "impressions": 4,
+      "ctr": 0.25,
+      "position": 7.5,
+      "days": 3,
+      "partial": true
+    },
+    {
+      "week": "2026-08-17",
+      "type": "作品",
+      "clicks": 34,
+      "impressions": 2881,
+      "ctr": 0.011801457827143353,
+      "position": 22.090593543908366,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-08-17",
+      "type": "声優",
+      "clicks": 4,
+      "impressions": 363,
+      "ctr": 0.011019283746556474,
+      "position": 38.239669421487605,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-08-17",
+      "type": "制作会社",
+      "clicks": 1,
+      "impressions": 41,
+      "ctr": 0.024390243902439025,
+      "position": 12.21951219512195,
+      "days": 5,
+      "partial": true
+    },
+    {
+      "week": "2026-08-17",
+      "type": "サービス別",
+      "clicks": 1,
+      "impressions": 72,
+      "ctr": 0.013888888888888888,
+      "position": 19.694444444444443,
+      "days": 5,
+      "partial": true
+    },
+    {
+      "week": "2026-08-17",
+      "type": "シーズン",
+      "clicks": 0,
+      "impressions": 23,
+      "ctr": 0,
+      "position": 30.434782608695652,
+      "days": 5,
+      "partial": true
+    },
+    {
+      "week": "2026-08-17",
+      "type": "独占",
+      "clicks": 0,
+      "impressions": 5,
+      "ctr": 0,
+      "position": 9.4,
+      "days": 2,
+      "partial": true
+    },
+    {
+      "week": "2026-08-17",
+      "type": "ランキング",
+      "clicks": 0,
+      "impressions": 9,
+      "ctr": 0,
+      "position": 23.22222222222222,
+      "days": 3,
+      "partial": true
+    },
+    {
+      "week": "2026-08-17",
+      "type": "その他",
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 5.333333333333333,
+      "days": 2,
+      "partial": true
+    },
+    {
+      "week": "2026-08-24",
+      "type": "トップ",
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 4,
+      "days": 3,
+      "partial": true
+    },
+    {
+      "week": "2026-08-24",
+      "type": "作品",
+      "clicks": 35,
+      "impressions": 3725,
+      "ctr": 0.009395973154362415,
+      "position": 23.859597315436243,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-08-24",
+      "type": "声優",
+      "clicks": 9,
+      "impressions": 520,
+      "ctr": 0.01730769230769231,
+      "position": 38.65576923076923,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-08-24",
+      "type": "制作会社",
+      "clicks": 0,
+      "impressions": 68,
+      "ctr": 0,
+      "position": 17.073529411764707,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-08-24",
+      "type": "サービス別",
+      "clicks": 3,
+      "impressions": 135,
+      "ctr": 0.022222222222222223,
+      "position": 20.918518518518518,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-08-24",
+      "type": "シーズン",
+      "clicks": 0,
+      "impressions": 18,
+      "ctr": 0,
+      "position": 55.388888888888886,
+      "days": 5,
+      "partial": true
+    },
+    {
+      "week": "2026-08-24",
+      "type": "独占",
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 50.25,
+      "days": 3,
+      "partial": true
+    },
+    {
+      "week": "2026-08-24",
+      "type": "ランキング",
+      "clicks": 1,
+      "impressions": 4,
+      "ctr": 0.25,
+      "position": 7.25,
+      "days": 2,
+      "partial": true
+    },
+    {
+      "week": "2026-08-24",
+      "type": "その他",
+      "clicks": 1,
+      "impressions": 5,
+      "ctr": 0.2,
+      "position": 5.4,
+      "days": 3,
+      "partial": true
+    },
+    {
+      "week": "2026-08-31",
+      "type": "トップ",
+      "clicks": 0,
+      "impressions": 8,
+      "ctr": 0,
+      "position": 6.625,
+      "days": 4,
+      "partial": true
+    },
+    {
+      "week": "2026-08-31",
+      "type": "作品",
+      "clicks": 17,
+      "impressions": 2298,
+      "ctr": 0.0073977371627502175,
+      "position": 25.193646649260227,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-08-31",
+      "type": "声優",
+      "clicks": 3,
+      "impressions": 793,
+      "ctr": 0.0037831021437578815,
+      "position": 51.546027742749054,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-08-31",
+      "type": "制作会社",
+      "clicks": 0,
+      "impressions": 62,
+      "ctr": 0,
+      "position": 16.43548387096774,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-08-31",
+      "type": "サービス別",
+      "clicks": 3,
+      "impressions": 107,
+      "ctr": 0.028037383177570093,
+      "position": 15.962616822429906,
+      "days": 7,
+      "partial": false
+    },
+    {
+      "week": "2026-08-31",
+      "type": "シーズン",
+      "clicks": 0,
+      "impressions": 20,
+      "ctr": 0,
+      "position": 46.05,
+      "days": 6,
+      "partial": true
+    },
+    {
+      "week": "2026-08-31",
+      "type": "独占",
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 65,
+      "days": 2,
+      "partial": true
+    },
+    {
+      "week": "2026-08-31",
+      "type": "ランキング",
+      "clicks": 1,
+      "impressions": 12,
+      "ctr": 0.08333333333333333,
+      "position": 9.25,
+      "days": 5,
+      "partial": true
+    },
+    {
+      "week": "2026-08-31",
+      "type": "その他",
+      "clicks": 0,
+      "impressions": 8,
+      "ctr": 0,
+      "position": 14.875,
+      "days": 4,
+      "partial": true
+    },
+    {
+      "week": "2026-09-07",
+      "type": "トップ",
+      "clicks": 0,
+      "impressions": 11,
+      "ctr": 0,
+      "position": 11.909090909090908,
+      "days": 3,
+      "partial": true
+    },
+    {
+      "week": "2026-09-07",
+      "type": "作品",
+      "clicks": 5,
+      "impressions": 897,
+      "ctr": 0.005574136008918618,
+      "position": 21.519509476031214,
+      "days": 3,
+      "partial": true
+    },
+    {
+      "week": "2026-09-07",
+      "type": "声優",
+      "clicks": 0,
+      "impressions": 131,
+      "ctr": 0,
+      "position": 48.63358778625954,
+      "days": 3,
+      "partial": true
+    },
+    {
+      "week": "2026-09-07",
+      "type": "監督",
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 23,
+      "days": 2,
+      "partial": true
+    },
+    {
+      "week": "2026-09-07",
+      "type": "制作会社",
+      "clicks": 0,
+      "impressions": 18,
+      "ctr": 0,
+      "position": 13.333333333333334,
+      "days": 3,
+      "partial": true
+    },
+    {
+      "week": "2026-09-07",
+      "type": "サービス別",
+      "clicks": 0,
+      "impressions": 59,
+      "ctr": 0,
+      "position": 14.288135593220339,
+      "days": 3,
+      "partial": true
+    },
+    {
+      "week": "2026-09-07",
+      "type": "シーズン",
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 30,
+      "days": 2,
+      "partial": true
+    },
+    {
+      "week": "2026-09-07",
+      "type": "独占",
+      "clicks": 0,
+      "impressions": 8,
+      "ctr": 0,
+      "position": 37.875,
+      "days": 3,
+      "partial": true
+    },
+    {
+      "week": "2026-09-07",
+      "type": "ランキング",
+      "clicks": 2,
+      "impressions": 3,
+      "ctr": 0.6666666666666666,
+      "position": 11,
+      "days": 2,
+      "partial": true
+    },
+    {
+      "week": "2026-09-07",
+      "type": "その他",
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 8,
+      "days": 1,
+      "partial": true
+    }
+  ],
+  "errors": []
+}
