@@ -1,0 +1,312 @@
+{
+  "fetchedAt": "2026-09-12T00:14:44.870Z",
+  "source": "https://animedia-khaki.vercel.app/api/admin/analytics",
+  "configured": true,
+  "windowDays": 30,
+  "rowCount": 149,
+  "truncated": false,
+  "events": [
+    {
+      "event": "share_site",
+      "label": "サイト全体を共有",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "share_work",
+      "label": "作品を共有",
+      "last7": 1,
+      "last30": 1
+    },
+    {
+      "event": "favorite_add",
+      "label": "お気に入り登録",
+      "last7": 1,
+      "last30": 1
+    },
+    {
+      "event": "watched_add",
+      "label": "視聴済みに登録",
+      "last7": 1,
+      "last30": 2
+    },
+    {
+      "event": "notify_add",
+      "label": "配信通知を登録",
+      "last7": 1,
+      "last30": 1
+    },
+    {
+      "event": "filter_service",
+      "label": "配信サービスで絞り込み",
+      "last7": 0,
+      "last30": 1
+    },
+    {
+      "event": "filter_cast",
+      "label": "声優で絞り込み",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "change_season",
+      "label": "シーズン切り替え",
+      "last7": 30,
+      "last30": 60
+    },
+    {
+      "event": "follow_click",
+      "label": "SNSフォロー導線をクリック",
+      "last7": 0,
+      "last30": 4
+    },
+    {
+      "event": "calendar_subscribe",
+      "label": "カレンダー購読をクリック",
+      "last7": 1,
+      "last30": 1
+    },
+    {
+      "event": "plan_open",
+      "label": "視聴プランを開いた",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "affiliate_click",
+      "label": "広告リンクをクリック（提携済み）",
+      "last7": 1,
+      "last30": 4
+    },
+    {
+      "event": "official_link_click",
+      "label": "公式サイトへ（未提携）",
+      "last7": 1,
+      "last30": 23
+    },
+    {
+      "event": "embed_copy",
+      "label": "埋め込みコードをコピー",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "web_vitals",
+      "label": "表示速度の実測（1ページビュー1件）",
+      "last7": 34,
+      "last30": 34
+    },
+    {
+      "event": "page_view",
+      "label": "外部からの流入（リファラあり）",
+      "last7": 17,
+      "last30": 17
+    }
+  ],
+  "filterService": [
+    [
+      "youtube",
+      1
+    ]
+  ],
+  "officialClicks": [
+    [
+      "netflix",
+      5
+    ],
+    [
+      "d_anime",
+      5
+    ],
+    [
+      "bandai",
+      3
+    ],
+    [
+      "fod",
+      3
+    ],
+    [
+      "dmm",
+      2
+    ],
+    [
+      "niconico",
+      2
+    ],
+    [
+      "youtube",
+      1
+    ],
+    [
+      "unext",
+      1
+    ],
+    [
+      "disney",
+      1
+    ]
+  ],
+  "affiliateClicks": [
+    [
+      "prime",
+      3
+    ],
+    [
+      "abema",
+      1
+    ]
+  ],
+  "vitals": [
+    {
+      "face": "anime",
+      "metric": "CLS",
+      "p75": 0.002,
+      "count": 9
+    },
+    {
+      "face": "anime",
+      "metric": "FCP",
+      "p75": 2892,
+      "count": 14
+    },
+    {
+      "face": "anime",
+      "metric": "FID",
+      "p75": 17,
+      "count": 4
+    },
+    {
+      "face": "anime",
+      "metric": "INP",
+      "p75": 40,
+      "count": 4
+    },
+    {
+      "face": "anime",
+      "metric": "LCP",
+      "p75": 2947,
+      "count": 14
+    },
+    {
+      "face": "anime",
+      "metric": "TTFB",
+      "p75": 404,
+      "count": 16
+    },
+    {
+      "face": "home",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 5
+    },
+    {
+      "face": "home",
+      "metric": "FCP",
+      "p75": 1152,
+      "count": 5
+    },
+    {
+      "face": "home",
+      "metric": "FID",
+      "p75": 19,
+      "count": 4
+    },
+    {
+      "face": "home",
+      "metric": "INP",
+      "p75": 168,
+      "count": 4
+    },
+    {
+      "face": "home",
+      "metric": "LCP",
+      "p75": 1152,
+      "count": 5
+    },
+    {
+      "face": "home",
+      "metric": "TTFB",
+      "p75": 303,
+      "count": 6
+    },
+    {
+      "face": "person",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 8
+    },
+    {
+      "face": "person",
+      "metric": "FCP",
+      "p75": 2452,
+      "count": 10
+    },
+    {
+      "face": "person",
+      "metric": "FID",
+      "p75": 23,
+      "count": 2
+    },
+    {
+      "face": "person",
+      "metric": "INP",
+      "p75": 56,
+      "count": 2
+    },
+    {
+      "face": "person",
+      "metric": "LCP",
+      "p75": 2452,
+      "count": 10
+    },
+    {
+      "face": "person",
+      "metric": "TTFB",
+      "p75": 869,
+      "count": 10
+    },
+    {
+      "face": "season",
+      "metric": "TTFB",
+      "p75": 319,
+      "count": 1
+    },
+    {
+      "face": "service",
+      "metric": "FCP",
+      "p75": 1290,
+      "count": 1
+    },
+    {
+      "face": "service",
+      "metric": "LCP",
+      "p75": 1290,
+      "count": 1
+    },
+    {
+      "face": "service",
+      "metric": "TTFB",
+      "p75": 279,
+      "count": 1
+    }
+  ],
+  "referrers": [
+    [
+      "www.google.com",
+      12
+    ],
+    [
+      "m.facebook.com",
+      2
+    ],
+    [
+      "search.yahoo.co.jp",
+      2
+    ],
+    [
+      "www.facebook.com",
+      1
+    ]
+  ]
+}
