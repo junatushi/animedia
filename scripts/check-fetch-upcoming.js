@@ -266,6 +266,64 @@ async function main() {
         assert.ok(!text.includes(word), `${name} に "${word}" が含まれていないこと`);
       }
     }
+    // ── ケース9: 予定が変わらない日はファイルを1バイトも変えない ──────
+    // （2026-09-14追加・重大度高）
+    // fetchedDate は works の各エントリの中にあるので、毎日 today で上書きすると
+    // 「updatedAt だけの差分ではコミットしない」というガードが**空振りする**。
+    // 実測（9/1〜9/6）で変更行の93〜100%が日付だけの書き換えで、9/2と9/6は
+    // 実データの変更が0件なのにコミット＝デプロイ＝ISRキャッシュ全消去が起きていた。
+    console.log("\n── 変わらない日はコミットを起こさない ──");
+    {
+      const sameStub = (season) => {
+        state.site[season] = {
+          items: [
+            { id: 777, title: "据え置き作品", malAnimeId: 900, broadcastStartDate: null, releaseDate: null, officialSiteUrl: null },
+          ],
+        };
+        state.anilist[season] = {
+          media: [
+            { id: 9777, idMal: 900, title: { native: "据え置き作品", romaji: null }, startDate: { year: 2026, month: 12, day: 1 }, externalLinks: [] },
+          ],
+        };
+      };
+      const out9 = join(dir, "case9-stable.json");
+
+      resetState();
+      sameStub("2026-autumn");
+      let rr = await run(baseUrl, out9, "2026-09-01", ["2026", "autumn"]);
+      assert.strictEqual(rr.status, 0, rr.stderr);
+      const first = readFileSync(out9, "utf8");
+      assert.strictEqual(read(out9).works["777"].fetchedDate, "2026-09-01");
+
+      // 別の日に、まったく同じ応答で、もう一度走らせる。
+      resetState();
+      sameStub("2026-autumn");
+      rr = await run(baseUrl, out9, "2026-09-08", ["2026", "autumn"]);
+      assert.strictEqual(rr.status, 0, rr.stderr);
+      const second = readFileSync(out9, "utf8");
+      assert.strictEqual(second, first, "予定が同じならファイルは1バイトも変わらないこと");
+      ok("予定が変わらない日はファイルを書き換えない", "fetchedDate も updatedAt も据え置き");
+
+      // 予定が変わった日は、ちゃんと追従して fetchedDate も新しくなる。
+      resetState();
+      state.site["2026-autumn"] = {
+        items: [
+          { id: 777, title: "据え置き作品", malAnimeId: 900, broadcastStartDate: null, releaseDate: null, officialSiteUrl: null },
+        ],
+      };
+      state.anilist["2026-autumn"] = {
+        media: [
+          { id: 9777, idMal: 900, title: { native: "据え置き作品", romaji: null }, startDate: { year: 2026, month: 12, day: 8 }, externalLinks: [] },
+        ],
+      };
+      rr = await run(baseUrl, out9, "2026-09-09", ["2026", "autumn"]);
+      assert.strictEqual(rr.status, 0, rr.stderr);
+      const third = read(out9);
+      assert.strictEqual(third.works["777"].date, "2026-12-08", "延期に追従すること");
+      assert.strictEqual(third.works["777"].fetchedDate, "2026-09-09", "変わった日は取得日も新しくなること");
+      ok("予定が変わった日は追従して取得日も更新する", "2026-12-01 → 2026-12-08");
+    }
+
     ok("出力JSONに鍵やトークンに類する語が混入しない", "token/Token/Bearer/Authorization");
 
     console.log(`\n${pass} 件すべてOK`);

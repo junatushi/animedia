@@ -176,9 +176,44 @@ function isUpcoming(entry, today) {
 //     scripts/track-season.js と同じ「揺れを持ち込まない」原則）。
 //   ・予定日が keepDays より前まで過ぎた作品は落とす（放送済みの作品はAnnictの
 //     実データが入っているので、この層に残しておく意味が無い）。
+/**
+ * 予定そのもの（日付・精度・出典など）が同じかを、`fetchedDate` を除いて比べる。
+ * キーの並びに依存しないよう、キー名でソートしてから比較する。
+ */
+function sameScheduleExceptFetchedDate(a, b) {
+  if (!a || !b) return false;
+  const norm = (e) =>
+    JSON.stringify(
+      Object.keys(e)
+        .filter((k) => k !== "fetchedDate")
+        .sort()
+        .map((k) => [k, e[k]])
+    );
+  return norm(a) === norm(b);
+}
+
 function mergeWorks(previous, fresh, { today, keepDays = 180 }) {
   const out = { ...(previous || {}) };
-  for (const [id, entry] of Object.entries(fresh || {})) out[id] = entry;
+  for (const [id, entry] of Object.entries(fresh || {})) {
+    const prev = out[id];
+    // **予定が変わっていないなら、古い `fetchedDate` ごと前回のエントリを残す**
+    // （2026-09-14修正・重大度高）。
+    //
+    // ここで毎回 fetchedDate を today に差し替えていたため、呼び出し側
+    // （scripts/fetch-upcoming.js）の「updatedAt だけの差分ではコミットしない」という
+    // ガードが**空振りしていた**（fetchedDate は works の各エントリの中にあるので、
+    // works 全体の比較が毎日必ず食い違う）。
+    //
+    // 結果、**予定が1件も変わっていない日でもコミット＝デプロイが起きていた**。
+    // 実測（9/1〜9/6）で変更行の93〜100%が日付だけの書き換えで、9/2と9/6は
+    // 実データの変更が**0件**。Vercelはデプロイごとに独立したISRキャッシュを持つので
+    // （docs/operations.md の㉝②）、これは「今日も確認しました」と記録するためだけに
+    // 全ページを作り直させていたことになる。
+    //
+    // 表示は「{fetchedDate}取得」なので、値が変わっていない限り古い日付のままで**正しい**
+    // （その予定を取得した日であって、最後にポーリングした日ではない）。
+    out[id] = sameScheduleExceptFetchedDate(prev, entry) ? prev : entry;
+  }
   for (const [id, entry] of Object.entries(out)) {
     const day = entry?.precision === "month" ? `${entry.date}-01` : entry?.date;
     if (typeof day !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
@@ -191,6 +226,7 @@ function mergeWorks(previous, fresh, { today, keepDays = 180 }) {
 }
 
 module.exports = {
+  sameScheduleExceptFetchedDate,
   isUpcoming,
   normalizeTitle,
   officialSiteKey,
