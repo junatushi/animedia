@@ -4,7 +4,7 @@
 // 両方から共有する。
 import { unstable_cache } from "next/cache";
 import { fetchSeasonWorks } from "./annict";
-import { toAnimeItem } from "./services";
+import { toAnimeItem, overlayManualData } from "./services";
 import { EXTRA_SERVICES } from "@/content/works/extraServices";
 import { RELEASE_DATES } from "@/content/works/releaseDates";
 // 機械補完した放送/公開の予定日（AniList由来。scripts/fetch-upcoming.js が1日2回更新する）。
@@ -136,10 +136,18 @@ async function loadPastYearSnapshot(
   try {
     const mod = await import(`../content/snapshots/${year}-${season}.json`);
     const data = (mod.default ?? mod) as SeasonResponse;
+    // 人力補完（extraServices.ts / releaseDates.ts）を**あとから重ねる**（2026-09-14）。
+    // スナップショットは生成した瞬間の内容で固まるので、あとから足した分は
+    // 再生成するまで反映されない。過去クールで「新しく配信が始まったサービス」を
+    // 即時に出せる唯一の手段がこの層なので、ここで重ねないと手が無くなる。
+    // Annict由来の事実は塗り替えない（overlayManualData の注記）。
+    const items = data.items.map((it) =>
+      overlayManualData(it, EXTRA_SERVICES[it.id], RELEASE_DATES[it.id])
+    );
     // スナップショットは放送終了済みの確定データ。「いつ取得したか」を名乗る資格が
     // 無いので明示的に null にする（ページ側はこれを見て日付ごと出さない）。
     // 理由は lib/dataFreshness.ts。
-    return { ...data, fetchedAt: null };
+    return { ...data, items, fetchedAt: null };
   } catch {
     return null;
   }

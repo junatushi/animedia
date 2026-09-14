@@ -159,3 +159,11 @@ jobs:
       - name: ビルド成果物のCSS網羅
         if: runner.os == 'Linux'
         run: node scripts/check-page-css.js
+
+      # デプロイ成果物の大きさに予算を設ける（2026-09-14追加）。
+      # Vercel Hobby は「直近10件の本番デプロイ」を保持期間に関わらず必ず残すので、
+      # 1デプロイの大きさ×10 が消せない床になる。クールが増えるたびに成果物は
+      # 自動で増えるため、放っておくと必ずまた上限を超える。
+      - name: デプロイ成果物の大きさ
+        if: runner.os == 'Linux'
+        run: node scripts/check-build-size.js

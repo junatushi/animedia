@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import {
   classifyChannel,
   toAnimeItem,
+  overlayManualData,
   SERVICES,
   textOn,
   contrastRatio,
@@ -7233,6 +7234,140 @@ let cssLayerNg = 0;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// スナップショットへの人力補完の重ね（2026-09-14導入・重大度高）
+//
+// 【なぜ要るか】content/snapshots/*.json は生成した瞬間で固まる。生成時点の
+// extraServices.ts / releaseDates.ts は焼き込まれているが、**あとから足した分は
+// 再生成するまで反映されない**。過去クールのシーズンページは2026-07-15から
+// スナップショット直読みなので、「2019年の作品が新しく配信され始めたので
+// extraServices.ts に足した」が画面に出ない状態が既に起きていた。
+// 作品ページもスナップショット優先にした（㊻）ので、ここを塞がないと
+// **過去クールで即時に直す手段がゼロ**になる。
+//
+// 壊れ方は「足したのに出ない」＝画面を見ても異常に見えない（元から無い情報に見える）。
+// ────────────────────────────────────────────────────────────────────────────
+let overlayNg = 0;
+{
+  console.log("\n【スナップショットへの人力補完】");
+
+  const base = {
+    id: 1,
+    title: "テスト作品",
+    image: null,
+    officialSiteUrl: null,
+    watchers: 0,
+    services: [{ key: "d_anime", name: "dアニメストア", short: "dアニメ", color: "#ff7a00" }],
+    otherServices: [],
+    hasBroadcastData: true,
+    releaseDate: null,
+    autoSchedule: null,
+    broadcastStartDate: "2019-04-07",
+    broadcastWeekday: 0,
+    broadcastTime: "23:00",
+    creditNames: [],
+    castNames: [],
+    media: "TV",
+    malAnimeId: null,
+  } as unknown as Parameters<typeof overlayManualData>[0];
+
+  // ① あとから足したサービスが出る（これが出ないと人力補完が死ぬ）
+  const added = overlayManualData(base, [
+    { key: "netflix", sourceUrl: "https://example.com/a", confirmedDate: "2026-09-14" },
+  ]);
+  const hasNew = added.services.some((s) => s.key === "netflix" && s.manualSourceUrl === "https://example.com/a");
+  if (!hasNew) overlayNg++;
+  console.log(
+    `${hasNew ? "✓" : "✗"}  ${"あとから足したサービスが出る".padEnd(48)} → ` +
+      (hasNew ? `${added.services.length}件（出典URL付き）` : "反映されない（再生成するまで直せない）")
+  );
+
+  // ② 既にあるサービスを塗り替えない（Annict由来の事実を人力補完で上書きしない）
+  const overwritten = overlayManualData(base, [
+    { key: "d_anime", sourceUrl: "https://example.com/b", confirmedDate: "2026-09-14" },
+  ]);
+  const kept =
+    overwritten.services.length === 1 && overwritten.services[0].manualSourceUrl === undefined;
+  if (!kept) overlayNg++;
+  console.log(
+    `${kept ? "✓" : "✗"}  ${"既にあるサービスを塗り替えない".padEnd(48)} → ` +
+      (kept ? "Annict由来のまま" : "人力補完が上書きしている")
+  );
+
+  // ③ 並びは「元からあった分 → 追加分」（toAnimeItem と同じ）
+  const orderOk = added.services[0].key === "d_anime" && added.services[1].key === "netflix";
+  if (!orderOk) overlayNg++;
+  console.log(
+    `${orderOk ? "✓" : "✗"}  ${"並びが変わらない".padEnd(48)} → ` +
+      (orderOk ? "元 → 追加" : added.services.map((s) => s.key).join(","))
+  );
+
+  // ④ 放送枠を創作しない。extraServices.ts の schedule は「これから始まる作品」用で、
+  //    放送が終わったクールに当てると存在しなかった枠を作ることになる。
+  const withSchedule = overlayManualData(
+    { ...base, broadcastStartDate: null, broadcastWeekday: null, broadcastTime: null } as typeof base,
+    [
+      {
+        key: "netflix",
+        sourceUrl: "https://example.com/c",
+        confirmedDate: "2026-09-14",
+        schedule: { weekday: 3, time: "22:30", startDate: "2026-10-01" },
+      },
+    ]
+  );
+  const noSlot =
+    withSchedule.broadcastWeekday === null &&
+    withSchedule.broadcastTime === null &&
+    withSchedule.broadcastStartDate === null;
+  if (!noSlot) overlayNg++;
+  console.log(
+    `${noSlot ? "✓" : "✗"}  ${"放送枠を創作しない".padEnd(48)} → ` +
+      (noSlot ? "曜日・時刻は足さない" : "存在しない放送枠が入っている")
+  );
+
+  // ⑤ 劇場公開日は「持っていないときだけ」入る
+  const rel = { date: "2026-08-28", sourceUrl: "https://example.com/d", confirmedDate: "2026-09-14" };
+  const filled = overlayManualData(base, [], rel);
+  const already = overlayManualData({ ...base, releaseDate: rel } as typeof base, [], {
+    ...rel,
+    date: "2099-01-01",
+  });
+  const releaseOk = filled.releaseDate?.date === "2026-08-28" && already.releaseDate?.date === "2026-08-28";
+  if (!releaseOk) overlayNg++;
+  console.log(
+    `${releaseOk ? "✓" : "✗"}  ${"劇場公開日は無いときだけ入れる".padEnd(48)} → ` +
+      (releaseOk ? "既存の値を上書きしない" : "上書きしている")
+  );
+
+  // ⑥ **スナップショットを読む経路を走査して導出**し、全部が overlayManualData を
+  //    通っていること（名指しで数えない。CLAUDE.md の㊳）。
+  const libDir = fileURLToPath(new URL("../lib", import.meta.url));
+  const readers: string[] = [];
+  const missing: string[] = [];
+  for (const f of readdirSync(libDir)) {
+    if (!f.endsWith(".ts")) continue;
+    // **コメントでの言及ではなく、実際に読み込んでいる箇所**で判定する
+    // （注記に "content/snapshots/" と書いてあるだけのファイルが7件あり、
+    //  素朴に grep すると全部「経路」に数えてしまう）。
+    const src = stripCommentLines(readFileSync(`${libDir}/${f}`, "utf8"));
+    if (!/import\([^)]*content\/snapshots\//.test(src)) continue;
+    readers.push(f);
+    if (!/overlayManualData\(/.test(src)) missing.push(f);
+  }
+  const wired = readers.length >= 2 && missing.length === 0;
+  if (!wired) overlayNg++;
+  console.log(
+    `${wired ? "✓" : "✗"}  ${"スナップショットを読む経路が全部通っている".padEnd(48)} → ` +
+      (wired
+        ? `${readers.length} ファイル（${readers.join(" / ")}）`
+        : readers.length < 2
+          ? `読む経路が ${readers.length} 件しか見つからない（走査が壊れている）`
+          : `通っていない: ${missing.join(" / ")}`)
+  );
+
+  console.log(`結果（スナップショットへの人力補完）: ${overlayNg === 0 ? "全てOK" : `${overlayNg} 件NG`}`);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // サムネイル画像の形式（2026-09-04導入）
 //
 // 【なぜ要るか】AI独断解釈サムネはJPEGで1枚40KB前後あり、本番のPageSpeed（モバイル）が
@@ -7455,6 +7590,7 @@ if (
   topSsrNg > 0 ||
   inlineCssNg > 0 ||
   cssLayerNg > 0 ||
+  overlayNg > 0 ||
   thumbNg > 0 ||
   prefetchNg > 0 ||
   authJsNg > 0 ||

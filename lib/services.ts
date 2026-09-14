@@ -347,6 +347,59 @@ export function toAnimeItem(
   };
 }
 
+// ───────────────────────────────────────────────────────────────
+// スナップショット（過去クールの確定データ）に、**人力補完の層をあとから重ねる**。
+// （2026-09-14導入）
+//
+// 【なぜ要るか】content/snapshots/*.json は生成した瞬間の内容で固まる。生成時に
+// toAnimeItem を通しているので、その時点の extraServices.ts / releaseDates.ts は
+// 焼き込まれているが、**あとから足した分は二度と反映されない**。
+// 過去クールのシーズンページは2026-07-15からスナップショット直読みなので、
+// 「2019年の作品が新しくNetflixに来たので extraServices.ts に足した」としても
+// 画面には出ない、という状態が既に起きていた（作品ページだけはライブ取得だったので
+// 出ていた＝同じサイトの中で答えが2通りあった）。
+//
+// 作品ページもスナップショット優先にするなら、この穴を先に塞がないと
+// **人力補完という唯一の即時反映の手段が過去クールで効かなくなる**。
+//
+// 【原則】Annict由来の事実を人力補完で塗り替えない。既にあるサービスには触らず、
+// **無いサービスを足すだけ**。放送の曜日・時刻も足さない（extraServices.ts の
+// schedule は「これから放送が始まる作品」のための項目で、放送が終わったクールに
+// 当てると存在しなかった放送枠を創作することになる）。
+export function overlayManualData(
+  item: import("./types").AnimeItem,
+  extra: ExtraServiceEntry[] = [],
+  release?: import("./types").ReleaseDateEntry
+): import("./types").AnimeItem {
+  let next = item;
+
+  if (extra.length > 0) {
+    const byKey = new Map(item.services.map((s) => [s.key, s]));
+    let added = false;
+    for (const e of extra) {
+      const def = SERVICES.find((s) => s.key === e.key);
+      if (!def) continue; // SERVICESに無いkeyは無視（extraServices.ts の入力ミス対策）
+      if (byKey.has(def.key)) continue; // 既にある＝Annict由来か焼き込み済み。触らない
+      byKey.set(def.key, {
+        key: def.key,
+        name: def.name,
+        short: def.short,
+        color: def.color,
+        manualSourceUrl: e.sourceUrl,
+      });
+      added = true;
+    }
+    // Map の挿入順が保たれるので、元からあったサービスが先・追加分が後ろになる
+    // （toAnimeItem と同じ並び）。
+    if (added) next = { ...next, services: [...byKey.values()] };
+  }
+
+  // 劇場公開日の人力補完も同じ理由であとから重ねる。
+  if (release && !next.releaseDate) next = { ...next, releaseDate: release };
+
+  return next;
+}
+
 // staffs の name は「守雨「作品名」（MFブックス／KADOKAWA刊）」のような自由記述が
 // 混ざることがあるため、resource側の綺麗な人物/組織名を優先する（無ければ name にフォールバック）。
 function staffDisplayName(s: import("./types").RawStaffNode): string {

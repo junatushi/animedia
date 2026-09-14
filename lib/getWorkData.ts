@@ -1,6 +1,6 @@
 // 作品個別ページ（app/anime/[id]/page.tsx）用のデータ取得ロジック。
 import { fetchWorkById } from "./annict";
-import { toAnimeDetail } from "./services";
+import { toAnimeDetail, overlayManualData } from "./services";
 import { EXTRA_SERVICES } from "@/content/works/extraServices";
 import { RELEASE_DATES } from "@/content/works/releaseDates";
 // 機械補完した放送/公開の予定日（AniList由来。scripts/fetch-upcoming.js が1日2回更新）。
@@ -123,11 +123,13 @@ async function loadFromSnapshot(id: number): Promise<AnimeDetail | null> {
     const data = (mod.default ?? mod) as SeasonResponse;
     const item = data.items.find((it) => it.id === id);
     if (!item) return null;
+    // 人力補完（extraServices.ts / releaseDates.ts）をあとから重ねる。
+    // シーズンページ（lib/getSeasonData.ts）と**同じ関数**を通す
+    // ＝同じ作品について一覧と作品ページで答えが食い違わない。
+    const merged = overlayManualData(item, EXTRA_SERVICES[id], RELEASE_DATES[id]);
     return {
-      ...item,
-      // 劇場公開日はスナップショット生成時に注入されていない
-      // （snapshot-past-seasons.ts参照）ため、releaseDates.tsから改めて当てる。
-      releaseDate: RELEASE_DATES[id] ?? item.releaseDate ?? null,
+      ...merged,
+      releaseDate: merged.releaseDate ?? null,
       // スナップショットは過去クール（放送終了済み）なので、予定日の補完は要らない。
       // 生成時期によってはキー自体が無いため、明示的に null を入れて型と実体を揃える。
       autoSchedule: item.autoSchedule ?? null,
