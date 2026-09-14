@@ -41,6 +41,30 @@ export interface ArchiveSeason {
   total: number;
   // 配信サービスが1件以上ある作品のID（＝sitemapに載せる対象）。
   workIds: number[];
+  // そのクールに存在する**全作品**のID（配信0件のものも含む）。2026-09-14追加。
+  //
+  // workIds（配信1件以上）と役割が違う。workIds は「sitemapに載せる価値がある
+  // ページ」の集合で、こちらは「作品ID → どのスナップショットに載っているか」を
+  // 逆引きするための集合。lib/getWorkData.ts が使う。
+  //
+  // なぜ要るか: 作品ページ（/anime/[id]）は放送終了済みの作品でも毎回 Annict へ
+  // ライブ取得しており、その根拠は「スナップショットには credits が無いから」
+  // だった。castCredits を持たせた（scripts/snapshot-past-seasons.ts）ことで
+  // スナップショットだけで描けるようになったが、そのためには**配信0件の作品も
+  // 含めて**どのファイルを開けばよいかを引ける必要がある。配信0件の作品ページも
+  // シーズンページからリンクされていて実際にクロールされるので、ここを落とすと
+  // その分だけ外部APIの往復とISRの書き込みが残る。
+  allWorkIds: number[];
+  // そのスナップショットの**全作品**が castCredits（声優×キャラ名）を持っているか。
+  // 2026-09-14追加。
+  //
+  // これは「このクールはスナップショットだけで作品ページを描き切れるか」の印で、
+  // lib/getWorkData.ts と app/anime/[id]/page.tsx の generateStaticParams が
+  // **これだけを見て**切り替える。旧い形式のスナップショット（castCredits 無し）は
+  // false になり、従来どおりライブ取得のままになる＝**表示が劣化することは無い**。
+  // スナップショットを再生成（docs/snapshot-regenerate.md）すると自動で true になり、
+  // そのクールの作品ページがビルド時に焼かれるようになる。
+  castCreditsComplete: boolean;
 }
 
 export interface ArchiveIndex {
@@ -58,6 +82,14 @@ export function buildArchiveIndex(
       season,
       total: data.items.length,
       workIds: data.items.filter((it) => it.services.length > 0).map((it) => it.id),
+      allWorkIds: data.items.map((it) => it.id),
+      // 「1件でも欠けていたら false」。部分的に揃った状態で切り替えると、
+      // 同じクールの中で声優欄が出る作品と出ない作品が混ざる。
+      castCreditsComplete:
+        data.items.length > 0 &&
+        data.items.every((it) =>
+          Array.isArray((it as { castCredits?: unknown }).castCredits)
+        ),
     }))
     .sort((a, b) => a.year - b.year || SEASON_ORDER[a.season] - SEASON_ORDER[b.season]);
   return { seasons };
@@ -89,10 +121,18 @@ function main(): void {
 
   const totalWorks = index.seasons.reduce((n, s) => n + s.total, 0);
   const listedWorks = index.seasons.reduce((n, s) => n + s.workIds.length, 0);
+  const complete = index.seasons.filter((s) => s.castCreditsComplete);
+  const completeWorks = complete.reduce((n, s) => n + s.allWorkIds.length, 0);
   console.log(
     `✓ ${OUT_PATH}\n` +
       `  シーズン ${index.seasons.length} 件 / 総作品 ${totalWorks} 件 / ` +
-      `sitemap掲載対象（配信1件以上）${listedWorks} 件`
+      `sitemap掲載対象（配信1件以上）${listedWorks} 件\n` +
+      `  スナップショットだけで作品ページを描けるクール ${complete.length}/${index.seasons.length} 件` +
+      `（作品 ${completeWorks} 件）` +
+      (complete.length === index.seasons.length
+        ? ""
+        : "\n  ※ castCredits を持たないクールは従来どおりAnnictへライブ取得します。" +
+          "docs/snapshot-regenerate.md の手順で再生成すると静的化されます。")
   );
 }
 

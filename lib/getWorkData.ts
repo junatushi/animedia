@@ -7,26 +7,91 @@ import { RELEASE_DATES } from "@/content/works/releaseDates";
 import AUTO_SCHEDULE_FILE from "@/content/works/autoSchedule.json";
 import { parseAutoSchedules } from "./autoSchedule";
 import ARCHIVE_INDEX from "@/content/archive/index.json";
-import type { AnimeDetail, SeasonResponse } from "./types";
+import type { AnimeDetail, SeasonResponse, WorkCastCredit, WorkCredits } from "./types";
+import type { RoleCredits } from "./studioIndex";
+import { jstToday } from "./workAvailability";
 
 // 読み込み時に1回だけ検証する（lib/getSeasonData.ts と同じ）。
 const AUTO_SCHEDULES = parseAutoSchedules(AUTO_SCHEDULE_FILE);
 
-// content/archive/index.json（sitemapに載せている「過去クール・配信1件以上」の
-// 1,961作品の索引）から、作品ID→スナップショットファイル名（"{year}-{season}"）の
-// 逆引きマップを1回だけ作る（モジュールスコープでキャッシュ。サーバーが温まっている
+// content/archive/index.json から、作品ID→スナップショットファイル名（"{year}-{season}"）
+// の逆引きマップを1回だけ作る（モジュールスコープでキャッシュ。サーバーが温まっている
 // 間は再構築しない）。
+//
+// 【2026-09-14変更】workIds（配信1件以上の1,961件）ではなく allWorkIds（9,002件）を使う。
+// 配信0件の作品ページもシーズンページからリンクされていて実際にクロールされるので、
+// ここを絞ると「sitemapには無いがクロールはされる」7,041ページだけが従来どおり
+// Annictへのライブ取得を続けることになる（外部APIの往復・Fluid CPU・ISR Writesが残る）。
 let idToSnapshotKey: Map<number, string> | null = null;
 function getIdToSnapshotKey(): Map<number, string> {
   if (idToSnapshotKey) return idToSnapshotKey;
   const map = new Map<number, string>();
   for (const s of ARCHIVE_INDEX.seasons) {
-    for (const id of s.workIds) {
+    for (const id of s.allWorkIds) {
       map.set(id, `${s.year}-${s.season}`);
     }
   }
   idToSnapshotKey = map;
   return map;
+}
+
+// 「このクールはスナップショットだけで作品ページを描き切れるか」。
+// 判定は content/archive/index.json の castCreditsComplete **だけ**が持つ
+// （生成は scripts/build-archive-index.ts が実データから導出する＝手で並べない）。
+let completeSnapshotKeys: Set<string> | null = null;
+function getCompleteSnapshotKeys(): Set<string> {
+  if (completeSnapshotKeys) return completeSnapshotKeys;
+  const set = new Set<string>();
+  for (const s of ARCHIVE_INDEX.seasons) {
+    if (s.castCreditsComplete) set.add(`${s.year}-${s.season}`);
+  }
+  completeSnapshotKeys = set;
+  return set;
+}
+
+// 作品ページをスナップショットだけで描けるか（＝Annictに出なくてよいか）。
+// app/anime/[id]/page.tsx の generateStaticParams もこの関数を通す。
+// **ここと焼く対象がズレると、焼いたのに中身が違う／焼けるのに焼いていない、が起きる。**
+export function isStaticWork(id: number): boolean {
+  const key = getIdToSnapshotKey().get(id);
+  return key !== undefined && getCompleteSnapshotKeys().has(key);
+}
+
+// ビルド時に焼く過去クールの作品ID。旧形式のスナップショットしか無い間は空配列＝
+// 従来の挙動（オンデマンド生成）のまま。再生成すると自動で埋まる。
+export function staticWorkIds(): number[] {
+  const complete = getCompleteSnapshotKeys();
+  const ids: number[] = [];
+  for (const s of ARCHIVE_INDEX.seasons) {
+    if (!complete.has(`${s.year}-${s.season}`)) continue;
+    // 焼くのは sitemap に載せている「配信1件以上」だけ。配信0件の作品ページは
+    // 「配信情報なし」としか答えられず、焼くと成果物（Deployment Storage）だけが
+    // 増える。これらはオンデマンドのままでよい（スナップショット由来なので
+    // Annictには出ず、出力も毎回同じ＝2回目以降はISR Writeが発生しない）。
+    for (const id of s.workIds) ids.push(id);
+  }
+  return ids;
+}
+
+// スナップショットの1件（AnimeItem＋スナップショット専用の追加フィールド）。
+type SnapshotWorkItem = SeasonResponse["items"][number] & {
+  roleCredits?: RoleCredits;
+  castCredits?: WorkCastCredit[];
+};
+
+// スナップショットの1件から AnimeDetail.credits を組み立てる。
+// castCredits（新形式）があればそれを使い、無ければ roleCredits と castNames から
+// 「役名は分からないが声優名は分かる」形に落とす（推測でキャラ名を埋めない）。
+function creditsFromSnapshot(item: SnapshotWorkItem): WorkCredits {
+  const role = item.roleCredits;
+  return {
+    casts:
+      item.castCredits ??
+      item.castNames.map((personName) => ({ personName, characterName: "" })),
+    director: role?.director ?? null,
+    productionCompany: role?.productionCompany ?? null,
+    originalCreators: role?.originalCreators ?? [],
+  };
 }
 
 // Annictへのライブ取得（fetchWorkById）が失敗したとき、その作品が過去クールの
@@ -42,17 +107,11 @@ function getIdToSnapshotKey(): Map<number, string> {
 //   「取得失敗時はnoindex」の分岐が効いて、開放したばかりのページが索引から
 //   外れてしまう（sitemapに追加した意味が失われる）。
 //
-// なぜ全項目を復元できないか:
-//   スナップショット（content/snapshots/{year}-{season}.json）は SeasonResponse
-//   （AnimeItem[]）であり、作品ページが必要とする AnimeDetail の `credits`
-//   （声優とキャラ名の対応・監督・製作会社・原作者）を持たない。
-//   scripts/snapshot-past-seasons.ts の生成時に toAnimeItem までしか呼んでおらず
-//   （casts/staffsを分解する deriveCredits は toAnimeDetail 側の処理のため）、
-//   スナップショットJSONを実際に開いて確認済み（casts/staffs関連キーは無い。
-//   creditNames/castNamesという検索用のフラットな名前配列のみ）。
-//   そのため credits は「推測で埋めない」方針（CLAUDE.md）に従い空のまま返す。
-//   声優・監督等の情報は欠けるが、配信サービス・放送日時・タイトル等の
-//   「どこで配信されているか」という本サイトの主目的には十分な情報が残る。
+// 【2026-09-14】この関数は「Annictが落ちたときの保険」から「過去クールの正規の
+// データ源」へ格上げした。castCredits を持つスナップショット（castCreditsComplete）
+// なら、作品ページはネットワークに一切出ずに描け、ビルド時に焼ける。
+// 旧形式のスナップショットしか無いクールは従来どおり保険のままで、その場合だけ
+// credits.casts の characterName が空になる（推測で埋めない）。
 async function loadFromSnapshot(id: number): Promise<AnimeDetail | null> {
   const key = getIdToSnapshotKey().get(id);
   if (!key) return null;
@@ -73,7 +132,15 @@ async function loadFromSnapshot(id: number): Promise<AnimeDetail | null> {
       // 生成時期によってはキー自体が無いため、明示的に null を入れて型と実体を揃える。
       autoSchedule: item.autoSchedule ?? null,
       malAnimeId: item.malAnimeId ?? null,
-      credits: { casts: [], director: null, productionCompany: null, originalCreators: [] },
+      // 【2026-09-14変更】credits を空で返すのをやめた。
+      // スナップショットは roleCredits（監督・制作会社・原作者）を2026-08-07から、
+      // castCredits（声優×キャラ名）を2026-09-14から持っている。空を返していたのは
+      // 導入当時それらが無かったからで、**いまは持っているデータを捨てていた**。
+      // 旧形式のスナップショットでも roleCredits と castNames は使える。
+      credits: creditsFromSnapshot(item as SnapshotWorkItem),
+      // スナップショットは放送終了済みの確定データ。「いつ取得したか」を名乗る資格が
+      // 無いので null にする。ページ側はこれを見て日付ごと出さない（lib/dataFreshness.ts）。
+      fetchedAt: null,
     };
   } catch {
     return null;
@@ -81,13 +148,37 @@ async function loadFromSnapshot(id: number): Promise<AnimeDetail | null> {
 }
 
 export async function getWorkData(id: number): Promise<AnimeDetail | null> {
+  // ① スナップショットだけで描き切れる過去クールは、Annictに問い合わせない。
+  //
+  // 【なぜ「まず問い合わせて、失敗したらスナップショット」ではないか】
+  //   放送終了済みのクールのデータは二度と動かない。動かないものを毎回取りに行くと、
+  //   ①外部APIの往復（Annictへの負荷とこちらの待ち時間）②Fluid Active CPU と
+  //   Provisioned Memory（I/O待ちの間もメモリ課金は止まらない）③ISR Writes
+  //   （デプロイのたびにキャッシュが消えるので、クロールのたびに書き直しになる）
+  //   の3つが、得るもの無しに毎日発生する。しかも**ビルド時に焼けなくなる**
+  //   （ビルドが外部APIの生死に依存してしまう）ので、恒久的に費用ゼロにできない。
+  // 判定は isStaticWork が1箇所で持ち、焼く対象（generateStaticParams）と同じ関数を通す。
+  if (isStaticWork(id)) {
+    const staticDetail = await loadFromSnapshot(id);
+    if (staticDetail) return staticDetail;
+    // 索引には載っているのにファイルから引けなかった（破損・生成漏れ）。
+    // 黙って古いデータを出すより、下のライブ取得へ落とす。
+  }
+
   const token = process.env.ANNICT_TOKEN;
   let liveFetchError: unknown = null;
 
   if (token) {
     try {
       const w = await fetchWorkById(id, token);
-      if (w) return toAnimeDetail(w, EXTRA_SERVICES[id], RELEASE_DATES[id], AUTO_SCHEDULES[id]);
+      if (w) {
+        return {
+          ...toAnimeDetail(w, EXTRA_SERVICES[id], RELEASE_DATES[id], AUTO_SCHEDULES[id]),
+          // ライブ取得したので「取得日」を名乗ってよい。粒度は日（時刻にすると
+          // 再検証のたびに出力が変わり、中身が同じでもISR Writeが課金される）。
+          fetchedAt: jstToday(),
+        };
+      }
       // w === null: Annictにこのidが存在しない（確認済みの404）。
       // 下でスナップショットにも無ければ本当の404として扱う。
     } catch (e) {

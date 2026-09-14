@@ -103,6 +103,16 @@ import { parseWorkId } from "../lib/workId.ts";
 // 名指しの列挙が漏れて OG画像ルートだけ検証を通っていなかった事故から入れた。
 import { appRoutes, dynamicRoutes } from "./lib/app-routes.js";
 import { build as buildInlineCss } from "./build-inline-css.js";
+import {
+  LAYERS as CSS_LAYER_NAMES,
+  collectRouteClasses,
+  layerForRoutes,
+  layersForRoute,
+  splitCss,
+  findOrderConflicts,
+  routeIdFor,
+} from "./lib/css-layers.js";
+import { minifyCss } from "./lib/minify-css.js";
 // 配信サービス追加の検知（2026-08-07追加）。純粋関数のみ。
 import { applySightings } from "../lib/serviceAdditions.ts";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
@@ -7092,12 +7102,12 @@ let inlineCssNg = 0;
   );
 
   const inlined =
-    /import \{ INLINE_CSS \} from "\.\/inlineCss"/.test(layoutNoComments) &&
-    /<style dangerouslySetInnerHTML=\{\{ __html: INLINE_CSS \}\} \/>/.test(layoutNoComments);
+    /import \{ CSS_LAYERS \} from "\.\/inlineCss"/.test(layoutNoComments) &&
+    /<style dangerouslySetInnerHTML=\{\{ __html: CSS_LAYERS\.base \}\} \/>/.test(layoutNoComments);
   if (!inlined) inlineCssNg++;
   console.log(
-    `${inlined ? "✓" : "✗"}  ${"<head> に <style> として埋めている".padEnd(48)} → ` +
-      (inlined ? "app/inlineCss.ts を1本だけ埋め込み" : "埋め込みが外れている（無スタイルになる）")
+    `${inlined ? "✓" : "✗"}  ${"<head> に base 層を埋めている".padEnd(48)} → ` +
+      (inlined ? "app/inlineCss.ts の CSS_LAYERS.base" : "埋め込みが外れている（無スタイルになる）")
   );
 
   // 生成物が元CSSと一致すること（＝再生成し忘れの検出）。
@@ -7120,6 +7130,106 @@ let inlineCssNg = 0;
   );
 
   console.log(`結果（CSSの埋め込み）: ${inlineCssNg === 0 ? "全てOK" : `${inlineCssNg} 件NG`}`);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// CSSの層分け（2026-09-14導入・重大度高）
+//
+// 【なぜ要るか】全ページに全量のCSS（40.9KB）を埋め込んでいた。ビルド成果物を実測すると
+// 声優ページ1枚（110,317文字）は <style> 41.9KB ＋ RSCペイロード内の複製 41.9KB ＋
+// 本文 4.6KB ＝ **76%がCSSで、本文の18倍**。そのページが実際に使うのは 9.2KB だけだった。
+// 声優ページは4,483枚あり、これだけで成果物の 869MB（全体1.03GB）を占めていた。
+// Vercelでは成果物の大きさが Deployment Storage（保持中のデプロイ数ぶん掛かる）と
+// ISR Writes（**回数ではなく8KB単位のバイト量**で数える）の両方に効く。
+//
+// 【壊れ方】層の割り当てを間違えると**そのページだけ無スタイル**になる。ここが
+// 検査していなければ、気づくのは誰かがその面を実際に開いたときだけ。
+// 仕組みと用語は scripts/lib/css-layers.js の冒頭に全部書いてある。
+// ────────────────────────────────────────────────────────────────────────────
+let cssLayerNg = 0;
+{
+  console.log("\n【CSSの層分け】");
+
+  const srcCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const { classToRoutes, routeToClasses, warnings } = collectRouteClasses();
+  const classToLayer = new Map<string, string>();
+  for (const [c, routes] of classToRoutes) classToLayer.set(c, layerForRoutes(routes));
+
+  // ① className をソースから導出できること。1件でも導出できない形（変数だけの
+  //    className など）があると、そのクラスがどの層に要るのか分からなくなる。
+  const derivable = warnings.length === 0;
+  if (!derivable) cssLayerNg++;
+  console.log(
+    `${derivable ? "✓" : "✗"}  ${"className を全部ソースから導出できる".padEnd(48)} → ` +
+      (derivable ? `${classToRoutes.size} クラス / ${routeToClasses.size} ルート` : warnings.slice(0, 3).join(" / "))
+  );
+
+  // ② ルールを1つも落としていないこと。落とすと無言でスタイルが消える。
+  const { rendered, rules, perLayer } = splitCss(srcCss, classToLayer);
+  const split = CSS_LAYER_NAMES.reduce((n, l) => n + perLayer[l].length, 0);
+  const noLoss = split === rules.length;
+  if (!noLoss) cssLayerNg++;
+  console.log(
+    `${noLoss ? "✓" : "✗"}  ${"ルールを1つも落としていない".padEnd(48)} → ` +
+      (noLoss ? `${rules.length} ルールを ${CSS_LAYER_NAMES.length} 層へ` : `${rules.length} → ${split}`)
+  );
+
+  // ③ カスケードの順序。base は <head>、追加層は本文の先頭に入るので、元のCSSで
+  //    「追加層 → base」の順だった組は前後が入れ替わる。詳細度が等しく、同じ要素に
+  //    当たりうる（!important でない）同名プロパティの組があれば見た目が変わる。
+  const conflicts = findOrderConflicts(rules, classToLayer);
+  if (conflicts.length > 0) cssLayerNg++;
+  console.log(
+    `${conflicts.length === 0 ? "✓" : "✗"}  ${"層をまたいで順序が入れ替わらない".padEnd(48)} → ` +
+      (conflicts.length === 0
+        ? "詳細度が等しい衝突なし"
+        : conflicts.slice(0, 3).map((c) => `${c.earlier} ↔ ${c.later}`).join(" / "))
+  );
+
+  // ④ 追加層を要るルートが、実際に <PageCss layer="..."> を描いているか。
+  //    **対象は走査して導出する**（ここに面の名前を並べない。㊳）。
+  const appDir = fileURLToPath(new URL("../app", import.meta.url));
+  const pageFiles: string[] = [];
+  const walkApp = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.name.startsWith(".")) continue;
+      const full = `${dir}/${e.name}`;
+      if (e.isDirectory()) walkApp(full);
+      else if (e.name === "page.tsx") pageFiles.push(full);
+    }
+  };
+  walkApp(appDir);
+
+  let wiringNg = 0;
+  const wiringDetail: string[] = [];
+  for (const file of pageFiles) {
+    const routeId = routeIdFor(file);
+    const want = layersForRoute(routeId).filter((l) => l !== "base");
+    const src = stripCommentLines(readFileSync(file, "utf8"));
+    const have = [...src.matchAll(/<PageCss\s+layer="([a-z]+)"\s*\/>/g)].map((m) => m[1]);
+    const missing = want.filter((l) => !have.includes(l));
+    const extra = have.filter((l) => !want.includes(l));
+    if (missing.length > 0 || extra.length > 0) {
+      wiringNg++;
+      wiringDetail.push(`${routeId}: ${missing.length ? "足りない " + missing.join(",") : ""}${extra.length ? " 余分 " + extra.join(",") : ""}`);
+    }
+  }
+  if (wiringNg > 0) cssLayerNg++;
+  console.log(
+    `${wiringNg === 0 ? "✓" : "✗"}  ${"追加層を要る面が PageCss を置いている".padEnd(48)} → ` +
+      (wiringNg === 0 ? `${pageFiles.length} ページを確認` : wiringDetail.slice(0, 3).join(" / "))
+  );
+
+  // ⑤ 実際にどれだけ減ったか（数字はドキュメントに転記しない。ここで毎回出す）。
+  const sizes = CSS_LAYER_NAMES.map((l) => `${l} ${(minifyCss(rendered[l]).length / 1024).toFixed(1)}KB`);
+  const baseOnly = minifyCss(rendered.base).length;
+  const all = CSS_LAYER_NAMES.reduce((n, l) => n + minifyCss(rendered[l]).length, 0);
+  console.log(
+    `ℹ  ${"層ごとの大きさ".padEnd(48)} → ${sizes.join(" / ")}` +
+      `（文字だけの面は ${(baseOnly / 1024).toFixed(1)}KB＝全量 ${(all / 1024).toFixed(1)}KB の ${Math.round((baseOnly / all) * 100)}%）`
+  );
+
+  console.log(`結果（CSSの層分け）: ${cssLayerNg === 0 ? "全てOK" : `${cssLayerNg} 件NG`}`);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -7344,6 +7454,7 @@ if (
   ssrPayloadNg > 0 ||
   topSsrNg > 0 ||
   inlineCssNg > 0 ||
+  cssLayerNg > 0 ||
   thumbNg > 0 ||
   prefetchNg > 0 ||
   authJsNg > 0 ||

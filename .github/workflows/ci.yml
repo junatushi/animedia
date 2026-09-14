@@ -149,3 +149,13 @@ jobs:
       - name: 本番ビルド
         if: runner.os == 'Linux'
         run: npm run build
+
+      # ビルド成果物のHTMLを実際に読み、そのページが使っているクラスに
+      # CSSが付いているかを数える（2026-09-14追加）。CSSを面ごとの層に分けた
+      # （scripts/lib/css-layers.js）ので、割り当てを間違えると**そのページだけ
+      # 無スタイル**になる。ソース側の検査（scripts/check.ts）と前提を共有しない
+      # 独立した検査なので、導出ごと間違えた場合でもここで止まる。
+      # **`npm run build` の後でしか動かない**ので check.ts の並びには入れられない。
+      - name: ビルド成果物のCSS網羅
+        if: runner.os == 'Linux'
+        run: node scripts/check-page-css.js

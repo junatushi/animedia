@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import SeasonExplorer from "@/components/SeasonExplorer";
+import PageCss from "@/components/PageCss";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import { stripCreditNamesForSsr } from "@/lib/seasonPayload";
 import type { SeasonResponse } from "@/lib/types";
@@ -162,6 +163,9 @@ export default async function SeasonPage({ params }: { params: Params }) {
 
   return (
     <>
+      {/* explorer 層のCSS。この面とトップでしか使わない分を本文の先頭で足す
+          （components/PageCss.tsx の説明を読むこと）。 */}
+      <PageCss layer="explorer" />
       {structuredLd && (
         <script
           type="application/ld+json"

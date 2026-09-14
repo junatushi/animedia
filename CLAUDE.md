@@ -84,7 +84,16 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   `npm run build` の前に自動で走る（`predev`/`prebuild`）ので**手で実行する必要は普通は無い**。
   なぜ埋め込むか: Next.jsが `<link rel="stylesheet">` を吐くとHTMLの後にもう1往復
   掛かり、実測で描画開始が約370ms遅れていた（PageSpeedの見積もりは150ms）。
-  スマホ主体のサイトなので直撃する。ネットワーク不要。経緯は`docs/operations.md`の㊵
+  スマホ主体のサイトなので直撃する。ネットワーク不要。経緯は`docs/operations.md`の㊵。
+  **2026-09-14から「面ごとの層」を出す**（`CSS_LAYERS`）。全ページに全量を入れていたため
+  実測で声優ページの**76%がCSS**（`<style>`・RSCペイロード・`.rsc` に計3コピー）だった。
+  層の決め方はimportグラフからの導出で、`scripts/lib/css-layers.js`が持つ。
+  導出できないclassNameや、層をまたぐカスケードの順序の入れ替わりがあると**生成の時点で落ちる**
+- `node scripts/check-page-css.js` … **ビルド成果物のCSS網羅**（2026-09-14導入）。
+  出来上がったHTMLの`class=`と`<style>`の中身だけを見て、使っているクラスにCSSが
+  付いているかを数える。`scripts/check.ts`の層分け検査と**前提を共有しない**独立した検査
+  （導出ごと間違えた場合に備える）。`npm run build`の後でしか動かないので、
+  ビルドが無い／古いときは省略したと言って抜ける（黙って成功しない）。CIはビルドの直後に回す
 - `node scripts/build-studio-index.ts` … 制作会社・監督の索引。スナップショットの`roleCredits`から
   `content/archive/studios.json`を作る。ネットワーク不要。
   **スナップショットを追加・再生成したら必ず実行する**。
@@ -378,13 +387,19 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   いまは**hover/touchstartの素振りがあったときだけ**先読みする。
   **作品ページの`loading.tsx`を置かない方針（ソフト404回避）の代替が先読みなので、
   素振りの先読みまで消さないこと**。検査は`node scripts/check.ts`の「リンクの先読み」節
-- `app/inlineCss.ts` + `scripts/build-inline-css.js` + `scripts/lib/minify-css.js` …
-  **HTMLに直接埋め込むCSS**（2026-09-04導入）。`app/layout.tsx` は `globals.css` を
-  **import しない**（importするとNext.jsが `<link rel="stylesheet">` を吐き、往復が1回増える）。
-  スタイルを変えるときは**`app/globals.css` を直す**（`app/inlineCss.ts` は自動生成なので
-  手で編集しない）。ズレは`node scripts/check.ts`の「CSSの埋め込み」節が検出し、
-  `predev`/`prebuild` が自動で再生成する。ミニファイアは「壊れると全ページ無スタイル」
-  なので賢い最適化をしない方針（コメント除去と空白畳みだけ・文字列の中身は触らない）
+- `app/inlineCss.ts` + `scripts/build-inline-css.js` + `scripts/lib/css-layers.js` +
+  `components/PageCss.tsx` + `scripts/lib/minify-css.js` …
+  **HTMLに直接埋め込むCSS**（2026-09-04導入 / 2026-09-14に層分け）。`app/layout.tsx` は
+  `globals.css` を**import しない**（importするとNext.jsが `<link rel="stylesheet">` を吐き、
+  往復が1回増える）。スタイルを変えるときは**`app/globals.css` を直す**
+  （`app/inlineCss.ts` は自動生成なので手で編集しない）。ズレは
+  `node scripts/check.ts`の「CSSの埋め込み」節が検出し、`predev`/`prebuild` が自動で再生成する。
+  ミニファイアは「壊れると全ページ無スタイル」なので賢い最適化をしない方針
+  （コメント除去と空白畳みだけ・文字列の中身は触らない）。
+  **層は`base`（全ページ・`<head>`）／`explorer`（`/`と`/season/**`）／`detail`（`/anime/[id]`）**で、
+  追加層はその面が`<PageCss>`で本文の先頭に置く（ルートレイアウトの`<body>`は`{children}`で
+  始まるので、追加の`<style>`より前に描画される可視要素が無い＝ちらつかない）。
+  **どのクラスがどの層かを人が書く場所は無い**（`app/`と`components/`のimportグラフから導出）
 - `vercel.json` … **表示に使わないデータのコミットで本番デプロイを起こさないための門番**
   （2026-08-25導入）。`ignoreCommand`が「`content/analytics/`・`content/coverage/`・
   `content/demand/`・`docs/`しか変更していないコミット」を判定し、その場合はビルドをスキップする
@@ -429,6 +444,18 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   機械的に禁じている。次クールの求め方は`lib/resolveSeasonParams.ts`の`nextYearSeason`
   **だけ**が持つ（sitemapと対象クールをズラさないため）。検査は`node scripts/check.ts`の
   「ISRの再生成頻度」節。経緯は`docs/operations.md`の㉝
+- `lib/dataFreshness.ts` … **「このページは日付を名乗ってよいか」の一元判定**（2026-09-14導入・重大度高）。
+  データ層（`getSeasonData`/`getWorkData`）が返す`fetchedAt`を見て、可視テキストの「〜時点」・
+  JSON-LDの`dateModified`/`sdDatePublished`・meta descriptionを出すかどうかを決める。
+  **スナップショット由来（過去クールの確定データ）なら`null`＝日付ごと出さない**。
+  外してはいけない理由が2つある。①過去クールのページに「今日時点」と書くのは**事実として誤り**で、
+  `app/sitemap.ts`が`lastModified`を全部捨てたのと同じ話（不正確な鮮度の申告はサイト全体の
+  信用を落とす）。②**Vercelは出力が前回と1バイトも変わらない再生成を課金しない**のに、
+  日付が混ざっていると中身が同じでも日付をまたぐたびに全ページが「変化あり」になる
+  （ISR Writesは回数ではなく**8KB単位のバイト量**で数える）。
+  **ページ側で`new Date()`を呼んで日付を作り直さないこと。**
+  取得日は`unstable_cache`の**中**で確定させる（データが変わらない限り出力も変わらない）。
+  経緯は`docs/operations.md`の㊻
 - `lib/siteUrl.ts` … サイト正準URLの一元定義（2026-07-18導入）。canonical・OGP・sitemap・JSON-LD・
   メール内リンクの全てがここを参照する。独自ドメイン移行時はこの1行＋`docs/domain-migration.md`の手順
 - `content/affiliate/programs.ts` + `lib/affiliate.ts` … アフィリエイトのリンク・報酬額データ
@@ -508,8 +535,8 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   同じキーに2作品がぶら下がった曖昧なキーは**採用しない**（誤マッチ＝無関係な作品の日付が
   サイトに出る事故）。読み込み時に1件ずつ検証して壊れた件だけ捨てる（`lib/autoSchedule.ts`）。
   検査は`node scripts/check.ts`の「機械補完した放送予定日」節。経緯は`docs/operations.md`
-- `lib/getSeasonData.ts` / `lib/getWorkData.ts` … シーズン一覧・作品個別データの取得ロジック（API route と SSR ページの両方から共有）。`getSeasonData`は**今年**はライブ取得＋`unstable_cache`（15分=900s。cron遅延吸収のため2026-07-21に10分から延長）だが、**過去年**は`content/snapshots/{year}-{season}.json`があればそれを即返す（無ければライブ取得へフォールバック）。API窓口（`app/api/season/route.ts`）はさらに応答に`s-maxage=600, stale-while-revalidate=86400`を付けCDNエッジにもキャッシュする（2026-07-21）。`getWorkData`は年に関わらず常にAnnictへのライブ取得（`fetchWorkById`）を優先するが、それが失敗し、かつ対象作品が`content/archive/index.json`（配信1件以上の過去クール1,961件）に載っていれば、`content/snapshots/`から`credits`（声優のキャラ名対応・監督・製作会社・原作者。スナップショット生成時に作られておらず持っていない）だけ空にした縮退版`AnimeDetail`にフォールバックする（2026-08-06導入。詳細は`docs/operations.md`の⑦-12）。平常時（Annictが生きている間）は今まで通りフルの`credits`つきで返る。
-- `content/snapshots/{year}-{season}.json` + `scripts/snapshot-past-seasons.ts` … 過去年（放送終了済み）シーズンの確定データを固定した静的スナップショット（2026-07-15導入）。過去年をライブ取得＋Vercelデータキャッシュに頼っていた時期は、温めCron成功の翌日でもキャッシュ追い出しで初回5〜10秒コールドを踏んでいた（実測2024夏9.4s/2020冬5.1s）ため、放送済みで動かないデータをリポジトリ同梱JSONに固定し常時0.03秒程度にした。生成は`node scripts/snapshot-past-seasons.ts [fromYear] [toYear] [--force]`（省略で2010〜昨年・既存スキップ）。**年またぎ時は前年分を1回生成する**（例:2027年になったら`node scripts/snapshot-past-seasons.ts 2026 2026`）。詳細は`docs/operations.md`の⑦-4
+- `lib/getSeasonData.ts` / `lib/getWorkData.ts` … シーズン一覧・作品個別データの取得ロジック（API route と SSR ページの両方から共有）。`getSeasonData`は**今年**はライブ取得＋`unstable_cache`（15分=900s。cron遅延吸収のため2026-07-21に10分から延長）だが、**過去年**は`content/snapshots/{year}-{season}.json`があればそれを即返す（無ければライブ取得へフォールバック）。API窓口（`app/api/season/route.ts`）はさらに応答に`s-maxage=600, stale-while-revalidate=86400`を付けCDNエッジにもキャッシュする（2026-07-21）。`getWorkData`は**2026-09-14から2段構え**。①`content/archive/index.json`の`castCreditsComplete`が立っているクールの作品は**スナップショットだけで描き切れる**のでAnnictに一切問い合わせない（＝ビルド時に焼ける＝ISR Writes・Fluid CPU・外部APIの往復が恒久的にゼロ）。②それ以外は従来どおりライブ取得を優先し、失敗したときだけスナップショットへフォールバックする。フォールバックが返す`credits`は、スナップショットが持つ`roleCredits`（監督・製作会社・原作者）と`castNames`（声優名）から組み立てる（**旧形式では役名だけが空になる。推測で埋めない**）。**既存の64ファイルは旧形式なので現在は①が0件＝従来とまったく同じ挙動**で、`docs/snapshot-regenerate.md`の手順で再生成すると自動で①に切り替わる（表示が劣化する瞬間が無いようにこの順番にしてある）。経緯は`docs/operations.md`の㊻・⑦-12。
+- `content/snapshots/{year}-{season}.json` + `scripts/snapshot-past-seasons.ts` … 過去年（放送終了済み）シーズンの確定データを固定した静的スナップショット（2026-07-15導入）。過去年をライブ取得＋Vercelデータキャッシュに頼っていた時期は、温めCron成功の翌日でもキャッシュ追い出しで初回5〜10秒コールドを踏んでいた（実測2024夏9.4s/2020冬5.1s）ため、放送済みで動かないデータをリポジトリ同梱JSONに固定し常時0.03秒程度にした。生成は`node scripts/snapshot-past-seasons.ts [fromYear] [toYear] [--force]`（省略で2010〜昨年・既存スキップ）。**2026-09-14から`castCredits`（声優×キャラ名）も保存する**。これが入ると作品ページがAnnictに出ずに描けるようになり、ビルド時に焼ける＝そのクールのISR Writes・Fluid CPUが恒久的にゼロになる（`content/archive/index.json`の`castCreditsComplete`が自動で立つ）。**既存64ファイルは旧形式なので、再生成するまでこの効果は出ない**（`--force`が要る）。**年またぎ時は前年分を1回生成する**（例:2027年になったら`node scripts/snapshot-past-seasons.ts 2026 2026`）。詳細は`docs/operations.md`の⑦-4
 - `content/works/{annictId}.json` + `content/works/index.ts` … 作品個別ページの「あらすじ・見どころ・出版社」と、任意の`faq`（「2期から見ても大丈夫？」等のよくある質問。2026-07-27追加。可視テキストとFAQPage構造化データの両方に出る）。Annictに無いデータのため人力で追記する補足コンテンツ（`docs/operations.md`の「⑧作品詳細コンテンツの追記」参照）。`faq`は実測で需要が確認できた作品にだけ付ける（全作品分の維持は続かないため）。未整備の作品は単純に省略表示される
 - `app/api/sns-image/route.tsx` … SNS投稿に添付する公開PNG（2026-07-27導入）。`?kind=ranking` と `?kind=airing&day=月`。**Threadsは画像のバイナリ投稿に対応せず公開URL（`image_url`）しか受け付けない**ため、Playwrightのスクリーンショットを添付できない。その回避としてサイト自身が同等の画像を配信する。既存OG画像2本と同じ`runtime="edge"`（nodejs runtimeにすると`next/og`がWindowsのローカル開発機で必ず例外になり手元で検証できなくなる）。データはedgeで`fs`が使えないため`/api/season`から取る。Threads固有の注意点は`docs/threads-setup.md`の⑦
 - `content/sns/spotlight.js` … SNS投稿の「スポットライト枠」で日替わりに紹介する作品リスト（2026-07-27導入）。GSC・Vercel Analyticsの実測で需要が確認できた作品だけを載せ、推測で足さない。`hashtag`は作品名タグで、タイトルからの自動生成はせず手で書く（期数・記号を落とす。`☆`等はSNS側のタグ解析を壊すため使わない）。生成は`scripts/lib/build-digest.js`の`buildSpotlight`
@@ -642,7 +669,7 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   載る〈以前はsearchParamsを読むため毎回動的描画=no-storeで0.5〜2.8s掛かっていた〉。年・季節の
   切替やディープリンク〈?year=&season=〉の解決はクライアント側=SeasonExplorerが担う）
 - `app/season/[year]/[season]/page.tsx` … シーズン別のSSRページ（SEO用。シーズン名でのタイトル/OGPを動的生成）
-- `app/anime/[id]/page.tsx` … 作品個別のSSRページ（SEO用。「作品名 配信」検索の受け皿。声優/監督/製作会社/原作＋あらすじ等も表示）。2026-07-27にISR化（`revalidate=900` ＋ `generateStaticParams`が**空配列**。後者が無いと`revalidate`を書いてもprerender-manifestに載らず動的のまま）。ここに`loading.tsx`を置くと`notFound()`が200（ソフト404）になるため置かない。詳細は`docs/operations.md`の⑦-6
+- `app/anime/[id]/page.tsx` … 作品個別のSSRページ（SEO用。「作品名 配信」検索の受け皿。声優/監督/製作会社/原作＋あらすじ等も表示）。2026-07-27にISR化（`generateStaticParams`が無いと`revalidate`を書いてもprerender-manifestに載らず動的のまま）。**2026-09-14から`generateStaticParams`は`staticWorkIds()`を返す**＝スナップショットだけで描けるクールの作品をビルド時に焼く（旧形式のスナップショットしか無い間は空配列＝従来どおり）。ここに`loading.tsx`を置くと`notFound()`が200（ソフト404）になるため置かない。詳細は`docs/operations.md`の⑦-6
 - `components/SeasonExplorer.tsx` … 上記3ページが共有する画面本体（"use client"）。`initialData`を渡すとSSR結果をそのまま使い、再フェッチしない。検索欄は作品名に加え声優・スタッフ名（`creditNames`）にもマッチし、さらに `/api/search-index` を使って表示中クール以外の作品も「他のクールの作品」枠でヒットさせる（年数・季節セレクタは検索の絞り込みには使わず、閲覧クールの切替のみ。各カードに放送クールを表示）。一覧/カレンダー（曜日別配信スケジュール）の表示切替もここ
 - `components/ThemeToggle.tsx` … ライト/ダークのテーマ切替（SAOモチーフ。ダーク＝黒の剣士キリト基調、ライト＝閃光のアスナ基調）。`localStorage`に保存
 - `app/globals.css` … テーマ本体。ダーク/ライトの2テーマをCSS変数で切替
@@ -977,6 +1004,30 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   出て、HTMLが届いた後にもう1往復掛かる（本番PageSpeedの見積もり150ms、
   ローカル実測で約370ms）。**画面はまったく同じに見える**ので気づけない。
   検査は`node scripts/check.ts`の「CSSの埋め込み」節と`verify-production.sh`のA0節
+- **【基本ルール】出力に「いまの日付」を混ぜない（2026-09-14導入・重大度高）**:
+  ページの中で `new Date()` を呼んで、その日の日付を可視テキストやJSON-LDに書かないこと。
+  日付は**データ層が返す`fetchedAt`**（`lib/dataFreshness.ts`）だけを使う。
+  理由は2つあり、どちらも単独で十分に重い。①スナップショット（過去クールの確定データ）から
+  描いているページに「今日時点」と書くのは**嘘**で、`app/sitemap.ts`が`lastModified`を
+  全部捨てたのと同じ誤り。②Vercelは**再生成の結果が前回と1バイトも変わらなければ
+  ISR Writeを課金しない**（<https://vercel.com/kb/guide/how-to-reduce-isr-revalidation-costs>）。
+  日付が混ざっていると、中身が同じでも日付をまたぐたびに全ページが書き直される。
+  **ISR Writesは「回数」ではなく「8KB単位のバイト量」**なので、1ページ180KBの面では
+  1回の書き直しが約23ユニットになる。経緯は`docs/operations.md`の㊻
+- **【基本ルール】CSSは面ごとの層で配る。全ページに全量を入れない（2026-09-14導入・重大度高）**:
+  `app/globals.css`を全ページに埋め込んでいた時期は、実測で声優ページ1枚（110,317文字）の
+  **76%がCSS**（`<style>`とRSCペイロードに二重、さらに`.rsc`にもう1コピー）で、
+  本文は4,575文字（4%）しか無かった。そのページが実際に使うCSSは9.2KBだけ。
+  いまは`base`（全ページ）／`explorer`（`/`と`/season/**`）／`detail`（`/anime/[id]`）に分け、
+  追加層は`components/PageCss.tsx`でその面が本文の先頭に置く。
+  **層の割り当てを手で書かないこと**（`app/`と`components/`のimportグラフから導出する。
+  `scripts/lib/css-layers.js`）。新しい面が`SeasonExplorer`を使い始めればそのクラスは
+  自動的に`base`へ上がる。**間違えるとそのページだけ無スタイルになり、画面を開くまで
+  気づけない**ので、検査は`node scripts/check.ts`の「CSSの層分け」（ソースから導出）と
+  `node scripts/check-page-css.js`（ビルド成果物のHTMLだけを見る＝前提を共有しない）の
+  2本立てにしてある。**どちらも消さないこと。**
+  追加層の`<style>`は**本文の先頭**に置く（ルートレイアウトの`<body>`は`{children}`で
+  始まるので、それより前に描画される可視要素が無い）。位置を変えるとちらつく。
 - **【基本ルール】サムネイルはWebPで持つ（2026-09-04導入）**:
   `public/works/{id}.webp`。JPEGだと1枚40KB前後になり、スマホの初期表示で装飾画像が
   HTML・CSS・JSと帯域を奪い合う（本番PageSpeedがトップで152KB読み込み「Est savings of

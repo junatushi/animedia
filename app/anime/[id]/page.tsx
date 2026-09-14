@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import IntentLink from "@/components/IntentLink";
-import { getWorkData } from "@/lib/getWorkData";
+import PageCss from "@/components/PageCss";
+import { getWorkData, staticWorkIds } from "@/lib/getWorkData";
+import { canStateFetchDate } from "@/lib/dataFreshness";
 import { getSeasonData } from "@/lib/getSeasonData";
 import { splitRentalServices, getServiceKana, sortServicesForMetadata } from "@/lib/services";
 import { buildServiceLabel } from "@/content/services/aliases";
@@ -107,8 +109,33 @@ export const revalidate = 604800;
 // なる（実測: /anime/88888888 の .meta が status:200 になり、loading.tsx を消すと
 // 404 に戻る）。存在しない作品IDが200で返るのは検索エンジンに対して有害なので、
 // loading.tsx は置かず、ISR＋先読みで速さを担保する方針にした。
+// 【2026-09-14変更】空配列 → スナップショットだけで描き切れる過去クールの作品を焼く。
+//
+// 【なぜ変えたか】事前生成したページは ISR Writes も Fluid Active CPU も消費しない
+// （デプロイ成果物に含まれ、CDNから返る）。焼いていないページは**デプロイのたびに
+// キャッシュが消える**ので、クロールされるたびに必ず1回書き込みが発生する。この床は
+// revalidate をいくら延ばしても消えない。実測でデプロイは30日に42回（1.4回/日）あり、
+// sitemapに載せている過去クールの作品ページ 1,961件がその都度書き直されていた。
+//
+// 【なぜ今までできなかったか】lib/getWorkData.ts が常にAnnictへライブ取得しており、
+// ビルドを外部APIの生死に依存させられなかった。スナップショットに castCredits
+// （声優×キャラ名）を持たせたことで、過去クールはネットワークに出ずに描けるようになった。
+//
+// 【自動で有効になる】対象は content/archive/index.json の castCreditsComplete が
+// 立っているクールだけ（判定は lib/getWorkData.ts の staticWorkIds が1箇所で持つ）。
+// 旧形式のスナップショットしか無い間は空配列＝**従来とまったく同じ挙動**で、
+// docs/snapshot-regenerate.md の手順で再生成すると自動的に焼かれるようになる。
+//
+// dynamicParams は既定（true）のまま＝ここに無いIDもオンデマンドで生成される
+// （現在クール・次クールの作品、配信0件の過去作品）。false にすると404になってしまう。
+//
+// なお、ここに loading.tsx を置くとタップ直後に骨組みを出せるが、ストリーミングで
+// ヘッダが先に確定するため notFound() が 404 ではなく 200（ソフト404）で返るように
+// なる（実測: /anime/88888888 の .meta が status:200 になり、loading.tsx を消すと
+// 404 に戻る）。存在しない作品IDが200で返るのは検索エンジンに対して有害なので、
+// loading.tsx は置かず、ISR＋先読みで速さを担保する方針にした。
 export async function generateStaticParams() {
-  return [];
+  return staticWorkIds().map((id) => ({ id: String(id) }));
 }
 
 // Annictから取れなかったときに返すメタデータ（2026-08-05追加）。
@@ -230,21 +257,28 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
     ),
     ...item.otherServices,
   ];
-  // 配信情報はAnnictからライブ取得（revalidateの範囲）なので、取得日を鮮度シグナルとして出す。
-  // JSTの日付にする（toISOString()はUTCのため、JSTの朝9時までは前日の日付になってしまう）。
-  const checkedDate = jstToday();
+  // 「今日」と「データを取得した日」を分ける（2026-09-14・重大度高）。
+  //   today      … 計算にだけ使う。放送中／終了の判定・公開予定日との比較。**描画しない**。
+  //   fetchedAt  … 画面とJSON-LDに出す取得日。スナップショット由来（過去クール）なら null で、
+  //                そのときは日付そのものを出さない。
+  // 混ぜてはいけない理由は2つ。①過去クールのページに「今日時点」と書くのは事実として誤り
+  // （app/sitemap.ts が lastModified を全部捨てたのと同じ話）。②出力に今日の日付が入ると、
+  // 中身が1文字も変わっていない日でも「変化あり」となってVercelのISR Writeを消費する
+  // （ISR Writes は回数ではなくバイト量で数える）。詳細は lib/dataFreshness.ts。
+  const today = jstToday();
+  const fetchedAt = item.fetchedAt ?? null;
   // 放送が終わったクールの作品は「いま配信中」と断定しない（lib/workAvailability.ts の
   // 冒頭コメント参照）。Annictのprogramsは放送当時の番組表であって、現在の配信可否の
   // 確認ではないため、過去作に現在形を使うと未確認の主張になる。
   const status = airingStatus(
     item.broadcastStartDate ?? item.releaseDate?.date ?? null,
-    checkedDate
+    today
   );
   const jsonLdDescription =
     content?.synopsis ||
     (serviceNames.length > 0
       ? status === "finished"
-        ? `「${item.title}」の配信情報（${serviceNames.join("・")}）。${checkedDate}時点のAnnictデータ。`
+        ? `「${item.title}」の配信情報（${serviceNames.join("・")}）。${canStateFetchDate(fetchedAt) ? `${fetchedAt}時点の` : ""}Annictデータ。`
         : `「${item.title}」は ${serviceNames.join("・")} で配信中。`
       : `「${item.title}」の配信状況をアニメ視聴ガイドで確認できます。`);
   // 通称・略称（2026-08-19追加）。
@@ -315,7 +349,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   // 理由は lib/types.ts の AutoScheduleEntry の注記を参照。
   const auto = item.autoSchedule ?? null;
 
-  workLd.dateModified = checkedDate;
+  // 取得日を名乗れるときだけ dateModified を出す（過去クール＝スナップショット由来は
+  // 出さない。理由は lib/dataFreshness.ts）。**Object.assign(workLd, ...) は使わない**
+  // ── scripts/check.ts が「出所（buildDataProvenance）を作品ノードへ畳み込む」逆戻りを
+  // それで検知しているため、同じ書き方をすると検査をすり抜ける穴になる。
+  if (canStateFetchDate(fetchedAt)) workLd.dateModified = fetchedAt;
   if (release) {
     // schema.org の Movie/TVSeries が持つ公開日。生成AI・検索エンジンに
     // 「いつ公開か」を機械可読な形で渡す。
@@ -342,7 +380,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   // **作品ノードには混ぜない**。citation は「その作品が参照している著作物」の意味なので、
   // TVSeries に付けると「この作品がAnnictを引用している」という嘘になる（理由は
   // lib/workAvailability.ts の注記）。参照しているのはページなので WebPage ノードで出す。
-  const provenanceLd = buildDataProvenance(checkedDate, `${siteUrl}/anime/${id}`);
+  const provenanceLd = buildDataProvenance(fetchedAt, `${siteUrl}/anime/${id}`);
 
   // 放送開始日（JST, "YYYY-MM-DD"）から、この作品がどのクールに属するかを逆算する。
   // 「シーズン別ページ」への内部リンクを作ることで、そのクールの他の作品にも
@@ -449,17 +487,17 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
           title: item.title,
           serviceLabels,
           rentalNote,
-          checkedDate,
+          checkedDate: fetchedAt,
           status,
         })
       : rentalServices.length > 0
-        ? `「${item.title}」は見放題配信は現時点で確認できませんが、${rentalNote}（${checkedDate}時点）`
+        ? `「${item.title}」は見放題配信は現時点で確認できませんが、${rentalNote}${canStateFetchDate(fetchedAt) ? `（${fetchedAt}時点）` : ""}`
         : // 劇場公開日が判明している作品は「配信が無い」だけで終わらせず、公開前／公開済みの
           // どちらなのかまで書く（劇場公開前の作品に配信が無いのは当然で、それを伏せると
           // 「取り扱いが無い作品」に見えてしまう）。上映終了は確認できないため「公開中」とは書かない。
           release
-          ? `「${item.title}」は${formatJpDate(release.date)}${release.date > checkedDate ? "に劇場公開予定です" : "に劇場公開された作品です"}。配信サービスは現時点でAnnictに登録がなく確認できません（${checkedDate}時点）。判明し次第このページに反映されます。`
-          : `「${item.title}」の配信サービスは現時点でAnnictに登録がなく確認できません（${checkedDate}時点）。判明し次第このページに反映されます。`;
+          ? `「${item.title}」は${formatJpDate(release.date)}${release.date > today ? "に劇場公開予定です" : "に劇場公開された作品です"}。配信サービスは現時点でAnnictに登録がなく確認できません${canStateFetchDate(fetchedAt) ? `（${fetchedAt}時点）` : ""}。判明し次第このページに反映されます。`
+          : `「${item.title}」の配信サービスは現時点でAnnictに登録がなく確認できません${canStateFetchDate(fetchedAt) ? `（${fetchedAt}時点）` : ""}。判明し次第このページに反映されます。`;
   // 「どこで配信？」に加えて、content/works/{id}.json に人力で用意したQ&A
   // （「2期から見ても大丈夫？」「どの順番で見る？」等）も同じFAQPageに載せる。
   // 配信先だけでなく視聴前の判断材料まで1ページで揃うと、検索結果からの離脱が減る。
@@ -496,7 +534,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   };
 
   return (
-    <div className="wrap">
+    <>
+      {/* detail 層のCSS。作品ページでしか使わない分を本文の先頭で足す
+          （components/PageCss.tsx の説明を読むこと）。 */}
+      <PageCss layer="detail" />
+      <div className="wrap">
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
@@ -627,7 +669,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                 実際はAnnictからデータを取得した日でしかない（配信の現在の可否は誰も
                 確認していない）。放送中の作品でも同じ誤解を招くので、全作品で
                 「取得日」と書く。 */}
-            <p className="detail-updated">配信情報の取得日: {checkedDate}（Annictより自動取得）</p>
+            {/* 過去クールは content/snapshots/ の確定データから描いており「取得日」が
+                存在しないので、行ごと出さない（「不明」とも書かない）。 */}
+            {canStateFetchDate(fetchedAt) && (
+              <p className="detail-updated">配信情報の取得日: {fetchedAt}（Annictより自動取得）</p>
+            )}
             {manualSources.length > 0 && (
               <p className="svc-manual-note">
                 出典:{" "}
@@ -890,6 +936,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         {" ・ "}
         <IntentLink href="/privacy">プライバシーポリシー・広告掲載について</IntentLink>
       </p>
-    </div>
+      </div>
+    </>
   );
 }

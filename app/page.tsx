@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import TopPageExplorer from "@/components/TopPageExplorer";
+import PageCss from "@/components/PageCss";
 import { getSeasonData } from "@/lib/getSeasonData";
 import { stripCreditNamesForSsr } from "@/lib/seasonPayload";
 import { currentSeasonKey } from "@/lib/resolveSeasonParams";
@@ -69,7 +70,13 @@ export async function generateMetadata(): Promise<Metadata> {
 // ISRは期限切れ後も stale-while-revalidate で古いHTMLを即座に返しつつ裏で作り直すので、
 // 期限を延ばしても訪問者が待たされる場面は増えない。Annictの配信情報はコミュニティ更新で
 // 分単位に動くものではなく、1時間の鮮度で困る用途がこのサイトには無い。経緯はdocs/operations.md。
-export const revalidate = 3600;
+// 【2026-09-14変更】3600 → 21600（6時間）。/season/** ・/rankings ・/exclusive と揃える。
+// ビルド成果物（.next/prerender-manifest.json）で実測すると、ここだけ 3600 のまま残って
+// いた＝トップページ（実測105KB）が1日24回書き直されていた。ISR Writes は**回数ではなく
+// バイト量**（8KB単位）で数えるので、中身が同じでも日付や注目度が動けばそのぶん課金される。
+// 鮮度の本線は /api/revalidate（revalidate.yml が1日2回 "/" を名指しする）。
+// 6時間にしてあるのは、cronが全滅しても最大6時間で自力復帰させるため。
+export const revalidate = 6 * 60 * 60;
 
 export default async function Page() {
   const year = new Date().getFullYear();
@@ -92,5 +99,13 @@ export default async function Page() {
   // ここに Suspense を戻すと同じ壊れ方に逆戻りする（node scripts/check.ts が検査する）。
   // creditNames はHTMLに埋め込まない（転送量の11%を占め、画面には出ない）。
   // 検索でスタッフ名に当てる段になって SeasonExplorer が取りに行く。lib/seasonPayload.ts
-  return <TopPageExplorer initialData={stripCreditNamesForSsr(data)} />;
+  // explorer 層のCSSは、この面（トップ）と /season/** でしか使わないので
+  // ルートレイアウトの <head> ではなく本文の先頭で足す（components/PageCss.tsx）。
+  // <PageCss> は body の最初の要素になるので、これより前に描画される可視要素は無い。
+  return (
+    <>
+      <PageCss layer="explorer" />
+      <TopPageExplorer initialData={stripCreditNamesForSsr(data)} />
+    </>
+  );
 }
