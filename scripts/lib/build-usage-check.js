@@ -89,7 +89,20 @@ function buildUsageCheck(today = jstToday()) {
 
 ${c.why}
 
-## 見るところ
+## まず自動の判定を見る（2026-09-15〜）
+
+\`\`\`
+node scripts/usage-report.js
+\`\`\`
+
+利用量は \`.github/workflows/vercel-usage.yml\` が毎日取って
+\`content/analytics/usage/<日付>.json\` にコミットしている（手順は \`docs/vercel-usage-setup.md\`）。
+**目視でゲージを読むと2〜4倍外す**ことが実際にあった（㉝・㊶）ので、数字はこちらを使う。
+
+ただし取得が止まっている・明細が0件で返る場合はレポートがその旨を出す。
+そのときだけ下のダッシュボードを人が見る。
+
+## 見るところ（自動の判定が出せなかったときだけ）
 
 https://vercel.com/ → プロジェクト → Usage（30日ローリング）
 

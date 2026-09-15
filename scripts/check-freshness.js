@@ -42,6 +42,7 @@ const day = (base, offset) => {
  * @param {string[]} o.gsc          GSCのファイル日付
  * @param {string[]} o.site         行動ログのファイル日付
  * @param {string[]} [o.speed]      本番の表示速度（合成計測）のファイル日付
+ * @param {string[]} [o.usage]      Vercel利用量（請求明細）のファイル日付
  * @param {Record<string,string[]>} o.firstSeen  "情報源 クール" → 日付の並び
  * @param {string[]} [o.extraDirs]  登録されていない収集先（登録漏れの再現）
  */
@@ -63,6 +64,11 @@ function fixture(o) {
     const speedDates = o.speed ?? streak(o.today ?? TODAY, 10);
     fs.mkdirSync(path.join(root, "content/analytics/speed"), { recursive: true });
     for (const d of speedDates) w(`content/analytics/speed/${d}.json`, "{}");
+  }
+  if (o.usage !== null) {
+    const usageDates = o.usage ?? streak(o.today ?? TODAY, 10);
+    fs.mkdirSync(path.join(root, "content/analytics/usage"), { recursive: true });
+    for (const d of usageDates) w(`content/analytics/usage/${d}.json`, "{}");
   }
   if (o.firstSeen) {
     const sources = {};
@@ -219,6 +225,31 @@ function main() {
       late
     );
     check("⑧ 猶予を過ぎたら失敗になる", /1件も無い/.test(r.out) && r.code !== 0, `exit=${r.code}`);
+  }
+
+  {
+    // ⑧' 開始の猶予（startGraceDays）は欠測の許容（staleDays）と別物。
+    //     人の作業（トークン登録）待ちの収集を、欠測の許容日数で赤くしない。
+    //     usage は since=2026-09-15 / staleDays=2 / startGraceDays=14。
+    //     staleDays だけなら 09-18 で失敗するが、猶予は 09-29 まで効く。
+    const r = run(
+      use({ gsc: streak("2026-09-25", 10), site: streak("2026-09-25", 10),
+            firstSeen: { "annict 2026-autumn": streak("2026-09-25", 10) },
+            speed: streak("2026-09-25", 10), usage: null }),
+      "2026-09-25"
+    );
+    check(
+      "⑧' 開始の猶予は欠測の許容より長くできる",
+      r.code === 0 && /まだ1件目を待っている/.test(r.out),
+      `exit=${r.code}`
+    );
+    const r2 = run(
+      use({ gsc: streak("2026-10-05", 10), site: streak("2026-10-05", 10),
+            firstSeen: { "annict 2026-autumn": streak("2026-10-05", 10) },
+            speed: streak("2026-10-05", 10), usage: null }),
+      "2026-10-05"
+    );
+    check("⑧' 猶予を過ぎれば開始待ちでも失敗する", r2.code !== 0, `exit=${r2.code}`);
   }
 
   {

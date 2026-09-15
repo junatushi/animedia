@@ -1,0 +1,114 @@
+name: Vercel利用量の日次取得
+
+# 【なぜ要るか・2026-09-15】
+# 無料枠に収まっているかの一次情報は Vercel のダッシュボードだが、**ログインが要るため
+# セッション（Claude）からは読めない**。そのため答え合わせが毎回「ユーザーが画面の数字を
+# 手で写す」まで止まり、しかも目視なので実際に2〜4倍読み違えた記録がある
+# （docs/operations.md の㉝・㊶）。
+# GSC（gsc-snapshot.yml）・行動ログ（site-analytics.yml）と同じ形にする:
+# 外向き通信ができる GitHub Actions から取り、リポジトリにJSONを置く。
+# 以後セッションは**コミット済みのJSONを読むだけ**でよい（node scripts/usage-report.js）。
+#
+# 取得内容は scripts/fetch-vercel-usage.js（YAMLに条件を書かない）。
+# セットアップ手順は docs/vercel-usage-setup.md。
+
+on:
+  schedule:
+    # 1日1回。請求明細は日単位で確定するので時刻の精度は要らない
+    # （GitHub Actions の schedule は数時間遅れる前提＝CLAUDE.md の基本ルール）。
+    # 他の日次ワークフローとぶつけない時刻にしてある。
+    - cron: "40 20 * * *" # 05:40 JST 前後
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: vercel-usage
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # トークン未登録の間は「静かにスキップ」する（gsc-snapshot.yml と同じ設計思想）。
+      # ここで失敗させると、セットアップが済むまで毎日Issueが積み上がる。
+      - name: トークンが登録されているか確認する
+        id: guard
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "VERCEL_TOKEN が未登録のためスキップします（docs/vercel-usage-setup.md）。"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # トークンはここでだけ環境変数として渡す。**コマンドライン引数には載せない**
+      # （argv はプロセス一覧に出る。スクリプトは Authorization ヘッダーで送る）。
+      - name: 利用量を取得する
+        if: steps.guard.outputs.configured == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+        run: node scripts/fetch-vercel-usage.js
+
+      # 取れた日は判定まで出しておく（ログを見れば分かる状態にする）。
+      # ここで失敗させない（超過は「取得の失敗」ではないので、Issueの意味が変わる）。
+      - name: 判定を出す（参考・失敗させない）
+        if: steps.guard.outputs.configured == 'true'
+        continue-on-error: true
+        run: node scripts/usage-report.js
+
+      - name: 取得結果をコミットする
+        if: always() && steps.guard.outputs.configured == 'true'
+        run: |
+          if [ -z "$(git status --porcelain content/analytics)" ]; then
+            echo "差分なし。コミットしません。"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add content/analytics
+          git commit -m "Vercel利用量の取得（$(date -u +%Y-%m-%d)）"
+          # pushが弾かれるのは「再実行」と「他の日次ワークフローと重なった」ときで、
+          # どちらもrebaseして1回再試行すれば通る（触るファイルが互いに違うため衝突しない）。
+          git push || (git pull --rebase --autostash && git push)
+
+      # 失敗をログの中だけで終わらせない（gsc-snapshot.yml と同じ考え方）。
+      - name: 失敗したらIssueに出す
+        if: failure() && steps.guard.outputs.configured == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = "Vercel利用量の取得が失敗しました";
+            const { data: open } = await github.rest.issues.listForRepo({
+              ...context.repo, state: "open", labels: "vercel-usage", per_page: 10,
+            });
+            const body = [
+              `Vercelの請求明細（/v1/billing/charges）の日次取得が失敗しました。`,
+              ``,
+              `- ログ: ${url}`,
+              `- 取得内容: \`scripts/fetch-vercel-usage.js\` / セットアップ: \`docs/vercel-usage-setup.md\``,
+              ``,
+              `よくある原因:`,
+              `- \`VERCEL_TOKEN\` の有効期限が切れた（作り直して Secrets を更新する）`,
+              `- トークンのスコープが違う（個人アカウントのトークンか確認する）`,
+              `- 明細が0件で返った（このアカウントでは請求明細を読めない可能性。手順書の「うまくいかないとき」）`,
+              ``,
+              `一時的なエラー（429・5xx）は指数バックオフで再試行済みなので、ここまで来た失敗は恒久的なものの可能性が高いです。`,
+            ].join("\n");
+            if (open.length > 0) {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: open[0].number, body });
+            } else {
+              await github.rest.issues.create({ ...context.repo, title, body, labels: ["vercel-usage"] });
+            }

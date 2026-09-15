@@ -87,6 +87,25 @@ const SERIES = [
     since: "2026-09-09",
   },
   {
+    key: "usage",
+    label: "Vercelの利用量（請求明細）",
+    kind: "dir",
+    rel: "content/analytics/usage",
+    script: "scripts/fetch-vercel-usage.js",
+    staleDays: 2,
+    // 明細は日単位で確定し、毎回**直近35日ぶん**を丸ごと取り直す。したがって1日落ちても
+    // 翌日のファイルが同じ日を覆う＝取り返せる（欠測は警告）。ただし最新が古すぎれば
+    // 「1日落ちた」ではなく収集が止まっているので、上の共通ルールで失敗になる。
+    recoverable: true,
+    recoverNote: "毎回直近35日を取り直すので翌日のファイルが同じ日を覆う",
+    since: "2026-09-15",
+    // 1件目が入るまでの猶予を欠測の許容（staleDays）と分ける。この収集だけは
+    // **開始に人の作業（Vercelでトークンを作りGitHub Secretsへ登録する）が要る**ので、
+    // 2日で赤くするとセットアップが済むまで毎日失敗が積み上がる。毎日赤い検査は
+    // 数日で読まれなくなり、そのうち本物の欠測も一緒に見逃す（㉔）。
+    startGraceDays: 14,
+  },
+  {
     key: "first-seen",
     label: "クール別の初出日",
     kind: "first-seen",
@@ -233,7 +252,10 @@ function checkRegistration() {
  * 猶予が無いと必ず赤くなる。猶予を過ぎても1件も無ければ、そこで初めて失敗にする。
  */
 function inStartGrace(s) {
-  return Boolean(s.since) && diffDays(TODAY, s.since) <= s.staleDays;
+  // 猶予の長さは既定で staleDays。**開始に人の作業が要る収集だけ** startGraceDays で
+  // 別に伸ばせる（欠測の許容を緩めずに、セットアップ待ちの期間だけ赤くしない）。
+  const grace = s.startGraceDays ?? s.staleDays;
+  return Boolean(s.since) && diffDays(TODAY, s.since) <= grace;
 }
 
 function checkSeries(s) {
