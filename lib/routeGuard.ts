@@ -39,7 +39,21 @@
 // （毎リクエスト動的描画に倒せば塞げるが、Active CPU を代わりに払うことになり
 // いまの逼迫状況では割に合わない）。
 // ───────────────────────────────────────────────────────────────
-
+//
+// 【2026-09-15追記・重大度高】`/api/work/[id]` と `/embed/anime/[id]` は
+// 元々「形が不正なIDには400を返す」という契約を自分の route handler で持っていた
+// （`app/api/work/[id]/route.ts`・`app/embed/anime/[id]/route.ts`。この検査は
+// `scripts/verify-production.sh` のH-3節が本番で確認している）。
+// ところが上のmiddlewareは全ての対象ルートに一律で**404**を返すため、
+// 2026-09-06の導入以降この2窓口は route handler に届く前にmiddlewareへ横取りされ、
+// 400を返すべき場面で404を返すようになっていた（本番実測で6日間気づかれずに継続。
+// `.github/workflows/verify-production.yml` のIssue #146）。
+// **画面には何も出ない壊れ方**（人が踏むページではなく、公開APIと埋め込みの
+// 契約だけが壊れる）なので、この検査が無いと二度と気づけない。
+// 対応: ルートごとに「弾いたときに返すべきstatus」を表に持たせ、middlewareは
+// それに従って404/400を出し分ける（ISRへ書き込ませない、という元の目的は
+// どちらのstatusでも変わらず満たせる）。
+//
 import { parseWorkId } from "./workId.ts";
 import { isSeasonYearInRange } from "./resolveSeasonParams.ts";
 
@@ -48,64 +62,76 @@ import { isSeasonYearInRange } from "./resolveSeasonParams.ts";
  *
  * `index` は pathname を "/" で切ったときの、IDが入る位置
  * （先頭は空文字なので `/anime/[id]` なら 2、`/api/work/[id]` なら 3）。
+ * `malformedStatus` は、このルートで形が不正なIDに返すべきHTTPステータス
+ * （ページは404。公開API・埋め込みは元々の route handler の契約どおり400）。
  *
  * **手で足さないこと。** `scripts/check.ts` の「不正な形のURLを描画前に弾く」節が
  * `scripts/lib/app-routes.js` で `app/` を走査し、`[id]` を持つルートが全部ここに
  * 載っているかを突き合わせる。新しい窓口を足してここに書き忘れると検査が落ちる。
  */
-export const WORK_ID_ROUTES: { prefix: string; index: number }[] = [
-  { prefix: "/anime/", index: 2 },
-  { prefix: "/api/work/", index: 3 },
-  { prefix: "/embed/anime/", index: 3 },
+export const WORK_ID_ROUTES: { prefix: string; index: number; malformedStatus: 400 | 404 }[] = [
+  { prefix: "/anime/", index: 2, malformedStatus: 404 },
+  { prefix: "/api/work/", index: 3, malformedStatus: 400 },
+  { prefix: "/embed/anime/", index: 3, malformedStatus: 400 },
 ];
 
 /**
- * 年を含むルートの一覧。`index` の意味は上と同じ。
+ * 年を含むルートの一覧。`index`・`malformedStatus` の意味は上と同じ。
  *
  * `/service/[key]/[year]/[season]` と `/person/[name]/[year]/[season]` は
- * 年が3番目に来る（`[key]`・`[name]` が先にある）。
+ * 年が3番目に来る（`[key]`・`[name]` が先にある）。こちらは全部ページ（API窓口を
+ * 持たない）なので、いまのところ全件404。
  */
-export const SEASON_YEAR_ROUTES: { prefix: string; index: number }[] = [
-  { prefix: "/season/", index: 2 },
-  { prefix: "/rankings/", index: 2 },
-  { prefix: "/exclusive/", index: 2 },
-  { prefix: "/service/", index: 3 },
-  { prefix: "/person/", index: 3 },
+export const SEASON_YEAR_ROUTES: { prefix: string; index: number; malformedStatus: 400 | 404 }[] = [
+  { prefix: "/season/", index: 2, malformedStatus: 404 },
+  { prefix: "/rankings/", index: 2, malformedStatus: 404 },
+  { prefix: "/exclusive/", index: 2, malformedStatus: 404 },
+  { prefix: "/service/", index: 3, malformedStatus: 404 },
+  { prefix: "/person/", index: 3, malformedStatus: 404 },
 ];
 
 /**
- * このURLは「形として不正」か。
+ * このURLは「形として不正」か。形が不正なら、そのルートが返すべきHTTPステータス
+ * （404 or 400。上の表の `malformedStatus`）を返す。正常な形なら `null`。
  *
- * true を返したら、ページを描画せずに404を返してよい（描画すると
- * Next.js がその404をISRキャッシュに書き込んでしまうため）。
+ * null 以外を返したら、ページ／handler を描画せずにそのステータスを返してよい
+ * （描画すると Next.js がその404をISRキャッシュに書き込んでしまうため）。
  *
- * **判定できないものは false を返す**（＝従来どおりページに任せる）。
+ * **判定できないものは null を返す**（＝従来どおりページに任せる）。
  * ここで迷ったら通す、が原則。取りこぼしはISRの書き込みが1件増えるだけだが、
- * 誤判定は**正常なページが404になる**という桁違いに重い事故になる。
+ * 誤判定は**正常なページが消える**という桁違いに重い事故になる。
  *
  * @param pathname `request.nextUrl.pathname`（先頭が "/" のパス。クエリを含まない）
  * @param now      年の上限（今年+1）の判定に使う。テストから固定するために外から渡せる
  */
-export function isMalformedRoutePath(pathname: string, now: Date = new Date()): boolean {
+export function malformedRouteStatus(pathname: string, now: Date = new Date()): 400 | 404 | null {
   // 末尾の "/" は Next 側で正規化されるので、判定の前に落としておく
   // （"/anime/0x3374/" を素通しさせない）。
   const clean = pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
   const parts = clean.split("/");
 
-  for (const { prefix, index } of WORK_ID_ROUTES) {
+  for (const { prefix, index, malformedStatus } of WORK_ID_ROUTES) {
     if (!clean.startsWith(prefix)) continue;
     const raw = parts[index];
     // セグメントが無いのは「一覧」など別のURL。ここでは判定しない。
-    if (raw === undefined || raw === "") return false;
-    return parseWorkId(raw) === null;
+    if (raw === undefined || raw === "") return null;
+    return parseWorkId(raw) === null ? malformedStatus : null;
   }
 
-  for (const { prefix, index } of SEASON_YEAR_ROUTES) {
+  for (const { prefix, index, malformedStatus } of SEASON_YEAR_ROUTES) {
     if (!clean.startsWith(prefix)) continue;
     const raw = parts[index];
-    if (raw === undefined || raw === "") return false;
-    return !isSeasonYearInRange(raw, now);
+    if (raw === undefined || raw === "") return null;
+    return !isSeasonYearInRange(raw, now) ? malformedStatus : null;
   }
 
-  return false;
+  return null;
+}
+
+/**
+ * `malformedRouteStatus` の真偽値版（後方互換用）。
+ * ステータスの出し分けが要らない呼び出し側はこちらを使う。
+ */
+export function isMalformedRoutePath(pathname: string, now: Date = new Date()): boolean {
+  return malformedRouteStatus(pathname, now) !== null;
 }

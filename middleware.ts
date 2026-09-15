@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
-import { isMalformedRoutePath } from "@/lib/routeGuard";
+import { malformedRouteStatus } from "@/lib/routeGuard";
 
-// 形として不正なURLに返す404の本文。
+// 形として不正なURLに返す404の本文（ページ向け）。
 //
 // **なぜ components/NotFoundPanel.tsx を使わないか**（㊴の「404を行き止まりに
 // しない」との関係）: ㊴が守っているのは「検索結果や古いリンクから**人が**
@@ -20,14 +20,56 @@ const NOT_FOUND_HTML = `<!doctype html><html lang="ja"><head><meta charset="utf-
 <p><a href="/">アニメ視聴ガイドのトップへ</a></p>
 </body></html>`;
 
+// 埋め込み（/embed/anime/[id]）向けの400本文。
+// `app/embed/anime/[id]/route.ts` の `plain()` と同じ見た目・同じ文言にする
+// （middlewareが横取りしても route handler が返すのと区別が付かないように）。
+const EMBED_BAD_ID_HTML = `<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="robots" content="noindex"><title>アニメ視聴ガイド</title></head>
+<body style="margin:0;font:13px/1.6 system-ui,sans-serif;color:#5b6472;padding:12px">
+作品IDが正しくありません。</body></html>`;
+
 export async function middleware(request: NextRequest) {
-  // 【重要】形が不正なURLは、ページを描画する**前に**ここで返す。
-  // 描画させると Next.js がその404をISRキャッシュに書き込み、
+  // 【重要】形が不正なURLは、ページ／route handler を描画する**前に**ここで返す。
+  // 描画させると Next.js がその応答をISRキャッシュに書き込み、
   // 未見の不正な文字列の数だけ書き込みが増える（Next.js #73101・未修正）。
   // 理由と実測は lib/routeGuard.ts の冒頭。
-  if (isMalformedRoutePath(request.nextUrl.pathname)) {
+  //
+  // 【2026-09-15修正】どのルートも一律404を返していたため、`/api/work/[id]`・
+  // `/embed/anime/[id]` が route handler 自身の契約（400）を6日間破っていた
+  // （`scripts/verify-production.sh` のH-3節・Issue #146）。ここで
+  // ルートごとの `malformedStatus` に従って出し分ける。
+  const status = malformedRouteStatus(request.nextUrl.pathname);
+  if (status !== null) {
+    const { pathname } = request.nextUrl;
+
+    if (pathname.startsWith("/api/work/")) {
+      return NextResponse.json(
+        { error: "作品ID（Annict の annictId）を整数で指定してください。" },
+        {
+          status,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "cache-control": "public, max-age=0, s-maxage=604800",
+          },
+        }
+      );
+    }
+
+    if (pathname.startsWith("/embed/anime/")) {
+      return new NextResponse(EMBED_BAD_ID_HTML, {
+        status,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          // route handler 側の同じ失敗（plain()）に合わせ、エッジにも置かない。
+          "cache-control": "no-store",
+          "x-robots-tag": "noindex",
+        },
+      });
+    }
+
     return new NextResponse(NOT_FOUND_HTML, {
-      status: 404,
+      status,
       headers: {
         "content-type": "text/html; charset=utf-8",
         // 不正な形のURLは中身が変わらないので、エッジに置いて関数の起動自体を減らす。
