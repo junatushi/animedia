@@ -80,6 +80,18 @@ function fixture(o) {
     w("content/coverage/first-seen.json", JSON.stringify({ sources }));
   }
   for (const d of o.extraDirs || []) fs.mkdirSync(path.join(root, d), { recursive: true });
+  // 収集を回すワークフローを、**本物をそのまま写して**置く（2026-09-19追加）。
+  // freshness.js は「その系列の script を呼ぶワークフローがあるか」を走査で導出するので、
+  // ここを手で並べると系列を足すたびにズレる。写しておけば自動で追随する。
+  // noWorkflows: true … 写さない＝「回すものが無い」状態を再現する。
+  if (!o.noWorkflows) {
+    const src = path.join(__dirname, "..", ".github", "workflows");
+    const dst = path.join(root, ".github", "workflows");
+    fs.mkdirSync(dst, { recursive: true });
+    for (const f of fs.readdirSync(src)) {
+      if (/\.ya?ml$/.test(f)) fs.copyFileSync(path.join(src, f), path.join(dst, f));
+    }
+  }
   return root;
 }
 
@@ -264,6 +276,36 @@ function main() {
     const r = run(use({ gsc: gscHealthy, site: siteHealthy }), TODAY); // first-seen を作らない
     const caught = r.code !== 0 && /一度も成功していない|が無い/.test(r.out);
     check("⑦ 収集先が無ければ失敗になる", caught, caught ? "失敗として検出" : "静かに成功した");
+  }
+
+  // ⑨ 収集が「一度も動いていない」形を見逃さない（2026-09-19追加）。
+  //
+  // 欠測（動いて失敗した）とは原因がまったく違う。**回すワークフローが無い／
+  // デフォルトブランチに入っていない**場合、GitHubはスケジュールに登録すらしないので
+  // 実行ログも失敗Issueも残らず、「失敗した」とすら気づけない。実際に
+  // measure-speed.yml が作業ブランチにしか無く、10日間まったく動かなかった。
+  {
+    const r = run(use({ gsc: gscHealthy, site: siteHealthy, firstSeen: fsHealthy, noWorkflows: true }), TODAY);
+    const caught = r.code !== 0 && /収集を回すワークフローがある/.test(r.out) && /を呼ぶワークフローが無い/.test(r.out);
+    check("⑨ 回すワークフローが無ければ失敗になる", caught, caught ? "失敗として検出" : "静かに通した");
+  }
+
+  // ⑨' 1件も入っていないときは、**どこを見ればよいか**まで出す。
+  // ここが「1件も無い」だけだと、人は欠測と同じ扱いでログを探しに行き、
+  // ログが存在しない（＝一度も起動していない）ことに辿り着けない。
+  {
+    const late = day(TODAY, 30); // speed の開始猶予（staleDays=2）を確実に過ぎた日
+    const r = run(
+      use({
+        gsc: streak(day(late, -3), 10),
+        site: streak(late, 10),
+        firstSeen: { "annict 2026-autumn": streak(late, 10), "anilist 2026-autumn": streak(late, 10) },
+        speed: [],
+      }),
+      late
+    );
+    const named = /デフォルトブランチ（main）/.test(r.out) && /measure-speed\.yml/.test(r.out);
+    check("⑨' 1件も無いとき確認先を名指しする", r.code !== 0 && named, named ? "mainへの未マージを名指し" : "原因を示さない");
   }
 
   for (const t of tmps) fs.rmSync(t, { recursive: true, force: true });

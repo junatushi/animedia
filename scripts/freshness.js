@@ -84,7 +84,10 @@ const SERIES = [
     // （first-seen と違い、欠測日そのものが測定対象ではない）。
     recoverable: true,
     recoverNote: "翌日の計測が同じ条件で取れる（欠測日の値そのものは取り返せない）",
-    since: "2026-09-09",
+    // **書いた日ではなくmainにマージした日を入れる**（㊽）。GitHubはmainにある
+    // ワークフローしかスケジュール登録しないので、未マージの間は1件も入らないのが正常。
+    // 2026-09-09に書いたが、mainに入るのは2026-09-19（10日間まったく動かなかった）。
+    since: "2026-09-19",
   },
   {
     key: "usage",
@@ -98,7 +101,8 @@ const SERIES = [
     // 「1日落ちた」ではなく収集が止まっているので、上の共通ルールで失敗になる。
     recoverable: true,
     recoverNote: "毎回直近35日を取り直すので翌日のファイルが同じ日を覆う",
-    since: "2026-09-15",
+    // speed と同じく**マージ日**（㊽）。2026-09-15に書いたが main に入るのは 2026-09-19。
+    since: "2026-09-19",
     // 1件目が入るまでの猶予を欠測の許容（staleDays）と分ける。この収集だけは
     // **開始に人の作業（Vercelでトークンを作りGitHub Secretsへ登録する）が要る**ので、
     // 2日で赤くするとセットアップが済むまで毎日失敗が積み上がる。毎日赤い検査は
@@ -120,6 +124,10 @@ const SERIES = [
 // 収集先が置かれる場所。ここを走査して、登録漏れを見つける。
 const COLLECTION_DIRS = ["content/analytics"];
 const COLLECTION_FILES = ["content/coverage"];
+
+// 収集を実際に回している仕組み（GitHub Actions）。**系列の script を走査して突き合わせる**
+// ので、ここにファイル名を並べない（㊳「検査の対象を手で数えない。走査して導出する」）。
+const WORKFLOW_DIR = ".github/workflows";
 
 // ── 既知の欠測（記録済み）─────────────────────────────────────
 //
@@ -202,6 +210,31 @@ let warn = 0;
 let acked = 0;
 const line = (mark, name, detail) => console.log(`${mark}  ${String(name).padEnd(34)} → ${detail}`);
 
+/**
+ * その収集スクリプトを呼んでいるワークフローを、`.github/workflows` を走査して導出する。
+ *
+ * **なぜ要るか（2026-09-19）**: 収集が止まる形はもう1つあって、
+ * 「そもそも一度も動いていない」＝**回す仕組みが無い／GitHubに登録されていない**。
+ * 実際に `measure-speed.yml` が10日間まったく動かず、`content/analytics/speed` が
+ * 空のままだった。原因は **GitHub Actions がデフォルトブランチ（main）にある
+ * ワークフローしかスケジュール登録しない**こと。作業ブランチに置いたままだと
+ * schedule も Run workflow ボタンも存在しない＝**ログすら残らないので、
+ * 「失敗した」とも気づけない**（失敗Issueも出ない）。
+ * ここで導出できなければ、少なくとも「この系列を回すものがリポジトリに無い」と言える。
+ */
+function workflowsCalling(script) {
+  const abs = path.join(ROOT, WORKFLOW_DIR);
+  if (!fs.existsSync(abs)) return [];
+  const needle = script.replace(/\\/g, "/");
+  const hits = [];
+  for (const f of fs.readdirSync(abs)) {
+    if (!/\.ya?ml$/.test(f)) continue;
+    const body = fs.readFileSync(path.join(abs, f), "utf8");
+    if (body.includes(needle)) hits.push(f);
+  }
+  return hits;
+}
+
 function checkRegistration() {
   console.log("── 収集先の登録漏れ ──");
   const registered = new Set(SERIES.map((s) => s.rel.replace(/\\/g, "/")));
@@ -241,6 +274,17 @@ function checkRegistration() {
     "登録した収集先が実在する",
     ghosts.length ? `見つからない: ${ghosts.join(" / ")}` : "欠けなし"
   );
+  // 収集先と見張りが揃っていても、**回すものが無ければ1件も入らない**。
+  // ここはスクリプト名で走査して導出する（ワークフロー名を手で並べない）。
+  const undriven = SERIES.filter((s) => workflowsCalling(s.script).length === 0);
+  if (undriven.length) fail++;
+  line(
+    undriven.length ? "✗" : "✓",
+    "収集を回すワークフローがある",
+    undriven.length
+      ? `${undriven.map((s) => `${s.label}（${s.script}）`).join(" / ")} を呼ぶワークフローが無い`
+      : `${SERIES.length} 件すべてに担当のワークフローがある`
+  );
 }
 
 /**
@@ -256,6 +300,20 @@ function inStartGrace(s) {
   // 別に伸ばせる（欠測の許容を緩めずに、セットアップ待ちの期間だけ赤くしない）。
   const grace = s.startGraceDays ?? s.staleDays;
   return Boolean(s.since) && diffDays(TODAY, s.since) <= grace;
+}
+
+/**
+ * 1件も入っていないときに、人がまず確かめる場所を出す。
+ * 「動いて失敗した」のか「一度も動いていない」のかで見る場所が違うため。
+ */
+function startupHint(s) {
+  const flows = workflowsCalling(s.script);
+  if (flows.length === 0) return "（回すワークフローがリポジトリに無い）";
+  return (
+    `\n${" ".repeat(38)}確認: ①${flows.join("・")} が **デフォルトブランチ（main）** に入っているか` +
+    `（GitHubはmainにあるワークフローしかスケジュール登録せず、未マージだとログすら残らない）` +
+    ` ②必要なSecretが登録されているか`
+  );
 }
 
 function checkSeries(s) {
@@ -281,7 +339,16 @@ function checkSeries(s) {
         continue;
       }
       fail++;
-      line("✗", arm, s.since ? `${s.since} に開始したのに1件も無い / ${s.script}` : "日付が1件も無い");
+      // **「1件も無い」は「欠測」とは原因がまったく違う。** 欠測はワークフローが動いて
+      // 失敗した状態（ログも失敗Issueも残る）だが、1件も無いのは大抵**一度も動いていない**。
+      // そのときログはどこにも残らないので、見るべき場所を毎回ここに書いておく（2026-09-19）。
+      line(
+        "✗",
+        arm,
+        s.since
+          ? `${s.since} に開始したのに1件も無い / ${s.script}${startupHint(s)}`
+          : `日付が1件も無い / ${s.script}${startupHint(s)}`
+      );
       continue;
     }
     const latest = [...dates].sort().at(-1);
