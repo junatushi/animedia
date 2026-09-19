@@ -147,6 +147,24 @@ const ACKNOWLEDGED = [
       "2026-08-24〜25の本番停止（HTTP 402／docs/operations.md の㉝）。annict側の情報源は" +
       "デプロイ済みサイト自身の公開API（/api/season）なので、本番が止まると取りに行けない",
   },
+  {
+    series: "first-seen",
+    arm: /^anilist /,
+    dates: [
+      "2026-09-07",
+      "2026-09-08",
+      "2026-09-09",
+      "2026-09-10",
+      "2026-09-11",
+      "2026-09-12",
+    ],
+    reason:
+      "AniList側がGraphQLエンドポイントへのリクエストにHTTP 403を返し続けていた" +
+      "（`scripts/track-season.js`は429/5xxだけ再試行する設計で、403は恒久エラーとして" +
+      "即座に失敗させるため再試行していない）。2026-09-13に自然復旧しGitHub Actions側の" +
+      "変更は無いため、AniList側の一時的なブロック（レート制限か障害）だったとみられる。" +
+      "原因側の詳細は取得できず、再現条件も不明",
+  },
 ];
 
 function acknowledgedFor(seriesKey, arm, date) {
