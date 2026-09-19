@@ -104,7 +104,7 @@ import { parseWorkId } from "../lib/workId.ts";
 // 検査の対象を**手で数えず、app/ を走査して導出する**ための道具（2026-08-31導入）。
 // 名指しの列挙が漏れて OG画像ルートだけ検証を通っていなかった事故から入れた。
 import { appRoutes, dynamicRoutes } from "./lib/app-routes.js";
-import { build as buildInlineCss } from "./build-inline-css.js";
+import { build as buildInlineCss, buildBase as buildInlineCssBase } from "./build-inline-css.js";
 import {
   LAYERS as CSS_LAYER_NAMES,
   collectRouteClasses,
@@ -1591,8 +1591,35 @@ let castsNg = 0;
     `\u2139  ${"スナップショットの切断率".padEnd(40)} \u2192 ` +
       `\u3061\u3087\u3046\u30695\u4ef6 ${atLimit}/${works}\u4f5c\u54c1 (${rate.toFixed(1)}%)` +
       (rate > 20
-        ? "  \u2190 \u65e7\u8a2d\u5b9a\u306e\u307e\u307e\u3002docs/operations.md \u306e\u2473 \u306e\u624b\u9806\u3067\u518d\u751f\u6210\u3059\u308b\u3068\u4e0b\u304c\u308a\u307e\u3059"
+        ? "  \u2190 \u65e7\u8a2d\u5b9a\u306e\u307e\u307e\u3002docs/snapshot-regenerate.md \u306e\u624b\u9806\u3067\u518d\u751f\u6210\u3059\u308b\u3068\u4e0b\u304c\u308a\u307e\u3059"
         : "")
+  );
+
+  // スナップショットの形式（参考表示。NGにはしない）。
+  //
+  // **docs/snapshot-regenerate.md の成否は、この行だけで判定する。**
+  // castCredits（声優×キャラ名）を持つクールは、作品ページをAnnictに出ずに描け、
+  // ビルド時に焼ける＝そのクールの ISR Writes・Fluid CPU・外部APIの往復が恒久的に
+  // ゼロになる（lib/getWorkData.ts の①）。判定そのものは
+  // content/archive/index.json の castCreditsComplete が持ち、ここは数えるだけ
+  // （同じ規則を2箇所に書かない。索引と実データのズレは上の「過去クール索引」が見張る）。
+  //
+  // 初版の手順書はここで「切断率」を見ていたが、それは声優を5人しか取れていなかった
+  // 時代（⑳）の判定で、**その問題が解消したいまは判定に使えない**（再生成しなくても
+  // 低いままになる）。手順書を直すときはこの行を見ること。
+  const archiveIndexForFormat = JSON.parse(
+    readFileSync(new URL("../content/archive/index.json", import.meta.url), "utf8")
+  ) as { seasons: { castCreditsComplete?: boolean }[] };
+  const complete = archiveIndexForFormat.seasons.filter((x) => x.castCreditsComplete).length;
+  const seasonsTotal = archiveIndexForFormat.seasons.length;
+  console.log(
+    `\u2139  ${"スナップショットの形式".padEnd(40)} \u2192 ` +
+      `castCredits あり ${complete}/${seasonsTotal}クール` +
+      (complete === seasonsTotal
+        ? "（作品ページを焼ける）"
+        : complete === 0
+          ? "（旧形式。作品ページは1件も焼けていない＝docs/snapshot-regenerate.md）"
+          : "（一部だけ。残りは docs/snapshot-regenerate.md の手順2を年指定でやり直す）")
   );
 }
 console.log(
@@ -7131,12 +7158,37 @@ let inlineCssNg = 0;
   );
 
   const inlined =
-    /import \{ CSS_LAYERS \} from "\.\/inlineCss"/.test(layoutNoComments) &&
-    /<style dangerouslySetInnerHTML=\{\{ __html: CSS_LAYERS\.base \}\} \/>/.test(layoutNoComments);
+    /import BaseCss from "@\/components\/BaseCss"/.test(layoutNoComments) &&
+    /<BaseCss \/>/.test(layoutNoComments);
   if (!inlined) inlineCssNg++;
   console.log(
     `${inlined ? "✓" : "✗"}  ${"<head> に base 層を埋めている".padEnd(48)} → ` +
-      (inlined ? "app/inlineCss.ts の CSS_LAYERS.base" : "埋め込みが外れている（無スタイルになる）")
+      (inlined ? "components/BaseCss.tsx" : "埋め込みが外れている（無スタイルになる）")
+  );
+
+  // 【重要】base を描くのはクライアントコンポーネントであること（2026-09-19導入）。
+  //
+  // サーバーコンポーネントが <style> を描くと、そのCSS文字列がRSCペイロードへ
+  // そのまま直列化され、**1ページに3コピー**焼かれる（<style> / HTML内の
+  // self.__next_f.push / .rsc ファイル）。base は全ページに載るので、これが
+  // ビルド成果物のいちばん大きな塊になる（2026-09-19実測: 声優ページ1枚97.5KBの
+  // うちCSS 23.0KB。4,483枚で約103MB）。成果物の大きさは Deployment Storage に
+  // 直接効く（保持しているデプロイ数ぶん掛かる）。
+  //
+  // **"use client" を外しても画面は1ピクセルも変わらない。**増えるのは成果物と
+  // 請求だけなので、機械で見張る以外に気づく方法が無い。
+  const baseCss = readFileSync(new URL("../components/BaseCss.tsx", import.meta.url), "utf8");
+  const isClient = /^\s*["']use client["']/m.test(baseCss);
+  const usesBaseModule = /from "@\/app\/inlineCssBase"/.test(stripCommentLines(baseCss));
+  const clientOk = isClient && usesBaseModule;
+  if (!clientOk) inlineCssNg++;
+  console.log(
+    `${clientOk ? "✓" : "✗"}  ${"base はクライアントで描く（3重化を防ぐ）".padEnd(48)} → ` +
+      (clientOk
+        ? "RSCペイロードと .rsc にCSSが載らない"
+        : !isClient
+          ? '"use client" が外れている（CSSが1ページ3コピーに戻る）'
+          : "app/inlineCssBase.ts 以外を import している（explorer層まで client に載る）")
   );
 
   // 生成物が元CSSと一致すること（＝再生成し忘れの検出）。
@@ -7149,12 +7201,17 @@ let inlineCssNg = 0;
   const toLf = (t: string) => t.replace(/\r\n/g, "\n");
   const srcCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   const committed = readFileSync(new URL("../app/inlineCss.ts", import.meta.url), "utf8");
-  const inSync = toLf(buildInlineCss(srcCss)) === toLf(committed);
+  const committedBase = readFileSync(new URL("../app/inlineCssBase.ts", import.meta.url), "utf8");
+  // 生成物は2本ある（base だけを単体モジュールに切り出したため）。**両方**見ないと、
+  // 片方だけ再生成した状態＝base と explorer/detail が別世代、を通してしまう。
+  const inSync =
+    toLf(buildInlineCss(srcCss)) === toLf(committed) &&
+    toLf(buildInlineCssBase(srcCss)) === toLf(committedBase);
   if (!inSync) inlineCssNg++;
   console.log(
-    `${inSync ? "✓" : "✗"}  ${"app/inlineCss.ts が globals.css と同期".padEnd(48)} → ` +
+    `${inSync ? "✓" : "✗"}  ${"生成した2本が globals.css と同期".padEnd(48)} → ` +
       (inSync
-        ? `${(committed.length / 1024).toFixed(1)}KB（元 ${(srcCss.length / 1024).toFixed(1)}KB）`
+        ? `${((committed.length + committedBase.length) / 1024).toFixed(1)}KB（元 ${(srcCss.length / 1024).toFixed(1)}KB）`
         : "`node scripts/build-inline-css.js` を実行すること")
   );
 

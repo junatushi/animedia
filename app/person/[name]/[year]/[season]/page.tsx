@@ -106,9 +106,32 @@ export function generateStaticParams(): Params[] {
     }
   }
 
+  // 総出演数（索引方針の判定に要る）。people.json のその人の出演件数そのもの。
+  const totalWorks = new Map<string, number>();
+  for (const [name, works] of Object.entries((personIndexJson as unknown as PersonIndex).people)) {
+    totalWorks.set(name, works.length);
+  }
+
   const params: Params[] = [];
   for (const c of counts.values()) {
     if (c.count < MIN_APPEARANCES) continue;
+    // 【2026-09-19】**索引に載せないページは焼かない**（成果物の予算を守る）。
+    //
+    // それまでは「そのクールに2作品以上」だけで焼いており、実測で4,483枚のうち
+    // 2,109枚（47%）が noindex だった＝**検索から辿れないページのために
+    // 成果物を164MB使っていた**。Deployment Storage は保持しているデプロイ数ぶん
+    // 掛かる（Hobbyは直近10件が消えない）ので、1デプロイの164MBは床で1.6GBになる。
+    //
+    // 判定は lib/personPage.ts の shouldIndexPersonSeasonPage **だけ**が持つ
+    // ＝sitemap・noindex・事前生成の3つが必ず同じ集合を指す（閾値をここに書き写さない）。
+    // 焼かなくなったページは消えない（オンデマンドISRで従来どおり出る）。過去クールは
+    // content/snapshots/ から描けるのでAnnictには出ない。
+    //
+    // **交換条件**: 焼かない分はデプロイのたびに最初の1回だけISR Writeを払う。
+    // 見込みでは +1,754 writes/日だが、同時に入れる作品ページの事前生成が
+    // −6,440 writes/日なので差し引きで減る（docs/operations.md の[52]）。
+    // 戻したくなったらこの3行を消すだけでよい。
+    if (!shouldIndexPersonSeasonPage(c.year, totalWorks.get(c.name) ?? 0)) continue;
   // **名前はエンコードせずに渡す**（2026-08-31。lib/staticParams.ts に経緯）。
   // encodeURIComponent したものを渡すと成果物が `%E3%81%B4….html` というファイル名で
   // 焼かれ、Vercelはデコード後のパスで探すため本番だけ404になる（ローカルでは再現しない）。
