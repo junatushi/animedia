@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-18",
+  "updatedAt": "2026-09-19",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -7,7 +7,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/143103",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "魔法使いの夜"
     },
@@ -27,7 +27,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/160275",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "メイドインアビス 目覚める神秘"
     },
@@ -36,7 +36,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/169579",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "世界最高の暗殺者、異世界貴族に転生する Season2"
     },
@@ -56,7 +56,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/171630",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "THE ONE PIECE"
     },
@@ -74,7 +74,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/157330",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "楽園追放 心のレゾナンス"
     },
@@ -83,7 +83,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/174427",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ゾンビのあふれた世界で俺だけが襲われない"
     },
@@ -94,7 +94,7 @@
       "time": "23:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/176314",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "佐々木とピーちゃん Season2"
     },
@@ -103,7 +103,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/177704",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "マッシュル-MASHLE- 三魔対争神覚者最終試験編"
     },
@@ -125,7 +125,7 @@
       "time": "23:46",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/178868",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "魔法騎士レイアース (2026)"
     },
@@ -154,7 +154,7 @@
       "precision": "day",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/195539",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "サイバーパンク: エッジランナーズ2"
     },
@@ -165,7 +165,7 @@
       "time": "02:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/160803",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "魔法少女育成計画restart"
     },
@@ -174,7 +174,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/185697",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "アルカナディア"
     },
@@ -183,7 +183,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/185699",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ラーメン赤猫 其の二"
     },
@@ -214,7 +214,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/186741",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "姫騎士様のヒモ"
     },
@@ -223,7 +223,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/186822",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "気になってる人が男じゃなかった"
     },
@@ -232,7 +232,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/187303",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ジャイアントお嬢様"
     },
@@ -272,7 +272,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/188546",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "俺と悠兄！"
     },
@@ -281,7 +281,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/188892",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "黒岩メダカに私の可愛いが通じない Season2"
     },
@@ -290,7 +290,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/189121",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "「BanG Dream! It's MyGO!!!!! / BanG Dream! Ave Mujica」アニメ続編シリーズ"
     },
@@ -310,7 +310,7 @@
       "precision": "day",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/189323",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "シャングリラ・フロンティア〜クソゲーハンター、神ゲーに挑まんとす〜 3rd season"
     },
@@ -321,7 +321,7 @@
       "time": "19:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/190054",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "わたしの幸せな結婚 特別篇"
     },
@@ -352,7 +352,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/194030",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ガチャを回して仲間を増やす 最強の美少女軍団を作り上げろ"
     },
@@ -361,7 +361,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/194213",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ghost／夜の果て"
     },
@@ -381,7 +381,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/178972",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "GROTESQQQUE -グロテスク-"
     },
@@ -401,16 +401,18 @@
       "time": "23:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/195604",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ブラッククローバー 2nd Season"
     },
     "16335": {
-      "date": "2026-10",
-      "precision": "month",
+      "date": "2026-10-02",
+      "precision": "day",
+      "weekday": 5,
+      "time": "18:40",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/194207",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "パンどろぼう"
     },
@@ -419,7 +421,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/196333",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ひらやすみ"
     },
@@ -428,7 +430,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/197095",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "欠けた月のメルセデス"
     },
@@ -437,7 +439,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/197543",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "BanG Dream! Ave Mujica prima aurora"
     },
@@ -446,7 +448,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/197619",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "結界師の一輪華"
     },
@@ -455,7 +457,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/198728",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "風を継ぐもの"
     },
@@ -484,7 +486,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/199340",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "青春ブタ野郎はディアフレンドの夢を見ない"
     },
@@ -504,7 +506,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/199590",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "茉莉花官吏伝"
     },
@@ -515,7 +517,7 @@
       "time": "00:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/199594",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "てつりょー！meet with 鉄道むすめ"
     },
@@ -526,7 +528,7 @@
       "time": "23:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/200294",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "超巡！超条先輩"
     },
@@ -535,7 +537,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/200578",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "一式さんは恋を知りたい。"
     },
@@ -544,7 +546,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/200929",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "劇場版 薬屋のひとりごと 亡妃の秘宝"
     },
@@ -555,7 +557,7 @@
       "time": "22:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/202079",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "おじさんはカワイイものがお好き。"
     },
@@ -573,7 +575,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/202390",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ガールズ&パンツァー 最終章 第5話"
     },
@@ -582,7 +584,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/203116",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "title",
       "title": "カリスマ"
     },
@@ -591,7 +593,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/203141",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "えぶりでいホスト 続編"
     },
@@ -600,16 +602,18 @@
       "precision": "day",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/203275",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "title",
       "title": "デモンズ・クレスト"
     },
     "16806": {
-      "date": "2026-10",
-      "precision": "month",
+      "date": "2026-10-10",
+      "precision": "day",
+      "weekday": 6,
+      "time": "23:45",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/203473",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "恐怖コレクター"
     },
@@ -620,7 +624,7 @@
       "time": "23:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/204011",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "PSYREN -サイレン-"
     },
@@ -629,7 +633,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/204363",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "SAKAMOTO DAYS 第2期"
     },
@@ -658,7 +662,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/204561",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "魔法のプリンセス ミンキーモモ 憧れの夢へ まごころの二重奏"
     },
@@ -667,7 +671,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/204579",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "地雷なんですか？地原さん"
     },
@@ -676,7 +680,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/204650",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "桃源暗鬼 ～日光・華厳の滝編～"
     },
@@ -685,7 +689,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/205130",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ヒストリエ"
     },
@@ -694,7 +698,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/215695",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "こまどり モフモフパレード"
     },
@@ -723,7 +727,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/206163",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "装甲騎兵ボトムズ 灰色の魔女"
     },
@@ -732,7 +736,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/206298",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "劇場版 メダリスト"
     },
@@ -752,7 +756,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/212653",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "title",
       "title": "機動警察パトレイバー EZY File 3"
     },
@@ -805,7 +809,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/207251",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "魔入りました！入間くん if Episode of 魔フィア"
     },
@@ -814,16 +818,18 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/207328",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "悠久の愚者アズリーの、賢者のすゝめ"
     },
     "17097": {
-      "date": "2026-10",
-      "precision": "month",
+      "date": "2026-10-07",
+      "precision": "day",
+      "weekday": 3,
+      "time": "00:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/207329",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "追放されたチート付与魔術師は気ままなセカンドライフを謳歌する。 ～俺は武器だけじゃなく、あらゆるものに『強化ポイント』を付与できるし、俺の意思でいつでも効果を解除できるけど、残った人たち大丈夫？～"
     },
@@ -832,7 +838,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/207327",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "どこよりも遠い場所にいる君へ"
     },
@@ -852,7 +858,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/208766",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ブレス"
     },
@@ -861,7 +867,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/209224",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ゲーム世界転生〈ダン活〉～ゲーマーは【ダンジョン就活のススメ】を〈はじめから〉プレイする～"
     },
@@ -901,7 +907,7 @@
       "time": "00:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/209463",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "彼方から"
     },
@@ -919,7 +925,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/209661",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "雑用付与術師が自分の最強に気付くまで"
     },
@@ -939,7 +945,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/209642",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "劇場版 前橋ウィッチーズ ～魔女見習いのエモエモリーズ～"
     },
@@ -959,7 +965,7 @@
       "time": "00:56",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/209872",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "らんま1/2 第3期"
     },
@@ -968,7 +974,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/210157",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ラブライブ！蓮ノ空女学院スクールアイドルクラブ"
     },
@@ -979,7 +985,7 @@
       "time": "23:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/198727",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "千歳くんはラムネ瓶のなか 第2クール"
     },
@@ -988,7 +994,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/210199",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ザ・ファブル 第2期"
     },
@@ -997,7 +1003,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/214536",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "カードファイト!! ヴァンガード Divinez 運命星戦編"
     },
@@ -1006,9 +1012,18 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/211070",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ペンと手錠と事実婚"
+    },
+    "17489": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/211258",
+      "fetchedDate": "2026-09-19",
+      "matchedBy": "title",
+      "title": "アラフォー賢者の異世界生活日記"
     },
     "17539": {
       "date": "2026-10-07",
@@ -1017,7 +1032,7 @@
       "time": "22:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/211778",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "世界最強の魔女、始めました"
     },
@@ -1037,7 +1052,7 @@
       "precision": "day",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/212144",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "傷だらけ聖女より報復をこめて Season2"
     },
@@ -1057,7 +1072,7 @@
       "precision": "day",
       "kind": "release",
       "sourceUrl": "https://anilist.co/anime/212539",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "タコピーの原罪 -ありがとう、また明日-"
     },
@@ -1075,7 +1090,7 @@
       "precision": "day",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/212799",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "マロニエ王国の七人の騎士"
     },
@@ -1104,8 +1119,8 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/213360",
-      "fetchedDate": "2026-09-18",
-      "matchedBy": "title",
+      "fetchedDate": "2026-09-19",
+      "matchedBy": "mal",
       "title": "あかね噺 第2期"
     },
     "17803": {
@@ -1124,16 +1139,25 @@
       "time": "22:30",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/209032",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "魔法の姉妹ルルットリリィ 第2クール"
+    },
+    "17818": {
+      "date": "2026-11-26",
+      "precision": "day",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/213457",
+      "fetchedDate": "2026-09-19",
+      "matchedBy": "mal",
+      "title": "フールナイト"
     },
     "17823": {
       "date": "2027-01",
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/213497",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "すだちの魔王城"
     },
@@ -1142,7 +1166,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/213657",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "夜桜さんちの大作戦 第2期 第2クール"
     },
@@ -1162,7 +1186,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/213752",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "マリッジトキシン 第2期"
     },
@@ -1182,7 +1206,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/213877",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "MURCIÉLAGO-ムルシエラゴ-"
     },
@@ -1191,7 +1215,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/214049",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "傷口と包帯"
     },
@@ -1211,7 +1235,7 @@
       "time": "11:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/214593",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "title",
       "title": "ゆうさんち！from 遊ハち"
     },
@@ -1222,7 +1246,7 @@
       "time": "09:30",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/214968",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "url",
       "title": "ねずみくんのチョッキ 第2期"
     },
@@ -1231,7 +1255,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/215835",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "うまゆる ふるげ～と！"
     },
@@ -1240,7 +1264,7 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/216624",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "死して生きるSSS級ハンター"
     },
@@ -1249,9 +1273,20 @@
       "precision": "month",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/216858",
-      "fetchedDate": "2026-09-18",
+      "fetchedDate": "2026-09-19",
       "matchedBy": "title",
       "title": "ハルとゲン ～70歳、はじめての子育て～"
+    },
+    "18218": {
+      "date": "2026-10-02",
+      "precision": "day",
+      "weekday": 5,
+      "time": "21:26",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/216895",
+      "fetchedDate": "2026-09-19",
+      "matchedBy": "title",
+      "title": "蒼き伝承 ウェルシュ＆シェダー"
     }
   }
 }
