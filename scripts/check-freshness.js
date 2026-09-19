@@ -240,28 +240,30 @@ function main() {
   }
 
   {
-    // ⑧' 開始の猶予（startGraceDays）は欠測の許容（staleDays）と別物。
-    //     人の作業（トークン登録）待ちの収集を、欠測の許容日数で赤くしない。
-    //     usage は since=2026-09-15 / staleDays=2 / startGraceDays=14。
-    //     staleDays だけなら 09-18 で失敗するが、猶予は 09-29 まで効く。
-    const r = run(
-      use({ gsc: streak("2026-09-25", 10), site: streak("2026-09-25", 10),
-            firstSeen: { "annict 2026-autumn": streak("2026-09-25", 10) },
-            speed: streak("2026-09-25", 10), usage: null }),
-      "2026-09-25"
-    );
+    // ⑧' 「待っても直らない」収集（blockedReason）は、猶予を過ぎても赤くしない。
+    //     usage は 2026-09-19 の実測で、Hobbyには請求明細APIが無い（404 Plan not found）と
+    //     確定した。直す手段が無いものを毎日赤くすると数日で読まれなくなり、本物の欠測まで
+    //     一緒に見逃す（㉔）。**ただし黙って消さず、理由を出して残す。**
+    //     猶予（14日）をはるかに過ぎた断面で確かめる。
+    const far = "2026-11-30";
+    const healthy = (d) => ({
+      gsc: streak(day(d, -3), 10),
+      site: streak(d, 10),
+      firstSeen: { "annict 2026-autumn": streak(d, 10), "anilist 2026-autumn": streak(d, 10) },
+      speed: streak(d, 10),
+    });
+    const r = run(use({ ...healthy(far), usage: null }), far);
+    check("⑧' 取得できないと分かっている収集は赤くしない", r.code === 0, `exit=${r.code}`);
     check(
-      "⑧' 開始の猶予は欠測の許容より長くできる",
-      r.code === 0 && /まだ1件目を待っている/.test(r.out),
-      `exit=${r.code}`
+      "⑧' ただし黙って消さず理由を出す",
+      /Hobbyプランには請求明細APIが無い/.test(r.out),
+      /Hobbyプラン/.test(r.out) ? "理由を表示" : "理由が出ていない"
     );
-    const r2 = run(
-      use({ gsc: streak("2026-10-05", 10), site: streak("2026-10-05", 10),
-            firstSeen: { "annict 2026-autumn": streak("2026-10-05", 10) },
-            speed: streak("2026-10-05", 10), usage: null }),
-      "2026-10-05"
-    );
-    check("⑧' 猶予を過ぎれば開始待ちでも失敗する", r2.code !== 0, `exit=${r2.code}`);
+
+    // ⑧'' **1件でも入れば通常の判定に戻る。** プランを変えて取れるようになった日に
+    //      見張りが自動で復活する（理由を消し忘れても永久に素通りする形を作らない）。
+    const r2 = run(use({ ...healthy(far), usage: streak(day(far, -20), 3) }), far);
+    check("⑧'' 1件でも入れば欠測として見張る", r2.code !== 0, `exit=${r2.code}`);
   }
 
   {

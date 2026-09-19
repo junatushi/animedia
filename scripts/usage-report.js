@@ -58,9 +58,18 @@ function latestFile(dir) {
 function main() {
   const file = latestFile(DIR);
   if (!file) {
+    // **「まだ来ていない」と「来ることがない」を混ぜない**（2026-09-19）。
+    // Hobbyには請求明細APIが無いと実測で確定したので、待っていれば入ると読める
+    // 案内をそのまま出すと、毎回「そのうち取れる」と誤読させ続けることになる。
     console.log(`${DIR} にまだ1件もありません。`);
-    console.log("GitHub Actions（.github/workflows/vercel-usage.yml）が1日1回書きます。");
-    console.log("セットアップは docs/vercel-usage-setup.md。");
+    console.log(
+      "このアカウントが Hobby プランなら、**待っても入りません**" +
+        "（請求明細APIが 404 Plan not found を返す＝Hobbyは請求サイクルを持たない。2026-09-19実測）。"
+    );
+    console.log(
+      "その場合の利用量の確認は usage-check.yml が判定日に出すIssue（ダッシュボード目視）が担います。"
+    );
+    console.log("詳細と、有料プランに変えたときの挙動は docs/vercel-usage-setup.md。");
     return;
   }
   const snapshot = JSON.parse(fs.readFileSync(file, "utf8"));

@@ -265,7 +265,9 @@ function startStub(behavior = {}) {
     const status = (behavior.plan || [])[seen.count - 1];
     if (status) {
       res.writeHead(status, { "Content-Type": "application/json" });
-      return res.end(JSON.stringify({ error: { code: "stub", message: "stub" } }));
+      // 本文は差し替えられる。404でも「このプランに請求が無い」と「その他の404」を
+      // 文言で見分けているので、**本物と同じ本文**を流せないと検査にならない。
+      return res.end(behavior.planBody ?? JSON.stringify({ error: { code: "stub", message: "stub" } }));
     }
     res.writeHead(200, { "Content-Type": "application/x-ndjson" });
     res.end(behavior.body ?? CHARGES.map((x) => JSON.stringify(x)).join("\n") + "\n");
@@ -391,6 +393,51 @@ async function main() {
       fs.rmSync(dir, { recursive: true, force: true });
     });
   }
+
+  // 10'. 404「Plan not found」＝このプランに請求の仕組みが無い（2026-09-19・実測で確定）。
+  //      Hobbyで実際に返ってきた本文をそのまま流す。**失敗にしない**（直し方が無いものを
+  //      毎朝Issueに積むと、数日で読まれなくなって本物の障害まで見逃す＝㉔）。
+  //      ただし**黙って抜けない**ので、理由が出ていることまで見る。
+  await withStub(
+    {
+      plan: [404],
+      planBody: JSON.stringify({ error: { code: "not_found", message: "Plan not found." } }),
+    },
+    async ({ baseUrl, seen }) => {
+      const dir = tmpDir();
+      const r = await run(FETCH, {
+        VERCEL_TOKEN: TOKEN,
+        VERCEL_USAGE_BASE: baseUrl,
+        VERCEL_USAGE_OUT_DIR: dir,
+        VERCEL_USAGE_RETRY_BASE_MS: "1",
+      });
+      ok("請求の無いプランは失敗にしない", r.code === 0, `code=${r.code} ${r.err}`);
+      ok("請求の無いプランでも再試行しない", seen.count === 1, String(seen.count));
+      ok("請求の無いプランではファイルを作らない", readOut(dir) === null);
+      ok("黙って抜けず理由を出す", /請求明細がありません/.test(r.out), r.out.slice(0, 120));
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  );
+
+  // 10''. **その他の404は従来どおり失敗させる。** 文言ではなくステータスだけで
+  //       省略扱いにすると、teamIdの指定ミス（同じ `not_found` が返る）を黙って飲み込む。
+  await withStub(
+    {
+      plan: [404],
+      planBody: JSON.stringify({ error: { code: "not_found", message: "Team not found." } }),
+    },
+    async ({ baseUrl }) => {
+      const dir = tmpDir();
+      const r = await run(FETCH, {
+        VERCEL_TOKEN: TOKEN,
+        VERCEL_USAGE_BASE: baseUrl,
+        VERCEL_USAGE_OUT_DIR: dir,
+        VERCEL_USAGE_RETRY_BASE_MS: "1",
+      });
+      ok("請求以外の404は失敗のままにする", r.code !== 0, `code=${r.code}`);
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  );
 
   // 11. トークン未設定なら静かにスキップ
   await withStub({}, async ({ baseUrl, seen }) => {

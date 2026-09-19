@@ -29,6 +29,18 @@
 // 【失敗の扱い】CLAUDE.md「外部APIに投げる処理は一時的な失敗を前提に書く」に従う:
 //   ・429 と 5xx（＝一時的）だけを指数バックオフで再試行する
 //   ・401/403（トークン不正・権限不足）は即座に失敗させる（再試行しない）
+//   ・404 かつ本文が `Plan not found` は**このプランに請求の仕組みが無い**（下）
+//
+// 【2026-09-19・実測で確定】Hobbyプランでは請求明細APIそのものが存在しない。
+// トークンを登録して実行したところ `HTTP 404 {"error":{"code":"not_found",
+// "message":"Plan not found."}}` が返った（認証は通っているので401/403ではない）。
+// Hobbyは無料枠＝請求サイクルを持たないため、請求を前提にしたこの窓口には
+// 該当するレコードが無い。**待っても直らないし、直し方も無い。**
+// そこでこの1パターンだけは「失敗」ではなく**省略**として扱い、理由を言って抜ける。
+// 失敗にすると毎朝Issueにコメントが積み上がり、数日で読まれなくなって本物の
+// 障害まで一緒に見逃す（㉔と同じ壊れ方）。**黙って成功はしない**（必ず理由を出す）。
+// 有料プランへ変えればこの404は出なくなり、取得はそのまま動き出す。
+// 利用量の確認は `usage-check.yml` が判定日に出すIssue（ダッシュボード目視）が担う。
 //
 // 【書き出すJSONに秘密を混ぜない】
 // ここはリポジトリにコミットされる＝公開されるファイルなので、混入すると即漏洩になる。
@@ -55,6 +67,18 @@ const BASE_DELAY_MS = Number(process.env.VERCEL_USAGE_RETRY_BASE_MS ?? 1000);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 class PermanentError extends Error {}
+
+/** このプランに請求の仕組みが無い（Hobby）。失敗ではなく「省略」として扱う。 */
+class NoBillingPlanError extends Error {}
+
+/**
+ * 404 のうち「このプランには請求明細が存在しない」ものだけを見分ける。
+ * **本文の文言で判定する**（`code` は `not_found` という汎用値で、teamId の指定ミスでも
+ * 同じ code が返りうる＝それを省略扱いにすると設定ミスを黙って飲み込むことになる）。
+ */
+function isPlanWithoutBilling(status, body) {
+  return status === 404 && /plan not found/i.test(body);
+}
 
 /** HTTP 429 と 5xx だけを「待てば直るかもしれない」扱いにする。 */
 function isTransient(status) {
@@ -87,6 +111,9 @@ async function requestWithRetry(url, token) {
         `HTTP ${res.status}: トークンが不正か、このアカウントでは請求明細を読めません。` +
           `docs/vercel-usage-setup.md の「うまくいかないとき」を確認してください / ${snippet}`
       );
+    }
+    if (isPlanWithoutBilling(res.status, snippet)) {
+      throw new NoBillingPlanError(`HTTP ${res.status} ${snippet}`);
     }
     if (!isTransient(res.status)) {
       throw new PermanentError(`HTTP ${res.status} ${snippet}`);
@@ -162,9 +189,10 @@ async function main() {
   console.log(`書き出し: ${outPath}（${fromDay}〜${today}）`);
 
   if (result.chargeCount === 0) {
-    // **「利用がゼロ」ではなく「取れていない」**。Hobbyプランで請求明細が
-    // 返るかはこの環境から確かめられなかったので、0件を黙って通すと
+    // **「利用がゼロ」ではなく「取れていない」**。0件を黙って通すと
     // 「ずっと無料枠内」という誤った結論を毎日書き続けることになる。
+    // （200で0件＝窓口はあるのに中身が無い。404「Plan not found」＝窓口ごと無い、
+    //   とは別の状態なので混ぜない。後者は上の NoBillingPlanError が省略として扱う）
     console.log(
       "⚠ 明細が0件でした。利用がゼロなのではなく、このアカウントでは請求明細が" +
         "返っていない可能性があります（docs/vercel-usage-setup.md の「うまくいかないとき」）。"
@@ -178,6 +206,17 @@ async function main() {
 }
 
 main().catch((e) => {
+  if (e instanceof NoBillingPlanError) {
+    // 直しようが無いので失敗にしない。ただし**黙って抜けない**（毎回理由を出す）。
+    console.log(
+      `省略: このプランには請求明細がありません（Hobbyは請求サイクルを持たない）。応答: ${e.message}`
+    );
+    console.log(
+      "利用量の確認は usage-check.yml が判定日に出すIssue（ダッシュボード目視）が担います。" +
+        "有料プランへ変えればこの取得はそのまま動き出します（docs/vercel-usage-setup.md）。"
+    );
+    return;
+  }
   console.error(e instanceof PermanentError ? `恒久的なエラー: ${e.message}` : `失敗: ${e.message}`);
   process.exit(1);
 });

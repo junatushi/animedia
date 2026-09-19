@@ -108,6 +108,14 @@ const SERIES = [
     // 2日で赤くするとセットアップが済むまで毎日失敗が積み上がる。毎日赤い検査は
     // 数日で読まれなくなり、そのうち本物の欠測も一緒に見逃す（㉔）。
     startGraceDays: 14,
+    // 【2026-09-19・実測で確定】トークンを登録して実行したところ、請求明細APIが
+    // `404 {"code":"not_found","message":"Plan not found."}` を返した（認証は通っている）。
+    // **Hobbyは無料枠＝請求サイクルを持たないので、請求を前提にした窓口に該当が無い。**
+    // 設定の誤りではなく、待っても直らず、直す手段も無い（有料プランに変える以外）。
+    // 消さずに理由付きで残す理由は2つ。①消すと「なぜ利用量が自動で取れないのか」が
+    // どこにも残らない ②1件でも入れば自動的に通常の判定へ戻る（プランを変えた日に
+    // 見張りが勝手に復活する）。利用量の確認は usage-check.yml のIssueが担う。
+    blockedReason: "Hobbyプランには請求明細APIが無い（404 Plan not found・2026-09-19実測）",
   },
   {
     key: "first-seen",
@@ -282,7 +290,11 @@ function checkRegistration() {
   );
   // 逆に、登録したのに実物が無い（改名・移動）ことも見る。
   // 開始直後のシリーズは、まだ1件目が入っていない＝ディレクトリが存在しなくて当然。
-  const graceRels = new Set(SERIES.filter(inStartGrace).map((s) => s.rel));
+  // **取得できないと分かっているシリーズ（blockedReason）も同じ**で、こちらは
+  // 猶予と違って永久に実物が現れない（理由は系列の定義に書いてある）。
+  const graceRels = new Set(
+    SERIES.filter((s) => inStartGrace(s) || s.blockedReason).map((s) => s.rel)
+  );
   const ghosts = [...registered].filter(
     (r) => !fs.existsSync(path.join(ROOT, r)) && !graceRels.has(r)
   );
@@ -334,9 +346,28 @@ function startupHint(s) {
   );
 }
 
+/**
+ * 「待っても直らない」収集を、失敗にも欠測にもしない（2026-09-19導入）。
+ *
+ * 欠測の検知は「動くはずのものが動いていない」ことを見張る道具なので、**そもそも
+ * 取得できないと分かっているもの**を赤くし続けると、毎日赤い検査になって数日で
+ * 読まれなくなる（㉔）。かといって系列ごと消すと、見張っていた事実そのものが
+ * 消えて「なぜ無いのか」が誰にも分からなくなる。そこで**理由を出して残す**。
+ *
+ * **1件でも入っていれば通常の判定に戻る**ので、プランを変えて取れるようになった日に
+ * 自動で見張りが復活する（blockedReason を消し忘れても素通りしない）。
+ */
+function noteBlocked(s, name) {
+  line("ℹ", name, `${s.blockedReason} / ${s.script}`);
+}
+
 function checkSeries(s) {
   const arms = armsOf(s);
   if (arms === null) {
+    if (s.blockedReason) {
+      noteBlocked(s, s.label);
+      return;
+    }
     if (inStartGrace(s)) {
       warn++;
       line("・", s.label, `${s.since} から収集開始（まだ1件目を待っている） / ${s.script}`);
@@ -351,6 +382,10 @@ function checkSeries(s) {
       // **収集を始めたばかりのシリーズを、初日から赤くしない。**
       // 毎日赤い検査は数日で読まれなくなり、そのうち新しい欠測も一緒に見逃す（㉔）。
       // since を書いたシリーズは、そこから staleDays を過ぎるまでは「開始待ち」。
+      if (s.blockedReason) {
+        noteBlocked(s, arm);
+        continue;
+      }
       if (inStartGrace(s)) {
         warn++;
         line("・", arm, `${s.since} から収集開始（まだ1件目を待っている） / ${s.script}`);
