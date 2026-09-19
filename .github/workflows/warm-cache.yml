@@ -69,7 +69,19 @@ on:
     # ならない。温めが本当に効くのは「そのデプロイでまだ一度も生成されていないページ」の
     # 初回だけで、それはデプロイ直後に1回巡回すれば足りる。同時にページ側のrevalidateを
     # 3600秒へ延ばしたので、6時間おきでも実訪問者はほぼHITを引く。
-    - cron: "23 */6 * * *"
+    # 【2026-09-14変更】6時間おき → 1日1回。
+    # ①このリポジトリの規則（㉝①）は「巡回の間隔が再検証の間隔より長いと、その巡回は
+    #   温めではなく強制的な書き直しになる」。同日に現在クールのデータTTLを
+    #   21600秒（6時間）へ揃えた（lib/getSeasonData.ts）ので、6時間おきの巡回は
+    #   毎回ちょうど期限切れに当たる＝37ページ×4回/日を確実に再生成する動作になる。
+    # ②鮮度の本線はもう巡回ではない。/api/revalidate（revalidate.yml が1日2回）が
+    #   現在クール＋次クールのページとタグを名指しで古くし、ISRは stale-while-revalidate で
+    #   古いHTMLを即座に返しながら裏で作り直す。つまり実訪問者が待たされる場面は増えない。
+    # ③温めが本当に効くのは「そのデプロイでまだ一度も生成されていないページ」の初回だけ。
+    #   デプロイ直後に1回巡回すれば足りるので、1日1回の保険で足りる。
+    # ④Fluid Active CPU（Hobbyは月4時間）は**再生成のたびに**かかる。出力が前回と
+    #   同じならISR Writesは課金されないが、CPUは課金される。
+    - cron: "23 20 * * *"
   workflow_dispatch:
 
 jobs:
@@ -103,44 +115,12 @@ jobs:
           curl -s -o /dev/null -w "page exclusive ${YEAR}/${CURRENT_SEASON} status=%{http_code} time=%{time_total}s\n" \
             "$BASE/exclusive/${YEAR}/${CURRENT_SEASON}"
 
-      - name: 作品ページ（現在クールの注目度上位）を温める
-        run: |
-          BASE="https://animedia-khaki.vercel.app"
-          # 温める件数。増やすとカバー範囲が広がる代わりにAnnictへの再検証が増える。
-          # 【2026-08-25変更】60 → 30。上のcron変更と同じ理由（ISR Writes上限超過）。
-          # 60件は「watchers分布のカバレッジ」だけを基準に選ばれた値で、利用量の予算から
-          # 逆算されていなかった。1回の巡回72リクエストのうち60件＝83%をここが占めていた。
-          # 30位なら上位の注目作は変わらず入り、外れた作品も stale-while-revalidate と
-          # revalidate=3600 に載るので「初回だけ1秒弱」は変わらない。
-          WORK_LIMIT=30
-          YEAR=$(TZ=Asia/Tokyo date +%Y)
-          MONTH=$(TZ=Asia/Tokyo date +%-m)
-          if [ "$MONTH" -le 3 ]; then CURRENT_SEASON="winter"
-          elif [ "$MONTH" -le 6 ]; then CURRENT_SEASON="spring"
-          elif [ "$MONTH" -le 9 ]; then CURRENT_SEASON="summer"
-          else CURRENT_SEASON="autumn"
-          fi
-          # 上のステップで /api/season を叩いた直後なのでエッジHITで返る（追加負荷なし）。
-          # 応答は { season, count, items: [...] } 形式。items は既に watchers 降順だが、
-          # 並びの前提を持たずに済むよう念のためここでも降順に並べ直す。
-          # 配列スライス（.[:$n]）ではなく limit を使う。jqの版差の影響を受けにくく、
-          # watchers が欠けている作品があっても // 0 で落ちない。
-          IDS=$(curl -s "$BASE/api/season?year=${YEAR}&season=${CURRENT_SEASON}" \
-            | jq -r --argjson n "$WORK_LIMIT" \
-              '.items | sort_by(-(.watchers // 0)) | limit($n; .[]) | .id')
-          if [ -z "$IDS" ]; then
-            echo "作品IDを取得できませんでした（/api/season の応答を確認）"
-            exit 1
-          fi
-          echo "温め対象: $(echo "$IDS" | wc -l) 件"
-          MISS=0
-          for ID in $IDS; do
-            # ISRのキャッシュエントリはHTMLとRSCペイロードが1組で書かれるため、
-            # HTMLを1回叩けばカードのタップ（＝クライアント遷移でRSCを取得）も
-            # HITになる（ローカル本番ビルドで実測確認済み）。
-            CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/anime/${ID}")
-            [ "$CODE" = "200" ] || { echo "anime/${ID} status=${CODE}"; MISS=$((MISS+1)); }
-            # Annict側への再検証が一斉に走らないよう軽く間隔を空ける。
-            sleep 0.2
-          done
-          echo "完了（200以外: ${MISS} 件）"
+      # 【2026-09-14削除】「作品ページ（現在クールの注目度上位30件）を温める」ステップを外した。
+      # 1回の巡回の大半（37リクエスト中30件）をここが占めていたうえ、作品ページ1枚の
+      # 再生成には Annict への GraphQL が1〜2本ぶら下がる＝Fluid Active CPU と
+      # Provisioned Memory（I/O待ちの間もメモリ課金は止まらない）を最も食う部分だった。
+      # 外しても表示は遅くならない: 作品ページの revalidate は1週間で、鮮度は
+      # /api/revalidate が現在クール＋次クールの作品を1件ずつ名指しして取りに行く
+      # （app/api/revalidate/route.ts）。初回だけ1秒弱かかるのは温めがあっても
+      # 「そのデプロイで最初の1人」には起きるので、実質的な違いは小さい。
+      # 経緯は docs/operations.md の㊹。

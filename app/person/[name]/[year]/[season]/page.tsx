@@ -2,6 +2,7 @@ import IntentLink from "@/components/IntentLink";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
+import { canStateFetchDate, dateModifiedLd, type FetchedAt } from "@/lib/dataFreshness";
 import {
   PERSON_PAGE_MIN_APPEARANCES as MIN_APPEARANCES,
   shouldIndexPersonSeasonPage,
@@ -180,8 +181,12 @@ export default async function PersonPage({ params }: { params: Params }) {
   const label = SEASON_LABEL[season];
   let works: AnimeItem[] = [];
   let fetchError: string | null = null;
+  // 取得日はデータ層が持つ（過去クール＝スナップショット由来なら null＝日付を名乗らない）。
+  // ここで new Date() を呼ばないこと。理由は lib/dataFreshness.ts。
+  let fetchedAt: FetchedAt = null;
   try {
     const data = await getSeasonData(year, season);
+    fetchedAt = data.fetchedAt ?? null;
     works = findWorks(data.items, name).sort((a, b) => b.watchers - a.watchers);
   } catch (e) {
     fetchError = e instanceof Error ? e.message : "取得に失敗しました。";
@@ -213,7 +218,6 @@ export default async function PersonPage({ params }: { params: Params }) {
     season,
     MIN_APPEARANCES
   );
-  const checkedDate = new Date().toISOString().slice(0, 10);
   const structuredLd = !fetchError
     ? [
         {
@@ -221,7 +225,7 @@ export default async function PersonPage({ params }: { params: Params }) {
           "@type": "ItemList",
           name: `${name}が出演する${year}年${label}アニメ一覧`,
           numberOfItems: works.length,
-          dateModified: checkedDate,
+          ...dateModifiedLd(fetchedAt),
           itemListElement: works.map((it, i) => ({
             "@type": "ListItem",
             position: i + 1,
@@ -311,7 +315,8 @@ export default async function PersonPage({ params }: { params: Params }) {
 
                 <section className="detail-section">
                   <h2 className="detail-heading">
-                    {year}年{label}アニメの出演作品（{works.length}作品・{checkedDate}時点）
+                    {year}年{label}アニメの出演作品（{works.length}作品
+                    {canStateFetchDate(fetchedAt) ? `・${fetchedAt}時点` : ""}）
                   </h2>
                   <ul className="detail-list">
                     {works.map((it) => (

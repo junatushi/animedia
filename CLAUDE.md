@@ -84,7 +84,23 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   `npm run build` の前に自動で走る（`predev`/`prebuild`）ので**手で実行する必要は普通は無い**。
   なぜ埋め込むか: Next.jsが `<link rel="stylesheet">` を吐くとHTMLの後にもう1往復
   掛かり、実測で描画開始が約370ms遅れていた（PageSpeedの見積もりは150ms）。
-  スマホ主体のサイトなので直撃する。ネットワーク不要。経緯は`docs/operations.md`の㊵
+  スマホ主体のサイトなので直撃する。ネットワーク不要。経緯は`docs/operations.md`の㊵。
+  **2026-09-14から「面ごとの層」を出す**（`CSS_LAYERS`）。全ページに全量を入れていたため
+  実測で声優ページの**76%がCSS**（`<style>`・RSCペイロード・`.rsc` に計3コピー）だった。
+  層の決め方はimportグラフからの導出で、`scripts/lib/css-layers.js`が持つ。
+  導出できないclassNameや、層をまたぐカスケードの順序の入れ替わりがあると**生成の時点で落ちる**
+- `node scripts/check-build-size.js` … **デプロイ成果物の大きさの予算**（2026-09-14導入）。
+  Vercel Hobbyは**直近10件の本番デプロイを保持期間に関わらず必ず残す**ので、
+  1デプロイの大きさ×10が消せない床になる（上限10GB）。予算は上限から逆算
+  （`10GB × 0.65 ÷ 10件 = 650MB`）。**クールが増えるたび成果物は自動で増える**ので
+  放置すれば必ずまた超える。超えたら落ち、面ごとの内訳を出す。
+  予算を上げるときは冒頭の式のどれを変えるのか書く（数字だけ書き換えない）。
+  ビルドが無いときは省略したと言って抜ける。CIはビルドの直後に回す
+- `node scripts/check-page-css.js` … **ビルド成果物のCSS網羅**（2026-09-14導入）。
+  出来上がったHTMLの`class=`と`<style>`の中身だけを見て、使っているクラスにCSSが
+  付いているかを数える。`scripts/check.ts`の層分け検査と**前提を共有しない**独立した検査
+  （導出ごと間違えた場合に備える）。`npm run build`の後でしか動かないので、
+  ビルドが無い／古いときは省略したと言って抜ける（黙って成功しない）。CIはビルドの直後に回す
 - `node scripts/build-studio-index.ts` … 制作会社・監督の索引。スナップショットの`roleCredits`から
   `content/archive/studios.json`を作る。ネットワーク不要。
   **スナップショットを追加・再生成したら必ず実行する**。
@@ -166,6 +182,37 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   一時エラー（429/5xx）は再試行・未設定なら静かにスキップしてファイルを作らない・
   打ち切りを黙らない**ことを固定する。ネットワークには出ない。
   `fetch-site-analytics.js`を触ったら必ず実行する
+- `node scripts/usage-report.js` … **Vercel利用量の「判定」レポート**（2026-09-15導入）。
+  コミット済みの`content/analytics/usage/*.json`を読み、**無料枠に収まるか**を
+  1日あたりの予算（上限÷30）に対して判定する。ネットワークには出ない。
+  **無料枠の話をする前にこれを実行する**（ダッシュボードのゲージを目視で読まない。
+  実際に2〜4倍読み違えた記録がある＝`docs/operations.md`の㉝・㊶）。
+  **総量ではなく1日あたりで見る**（ローリング30日の合計には対策前の分が混ざるので、
+  対策の効果が窓から抜けるまで判断できない。一度これで誤読している）。
+  静かに間違えないための約束が4つあり、どれも外さないこと:
+  ①**明細0件は「利用ゼロ」ではなく「取れていない」**と書く（Hobbyで請求明細が返るかは未確認）
+  ②**単位が予期と違えば判定しない**（桁ごと違う数字で合否を出さない）
+  ③**予算表に無いサービス名は必ず出す**（Vercelの改名で指標が黙って消えないように）
+  ④**当日を平均に入れない**（途中集計なので必ず低く見える）。
+  **数字をドキュメントに転記しないこと**。回帰テストは`node scripts/check-vercel-usage.js`
+- `node scripts/fetch-vercel-usage.js` … **Vercel利用量（請求明細）の取得**（2026-09-15導入）。
+  `.github/workflows/vercel-usage.yml`が毎日呼び、`content/analytics/usage/<日付>.json`に保存する。
+  **Vercelのダッシュボードはログインが要るためセッションからは読めない**ので、
+  GSC・行動ログと同じ形（GitHub Actionsが取ってコミット→セッションは読むだけ）に載せてある。
+  叩いているのは`vercel usage --breakdown daily --json`と同じAPI
+  （`GET https://api.vercel.com/v1/billing/charges`のJSON Lines）で、**CLIは入れない**
+  （296パッケージをCIに入れずに済み、トークンをargvに載せずに済む）。
+  出力の形はCLIの`--json`と同一にしてあるので、人が手元でCLIを叩けば突き合わせられる。
+  要`VERCEL_TOKEN`（未設定なら静かにスキップ）。セットアップは`docs/vercel-usage-setup.md`。
+  **Vercelの個人トークンは読み取り専用にできない**（デプロイ・削除・環境変数の変更まで可能）ので、
+  既存の2つのSecretsとは性質が違う。期限を必ず付ける
+- `node scripts/check-vercel-usage.js` … 上の取得と判定の回帰テスト（2026-09-15導入）。
+  HTTPスタブを立てて`fetch-vercel-usage.js`を実際に動かし、**請求期間をロサンゼルス時間で
+  区切る・トークンをヘッダーで送りURLにもargvにも載せない・書き出すJSONにトークンが
+  混入しない（混ざったら書かずに落とす）・401/403は再試行せず即失敗・429/5xxは再試行・
+  未設定なら静かにスキップ・200で返るAPIエラーを0件として通さない**ことを固定し、
+  さらに判定側の4つの約束（上）も固定する。ネットワークには出ない。
+  `fetch-vercel-usage.js`・`usage-report.js`・`scripts/lib/vercel-usage.js`を触ったら必ず実行する
 - `node scripts/seo-report.js` … **SEOの「判定」レポート**（2026-08-19導入）。コミット済みの
   `content/analytics/gsc/*.json`を読み、①全体の推移 ②日次の前半/後半 ③**面別の効率
   （1ページあたりクリック）** ④面別の週次推移 ⑤手を入れる候補（11〜20位のクエリ・
@@ -193,6 +240,21 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   個人の投稿」を`content/demand/raw/`から拾い、作品を`/api/search-index`で`/anime/{id}`に解決して
   **貼れる返信下書き**を`docs/leads-<日付>.md`に出す。接触は手動。リンクに`?ref=<媒体>`を付け流入実測。
   週次Xキットのリーチ枠への転用が狙い。手順は`docs/demand-scan.md`の後半
+- `node scripts/speed-report.js` … **表示速度の「判定」レポート**（2026-09-09導入）。
+  コミット済みの`content/analytics/speed/*.json`（合成計測）と
+  `content/analytics/site/*.json`の`vitals`（実利用者＝RUM）を1本に束ね、
+  ①面ごとのLCPと目標(2秒)に対する判定 ②前回比・7日前比 ③RUMのp75と**件数**
+  ④スクロール中の先読みの復活（㊴）を出す。ネットワークには出ない。
+  **表示速度の話をする前にこれを実行する**（見ずに「速くなった」と書かない）。
+  **数字をドキュメントに転記しないこと**。回帰テストは`node scripts/check-speed-report.js`
+- `node scripts/measure-production.js` … **本番の表示速度を1日1回実測する**（2026-09-09導入）。
+  `.github/workflows/measure-speed.yml`が毎日回すので**手で実行する必要は無い**
+  （本番へ出られる環境でのみ動く＝それが自動化した理由）。
+  対象URLは`scripts/lib/route-samples.js`が`app/`を走査して導出し、実在する名前・IDで
+  動的セグメントを埋める（新しいページ種別を足すと自動で対象に入る。robots.txtが
+  拒否している面は`app/robots.ts`から読んで除く）。条件は`measure-pages.js`と同一
+  （`scripts/lib/measure-page.js`が1箇所で持つ）。1URLにつき3回測って中央値を採る。
+  結果は`content/analytics/speed/<日付>.json`。読むのは上の`speed-report.js`
 - `node scripts/measure-pages.js <URL>` … **表示の速さの実測**（2026-09-03導入）。
   先に`npm run build && npx next start -p 3100`を動かしてからURLを渡す。スマホ相当の条件
   （CPU4倍スロットル・1.6Mbps・390×844）でFCP/LCP・TBT（操作をブロックする時間）・DOMノード数・
@@ -330,8 +392,23 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   `audit-coverage.ts`が出す「配信0件の注目作」「未知チャンネル名」を一次情報で確認してAnnictへ
   登録する手順と、作品データの再配布可否を尋ねる問い合わせ文面。**主目的はサイトの配信網羅率が
   上がること**で、再配布の相談はその後。機械的な一括投稿はしない。
+  **【2026-09-09】見送りが決まった**（利用者の判断＝「公式サイトなど一次情報から取得すればよい」）。
+  網羅率は`extraServices.ts`の人力補完で足りており、再配布の相談は
+  **聞くと「不可」が明文化されうる**ので効果未実測のうちは行かない。**問い合わせを送らないこと。**
 - **アフィリエイト運用**（2026-07-18導入）: 提携・リンク登録・月次の報酬額更新（月1回・5分）は
   `docs/affiliate-setup.md`。報酬額を更新すれば採用リンク（最高報酬のASP）の切替は自動。
+  **【2026-09-09〜】掲載を恒久停止**。Vercelサポートに**2回**問い合わせ、**2回とも
+  「成果報酬型のアフィリエイトリンクの掲載はHobbyプランで認められない」**と回答された
+  （1通目「主目的でなくても商用」、2通目「『主目的』はガイドラインの想定例にすぎず、
+  規約本体の非商用条項で判断する」＝理由は違うが結論は同じ）。
+  `content/affiliate/programs.ts`の全リンクを`active: false`にしてある。
+  **データは消していない**（方針が変われば`true`に戻すだけで復旧する）。
+  **リンクの行を消さないこと。**
+  **「主目的ではないから大丈夫」を根拠に再開を提案しないこと**（2回否定済み）。
+  2通目で**現状（掲出停止後）のHobby継続は明示的に可**と回答されたので、
+  **ホスティングの移行検討は終了**（Cloudflare・Deno Deployの調査は打ち切り）。
+  **寄付リンク（GitHub Sponsors・Buy Me a Coffee・Ko-fi）は明示的に許可された**が、
+  効果の見込みが未実測なので**まだ入れると決めていない**。経緯は`docs/operations.md`の㊷
 - **自動運用のモデル構成**: 監督役＝セッションのメインモデル（現在はFable。定額プランの対象から
   外れた場合はセッション起動時にOpusを選択すれば全体がそのまま追従する）。エージェント定義や
   スクリプトに監督役のモデル名を**ハードコードしない**こと。実行役は各エージェント定義
@@ -348,13 +425,19 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   いまは**hover/touchstartの素振りがあったときだけ**先読みする。
   **作品ページの`loading.tsx`を置かない方針（ソフト404回避）の代替が先読みなので、
   素振りの先読みまで消さないこと**。検査は`node scripts/check.ts`の「リンクの先読み」節
-- `app/inlineCss.ts` + `scripts/build-inline-css.js` + `scripts/lib/minify-css.js` …
-  **HTMLに直接埋め込むCSS**（2026-09-04導入）。`app/layout.tsx` は `globals.css` を
-  **import しない**（importするとNext.jsが `<link rel="stylesheet">` を吐き、往復が1回増える）。
-  スタイルを変えるときは**`app/globals.css` を直す**（`app/inlineCss.ts` は自動生成なので
-  手で編集しない）。ズレは`node scripts/check.ts`の「CSSの埋め込み」節が検出し、
-  `predev`/`prebuild` が自動で再生成する。ミニファイアは「壊れると全ページ無スタイル」
-  なので賢い最適化をしない方針（コメント除去と空白畳みだけ・文字列の中身は触らない）
+- `app/inlineCss.ts` + `scripts/build-inline-css.js` + `scripts/lib/css-layers.js` +
+  `components/PageCss.tsx` + `scripts/lib/minify-css.js` …
+  **HTMLに直接埋め込むCSS**（2026-09-04導入 / 2026-09-14に層分け）。`app/layout.tsx` は
+  `globals.css` を**import しない**（importするとNext.jsが `<link rel="stylesheet">` を吐き、
+  往復が1回増える）。スタイルを変えるときは**`app/globals.css` を直す**
+  （`app/inlineCss.ts` は自動生成なので手で編集しない）。ズレは
+  `node scripts/check.ts`の「CSSの埋め込み」節が検出し、`predev`/`prebuild` が自動で再生成する。
+  ミニファイアは「壊れると全ページ無スタイル」なので賢い最適化をしない方針
+  （コメント除去と空白畳みだけ・文字列の中身は触らない）。
+  **層は`base`（全ページ・`<head>`）／`explorer`（`/`と`/season/**`）／`detail`（`/anime/[id]`）**で、
+  追加層はその面が`<PageCss>`で本文の先頭に置く（ルートレイアウトの`<body>`は`{children}`で
+  始まるので、追加の`<style>`より前に描画される可視要素が無い＝ちらつかない）。
+  **どのクラスがどの層かを人が書く場所は無い**（`app/`と`components/`のimportグラフから導出）
 - `vercel.json` … **表示に使わないデータのコミットで本番デプロイを起こさないための門番**
   （2026-08-25導入）。`ignoreCommand`が「`content/analytics/`・`content/coverage/`・
   `content/demand/`・`docs/`しか変更していないコミット」を判定し、その場合はビルドをスキップする
@@ -399,6 +482,18 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   機械的に禁じている。次クールの求め方は`lib/resolveSeasonParams.ts`の`nextYearSeason`
   **だけ**が持つ（sitemapと対象クールをズラさないため）。検査は`node scripts/check.ts`の
   「ISRの再生成頻度」節。経緯は`docs/operations.md`の㉝
+- `lib/dataFreshness.ts` … **「このページは日付を名乗ってよいか」の一元判定**（2026-09-14導入・重大度高）。
+  データ層（`getSeasonData`/`getWorkData`）が返す`fetchedAt`を見て、可視テキストの「〜時点」・
+  JSON-LDの`dateModified`/`sdDatePublished`・meta descriptionを出すかどうかを決める。
+  **スナップショット由来（過去クールの確定データ）なら`null`＝日付ごと出さない**。
+  外してはいけない理由が2つある。①過去クールのページに「今日時点」と書くのは**事実として誤り**で、
+  `app/sitemap.ts`が`lastModified`を全部捨てたのと同じ話（不正確な鮮度の申告はサイト全体の
+  信用を落とす）。②**Vercelは出力が前回と1バイトも変わらない再生成を課金しない**のに、
+  日付が混ざっていると中身が同じでも日付をまたぐたびに全ページが「変化あり」になる
+  （ISR Writesは回数ではなく**8KB単位のバイト量**で数える）。
+  **ページ側で`new Date()`を呼んで日付を作り直さないこと。**
+  取得日は`unstable_cache`の**中**で確定させる（データが変わらない限り出力も変わらない）。
+  経緯は`docs/operations.md`の㊻
 - `lib/siteUrl.ts` … サイト正準URLの一元定義（2026-07-18導入）。canonical・OGP・sitemap・JSON-LD・
   メール内リンクの全てがここを参照する。独自ドメイン移行時はこの1行＋`docs/domain-migration.md`の手順
 - `content/affiliate/programs.ts` + `lib/affiliate.ts` … アフィリエイトのリンク・報酬額データ
@@ -441,7 +536,13 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - `scripts/audit-coverage.ts` … 配信データ網羅率の点検スクリプト（`node scripts/audit-coverage.ts [year] [season]`）。season-updater/service-mapperエージェントが使う
 - `scripts/demand-scan.js` + `scripts/lib/demand-analyze.js` + `content/demand/` … 配信の需要シグナル収集・集計（2026-07-16導入）。`queries.js`が収集用の正準クエリ、`raw/<日付>.jsonl`が入力（WebSearchで収集）、`out/`が集計JSON。集計ロジック（直近N日フィルタ・重複排除・需要分類・作品/サービス抽出・スコア）は`demand-analyze.js`に純粋関数で分離。詳細は`docs/demand-scan.md`
 - `scripts/lead-finder.js` … 流入リード発掘（2026-07-16導入）。`demand-scan`と同じ`raw/<日付>.jsonl`（任意で`status:open|closed`付き）を入力に、ガイドを必要としている個人の投稿を抽出し、作品を`/api/search-index`で`/anime/{id}`に解決して返信下書き付きの`docs/leads-<日付>.md`を出力。分類は`demand-analyze.js`を流用。リンクの`?ref=<媒体>`で流入実測。開/閉判定はnodeから不可のため収集時にClaudeがWebFetchで`status`を記録する設計。本命は同エンジンのX リーチ枠への転用（`docs/x-growth-playbook.md`）。詳細は`docs/demand-scan.md`後半
-- `content/works/extraServices.ts` … Annictにまだ登録されていない配信サービスを人力補完する一覧（2026-07-12導入。`rentalServices.ts`と同じ思想）。`{ key, sourceUrl, confirmedDate }`必須（一次情報のみ・出典明示。CLAUDE.mdの方針に準拠）。任意で`schedule: { weekday, time, startDate }`も指定でき、**Annictに配信の実データが1件も無いときだけ**曜日・時刻カレンダーのフォールバックとして使う（Annict実データがあれば必ずそちらを優先）。`getSeasonData`/`getWorkData`から`toAnimeItem`/`toAnimeDetail`の第2引数に注入され、`ServiceMarks`が通常のAnnict由来サービスとは違う見た目（点線枠）で表示し、出典はバッジ列の下の注記（`.svc-manual-note`。カード一覧では`hideManualNote`で省略）にリンクする。対象は`audit-coverage.ts`の(a)に出た注目作から都度追加する方針（全件を追う保守コストは避ける）
+- `content/works/extraServices.ts` … Annictにまだ登録されていない配信サービスを人力補完する一覧（2026-07-12導入。`rentalServices.ts`と同じ思想）。`{ key, sourceUrl, confirmedDate }`必須（一次情報のみ・出典明示。CLAUDE.mdの方針に準拠）。任意で`schedule: { weekday, time, startDate }`も指定でき、**Annictに配信の実データが1件も無いときだけ**曜日・時刻カレンダーのフォールバックとして使う（Annict実データがあれば必ずそちらを優先）。`getSeasonData`/`getWorkData`から`toAnimeItem`/`toAnimeDetail`の第2引数に注入され、`ServiceMarks`が通常のAnnict由来サービスとは違う見た目（点線枠）で表示し、出典はバッジ列の下の注記（`.svc-manual-note`。カード一覧では`hideManualNote`で省略）にリンクする。対象は`audit-coverage.ts`の(a)に出た注目作から都度追加する方針（全件を追う保守コストは避ける）。
+  **2026-09-14から過去クール（スナップショット）にも後乗せで効く**（`lib/services.ts`の
+  `overlayManualData`）。それまではスナップショット生成時に焼き込まれた分しか出ず、
+  **あとから足しても過去クールには反映されなかった**（一覧は2026-07-15から、作品ページは
+  ㊻から同じ経路）。いまは「過去クールに配信が増えた」を**次のデプロイで即時に直せる
+  唯一の手段**がこのファイル。原則はAnnict由来を塗り替えないこと・放送枠を創作しないこと。
+  検査は`node scripts/check.ts`の「スナップショットへの人力補完」節
 - `content/works/series.ts` … シリーズ（1期・2期・劇場版）の対応表（2026-08-11導入）。
   作品ページの「シリーズの他の作品」欄。**Annictの`seriesList`は使っていない**（この作業環境から
   応答を確認できず、未検証のフィールドを一覧クエリに足すと失敗時にサイト全部のデータ取得が
@@ -478,8 +579,10 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   同じキーに2作品がぶら下がった曖昧なキーは**採用しない**（誤マッチ＝無関係な作品の日付が
   サイトに出る事故）。読み込み時に1件ずつ検証して壊れた件だけ捨てる（`lib/autoSchedule.ts`）。
   検査は`node scripts/check.ts`の「機械補完した放送予定日」節。経緯は`docs/operations.md`
-- `lib/getSeasonData.ts` / `lib/getWorkData.ts` … シーズン一覧・作品個別データの取得ロジック（API route と SSR ページの両方から共有）。`getSeasonData`は**今年**はライブ取得＋`unstable_cache`（15分=900s。cron遅延吸収のため2026-07-21に10分から延長）だが、**過去年**は`content/snapshots/{year}-{season}.json`があればそれを即返す（無ければライブ取得へフォールバック）。API窓口（`app/api/season/route.ts`）はさらに応答に`s-maxage=600, stale-while-revalidate=86400`を付けCDNエッジにもキャッシュする（2026-07-21）。`getWorkData`は年に関わらず常にAnnictへのライブ取得（`fetchWorkById`）を優先するが、それが失敗し、かつ対象作品が`content/archive/index.json`（配信1件以上の過去クール1,961件）に載っていれば、`content/snapshots/`から`credits`（声優のキャラ名対応・監督・製作会社・原作者。スナップショット生成時に作られておらず持っていない）だけ空にした縮退版`AnimeDetail`にフォールバックする（2026-08-06導入。詳細は`docs/operations.md`の⑦-12）。平常時（Annictが生きている間）は今まで通りフルの`credits`つきで返る。
-- `content/snapshots/{year}-{season}.json` + `scripts/snapshot-past-seasons.ts` … 過去年（放送終了済み）シーズンの確定データを固定した静的スナップショット（2026-07-15導入）。過去年をライブ取得＋Vercelデータキャッシュに頼っていた時期は、温めCron成功の翌日でもキャッシュ追い出しで初回5〜10秒コールドを踏んでいた（実測2024夏9.4s/2020冬5.1s）ため、放送済みで動かないデータをリポジトリ同梱JSONに固定し常時0.03秒程度にした。生成は`node scripts/snapshot-past-seasons.ts [fromYear] [toYear] [--force]`（省略で2010〜昨年・既存スキップ）。**年またぎ時は前年分を1回生成する**（例:2027年になったら`node scripts/snapshot-past-seasons.ts 2026 2026`）。詳細は`docs/operations.md`の⑦-4
+- `lib/getSeasonData.ts` / `lib/getWorkData.ts` … シーズン一覧・作品個別データの取得ロジック（API route と SSR ページの両方から共有）。`getSeasonData`は**今年**はライブ取得＋`unstable_cache`（15分=900s。cron遅延吸収のため2026-07-21に10分から延長）だが、**過去年**は`content/snapshots/{year}-{season}.json`があればそれを即返す（無ければライブ取得へフォールバック）。API窓口（`app/api/season/route.ts`）はさらに応答に`s-maxage=600, stale-while-revalidate=86400`を付けCDNエッジにもキャッシュする（2026-07-21）。`getWorkData`は**2026-09-14から2段構え**。①`content/archive/index.json`の`castCreditsComplete`が立っているクールの作品は**スナップショットだけで描き切れる**のでAnnictに一切問い合わせない（＝ビルド時に焼ける＝ISR Writes・Fluid CPU・外部APIの往復が恒久的にゼロ）。②それ以外は従来どおりライブ取得を優先し、失敗したときだけスナップショットへフォールバックする。フォールバックが返す`credits`は、スナップショットが持つ`roleCredits`（監督・製作会社・原作者）と`castNames`（声優名）から組み立てる（**旧形式では役名だけが空になる。推測で埋めない**）。**既存の64ファイルは旧形式なので現在は①が0件＝従来とまったく同じ挙動**で、`docs/snapshot-regenerate.md`の手順で再生成すると自動で①に切り替わる（表示が劣化する瞬間が無いようにこの順番にしてある）。**どちらの経路もスナップショットを読んだあと`overlayManualData`を通す**（2026-09-14）。
+スナップショットは生成した瞬間で固まるので、あとから`extraServices.ts`・`releaseDates.ts`に
+足した分はこれが無いと永久に反映されない。経緯は`docs/operations.md`の㊻・㊻-2・⑦-12。
+- `content/snapshots/{year}-{season}.json` + `scripts/snapshot-past-seasons.ts` … 過去年（放送終了済み）シーズンの確定データを固定した静的スナップショット（2026-07-15導入）。過去年をライブ取得＋Vercelデータキャッシュに頼っていた時期は、温めCron成功の翌日でもキャッシュ追い出しで初回5〜10秒コールドを踏んでいた（実測2024夏9.4s/2020冬5.1s）ため、放送済みで動かないデータをリポジトリ同梱JSONに固定し常時0.03秒程度にした。生成は`node scripts/snapshot-past-seasons.ts [fromYear] [toYear] [--force]`（省略で2010〜昨年・既存スキップ）。**2026-09-14から`castCredits`（声優×キャラ名）も保存する**。これが入ると作品ページがAnnictに出ずに描けるようになり、ビルド時に焼ける＝そのクールのISR Writes・Fluid CPUが恒久的にゼロになる（`content/archive/index.json`の`castCreditsComplete`が自動で立つ）。**既存64ファイルは旧形式なので、再生成するまでこの効果は出ない**（`--force`が要る）。**年またぎ時は前年分を1回生成する**（例:2027年になったら`node scripts/snapshot-past-seasons.ts 2026 2026`）。詳細は`docs/operations.md`の⑦-4
 - `content/works/{annictId}.json` + `content/works/index.ts` … 作品個別ページの「あらすじ・見どころ・出版社」と、任意の`faq`（「2期から見ても大丈夫？」等のよくある質問。2026-07-27追加。可視テキストとFAQPage構造化データの両方に出る）。Annictに無いデータのため人力で追記する補足コンテンツ（`docs/operations.md`の「⑧作品詳細コンテンツの追記」参照）。`faq`は実測で需要が確認できた作品にだけ付ける（全作品分の維持は続かないため）。未整備の作品は単純に省略表示される
 - `app/api/sns-image/route.tsx` … SNS投稿に添付する公開PNG（2026-07-27導入）。`?kind=ranking` と `?kind=airing&day=月`。**Threadsは画像のバイナリ投稿に対応せず公開URL（`image_url`）しか受け付けない**ため、Playwrightのスクリーンショットを添付できない。その回避としてサイト自身が同等の画像を配信する。既存OG画像2本と同じ`runtime="edge"`（nodejs runtimeにすると`next/og`がWindowsのローカル開発機で必ず例外になり手元で検証できなくなる）。データはedgeで`fs`が使えないため`/api/season`から取る。Threads固有の注意点は`docs/threads-setup.md`の⑦
 - `content/sns/spotlight.js` … SNS投稿の「スポットライト枠」で日替わりに紹介する作品リスト（2026-07-27導入）。GSC・Vercel Analyticsの実測で需要が確認できた作品だけを載せ、推測で足さない。`hashtag`は作品名タグで、タイトルからの自動生成はせず手で書く（期数・記号を落とす。`☆`等はSNS側のタグ解析を壊すため使わない）。生成は`scripts/lib/build-digest.js`の`buildSpotlight`
@@ -612,7 +715,7 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   載る〈以前はsearchParamsを読むため毎回動的描画=no-storeで0.5〜2.8s掛かっていた〉。年・季節の
   切替やディープリンク〈?year=&season=〉の解決はクライアント側=SeasonExplorerが担う）
 - `app/season/[year]/[season]/page.tsx` … シーズン別のSSRページ（SEO用。シーズン名でのタイトル/OGPを動的生成）
-- `app/anime/[id]/page.tsx` … 作品個別のSSRページ（SEO用。「作品名 配信」検索の受け皿。声優/監督/製作会社/原作＋あらすじ等も表示）。2026-07-27にISR化（`revalidate=900` ＋ `generateStaticParams`が**空配列**。後者が無いと`revalidate`を書いてもprerender-manifestに載らず動的のまま）。ここに`loading.tsx`を置くと`notFound()`が200（ソフト404）になるため置かない。詳細は`docs/operations.md`の⑦-6
+- `app/anime/[id]/page.tsx` … 作品個別のSSRページ（SEO用。「作品名 配信」検索の受け皿。声優/監督/製作会社/原作＋あらすじ等も表示）。2026-07-27にISR化（`generateStaticParams`が無いと`revalidate`を書いてもprerender-manifestに載らず動的のまま）。**2026-09-14から`generateStaticParams`は`staticWorkIds()`を返す**＝スナップショットだけで描けるクールの作品をビルド時に焼く（旧形式のスナップショットしか無い間は空配列＝従来どおり）。ここに`loading.tsx`を置くと`notFound()`が200（ソフト404）になるため置かない。詳細は`docs/operations.md`の⑦-6
 - `components/SeasonExplorer.tsx` … 上記3ページが共有する画面本体（"use client"）。`initialData`を渡すとSSR結果をそのまま使い、再フェッチしない。検索欄は作品名に加え声優・スタッフ名（`creditNames`）にもマッチし、さらに `/api/search-index` を使って表示中クール以外の作品も「他のクールの作品」枠でヒットさせる（年数・季節セレクタは検索の絞り込みには使わず、閲覧クールの切替のみ。各カードに放送クールを表示）。一覧/カレンダー（曜日別配信スケジュール）の表示切替もここ
 - `components/ThemeToggle.tsx` … ライト/ダークのテーマ切替（SAOモチーフ。ダーク＝黒の剣士キリト基調、ライト＝閃光のアスナ基調）。`localStorage`に保存
 - `app/globals.css` … テーマ本体。ダーク/ライトの2テーマをCSS変数で切替
@@ -654,6 +757,18 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 - **【基本ルール】バッジ上の「PR」表記は復活させない（2026-07-28確認）**: ステマ規制対応は
   バッジの`title`属性＋ページ下部の開示文（`.svc-disclosure`）で行う方針で確定している。
   事故が起きない限り「PRタグを付ける」提案はしない（2026-07-27に廃止済み。再提案も不要）。
+- **【基本ルール】広告の開示文は、実際に広告リンクがあるときだけ出す（2026-09-09導入）**:
+  ステマ規制が求めているのは「**広告なのに広告だと分からないこと**」を防ぐことなので、
+  広告が1本も無いのに「広告リンクが含まれます」と書くのは、要求を満たすどころか
+  **事実でない記述**になる。`ServiceMarks`は元から`hasAnyAffiliate`で門番していたが、
+  `hideDisclosure`を使う呼び出し側（一覧画面）が自前で出す分だけが**無条件**で、
+  2026-09-09に全リンクを停止したとき実際にこの状態になりかけた（**片方だけ直っている**形）。
+  判定は`lib/affiliate.ts`の`hasAnyActiveAffiliate`が1箇所で持つ。
+  検査は`node scripts/check.ts`の「広告の開示文」節で、**開示文を出すファイルを走査して導出**
+  する（3つ目が増えた日に自動で効く）。この検査を書いた当日、**検査自身が2回間違えた**ので
+  同じ轍を踏まないこと: ①「門番を外すな」と書いた**コメント**を門番と誤認して通した
+  （→コメントとimport行を落としてから見る）、②門番の実装を見る窓を固定長400文字にしたら
+  **次の関数の`p.active`まで届いて**変異を見逃した（→関数本体だけに窓を閉じる）。
 - **【基本ルール】SSRページの中身が空になっていないか、HTMLを取って確かめる（2026-08-05導入・重大度高）**:
   `useSearchParams()`を呼ぶクライアントコンポーネントがあると、Next.js 14は静的生成（ISR）される
   ページでそのSuspense境界を**丸ごとクライアント描画に退避**させ、サーバーHTMLには`fallback`しか
@@ -888,6 +1003,21 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   実際、2026-08-25にページ側を3600へ延ばしたのに実効値は900のままだった。
   確認方法は`npm run build`のあと`.next/prerender-manifest.json`の`initialRevalidateSeconds`を読む
   （画面を見ても分からない）。
+- **【基本ルール】収集用のワークフローは、mainに入るまで一度も動かない（2026-09-19導入・重大度高）**:
+  **GitHubはデフォルトブランチ（main）にあるワークフローしか`schedule`に登録しない。**
+  `workflow_dispatch`（Run workflowボタン）も、ファイルがmainに無いとActionsの一覧に
+  現れない。実際に`measure-speed.yml`を2026-09-09に書いてから**10日間まったく動かず**、
+  `content/analytics/speed/`が空のままだった（GitHub APIに問い合わせると`404`＝
+  ワークフローとして登録されていない）。
+  **この壊れ方は実行ログも失敗Issueも残さない**ので、「失敗0件」と
+  「一度も動いていない」が画面上まったく同じに見える。さらに、それを検出するはずの
+  `scripts/freshness.js`の系列登録**自体が同じ未マージのブランチに入っていた**ため、
+  見張りと対象が同じ船に乗り、マージされるまで検出は原理的に発火しなかった。
+  新しい収集を足すときは①`scripts/freshness.js`に系列を登録し
+  ②**マージした日を`since`にする**（書いた日にしない）。
+  検査は`node scripts/freshness.js`の「収集を回すワークフローがある」節
+  （系列の`script`で`.github/workflows`を走査して導出する）と、1件も入っていないときに
+  **確認先（mainへのマージ／Secret）を名指しする**出力。経緯は`docs/operations.md`の㊽
 - 配信網羅率は Annict のコミュニティ更新依存で100%ではない。新作は配信欄が空になりうる。
   「配信情報なし」は仕様であり、勝手に推測データで埋めない。
 - `content/works/` のあらすじ・見どころ・出版社も同様に、公式サイト等の一次情報で確認できた
@@ -915,11 +1045,50 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   hydrationが壊れる＝クエリ付きで開いた人にだけ起きる壊れ方）。
   検査は`node scripts/check.ts`の「トップページのサーバー描画」節と
   `scripts/verify-production.sh`のA0節。経緯は`docs/operations.md`の㊵
+- **【基本ルール】色を「文字」に置くときは ink 版の変数を使う（2026-09-09導入）**:
+  `--accent` / `--accent-2` は**枠線とグラデーション（＝背景の塗り）にも使われている**ので、
+  文字が読めるまで暗くすると季節タブや「人気順」ボタンの塗りまで一緒に暗くなる。
+  文字に置くときは `--accent-ink` / `--accent-2-ink` を使うこと（ダークでは
+  `var(--accent)` と同値なのでダークの見た目は変わらない）。
+  経緯: ライトテーマの本文以外の文字が**ほぼ全部 AA(4.5:1) を割っていた**
+  （`--accent` 1.86:1・`--accent-2` 2.52:1・`--muted-2` 2.75:1・フォーカスリング 2.60:1）。
+  **ダークにも1件あった**（`--muted-2` 3.03:1）ので「ライト固有」ではない。
+  バッジの1文字ロゴは`textOn`が NTSC の知覚輝度としきい値0.6で黒/白を選んでおり、
+  17社中9社がAA未満・最悪は Hulu の **2.00:1** だった（**比を両方出して高いほうを採る**）。
+  **画面を見ても「少し薄い」としか思えない**壊れ方で、11pxの文字はスクリーンショットを
+  並べても差が判別できない（実際に一度「変わっていない」と誤読した）。
+  検査は`node scripts/check.ts`の「文字色のコントラスト」節で、
+  **globals.cssの値から実際に比を計算する**（対象は走査して導出＝変数を足せば自動で効く）。
+  この検査を消さないこと。経緯は`docs/operations.md`の㊸
 - **【基本ルール】CSSを外部ファイルに戻さない（2026-09-04導入）**:
   `app/layout.tsx` で `import "./globals.css"` を復活させると `<link rel="stylesheet">` が
   出て、HTMLが届いた後にもう1往復掛かる（本番PageSpeedの見積もり150ms、
   ローカル実測で約370ms）。**画面はまったく同じに見える**ので気づけない。
   検査は`node scripts/check.ts`の「CSSの埋め込み」節と`verify-production.sh`のA0節
+- **【基本ルール】出力に「いまの日付」を混ぜない（2026-09-14導入・重大度高）**:
+  ページの中で `new Date()` を呼んで、その日の日付を可視テキストやJSON-LDに書かないこと。
+  日付は**データ層が返す`fetchedAt`**（`lib/dataFreshness.ts`）だけを使う。
+  理由は2つあり、どちらも単独で十分に重い。①スナップショット（過去クールの確定データ）から
+  描いているページに「今日時点」と書くのは**嘘**で、`app/sitemap.ts`が`lastModified`を
+  全部捨てたのと同じ誤り。②Vercelは**再生成の結果が前回と1バイトも変わらなければ
+  ISR Writeを課金しない**（<https://vercel.com/kb/guide/how-to-reduce-isr-revalidation-costs>）。
+  日付が混ざっていると、中身が同じでも日付をまたぐたびに全ページが書き直される。
+  **ISR Writesは「回数」ではなく「8KB単位のバイト量」**なので、1ページ180KBの面では
+  1回の書き直しが約23ユニットになる。経緯は`docs/operations.md`の㊻
+- **【基本ルール】CSSは面ごとの層で配る。全ページに全量を入れない（2026-09-14導入・重大度高）**:
+  `app/globals.css`を全ページに埋め込んでいた時期は、実測で声優ページ1枚（110,317文字）の
+  **76%がCSS**（`<style>`とRSCペイロードに二重、さらに`.rsc`にもう1コピー）で、
+  本文は4,575文字（4%）しか無かった。そのページが実際に使うCSSは9.2KBだけ。
+  いまは`base`（全ページ）／`explorer`（`/`と`/season/**`）／`detail`（`/anime/[id]`）に分け、
+  追加層は`components/PageCss.tsx`でその面が本文の先頭に置く。
+  **層の割り当てを手で書かないこと**（`app/`と`components/`のimportグラフから導出する。
+  `scripts/lib/css-layers.js`）。新しい面が`SeasonExplorer`を使い始めればそのクラスは
+  自動的に`base`へ上がる。**間違えるとそのページだけ無スタイルになり、画面を開くまで
+  気づけない**ので、検査は`node scripts/check.ts`の「CSSの層分け」（ソースから導出）と
+  `node scripts/check-page-css.js`（ビルド成果物のHTMLだけを見る＝前提を共有しない）の
+  2本立てにしてある。**どちらも消さないこと。**
+  追加層の`<style>`は**本文の先頭**に置く（ルートレイアウトの`<body>`は`{children}`で
+  始まるので、それより前に描画される可視要素が無い）。位置を変えるとちらつく。
 - **【基本ルール】サムネイルはWebPで持つ（2026-09-04導入）**:
   `public/works/{id}.webp`。JPEGだと1枚40KB前後になり、スマホの初期表示で装飾画像が
   HTML・CSS・JSと帯域を奪い合う（本番PageSpeedがトップで152KB読み込み「Est savings of

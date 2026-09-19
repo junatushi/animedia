@@ -2,6 +2,7 @@ import IntentLink from "@/components/IntentLink";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
+import { canStateFetchDate, dateModifiedLd, type FetchedAt } from "@/lib/dataFreshness";
 import { splitRentalServices } from "@/lib/services";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import type { AnimeItem, ServiceTag } from "@/lib/types";
@@ -133,8 +134,12 @@ export default async function RankingsPage({ params }: { params: Params }) {
   let exclusive: ServiceCount[] = [];
   let earliest: AnimeItem[] = [];
   let fetchError: string | null = null;
+  // 取得日はデータ層が持つ（過去クール＝スナップショット由来なら null＝日付を名乗らない）。
+  // ここで new Date() を呼ばないこと。理由は lib/dataFreshness.ts。
+  let fetchedAt: FetchedAt = null;
   try {
     const data = await getSeasonData(year, season);
+    fetchedAt = data.fetchedAt ?? null;
     coverage = rankByServiceCoverage(data.items);
     exclusive = rankByExclusiveCoverage(data.items);
     earliest = rankByEarliestStart(data.items, 10);
@@ -142,7 +147,6 @@ export default async function RankingsPage({ params }: { params: Params }) {
     fetchError = e instanceof Error ? e.message : "取得に失敗しました。";
   }
 
-  const checkedDate = new Date().toISOString().slice(0, 10);
   const maxCoverage = Math.max(1, ...coverage.map((c) => c.count));
 
   const structuredLd = !fetchError
@@ -152,7 +156,7 @@ export default async function RankingsPage({ params }: { params: Params }) {
           "@type": "ItemList",
           name: `${year}年${label}アニメ 先行配信ランキング`,
           numberOfItems: earliest.length,
-          dateModified: checkedDate,
+          ...dateModifiedLd(fetchedAt),
           itemListElement: earliest.map((it, i) => ({
             "@type": "ListItem",
             position: i + 1,
@@ -228,7 +232,8 @@ export default async function RankingsPage({ params }: { params: Params }) {
                 <section className="detail-section">
                   <h2 className="detail-heading">配信サービス別 対応本数ランキング</h2>
                   <p className="detail-text">
-                    見放題配信サービスが対応している作品数の多い順（{checkedDate}時点。
+                    見放題配信サービスが対応している作品数の多い順（
+                    {canStateFetchDate(fetchedAt) ? `${fetchedAt}時点。` : ""}
                     レンタル/都度課金サービスは対象外）。
                     {coverage[0] && `${coverage[0].tag.name}が${coverage[0].count}作品で最多。`}
                   </p>

@@ -4,7 +4,7 @@
 // 両方から共有する。
 import { unstable_cache } from "next/cache";
 import { fetchSeasonWorks } from "./annict";
-import { toAnimeItem } from "./services";
+import { toAnimeItem, overlayManualData } from "./services";
 import { EXTRA_SERVICES } from "@/content/works/extraServices";
 import { RELEASE_DATES } from "@/content/works/releaseDates";
 // 機械補完した放送/公開の予定日（AniList由来。scripts/fetch-upcoming.js が1日2回更新する）。
@@ -12,6 +12,7 @@ import { RELEASE_DATES } from "@/content/works/releaseDates";
 import AUTO_SCHEDULE_FILE from "@/content/works/autoSchedule.json";
 import { parseAutoSchedules } from "./autoSchedule";
 import { isSeasonYearInRange } from "./resolveSeasonParams";
+import { jstToday } from "./workAvailability";
 import type { SeasonResponse } from "./types";
 
 // モジュール読み込み時に1回だけ検証する（リクエストごとに全件検証しない）。
@@ -52,7 +53,13 @@ async function fetchAndBuild(year: string, season: string): Promise<SeasonRespon
     )
     .sort((a, b) => b.watchers - a.watchers);
 
-  return { season: seasonStr, count: items.length, items };
+  // 取得日は**このキャッシュされる値の中で**確定させる（2026-09-14導入）。
+  // ページ側で new Date() を呼ぶと、中身が1文字も変わっていない日でも日付だけが
+  // 変わって「出力に変化あり」となり、Vercelが ISR Write を課金する。
+  // ここで持てば、Annictのデータが動かない限り出力は1バイトも変わらない。
+  // 粒度を「日」にしてあるのも同じ理由（時刻だと再検証のたびに変わる）。
+  // 理由の全文は lib/dataFreshness.ts。
+  return { season: seasonStr, count: items.length, items, fetchedAt: jstToday() };
 }
 
 // 年セレクタは2010年〜今年まで選べるが（lib/resolveSeasonParams.ts）、
@@ -77,17 +84,32 @@ async function fetchAndBuild(year: string, season: string): Promise<SeasonRespon
 //   なったため、再検証の回数そのものを減らす必要がある。
 // 温めCronも6時間おきへ落としたので、上のコメントにある「Cron遅延を吸収する」目的は
 // TTLを延ばす方向とそのまま整合する（鮮度は最大1時間に緩む）。
-const CURRENT_YEAR_REVALIDATE = 3600;
+// 【2026-09-14変更】3600 → 21600（6時間）。
+// ①ビルド成果物（.next/prerender-manifest.json）で実測したところ、
+//   /season/{今年}・/rankings・/exclusive は `export const revalidate = 604800` と
+//   書いてあるのに **実効値が 3600** だった。App Routerの実効revalidateは
+//   「ページの宣言」と「描画中に走る fetch / unstable_cache のTTL」の**低いほう**に
+//   なるため、ここが 3600 である限りページ側の宣言は一度も効いていなかった
+//   （CLAUDE.mdの「revalidateを変えたら必ずビルドして実効値を確かめる」の実例）。
+//   つまり㉝で決めた「時間では作り直さない／鮮度は /api/revalidate が指名して取りに行く」
+//   という設計が、**現在クールの4面だけ未完成のまま**残っていた。
+// ②1時間刻みだと今期の一覧ページ（実測でHTML 500KB級）が1日24回描き直される。
+//   ISR Writes は回数ではなく**バイト量**（8KB単位）で数えるので、これは無視できない。
+//   出典: https://vercel.com/docs/incremental-static-regeneration/limits-and-pricing
+// ③それでも 604800（1週間）にはしない。cronが止まったとき一覧が1週間古くなるのは
+//   このサイトの存在理由（今どこで見られるか）を損なう。6時間なら cron が全滅しても
+//   最大6時間で自力復帰し、かつ描き直しは1日4回に収まる。
+//   鮮度の本線は従来どおり /api/revalidate（revalidate.yml が1日2回）の指名。
+const CURRENT_YEAR_REVALIDATE = 6 * 60 * 60;
 const PAST_YEAR_REVALIDATE = 60 * 60 * 24;
 
 // 【2026-08-25追加】タグ "season-current" を付ける。/api/revalidate が revalidateTag で
 // 明示的に古くするため。
 //
-// なお **CURRENT_YEAR_REVALIDATE は3600のまま据え置く**（1週間へ延ばさない）。ここは
+// なお **CURRENT_YEAR_REVALIDATE は1週間へは延ばさない**（2026-09-14に3600→21600）。ここは
 // 一覧（トップ・シーズン・ランキング・独占配信）が読む現在クールのデータで、カードの
 // 配信バッジもここから出る。cronが止まったときに一覧まで1週間古くなるのは、このサイトの
-// 存在理由（今どこで見られるか）を損なう。対象は現在クールのぶんだけ＝約150ページなので、
-// 1時間刻みでも書き込みは1日200件程度に収まり、上限（1日6,600件相当）に対して十分小さい。
+// 存在理由（今どこで見られるか）を損なう。対象は現在クールのぶんだけ＝約150ページ。
 // 長い裾（過去クールの作品・声優ページ）は下の PAST_YEAR_REVALIDATE とスナップショットの
 // 直読みに乗るので、この値の影響を受けない。
 const getCachedCurrentYearSeasonData = unstable_cache(fetchAndBuild, ["season-data-current"], {
@@ -113,7 +135,19 @@ async function loadPastYearSnapshot(
 ): Promise<SeasonResponse | null> {
   try {
     const mod = await import(`../content/snapshots/${year}-${season}.json`);
-    return (mod.default ?? mod) as SeasonResponse;
+    const data = (mod.default ?? mod) as SeasonResponse;
+    // 人力補完（extraServices.ts / releaseDates.ts）を**あとから重ねる**（2026-09-14）。
+    // スナップショットは生成した瞬間の内容で固まるので、あとから足した分は
+    // 再生成するまで反映されない。過去クールで「新しく配信が始まったサービス」を
+    // 即時に出せる唯一の手段がこの層なので、ここで重ねないと手が無くなる。
+    // Annict由来の事実は塗り替えない（overlayManualData の注記）。
+    const items = data.items.map((it) =>
+      overlayManualData(it, EXTRA_SERVICES[it.id], RELEASE_DATES[it.id])
+    );
+    // スナップショットは放送終了済みの確定データ。「いつ取得したか」を名乗る資格が
+    // 無いので明示的に null にする（ページ側はこれを見て日付ごと出さない）。
+    // 理由は lib/dataFreshness.ts。
+    return { ...data, items, fetchedAt: null };
   } catch {
     return null;
   }

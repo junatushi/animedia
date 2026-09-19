@@ -2,6 +2,7 @@ import IntentLink from "@/components/IntentLink";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
+import { canStateFetchDate, dateModifiedLd, type FetchedAt } from "@/lib/dataFreshness";
 import { SERVICES, splitRentalServices, getServiceKana } from "@/lib/services";
 import { buildServiceLabel } from "@/content/services/aliases";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
@@ -113,8 +114,12 @@ export default async function ServicePage({ params }: { params: Params }) {
   const label = SEASON_LABEL[season];
   let items: { id: number; title: string; watchers: number; rental: boolean; exclusive: boolean }[] = [];
   let fetchError: string | null = null;
+  // 取得日はデータ層が持つ（過去クール＝スナップショット由来なら null＝日付を名乗らない）。
+  // ここで new Date() を呼ばないこと。理由は lib/dataFreshness.ts。
+  let fetchedAt: FetchedAt = null;
   try {
     const data = await getSeasonData(year, season);
+    fetchedAt = data.fetchedAt ?? null;
     for (const it of data.items) {
       const hasService = it.services.some((s) => s.key === key);
       if (!hasService) continue;
@@ -140,7 +145,6 @@ export default async function ServicePage({ params }: { params: Params }) {
     getServiceKana(service.key),
     service.key
   );
-  const checkedDate = new Date().toISOString().slice(0, 10);
   // /calendar.ics は常に「今期」を返す（year/season を受け取らない）ので、
   // 購読の案内は今期のページでだけ出す。
   const now = currentYearSeason();
@@ -152,7 +156,7 @@ export default async function ServicePage({ params }: { params: Params }) {
           "@type": "ItemList",
           name: `${year}年${label}アニメ ${service.name}で見れる作品一覧`,
           numberOfItems: items.length,
-          dateModified: checkedDate,
+          ...dateModifiedLd(fetchedAt),
           itemListElement: items.map((it, i) => ({
             "@type": "ListItem",
             position: i + 1,
@@ -217,8 +221,9 @@ export default async function ServicePage({ params }: { params: Params }) {
               <h2 className="detail-heading">この一覧について</h2>
               <p className="detail-text">
                 {year}年{label}アニメのうち、{serviceLabel}
-                で配信されている作品を人気順（注目度順）でまとめています （{checkedDate}
-                時点）。配信情報は網羅率100%ではなく、新作は反映が遅れることがあります。
+                で配信されている作品を人気順（注目度順）でまとめています
+                {canStateFetchDate(fetchedAt) ? `（${fetchedAt}時点）` : ""}
+                。配信情報は網羅率100%ではなく、新作は反映が遅れることがあります。
               </p>
               {/* このページの主役サービスへのリンク。提携済みならアフィリエイト（PR表示付き）、
                   未提携なら公式サイトへリンクする（ServiceMarksの単一サービス表示として再利用）。 */}

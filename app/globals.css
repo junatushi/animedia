@@ -4,13 +4,21 @@
   --paper-2: rgba(28, 58, 98, 0.5);
   --ink: #eaf4ff;
   --muted: #85a4c4;
-  --muted-2: #4d6784;
+  /* 2026-09-09: #4d6784 は --paper-2 に対して 3.03:1 しかなく、12px の補助テキスト
+     （その他配信のサービス名・埋め込みの注記など）が読めなかった。4.64:1 へ。 */
+  --muted-2: #7892b0;
   --card: var(--paper);
   --border-soft: rgba(90, 176, 245, 0.28);
   --border: rgba(90, 176, 245, 0.5);
   --border-bright: rgba(180, 222, 255, 0.75);
   --accent: #3fa9f5;
   --accent-2: #8ecbff;
+  /* 文字に使う版。--accent / --accent-2 は枠線・グラデーション（＝背景）にも使うため、
+     可読性のために暗くするとボタンの塗りまで一緒に暗くなってしまう。用途で変数を分け、
+     色を「文字として置く」ときだけこちらを使う（2026-09-09導入）。
+     ダークテーマでは装飾色をそのまま文字に使っても十分なコントラストがあるので同値。 */
+  --accent-ink: var(--accent);
+  --accent-2-ink: var(--accent-2);
   --danger: #ff4d6a;
   --mono: "SFMono-Regular", "Consolas", "Menlo", "Yu Gothic", monospace;
   --radius: 4px;
@@ -42,7 +50,7 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid var(--accent-2);
+  outline: 2px solid var(--accent-2-ink);
   outline-offset: 2px;
 }
 
@@ -117,7 +125,7 @@ body {
   font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.2em;
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   margin-bottom: 12px;
   /* 発光色に加えて反対色のハローを足し、閃光が背後を横切っても文字がくっきり
      残るようにする（発光だけだと閃光の明るさに埋もれて見づらくなるため）。 */
@@ -169,7 +177,7 @@ body {
 .brand-season {
   font-family: var(--mono);
   font-size: 12px;
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   font-weight: 700;
   letter-spacing: 0.04em;
   background: rgba(10, 18, 30, 0.75);
@@ -187,7 +195,7 @@ body {
   display: inline-flex; align-items: center; gap: 7px;
   font-family: var(--mono);
   font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   text-transform: uppercase;
   text-shadow: 0 1px 3px rgba(var(--halo-rgb), 0.9), 0 0 8px rgba(var(--halo-rgb), 0.85);
 }
@@ -224,7 +232,7 @@ body {
   transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
 .share-x:hover {
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   border-color: var(--accent-2);
   box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.3);
 }
@@ -243,7 +251,7 @@ body {
   transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
 .theme-toggle:hover {
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   border-color: var(--accent-2);
   box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.3);
 }
@@ -280,7 +288,7 @@ body {
   transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
 .auth-widget-btn:hover {
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   border-color: var(--accent-2);
   box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.3);
 }
@@ -332,7 +340,7 @@ body {
   color: #041018;
   box-shadow: 0 0 16px rgba(var(--accent-rgb), 0.55);
 }
-.seg-btn:hover:not([aria-pressed="true"]) { color: var(--accent-2); }
+.seg-btn:hover:not([aria-pressed="true"]) { color: var(--accent-2-ink); }
 
 /* 年セレクトは自前のリストボックス（ネイティブ select だとブラウザ/OS が
    ハイライト色を決めてしまい、サイトのダーク基調デザインに合わせられないため）。 */
@@ -355,7 +363,7 @@ body {
 }
 .year-select:hover,
 .year-select[aria-expanded="true"] { border-color: var(--accent-2); box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.45); }
-.year-select:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.year-select:focus-visible { outline: 2px solid var(--accent-2-ink); outline-offset: 2px; }
 .year-caret {
   width: 0; height: 0;
   border-left: 4px solid transparent;
@@ -399,7 +407,7 @@ body {
 }
 .year-option[data-selected="true"] {
   background: rgba(var(--accent-rgb), 0.18);
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   box-shadow: inset 2px 0 0 var(--accent-2);
 }
 .year-option[data-selected="true"]:hover {
@@ -442,7 +450,7 @@ body {
   cursor: pointer;
   transition: transform 0.12s ease, color 0.2s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
-.chip:hover { color: var(--accent-2); border-color: var(--accent-2); box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.25); }
+.chip:hover { color: var(--accent-2-ink); border-color: var(--accent-2); box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.25); }
 .chip:active { transform: scale(0.95); }
 .chip[data-on="true"] {
   color: #041018;
@@ -468,7 +476,7 @@ body {
   gap: 10px;
 }
 .count { font-family: var(--mono); font-size: 13px; color: var(--muted); letter-spacing: 0.01em; }
-.count b { color: var(--accent-2); font-size: 17px; font-weight: 900; text-shadow: 0 0 10px rgba(var(--accent-2-rgb), 0.5); }
+.count b { color: var(--accent-2-ink); font-size: 17px; font-weight: 900; text-shadow: 0 0 10px rgba(var(--accent-2-rgb), 0.5); }
 
 .sort { display: inline-flex; gap: 6px; }
 .sort-btn {
@@ -484,7 +492,7 @@ body {
   cursor: pointer;
   transition: color 0.2s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
-.sort-btn:hover { color: var(--accent-2); border-color: var(--accent-2); }
+.sort-btn:hover { color: var(--accent-2-ink); border-color: var(--accent-2); }
 .sort-btn[aria-pressed="true"] {
   color: #04101a;
   background: linear-gradient(120deg, var(--accent), var(--accent-2));
@@ -516,7 +524,7 @@ body {
   cursor: pointer;
   transition: color 0.2s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
-.calendar-day-btn:hover { color: var(--accent-2); border-color: var(--accent-2); }
+.calendar-day-btn:hover { color: var(--accent-2-ink); border-color: var(--accent-2); }
 .calendar-day-btn[aria-pressed="true"] {
   color: #04101a;
   background: linear-gradient(120deg, var(--accent), var(--accent-2));
@@ -566,7 +574,7 @@ body {
   font-family: var(--mono);
   font-size: 13px;
   font-weight: 700;
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   letter-spacing: 0.06em;
   margin: 0 0 10px;
   padding-bottom: 8px;
@@ -615,7 +623,7 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.calendar-title:hover { color: var(--accent-2); text-decoration: underline; }
+.calendar-title:hover { color: var(--accent-2-ink); text-decoration: underline; }
 /* カレンダー表示も一覧カードと同じ問題（タイトル文字だけがタップ領域）を抱えていたため、
    時刻・配信バッジを含む行全体をタップ領域にする。行内に他のリンクは無い（バッジは span）。 */
 .calendar-title::after {
@@ -780,7 +788,7 @@ body {
   backdrop-filter: blur(4px);
   transition: color 0.2s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
-.card-action:hover { color: var(--accent-2); border-color: var(--accent-2); }
+.card-action:hover { color: var(--accent-2-ink); border-color: var(--accent-2); }
 .card-action.share { font-size: 15px; font-weight: 700; }
 .fav-btn[aria-pressed="true"] {
   color: #ffd24a;
@@ -853,7 +861,7 @@ body {
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
-.card-air-time { color: var(--accent-2); }
+.card-air-time { color: var(--accent-2-ink); }
 /* 機械補完した放送/公開予定日（AniList由来。content/works/autoSchedule.json）。
    Annict実データ・人力補完のどちらも無い作品にだけ出る。人力補完のバッジを点線枠で
    区別しているのと同じ考え方で、**確定した放送枠と見た目で区別する**ために点線の
@@ -977,7 +985,7 @@ body {
 .fold-summary::-webkit-details-marker { display: none; }
 .fold-summary::before {
   content: "▸";
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   font-size: 18px;
   line-height: 1;
   margin-right: 9px;
@@ -987,7 +995,7 @@ body {
   font-family: var(--mono);
   font-size: 13px;
   letter-spacing: 0.08em;
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   margin: 0;
   text-transform: uppercase;
 }
@@ -1007,7 +1015,7 @@ body {
   font-family: var(--mono);
   font-size: 13px;
   letter-spacing: 0.08em;
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   margin: 0 0 12px;
   text-transform: uppercase;
 }
@@ -1067,7 +1075,7 @@ body {
   font-family: var(--mono);
   font-size: 13px;
   letter-spacing: 0.08em;
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   margin: 0 0 12px;
   text-transform: uppercase;
 }
@@ -1175,7 +1183,7 @@ body {
   list-style: none;
 }
 .changelog > summary::-webkit-details-marker { display: none; }
-.changelog > summary::before { content: "▸ "; color: var(--accent-2); }
+.changelog > summary::before { content: "▸ "; color: var(--accent-2-ink); }
 .changelog[open] > summary::before { content: "▾ "; }
 .changelog ul {
   list-style: none;
@@ -1229,7 +1237,7 @@ body {
   background: rgba(8, 14, 26, 0.32);
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   text-shadow: 0 0 8px rgba(var(--accent-2-rgb), 0.6);
   box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.25);
   margin-bottom: 0.3em;
@@ -1259,7 +1267,7 @@ body {
 }
 /* 放送曜日・時刻（例: 火 23:00）。クールの右に添える。 */
 .card-air {
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   padding: 1px 7px;
   border-radius: 999px;
   background: rgba(var(--accent-2-rgb), 0.12);
@@ -1304,7 +1312,7 @@ body {
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.06em;
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   margin: 0 0 16px;
 }
 .cross-count { font-size: 12px; color: var(--muted); font-weight: 700; }
@@ -1312,7 +1320,7 @@ body {
 /* 他クールの作品は重い配信データを持たないので、作品ページへ誘導する簡易カード。 */
 .card-compact .card-body { padding: 12px 14px 14px; }
 .card-title a { color: inherit; text-decoration: none; }
-.card-title a:hover { color: var(--accent-2); text-decoration: underline; }
+.card-title a:hover { color: var(--accent-2-ink); text-decoration: underline; }
 
 /* ── カード全体をタップ領域にする（stretched link・2026-07-27導入）─────────
    これ以前、カードから作品ページ（/anime/{id}）へ進める領域は「タイトルの文字そのもの」
@@ -1422,7 +1430,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   margin: 0;
 }
 .detail-text {
@@ -1454,7 +1462,7 @@ body {
   font-weight: 600;
 }
 .detail-alias a {
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 /* 声優ページ「他のクールの出演一覧」（2026-08-19追加）。
@@ -1481,7 +1489,7 @@ body {
 }
 .person-season-links a:hover {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 /* コード片（/developers の貼り付け例・APIの呼び出し例）。横に長いので単独でスクロールさせる。 */
@@ -1527,7 +1535,7 @@ body {
 .detail-cast-role { font-size: 11px; color: var(--muted); }
 .detail-cast-name { font-size: 13.5px; }
 /* 声優名が /person/... へのリンクになっている場合、地の文と見分けつつ浮きすぎない色にする。 */
-a.detail-cast-name { color: var(--accent); text-decoration: none; }
+a.detail-cast-name { color: var(--accent-ink); text-decoration: none; }
 a.detail-cast-name:hover { text-decoration: underline; }
 /* 「2期から見ても大丈夫？」など視聴前の疑問に答えるQ&A（content/works/*.json の faq）。
    サーバー描画のテキストだけで組み、開閉などのJSは足さない（スマホでの表示を遅くしないため）。 */
@@ -1546,7 +1554,7 @@ a.detail-cast-name:hover { text-decoration: underline; }
   color: var(--muted-2);
 }
 .detail-source a { color: var(--muted-2); }
-.detail-source a:hover { color: var(--accent-2); }
+.detail-source a:hover { color: var(--accent-2-ink); }
 /* 劇場公開日（人力補完・出典リンク付き）。劇場作品はここが最も探されている事実なので、
    配信バッジより先に、本文と同じ大きさで置く。 */
 .detail-release {
@@ -1556,7 +1564,7 @@ a.detail-cast-name:hover { text-decoration: underline; }
   color: var(--ink);
 }
 .detail-release strong { font-weight: 700; }
-.detail-release a { color: var(--accent-2); }
+.detail-release a { color: var(--accent-2-ink); }
 /* 機械補完した放送/公開の予定日（AniList由来。2026-08-17追加）。人力補完の配信バッジを
    点線枠にしているのと同じ考え方で、「一次情報で確認した事実ではない」ことを見た目で示す。
    数字を薄くはしない（探されている情報そのものなので読ませる）。 */
@@ -1583,7 +1591,7 @@ a.detail-cast-name:hover { text-decoration: underline; }
   width: fit-content;
   transition: color 0.2s, text-shadow 0.2s;
 }
-.official:hover { color: var(--accent-2); text-shadow: 0 0 8px rgba(var(--accent-2-rgb), 0.5); }
+.official:hover { color: var(--accent-2-ink); text-shadow: 0 0 8px rgba(var(--accent-2-rgb), 0.5); }
 
 /* ── States ───────────────────────────────── */
 .state { text-align: center; padding: 80px 16px; color: var(--muted); }
@@ -1617,7 +1625,7 @@ a.detail-cast-name:hover { text-decoration: underline; }
 .related-work:first-child { border-top: none; padding-top: 0; }
 .related-work-title {
   display: block;
-  color: var(--accent-2); text-decoration: none;
+  color: var(--accent-2-ink); text-decoration: none;
   font-size: 14px; font-weight: 700; line-height: 1.5;
 }
 .related-work-title:hover { text-decoration: underline; }
@@ -1626,7 +1634,7 @@ a.detail-cast-name:hover { text-decoration: underline; }
   color: var(--muted-2); font-size: 12px; line-height: 1.6;
 }
 .related-works-more { margin: 12px 0 0; font-size: 13px; }
-.related-works-more a { color: var(--accent-2); text-decoration: none; }
+.related-works-more a { color: var(--accent-2-ink); text-decoration: none; }
 .related-works-more a:hover { text-decoration: underline; }
 /* スマホでは1行あたりのタップ領域を確保する（44px前後）。 */
 @media (max-width: 480px) {
@@ -1649,7 +1657,7 @@ a.detail-cast-name:hover { text-decoration: underline; }
   list-style: none;
 }
 .embed-share > summary::-webkit-details-marker { display: none; }
-.embed-share > summary::before { content: "＋ "; color: var(--accent-2); }
+.embed-share > summary::before { content: "＋ "; color: var(--accent-2-ink); }
 .embed-share[open] > summary::before { content: "− "; }
 .embed-share > summary:hover { color: var(--ink); }
 .embed-share-body { padding: 0 14px 14px; }
@@ -1661,7 +1669,7 @@ a.detail-cast-name:hover { text-decoration: underline; }
   font-size: 12px; cursor: pointer;
 }
 .embed-share-tabs button.is-on {
-  border-color: var(--accent-2); color: var(--accent-2); font-weight: 700;
+  border-color: var(--accent-2); color: var(--accent-2-ink); font-weight: 700;
 }
 .embed-share-note { margin: 0 0 8px; font-size: 12px; line-height: 1.7; color: var(--muted-2); }
 .embed-share-code {
@@ -1677,7 +1685,7 @@ a.detail-cast-name:hover { text-decoration: underline; }
 .embed-share-copy {
   padding: 8px 18px;
   border: 1px solid var(--accent-2); border-radius: 999px;
-  background: transparent; color: var(--accent-2);
+  background: transparent; color: var(--accent-2-ink);
   font-size: 12px; font-weight: 700; cursor: pointer;
 }
 .embed-share-actions a { color: var(--muted-2); text-decoration: underline; }
@@ -1705,7 +1713,7 @@ a.detail-cast-name:hover { text-decoration: underline; }
   font-size: 12px; line-height: 1.9;
 }
 .season-archive-label { color: var(--muted-2); }
-.season-archive-item a { color: var(--accent-2); text-decoration: none; }
+.season-archive-item a { color: var(--accent-2-ink); text-decoration: none; }
 .season-archive-item a:hover { text-decoration: underline; }
 /* いま表示中のクールはリンクにせず、現在地として控えめに示す。 */
 .season-archive-item [aria-current="page"] { color: var(--muted-2); font-weight: 700; }
@@ -1745,7 +1753,7 @@ a.detail-cast-name:hover { text-decoration: underline; }
   border-radius: 999px;
   border: 1px solid var(--border-bright);
   background: var(--paper-2);
-  color: var(--accent-2);
+  color: var(--accent-2-ink);
   cursor: pointer;
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
@@ -1840,7 +1848,8 @@ a.detail-cast-name:hover { text-decoration: underline; }
   --paper-2: rgba(250, 233, 231, 0.56);
   --ink: #2a1216;
   --muted: #7a4348;
-  --muted-2: #b3898d;
+  /* 2026-09-09: #b3898d は --paper-2 に対して 2.75:1 しかなかった。4.67:1 へ。 */
+  --muted-2: #905d62;
   --border-soft: rgba(180, 60, 80, 0.14);
   --border: rgba(180, 60, 80, 0.28);
   --border-bright: rgba(180, 60, 80, 0.45);
@@ -1848,6 +1857,12 @@ a.detail-cast-name:hover { text-decoration: underline; }
      （ナイツ・オブ・ブラッドの緋色×金。金の--accent-2と組ませて品よく）。 */
   --accent: #dba3aa;
   --accent-2: #c1901a;
+  /* 上の2色は淡すぎて文字には使えない（実測: --paper-2 の上で --accent 1.86:1 /
+     --accent-2 2.82:1 ＝ AA の 4.5:1 に遠く届かない）。色相と彩度はそのままに、
+     明度だけ下げた「文字用」を別に持つ。枠線・グラデーションは上の淡い色のままなので、
+     ボタンやタブの見た目は変わらない。 */
+  --accent-ink: #b34654;
+  --accent-2-ink: #896612;
   --danger: #c23b2e;
 
   --accent-rgb: 219, 163, 170;
@@ -1874,7 +1889,7 @@ a.detail-cast-name:hover { text-decoration: underline; }
    浮いて見えるため、周囲と同じガラスパネル色にして馴染ませる。 */
 :root[data-theme="light"] .brand-season {
   background: var(--paper-2);
-  color: var(--accent);
+  color: var(--accent-ink);
   box-shadow: 0 0 0 1px rgba(var(--border-bright-rgb), 0.14) inset, 0 0 10px rgba(var(--accent-rgb), 0.12);
 }
 :root[data-theme="light"] body {
@@ -1944,7 +1959,7 @@ a.detail-cast-name:hover { text-decoration: underline; }
   text-decoration: none;
   border-radius: 3px;
 }
-.svc-chip-link:hover .svc-chip-name { color: var(--accent-2); }
+.svc-chip-link:hover .svc-chip-name { color: var(--accent-2-ink); }
 .svc-disclosure {
   font-size: 12px;
   color: var(--muted);
@@ -1959,4 +1974,4 @@ a.detail-cast-name:hover { text-decoration: underline; }
   line-height: 1.6;
   margin: 8px 0 0;
 }
-.svc-manual-note a { color: var(--accent-2); }
+.svc-manual-note a { color: var(--accent-2-ink); }

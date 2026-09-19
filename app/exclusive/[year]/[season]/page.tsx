@@ -2,6 +2,7 @@ import IntentLink from "@/components/IntentLink";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
+import { canStateFetchDate, dateModifiedLd, type FetchedAt } from "@/lib/dataFreshness";
 import { splitRentalServices } from "@/lib/services";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import type { AnimeItem, ServiceTag } from "@/lib/types";
@@ -110,15 +111,18 @@ export default async function ExclusivePage({ params }: { params: Params }) {
 
   let groups: ExclusiveGroup[] = [];
   let fetchError: string | null = null;
+  // 取得日はデータ層が持つ（過去クール＝スナップショット由来なら null＝日付を名乗らない）。
+  // ここで new Date() を呼ばないこと。理由は lib/dataFreshness.ts。
+  let fetchedAt: FetchedAt = null;
   try {
     const data = await getSeasonData(year, season);
+    fetchedAt = data.fetchedAt ?? null;
     groups = groupByExclusiveService(data.items);
   } catch (e) {
     fetchError = e instanceof Error ? e.message : "取得に失敗しました。";
   }
 
   const totalCount = groups.reduce((sum, g) => sum + g.items.length, 0);
-  const checkedDate = new Date().toISOString().slice(0, 10);
 
   const structuredLd = !fetchError
     ? [
@@ -127,7 +131,7 @@ export default async function ExclusivePage({ params }: { params: Params }) {
           "@type": "ItemList",
           name: `${year}年${label}アニメ 独占配信まとめ`,
           numberOfItems: totalCount,
-          dateModified: checkedDate,
+          ...dateModifiedLd(fetchedAt),
           itemListElement: groups.flatMap((g) =>
             g.items.map((it, i) => ({
               "@type": "ListItem",
@@ -194,7 +198,8 @@ export default async function ExclusivePage({ params }: { params: Params }) {
               <h2 className="detail-heading">この一覧について</h2>
               <p className="detail-text">
                 見放題配信サービスが1社だけの作品（レンタル/都度課金サービスは対象外）を「独占配信」として、
-                サービス別にまとめています（{checkedDate}時点）。複数社で配信されている作品はここには含まれません。
+                サービス別にまとめています{canStateFetchDate(fetchedAt) ? `（${fetchedAt}時点）` : ""}。
+                複数社で配信されている作品はここには含まれません。
               </p>
             </section>
 

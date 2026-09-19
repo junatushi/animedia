@@ -74,14 +74,23 @@ export function buildWatchAnswer(params: {
   title: string;
   serviceLabels: string[];
   rentalNote: string;
-  checkedDate: string;
+  // Annictから実際に取得した日。**null なら日付を名乗らない**（2026-09-14）。
+  // 過去クールの作品は content/snapshots/ の確定データから描いており、
+  // 「今日取得した」わけではない。そこに今日の日付を書くのは事実として誤りで、
+  // かつ出力が毎日変わるので中身が同じでもVercelのISR Writeを消費する。
+  // 詳細は lib/dataFreshness.ts。
+  checkedDate: string | null;
   status: AiringStatus;
 }): string {
   const { title, serviceLabels, rentalNote, checkedDate, status } = params;
   const names = serviceLabels.join("・");
   return status === "finished"
-    ? `「${title}」の配信情報があるのは ${names} です（${checkedDate}時点のAnnictデータ）。${rentalNote}${FINISHED_NOTE}`
-    : `「${title}」は ${names} で視聴できます（${checkedDate}時点）。${rentalNote}${AIRING_NOTE}`;
+    ? `「${title}」の配信情報があるのは ${names} です${
+        checkedDate ? `（${checkedDate}時点のAnnictデータ）` : ""
+      }。${rentalNote}${FINISHED_NOTE}`
+    : `「${title}」は ${names} で視聴できます${
+        checkedDate ? `（${checkedDate}時点）` : ""
+      }。${rentalNote}${AIRING_NOTE}`;
 }
 
 // 検索結果のスニペットに使われる description。作品ページの metadata から呼ぶ。
@@ -232,14 +241,18 @@ export function buildStreamingProperties(
 // どちらのノードでも正しいが、出所一式は1ノードにまとめる。
 // 名前とURLは lib/attribution.ts（出典表記の正準定義）を使い回す。
 export function buildDataProvenance(
-  retrievedDate: string,
+  // null なら sdDatePublished を**出さない**（キー自体を作らない）。
+  // 「取得日が分からない」のではなく「静的な確定データなので取得日という概念が無い」
+  // ので、不正確な日付を入れるより出さないのが正しい（app/sitemap.ts が lastModified を
+  // 捨てたのと同じ判断）。詳細は lib/dataFreshness.ts。
+  retrievedDate: string | null,
   pageUrl: string
 ): Record<string, unknown> {
   return {
     "@type": "WebPage",
     "@id": pageUrl,
     url: pageUrl,
-    sdDatePublished: retrievedDate,
+    ...(retrievedDate ? { sdDatePublished: retrievedDate } : {}),
     sdPublisher: { "@type": "Organization", name: SITE_NAME, url: siteUrl },
     citation: { "@type": "WebSite", name: DATA_PROVIDER, url: DATA_PROVIDER_URL },
   };

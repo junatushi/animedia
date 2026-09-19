@@ -41,6 +41,8 @@ const day = (base, offset) => {
  * @param {object} o
  * @param {string[]} o.gsc          GSCのファイル日付
  * @param {string[]} o.site         行動ログのファイル日付
+ * @param {string[]} [o.speed]      本番の表示速度（合成計測）のファイル日付
+ * @param {string[]} [o.usage]      Vercel利用量（請求明細）のファイル日付
  * @param {Record<string,string[]>} o.firstSeen  "情報源 クール" → 日付の並び
  * @param {string[]} [o.extraDirs]  登録されていない収集先（登録漏れの再現）
  */
@@ -53,6 +55,21 @@ function fixture(o) {
   };
   for (const d of o.gsc || []) w(`content/analytics/gsc/${d}.json`, "{}");
   for (const d of o.site || []) w(`content/analytics/site/${d}.json`, "{}");
+  // 既定で健全な speed を置く。**シリーズを1本足したらここも足す**（足さないと
+  // 「健全なら失敗0」が落ちるので、登録漏れがテスト側で必ず露見する）。
+  // speed: null … ディレクトリごと作らない（git は空ディレクトリを追跡しないので、
+  //   収集先を1本足した直後の clone はこの状態になる）
+  // speed: []   … ディレクトリはあるがファイルが無い
+  if (o.speed !== null) {
+    const speedDates = o.speed ?? streak(o.today ?? TODAY, 10);
+    fs.mkdirSync(path.join(root, "content/analytics/speed"), { recursive: true });
+    for (const d of speedDates) w(`content/analytics/speed/${d}.json`, "{}");
+  }
+  if (o.usage !== null) {
+    const usageDates = o.usage ?? streak(o.today ?? TODAY, 10);
+    fs.mkdirSync(path.join(root, "content/analytics/usage"), { recursive: true });
+    for (const d of usageDates) w(`content/analytics/usage/${d}.json`, "{}");
+  }
   if (o.firstSeen) {
     const sources = {};
     for (const [arm, dates] of Object.entries(o.firstSeen)) {
@@ -63,6 +80,18 @@ function fixture(o) {
     w("content/coverage/first-seen.json", JSON.stringify({ sources }));
   }
   for (const d of o.extraDirs || []) fs.mkdirSync(path.join(root, d), { recursive: true });
+  // 収集を回すワークフローを、**本物をそのまま写して**置く（2026-09-19追加）。
+  // freshness.js は「その系列の script を呼ぶワークフローがあるか」を走査で導出するので、
+  // ここを手で並べると系列を足すたびにズレる。写しておけば自動で追随する。
+  // noWorkflows: true … 写さない＝「回すものが無い」状態を再現する。
+  if (!o.noWorkflows) {
+    const src = path.join(__dirname, "..", ".github", "workflows");
+    const dst = path.join(root, ".github", "workflows");
+    fs.mkdirSync(dst, { recursive: true });
+    for (const f of fs.readdirSync(src)) {
+      if (/\.ya?ml$/.test(f)) fs.copyFileSync(path.join(src, f), path.join(dst, f));
+    }
+  }
   return root;
 }
 
@@ -189,11 +218,94 @@ function main() {
     check("⑥ 記録は同じ腕の別の日には効かない", caught, caught ? `${other} を失敗として検出` : "見逃した");
   }
 
+  // ⑧ since を書いた新しいシリーズは、開始直後は失敗にしない（初日から赤い検査を作らない）。
+  //    ただし猶予（staleDays）を過ぎても1件も無ければ失敗にする＝黙って止まったままにしない。
+  {
+    const r = run(use({ gsc: gscHealthy, site: siteHealthy, firstSeen: fsHealthy, speed: [] }), TODAY);
+    check("⑧ 開始直後は失敗にしない", /まだ1件目を待っている/.test(r.out) && r.code === 0, `exit=${r.code}`);
+  }
+  {
+    // 開始から十分経っているのに1件も無い＝収集が動いていない。
+    const late = day(TODAY, 30);
+    const r = run(
+      use({
+        gsc: streak(day(late, -3), 10),
+        site: streak(late, 10),
+        firstSeen: { "annict 2026-autumn": streak(late, 10), "anilist 2026-autumn": streak(late, 10) },
+        speed: [],
+      }),
+      late
+    );
+    check("⑧ 猶予を過ぎたら失敗になる", /1件も無い/.test(r.out) && r.code !== 0, `exit=${r.code}`);
+  }
+
+  {
+    // ⑧' 開始の猶予（startGraceDays）は欠測の許容（staleDays）と別物。
+    //     人の作業（トークン登録）待ちの収集を、欠測の許容日数で赤くしない。
+    //     usage は since=2026-09-15 / staleDays=2 / startGraceDays=14。
+    //     staleDays だけなら 09-18 で失敗するが、猶予は 09-29 まで効く。
+    const r = run(
+      use({ gsc: streak("2026-09-25", 10), site: streak("2026-09-25", 10),
+            firstSeen: { "annict 2026-autumn": streak("2026-09-25", 10) },
+            speed: streak("2026-09-25", 10), usage: null }),
+      "2026-09-25"
+    );
+    check(
+      "⑧' 開始の猶予は欠測の許容より長くできる",
+      r.code === 0 && /まだ1件目を待っている/.test(r.out),
+      `exit=${r.code}`
+    );
+    const r2 = run(
+      use({ gsc: streak("2026-10-05", 10), site: streak("2026-10-05", 10),
+            firstSeen: { "annict 2026-autumn": streak("2026-10-05", 10) },
+            speed: streak("2026-10-05", 10), usage: null }),
+      "2026-10-05"
+    );
+    check("⑧' 猶予を過ぎれば開始待ちでも失敗する", r2.code !== 0, `exit=${r2.code}`);
+  }
+
+  {
+    // git は空ディレクトリを追跡しないので、収集先を足した直後は**ディレクトリ自体が無い**。
+    // ここに猶予が効かないと、1件目が入るまで毎日必ず赤くなる。
+    const r = run(use({ gsc: gscHealthy, site: siteHealthy, firstSeen: fsHealthy, speed: null }), TODAY);
+    check("⑧ 開始直後はディレクトリが無くても失敗にしない", r.code === 0 && /まだ1件目を待っている/.test(r.out), `exit=${r.code}`);
+  }
+
   // ⑦ 収集先そのものが無いときに静かに成功しない（この種の道具の最悪の壊れ方）。
   {
     const r = run(use({ gsc: gscHealthy, site: siteHealthy }), TODAY); // first-seen を作らない
     const caught = r.code !== 0 && /一度も成功していない|が無い/.test(r.out);
     check("⑦ 収集先が無ければ失敗になる", caught, caught ? "失敗として検出" : "静かに成功した");
+  }
+
+  // ⑨ 収集が「一度も動いていない」形を見逃さない（2026-09-19追加）。
+  //
+  // 欠測（動いて失敗した）とは原因がまったく違う。**回すワークフローが無い／
+  // デフォルトブランチに入っていない**場合、GitHubはスケジュールに登録すらしないので
+  // 実行ログも失敗Issueも残らず、「失敗した」とすら気づけない。実際に
+  // measure-speed.yml が作業ブランチにしか無く、10日間まったく動かなかった。
+  {
+    const r = run(use({ gsc: gscHealthy, site: siteHealthy, firstSeen: fsHealthy, noWorkflows: true }), TODAY);
+    const caught = r.code !== 0 && /収集を回すワークフローがある/.test(r.out) && /を呼ぶワークフローが無い/.test(r.out);
+    check("⑨ 回すワークフローが無ければ失敗になる", caught, caught ? "失敗として検出" : "静かに通した");
+  }
+
+  // ⑨' 1件も入っていないときは、**どこを見ればよいか**まで出す。
+  // ここが「1件も無い」だけだと、人は欠測と同じ扱いでログを探しに行き、
+  // ログが存在しない（＝一度も起動していない）ことに辿り着けない。
+  {
+    const late = day(TODAY, 30); // speed の開始猶予（staleDays=2）を確実に過ぎた日
+    const r = run(
+      use({
+        gsc: streak(day(late, -3), 10),
+        site: streak(late, 10),
+        firstSeen: { "annict 2026-autumn": streak(late, 10), "anilist 2026-autumn": streak(late, 10) },
+        speed: [],
+      }),
+      late
+    );
+    const named = /デフォルトブランチ（main）/.test(r.out) && /measure-speed\.yml/.test(r.out);
+    check("⑨' 1件も無いとき確認先を名指しする", r.code !== 0 && named, named ? "mainへの未マージを名指し" : "原因を示さない");
   }
 
   for (const t of tmps) fs.rmSync(t, { recursive: true, force: true });

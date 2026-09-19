@@ -156,6 +156,20 @@ export interface SeasonResponse {
   season: string;
   count: number;
   items: AnimeItem[];
+  // このデータを実際にAnnictから取得した日（JST "YYYY-MM-DD"）。
+  // **スナップショット（content/snapshots/）から返したときは null**。
+  //
+  // なぜ「今日の日付」ではなく取得日を持つのか（2026-09-14導入・重大度高）:
+  //   ①事実として正しい。放送終了済みのクールをスナップショットから描いている
+  //     ページに「2026-09-14時点」と書くのは嘘で、app/sitemap.ts が lastModified を
+  //     捨てたのとまったく同じ誤り（正確でない鮮度の申告はサイト全体の信用を落とす）。
+  //   ②Vercelは**再生成の結果が前回と1バイトも変わらなければ ISR Write を課金しない**
+  //     （https://vercel.com/kb/guide/how-to-reduce-isr-revalidation-costs）。
+  //     出力に new Date() が混ざっていると日付をまたぐたびに全ページが「変化あり」に
+  //     なり、中身が同じでも書き込みが発生する。取得日は unstable_cache の中で
+  //     確定するので、**データが変わらない限り出力も1バイトも変わらない**。
+  // 表示してよいかの判定は lib/dataFreshness.ts の canStateFetchDate が1箇所で持つ。
+  fetchedAt?: string | null;
   // SSRのHTMLに埋め込むときだけ true になる（lib/seasonPayload.ts）。
   // 「creditNames が空なのは、その作品にスタッフ情報が無いからではなく、
   // 転送量のために外したから」を表す印。公開API（/api/season）は付けない。
@@ -189,6 +203,9 @@ export interface WorkCredits {
 
 export interface AnimeDetail extends AnimeItem {
   credits: WorkCredits;
+  // SeasonResponse.fetchedAt と同じ意味・同じ理由（そちらの説明を読むこと）。
+  // スナップショット由来なら null。
+  fetchedAt?: string | null;
 }
 
 // content/works/ に人力で用意する補足コンテンツ（あらすじ・見どころ・出版社）。

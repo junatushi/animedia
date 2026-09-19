@@ -23,7 +23,7 @@ import { join } from "node:path";
 import { fetchSeasonWorks } from "../lib/annict.ts";
 import { toAnimeDetail } from "../lib/services.ts";
 import { EXTRA_SERVICES } from "../content/works/extraServices.ts";
-import type { SeasonResponse, AnimeItem } from "../lib/types.ts";
+import type { SeasonResponse, AnimeItem, WorkCastCredit } from "../lib/types.ts";
 import type { RoleCredits } from "../lib/studioIndex.ts";
 
 // スナップショットの各作品に、役割つきクレジット（監督・制作会社・原作者）を追加する
@@ -36,14 +36,27 @@ import type { RoleCredits } from "../lib/studioIndex.ts";
 // staffs（roleText付き）から役割つきで導出できている。判定ロジックをここで
 // 書き直さず、その結果をそのまま保存する。
 //
-// なぜ casts（声優×キャラ名の対応）は含めないか: 声優名自体は castNames に既にあり、
-// scripts/build-person-index.ts はキャラ名までは使わない。持たせても索引が使わない
-// データでスナップショットが太るだけなので、役割つきクレジットのうち
-// 制作会社・監督・原作者（RoleCredits）だけを追加する。
+// 【2026-09-14変更】casts（声優×キャラ名の対応）も含めるようにした。
+//
+// 導入時（2026-08-07）は「索引が使わないデータでスナップショットが太るだけ」として
+// 意図的に外していたが、**それが作品ページを静的化できない唯一の理由**になっていた。
+//   ・lib/getWorkData.ts は作品ページのために毎回 Annict へライブ取得している。
+//     過去クール（放送終了済み＝内容が動かない）でも同じ。
+//   ・スナップショットへ切り替えられなかったのは、AnimeDetail.credits.casts
+//     （「役名 / 声優名」）だけがスナップショットに無かったため。
+//   ・そのため過去クールの作品ページは、クロールのたびに外部APIの往復と
+//     ISR の書き込みを発生させ続けていた（Vercel Hobby の ISR Writes・
+//     Fluid Active CPU・Deployment Storage の3指標すべてに乗る）。
+// casts を持たせると、過去クールの作品ページは**ネットワークに一切出ずに描ける＝
+// ビルド時に焼ける＝恒久的に費用ゼロ**になる。増えるのは1作品あたり数百バイト。
+//
+// 既存の roleCredits は残す（content/archive/studios.json の生成元がこれを読む）。
+// castCredits は追加フィールドで、lib/getWorkData.ts が「このスナップショットは
+// 作品ページを描くのに十分か」を判定する印も兼ねる（無ければ従来どおりライブ取得）。
 //
 // 既存フィールド（creditNames/castNames 等）は content/archive/index.json /
 // content/archive/people.json が依存しているため変更しない（追加のみ）。
-type SnapshotItem = AnimeItem & { roleCredits: RoleCredits };
+type SnapshotItem = AnimeItem & { roleCredits: RoleCredits; castCredits: WorkCastCredit[] };
 interface SnapshotSeasonResponse extends Omit<SeasonResponse, "items"> {
   items: SnapshotItem[];
 }
@@ -82,7 +95,7 @@ async function buildSeason(year: string, season: string, token: string): Promise
         productionCompany: credits.productionCompany,
         originalCreators: credits.originalCreators,
       };
-      return { ...item, roleCredits };
+      return { ...item, roleCredits, castCredits: credits.casts };
     })
     .sort((a, b) => b.watchers - a.watchers);
   return { season: seasonStr, count: items.length, items };

@@ -1,7 +1,16 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { classifyChannel, toAnimeItem, SERVICES } from "../lib/services.ts";
+import {
+  classifyChannel,
+  toAnimeItem,
+  overlayManualData,
+  SERVICES,
+  textOn,
+  contrastRatio,
+  MARK_DARK,
+  MARK_LIGHT,
+} from "../lib/services.ts";
 import {
   SEASON_QUERY,
   WORK_QUERY,
@@ -96,6 +105,16 @@ import { parseWorkId } from "../lib/workId.ts";
 // 名指しの列挙が漏れて OG画像ルートだけ検証を通っていなかった事故から入れた。
 import { appRoutes, dynamicRoutes } from "./lib/app-routes.js";
 import { build as buildInlineCss } from "./build-inline-css.js";
+import {
+  LAYERS as CSS_LAYER_NAMES,
+  collectRouteClasses,
+  layerForRoutes,
+  layersForRoute,
+  splitCss,
+  findOrderConflicts,
+  routeIdFor,
+} from "./lib/css-layers.js";
+import { minifyCss } from "./lib/minify-css.js";
 // 配信サービス追加の検知（2026-08-07追加）。純粋関数のみ。
 import { applySightings } from "../lib/serviceAdditions.ts";
 import { otherSeasonWorks, MIN_WORKS, type PersonIndex } from "../lib/personIndex.ts";
@@ -637,6 +656,229 @@ let badgeNg = 0;
   }
 }
 console.log(`結果（配信バッジの遷移先）: ${badgeNg === 0 ? 1 : 0} 件OK / ${badgeNg} 件NG`);
+
+// ── 広告の開示文は、実際に広告リンクがあるときだけ出す（2026-09-09導入）──
+// 2026-09-09にVercelの規約対応で全アフィリエイトを停止したとき、
+// components/SeasonExplorer.tsx の開示文だけが**無条件**で出ており、広告リンクを
+// 1本も出していないのに「広告リンクが含まれます」と書く状態になりかけた。
+// ステマ規制が求めているのは「広告なのに広告だと分からないこと」を防ぐことなので、
+// 広告が無いのに広告だと書くのは、要求を満たすどころか事実でない記述になる。
+// ServiceMarks 側は元から hasAnyAffiliate で門番していたが、hideDisclosure を使う
+// 呼び出し側（一覧画面）が自前で出す分だけが素通りしていた＝**片方だけ直っている**形。
+// 対象は走査して導出する（開示文を出す3つ目のファイルが増えた日に自動で効く・㊳）。
+let discloseNg = 0;
+{
+  const roots = ["../app", "../components"].map((r) => fileURLToPath(new URL(r, import.meta.url)));
+  const files: string[] = [];
+  const walkDisc = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = `${dir}/${e.name}`;
+      if (e.isDirectory()) walkDisc(p);
+      else if (e.name.endsWith(".tsx")) files.push(p);
+    }
+  };
+  roots.forEach(walkDisc);
+
+  const MARK = 'className="svc-disclosure"';
+  const emitters = files.filter((f) => readFileSync(f, "utf8").includes(MARK));
+  const foundEmitters = emitters.length >= 2;
+  if (!foundEmitters) discloseNg++;
+  console.log(
+    `${foundEmitters ? "✓" : "✗"}  ${"開示文を出す箇所を走査できている".padEnd(44)} → ${emitters.length} ファイル` +
+      (foundEmitters ? "" : "  (期待: 2件以上＝ServiceMarksと一覧側。目印を変えたなら検査も直す)")
+  );
+
+  // 「importだけ残して条件を外す」壊れ方を捕まえるため、ファイル内に門番の名前が
+  // あるかではなく、**出力箇所の手前600文字**の範囲に条件があるかで見る。
+  // **コメントは先に落とす**。この検査を書いた当日、門番を外す変異を当てたのに
+  // 「門番を外すな」と説明した*コメント*が手前にあるせいで検査が通ってしまった
+  // （検査自身が、名前の出現と実装の存在を取り違えていた）。
+  // import 行も落とす（門番を import したまま条件だけ外す壊れ方を、import で
+  // 通してしまわないため）。ServiceMarks は真偽値の定数、一覧側は関数呼び出しと
+  // 使い方が違うので、残った本文に**識別子が現れるか**だけで見る。
+  const stripComments = (s: string) =>
+    s
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^[ \t]*\/\/[^\n]*$/gm, "")
+      .replace(/^import[^\n]*$/gm, "");
+  const GATE = /hasAnyA(ctiveA)?ffiliate/;
+  for (const f of emitters) {
+    const src = stripComments(readFileSync(f, "utf8"));
+    const rel = f.replace(/\\/g, "/").split("/").slice(-2).join("/");
+    let ok = src.includes(MARK);
+    for (let idx = src.indexOf(MARK); idx >= 0; idx = src.indexOf(MARK, idx + 1)) {
+      if (!GATE.test(src.slice(Math.max(0, idx - 600), idx))) ok = false;
+    }
+    if (!ok) discloseNg++;
+    console.log(
+      `${ok ? "✓" : "✗"}  ${`門番つきで開示: ${rel}`.padEnd(44)} → ${ok ? "OK" : "無条件で出している"}` +
+        (ok ? "" : "  (期待: hasAnyAffiliate / hasAnyActiveAffiliate の条件の中に置く)")
+    );
+  }
+
+  // 門番の実装が active を見ていること（常に true を返す実装に退化していないこと）。
+  const affSrc = readFileSync(new URL("../lib/affiliate.ts", import.meta.url), "utf8");
+  // 窓は**その関数の本体だけ**に閉じる。固定長（400文字）で切ると次の関数まで届き、
+  // pickAffiliate の `p.active` を拾って変異を見逃した（この検査を書いた当日に実証）。
+  const gateAt = affSrc.indexOf("export function hasAnyActiveAffiliate");
+  const gateEnd = gateAt >= 0 ? affSrc.indexOf("\n}", gateAt) : -1;
+  const looksAtActive = gateAt >= 0 && gateEnd > gateAt && /\.active/.test(affSrc.slice(gateAt, gateEnd));
+  if (!looksAtActive) discloseNg++;
+  console.log(
+    `${looksAtActive ? "✓" : "✗"}  ${"門番が active を見ている".padEnd(44)} → ${looksAtActive ? "OK" : "見ていない（門番が効かない）"}`
+  );
+
+  // いまの状態。停止中でも再開後でも失敗にしない（不変条件ではないため情報表示に留める）。
+  const activeCount = Object.values(AFFILIATE_PROGRAMS)
+    .flatMap((l) => l ?? [])
+    .filter((p) => p.active).length;
+  console.log(
+    `ℹ  有効な広告リンク${" ".repeat(28)} → ${activeCount} 件${activeCount === 0 ? "（掲載停止中・2026-09-09〜）" : ""}`
+  );
+}
+console.log(`結果（広告の開示文）: ${discloseNg === 0 ? 1 : 0} 件OK / ${discloseNg} 件NG`);
+
+// ── 文字色のコントラスト（2026-09-09導入）──────────────────────
+// ライトテーマの実測で、本文以外の文字がほぼ全部 WCAG AA(4.5:1) を割っていた
+// （--accent 1.86:1 / --accent-2 2.82:1 / --muted-2 2.75:1、フォーカスリング 2.60:1 は
+// 非テキストUIの 3:1 も未達）。ダークテーマも --muted-2 が 3.03:1 で落ちていた
+// ＝「ライトだけの問題」ではない。**画面を見て「少し薄い」としか思えない壊れ方**なので
+// 目視では見つからず、比を計算しないと分からない。
+//
+// 対象は**走査して導出する**（㊳）。色の組を手で並べると、変数を1つ足した日に
+// その1つだけ検査されないまま残る。
+//   ・文字色  … `color:` プロパティに現れる var(--X) を全部集める（`border-color:` 等は除外）
+//   ・リング  … `outline:` に現れる var(--X)
+//   ・背景    … ページと card の実面である --bg / --paper / --paper-2 の3つに限る
+//     （全変数の総当たりにすると、DOM上ありえない組でも落ちて意味が無くなる）
+{
+  let contrastNg = 0;
+  console.log("\n── 文字色のコントラスト ──");
+
+  // ① textOn がしきい値ではなく実際の比で選んでいること。
+  //    旧実装は (0.299R+0.587G+0.114B)/255 > 0.6 という NTSC の知覚輝度で、
+  //    ガンマを戻さないうえ 0.6 という定数に根拠が無く、17社中9社が AA 未満だった
+  //    （最悪 Hulu 2.00:1）。**両方の比を出して高いほうを返す**のが不変条件。
+  let markWorst = { key: "", ratio: Infinity };
+  let markNg = 0;
+  for (const s of SERVICES) {
+    const chosen = textOn(s.color);
+    const other = chosen === MARK_DARK ? MARK_LIGHT : MARK_DARK;
+    if (contrastRatio(s.color, chosen) < contrastRatio(s.color, other)) {
+      markNg++;
+      console.log(`✗  バッジ ${s.key}: ${chosen} より ${other} のほうが読みやすい`);
+    }
+    const r = contrastRatio(s.color, chosen);
+    if (r < markWorst.ratio) markWorst = { key: s.key, ratio: r };
+  }
+  if (markNg > 0) contrastNg += markNg;
+  console.log(
+    `${markNg === 0 ? "✓" : "✗"}  ${`textOn が ${SERVICES.length} 社すべてで良いほうを選ぶ`.padEnd(44)} → ` +
+      `${markNg === 0 ? `OK（最悪 ${markWorst.key} ${markWorst.ratio.toFixed(2)}:1）` : `${markNg} 社で不一致`}`
+  );
+
+  // ② globals.css が「文字色」に装飾用の変数を直接使っていないこと。
+  //    --accent / --accent-2 は枠線とグラデーション（＝背景）にも使うので、
+  //    文字が読めるまで暗くすると塗りまで暗くなる。用途で変数を分けてある。
+  const cssSrc = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const bareText = [...cssSrc.matchAll(/(?<![-\w])color:\s*var\((--accent(?:-2)?)\)/g)].map((m) => m[1]);
+  if (bareText.length > 0) contrastNg++;
+  console.log(
+    `${bareText.length === 0 ? "✓" : "✗"}  ${"文字色は ink 版の変数を使う".padEnd(44)} → ` +
+      `${bareText.length === 0 ? "OK" : `${bareText.length}箇所が素の ${[...new Set(bareText)].join("/")} を文字に使っている`}`
+  );
+
+  // ③ 実際の比を、globals.css の値そのものから計算する（②だけだと、ink 版に
+  //    薄い色を入れた日に素通りする）。rgba() の面は --bg に重ねて解決する。
+  const blockOf = (sel: string): string => {
+    const i = cssSrc.indexOf(sel + " {");
+    if (i < 0) return "";
+    const j = cssSrc.indexOf("\n}", i);
+    return j > i ? cssSrc.slice(i, j) : "";
+  };
+  const varsOf = (block: string): Record<string, string> => {
+    const out: Record<string, string> = {};
+    for (const m of block.matchAll(/(--[\w-]+):\s*([^;]+);/g)) out[m[1]] = m[2].trim();
+    return out;
+  };
+  const resolve = (name: string, map: Record<string, string>, depth = 0): string | null => {
+    const v = map[name];
+    if (v === undefined || depth > 5) return null;
+    const indirect = v.match(/^var\((--[\w-]+)\)$/);
+    if (indirect) return resolve(indirect[1], map, depth + 1);
+    if (/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase();
+    const rgba = v.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,/\s]+([\d.]+))?\s*\)$/i);
+    if (rgba) {
+      const a = rgba[4] === undefined ? 1 : parseFloat(rgba[4]);
+      const under = resolve("--bg", map, depth + 1);
+      if (!under) return null;
+      const u = [0, 2, 4].map((i) => parseInt(under.slice(1).slice(i, i + 2), 16));
+      const c = [1, 2, 3].map((i) => Math.round(parseInt(rgba[i], 10) * a + u[i - 1] * (1 - a)));
+      return "#" + c.map((x) => x.toString(16).padStart(2, "0")).join("");
+    }
+    return null;
+  };
+  const baseVars = varsOf(blockOf(":root"));
+  const themes: [string, Record<string, string>][] = [
+    ["ダーク", baseVars],
+    ["ライト", { ...baseVars, ...varsOf(blockOf(':root[data-theme="light"]')) }],
+  ];
+  const textVars = new Set<string>();
+  for (const m of cssSrc.matchAll(/(?<![-\w])color:\s*var\((--[\w-]+)\)/g)) textVars.add(m[1]);
+  const ringVars = new Set<string>();
+  for (const m of cssSrc.matchAll(/outline:[^;]*var\((--[\w-]+)\)/g)) ringVars.add(m[1]);
+  const SURFACES = ["--bg", "--paper", "--paper-2"];
+  // AA は本文 4.5:1、フォーカスリングなど非テキストUIは 1.4.11 の 3:1。
+  const groups: [string, Set<string>, number][] = [
+    ["文字", textVars, 4.5],
+    ["リング", ringVars, 3.0],
+  ];
+  let worst = { label: "", ratio: Infinity, need: 0 };
+  let pairs = 0;
+  for (const [themeName, map] of themes) {
+    for (const [kind, set, need] of groups) {
+      for (const t of set) {
+        const fg = resolve(t, map);
+        if (!fg) {
+          contrastNg++;
+          console.log(`✗  ${themeName} の ${t} が色に解決できない（検査できていない）`);
+          continue;
+        }
+        for (const sn of SURFACES) {
+          const bg = resolve(sn, map);
+          if (!bg) {
+            contrastNg++;
+            console.log(`✗  ${themeName} の ${sn} が色に解決できない`);
+            continue;
+          }
+          pairs++;
+          const r = contrastRatio(fg, bg);
+          if (r < need) {
+            contrastNg++;
+            console.log(
+              `✗  ${themeName} ${kind} ${t} ${fg} on ${sn} ${bg} → ${r.toFixed(2)}:1（必要 ${need}:1）`
+            );
+          } else if (r / need < worst.ratio / (worst.need || 1)) {
+            worst = { label: `${themeName} ${t} on ${sn}`, ratio: r, need };
+          }
+        }
+      }
+    }
+  }
+  // 走査が空振り（正規表現が壊れて0件）でも「OK」に見えてしまうのを防ぐ。
+  if (textVars.size < 3 || ringVars.size < 1 || pairs < 12) {
+    contrastNg++;
+    console.log(`✗  走査が空振りしている（文字色${textVars.size}／リング${ringVars.size}／組${pairs}）`);
+  }
+  console.log(
+    `${contrastNg === 0 ? "✓" : "✗"}  ${`実測コントラスト（${pairs}組）`.padEnd(44)} → ` +
+      `${contrastNg === 0 ? `OK（最も余裕が無いのは ${worst.label} ${worst.ratio.toFixed(2)}:1）` : `${contrastNg} 件NG`}`
+  );
+
+  globalThis.__contrastNg = contrastNg;
+  console.log(`結果（文字色のコントラスト）: ${contrastNg === 0 ? 1 : 0} 件OK / ${contrastNg} 件NG`);
+}
 
 // ── 日付アンカー（anchorToSlotDate）の回帰テスト（2026-08-05導入）──
 // GitHub Actionsのscheduleは予定より数時間遅れて発火する（実測最大6.4時間）。旧cron
@@ -6889,12 +7131,12 @@ let inlineCssNg = 0;
   );
 
   const inlined =
-    /import \{ INLINE_CSS \} from "\.\/inlineCss"/.test(layoutNoComments) &&
-    /<style dangerouslySetInnerHTML=\{\{ __html: INLINE_CSS \}\} \/>/.test(layoutNoComments);
+    /import \{ CSS_LAYERS \} from "\.\/inlineCss"/.test(layoutNoComments) &&
+    /<style dangerouslySetInnerHTML=\{\{ __html: CSS_LAYERS\.base \}\} \/>/.test(layoutNoComments);
   if (!inlined) inlineCssNg++;
   console.log(
-    `${inlined ? "✓" : "✗"}  ${"<head> に <style> として埋めている".padEnd(48)} → ` +
-      (inlined ? "app/inlineCss.ts を1本だけ埋め込み" : "埋め込みが外れている（無スタイルになる）")
+    `${inlined ? "✓" : "✗"}  ${"<head> に base 層を埋めている".padEnd(48)} → ` +
+      (inlined ? "app/inlineCss.ts の CSS_LAYERS.base" : "埋め込みが外れている（無スタイルになる）")
   );
 
   // 生成物が元CSSと一致すること（＝再生成し忘れの検出）。
@@ -6917,6 +7159,240 @@ let inlineCssNg = 0;
   );
 
   console.log(`結果（CSSの埋め込み）: ${inlineCssNg === 0 ? "全てOK" : `${inlineCssNg} 件NG`}`);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// CSSの層分け（2026-09-14導入・重大度高）
+//
+// 【なぜ要るか】全ページに全量のCSS（40.9KB）を埋め込んでいた。ビルド成果物を実測すると
+// 声優ページ1枚（110,317文字）は <style> 41.9KB ＋ RSCペイロード内の複製 41.9KB ＋
+// 本文 4.6KB ＝ **76%がCSSで、本文の18倍**。そのページが実際に使うのは 9.2KB だけだった。
+// 声優ページは4,483枚あり、これだけで成果物の 869MB（全体1.03GB）を占めていた。
+// Vercelでは成果物の大きさが Deployment Storage（保持中のデプロイ数ぶん掛かる）と
+// ISR Writes（**回数ではなく8KB単位のバイト量**で数える）の両方に効く。
+//
+// 【壊れ方】層の割り当てを間違えると**そのページだけ無スタイル**になる。ここが
+// 検査していなければ、気づくのは誰かがその面を実際に開いたときだけ。
+// 仕組みと用語は scripts/lib/css-layers.js の冒頭に全部書いてある。
+// ────────────────────────────────────────────────────────────────────────────
+let cssLayerNg = 0;
+{
+  console.log("\n【CSSの層分け】");
+
+  const srcCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const { classToRoutes, routeToClasses, warnings } = collectRouteClasses();
+  const classToLayer = new Map<string, string>();
+  for (const [c, routes] of classToRoutes) classToLayer.set(c, layerForRoutes(routes));
+
+  // ① className をソースから導出できること。1件でも導出できない形（変数だけの
+  //    className など）があると、そのクラスがどの層に要るのか分からなくなる。
+  const derivable = warnings.length === 0;
+  if (!derivable) cssLayerNg++;
+  console.log(
+    `${derivable ? "✓" : "✗"}  ${"className を全部ソースから導出できる".padEnd(48)} → ` +
+      (derivable ? `${classToRoutes.size} クラス / ${routeToClasses.size} ルート` : warnings.slice(0, 3).join(" / "))
+  );
+
+  // ② ルールを1つも落としていないこと。落とすと無言でスタイルが消える。
+  const { rendered, rules, perLayer } = splitCss(srcCss, classToLayer);
+  const split = CSS_LAYER_NAMES.reduce((n, l) => n + perLayer[l].length, 0);
+  const noLoss = split === rules.length;
+  if (!noLoss) cssLayerNg++;
+  console.log(
+    `${noLoss ? "✓" : "✗"}  ${"ルールを1つも落としていない".padEnd(48)} → ` +
+      (noLoss ? `${rules.length} ルールを ${CSS_LAYER_NAMES.length} 層へ` : `${rules.length} → ${split}`)
+  );
+
+  // ③ カスケードの順序。base は <head>、追加層は本文の先頭に入るので、元のCSSで
+  //    「追加層 → base」の順だった組は前後が入れ替わる。詳細度が等しく、同じ要素に
+  //    当たりうる（!important でない）同名プロパティの組があれば見た目が変わる。
+  const conflicts = findOrderConflicts(rules, classToLayer);
+  if (conflicts.length > 0) cssLayerNg++;
+  console.log(
+    `${conflicts.length === 0 ? "✓" : "✗"}  ${"層をまたいで順序が入れ替わらない".padEnd(48)} → ` +
+      (conflicts.length === 0
+        ? "詳細度が等しい衝突なし"
+        : conflicts.slice(0, 3).map((c) => `${c.earlier} ↔ ${c.later}`).join(" / "))
+  );
+
+  // ④ 追加層を要るルートが、実際に <PageCss layer="..."> を描いているか。
+  //    **対象は走査して導出する**（ここに面の名前を並べない。㊳）。
+  const appDir = fileURLToPath(new URL("../app", import.meta.url));
+  const pageFiles: string[] = [];
+  const walkApp = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.name.startsWith(".")) continue;
+      const full = `${dir}/${e.name}`;
+      if (e.isDirectory()) walkApp(full);
+      else if (e.name === "page.tsx") pageFiles.push(full);
+    }
+  };
+  walkApp(appDir);
+
+  let wiringNg = 0;
+  const wiringDetail: string[] = [];
+  for (const file of pageFiles) {
+    const routeId = routeIdFor(file);
+    const want = layersForRoute(routeId).filter((l) => l !== "base");
+    const src = stripCommentLines(readFileSync(file, "utf8"));
+    const have = [...src.matchAll(/<PageCss\s+layer="([a-z]+)"\s*\/>/g)].map((m) => m[1]);
+    const missing = want.filter((l) => !have.includes(l));
+    const extra = have.filter((l) => !want.includes(l));
+    if (missing.length > 0 || extra.length > 0) {
+      wiringNg++;
+      wiringDetail.push(`${routeId}: ${missing.length ? "足りない " + missing.join(",") : ""}${extra.length ? " 余分 " + extra.join(",") : ""}`);
+    }
+  }
+  if (wiringNg > 0) cssLayerNg++;
+  console.log(
+    `${wiringNg === 0 ? "✓" : "✗"}  ${"追加層を要る面が PageCss を置いている".padEnd(48)} → ` +
+      (wiringNg === 0 ? `${pageFiles.length} ページを確認` : wiringDetail.slice(0, 3).join(" / "))
+  );
+
+  // ⑤ 実際にどれだけ減ったか（数字はドキュメントに転記しない。ここで毎回出す）。
+  const sizes = CSS_LAYER_NAMES.map((l) => `${l} ${(minifyCss(rendered[l]).length / 1024).toFixed(1)}KB`);
+  const baseOnly = minifyCss(rendered.base).length;
+  const all = CSS_LAYER_NAMES.reduce((n, l) => n + minifyCss(rendered[l]).length, 0);
+  console.log(
+    `ℹ  ${"層ごとの大きさ".padEnd(48)} → ${sizes.join(" / ")}` +
+      `（文字だけの面は ${(baseOnly / 1024).toFixed(1)}KB＝全量 ${(all / 1024).toFixed(1)}KB の ${Math.round((baseOnly / all) * 100)}%）`
+  );
+
+  console.log(`結果（CSSの層分け）: ${cssLayerNg === 0 ? "全てOK" : `${cssLayerNg} 件NG`}`);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// スナップショットへの人力補完の重ね（2026-09-14導入・重大度高）
+//
+// 【なぜ要るか】content/snapshots/*.json は生成した瞬間で固まる。生成時点の
+// extraServices.ts / releaseDates.ts は焼き込まれているが、**あとから足した分は
+// 再生成するまで反映されない**。過去クールのシーズンページは2026-07-15から
+// スナップショット直読みなので、「2019年の作品が新しく配信され始めたので
+// extraServices.ts に足した」が画面に出ない状態が既に起きていた。
+// 作品ページもスナップショット優先にした（㊻）ので、ここを塞がないと
+// **過去クールで即時に直す手段がゼロ**になる。
+//
+// 壊れ方は「足したのに出ない」＝画面を見ても異常に見えない（元から無い情報に見える）。
+// ────────────────────────────────────────────────────────────────────────────
+let overlayNg = 0;
+{
+  console.log("\n【スナップショットへの人力補完】");
+
+  const base = {
+    id: 1,
+    title: "テスト作品",
+    image: null,
+    officialSiteUrl: null,
+    watchers: 0,
+    services: [{ key: "d_anime", name: "dアニメストア", short: "dアニメ", color: "#ff7a00" }],
+    otherServices: [],
+    hasBroadcastData: true,
+    releaseDate: null,
+    autoSchedule: null,
+    broadcastStartDate: "2019-04-07",
+    broadcastWeekday: 0,
+    broadcastTime: "23:00",
+    creditNames: [],
+    castNames: [],
+    media: "TV",
+    malAnimeId: null,
+  } as unknown as Parameters<typeof overlayManualData>[0];
+
+  // ① あとから足したサービスが出る（これが出ないと人力補完が死ぬ）
+  const added = overlayManualData(base, [
+    { key: "netflix", sourceUrl: "https://example.com/a", confirmedDate: "2026-09-14" },
+  ]);
+  const hasNew = added.services.some((s) => s.key === "netflix" && s.manualSourceUrl === "https://example.com/a");
+  if (!hasNew) overlayNg++;
+  console.log(
+    `${hasNew ? "✓" : "✗"}  ${"あとから足したサービスが出る".padEnd(48)} → ` +
+      (hasNew ? `${added.services.length}件（出典URL付き）` : "反映されない（再生成するまで直せない）")
+  );
+
+  // ② 既にあるサービスを塗り替えない（Annict由来の事実を人力補完で上書きしない）
+  const overwritten = overlayManualData(base, [
+    { key: "d_anime", sourceUrl: "https://example.com/b", confirmedDate: "2026-09-14" },
+  ]);
+  const kept =
+    overwritten.services.length === 1 && overwritten.services[0].manualSourceUrl === undefined;
+  if (!kept) overlayNg++;
+  console.log(
+    `${kept ? "✓" : "✗"}  ${"既にあるサービスを塗り替えない".padEnd(48)} → ` +
+      (kept ? "Annict由来のまま" : "人力補完が上書きしている")
+  );
+
+  // ③ 並びは「元からあった分 → 追加分」（toAnimeItem と同じ）
+  const orderOk = added.services[0].key === "d_anime" && added.services[1].key === "netflix";
+  if (!orderOk) overlayNg++;
+  console.log(
+    `${orderOk ? "✓" : "✗"}  ${"並びが変わらない".padEnd(48)} → ` +
+      (orderOk ? "元 → 追加" : added.services.map((s) => s.key).join(","))
+  );
+
+  // ④ 放送枠を創作しない。extraServices.ts の schedule は「これから始まる作品」用で、
+  //    放送が終わったクールに当てると存在しなかった枠を作ることになる。
+  const withSchedule = overlayManualData(
+    { ...base, broadcastStartDate: null, broadcastWeekday: null, broadcastTime: null } as typeof base,
+    [
+      {
+        key: "netflix",
+        sourceUrl: "https://example.com/c",
+        confirmedDate: "2026-09-14",
+        schedule: { weekday: 3, time: "22:30", startDate: "2026-10-01" },
+      },
+    ]
+  );
+  const noSlot =
+    withSchedule.broadcastWeekday === null &&
+    withSchedule.broadcastTime === null &&
+    withSchedule.broadcastStartDate === null;
+  if (!noSlot) overlayNg++;
+  console.log(
+    `${noSlot ? "✓" : "✗"}  ${"放送枠を創作しない".padEnd(48)} → ` +
+      (noSlot ? "曜日・時刻は足さない" : "存在しない放送枠が入っている")
+  );
+
+  // ⑤ 劇場公開日は「持っていないときだけ」入る
+  const rel = { date: "2026-08-28", sourceUrl: "https://example.com/d", confirmedDate: "2026-09-14" };
+  const filled = overlayManualData(base, [], rel);
+  const already = overlayManualData({ ...base, releaseDate: rel } as typeof base, [], {
+    ...rel,
+    date: "2099-01-01",
+  });
+  const releaseOk = filled.releaseDate?.date === "2026-08-28" && already.releaseDate?.date === "2026-08-28";
+  if (!releaseOk) overlayNg++;
+  console.log(
+    `${releaseOk ? "✓" : "✗"}  ${"劇場公開日は無いときだけ入れる".padEnd(48)} → ` +
+      (releaseOk ? "既存の値を上書きしない" : "上書きしている")
+  );
+
+  // ⑥ **スナップショットを読む経路を走査して導出**し、全部が overlayManualData を
+  //    通っていること（名指しで数えない。CLAUDE.md の㊳）。
+  const libDir = fileURLToPath(new URL("../lib", import.meta.url));
+  const readers: string[] = [];
+  const missing: string[] = [];
+  for (const f of readdirSync(libDir)) {
+    if (!f.endsWith(".ts")) continue;
+    // **コメントでの言及ではなく、実際に読み込んでいる箇所**で判定する
+    // （注記に "content/snapshots/" と書いてあるだけのファイルが7件あり、
+    //  素朴に grep すると全部「経路」に数えてしまう）。
+    const src = stripCommentLines(readFileSync(`${libDir}/${f}`, "utf8"));
+    if (!/import\([^)]*content\/snapshots\//.test(src)) continue;
+    readers.push(f);
+    if (!/overlayManualData\(/.test(src)) missing.push(f);
+  }
+  const wired = readers.length >= 2 && missing.length === 0;
+  if (!wired) overlayNg++;
+  console.log(
+    `${wired ? "✓" : "✗"}  ${"スナップショットを読む経路が全部通っている".padEnd(48)} → ` +
+      (wired
+        ? `${readers.length} ファイル（${readers.join(" / ")}）`
+        : readers.length < 2
+          ? `読む経路が ${readers.length} 件しか見つからない（走査が壊れている）`
+          : `通っていない: ${missing.join(" / ")}`)
+  );
+
+  console.log(`結果（スナップショットへの人力補完）: ${overlayNg === 0 ? "全てOK" : `${overlayNg} 件NG`}`);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -7141,6 +7617,8 @@ if (
   ssrPayloadNg > 0 ||
   topSsrNg > 0 ||
   inlineCssNg > 0 ||
+  cssLayerNg > 0 ||
+  overlayNg > 0 ||
   thumbNg > 0 ||
   prefetchNg > 0 ||
   authJsNg > 0 ||
@@ -7182,6 +7660,8 @@ if (
   extraNg > 0 ||
   tagNg > 0 ||
   badgeNg > 0 ||
+  discloseNg > 0 ||
+  (globalThis.__contrastNg ?? 0) > 0 ||
   anchorNg > 0 ||
   slotNg > 0 ||
   embedNg > 0 ||
