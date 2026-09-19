@@ -22,6 +22,7 @@ import {
 import { siteUrl } from "../lib/siteUrl.ts";
 import {
   isMalformedRoutePath,
+  malformedRouteStatus,
   WORK_ID_ROUTES,
   SEASON_YEAR_ROUTES,
 } from "../lib/routeGuard.ts";
@@ -4891,22 +4892,26 @@ let guardNg = 0;
   // ② 落ちるべきときに落ちる／落ちてはいけないときに落ちない。
   // 年の上限は「今年+1」なので、日付を固定しないと年明けに検査自体が壊れる。
   const gNow = new Date("2026-09-06T00:00:00Z");
-  const bad = [
-    "/anime/0x3374",
-    "/anime/1e20",
-    "/anime/012",
-    "/anime/0",
-    "/anime/99999999999999999999",
-    "/anime/0x3374/",
-    "/api/work/0x10",
-    "/embed/anime/abc",
-    "/season/9999/spring",
-    "/season/1500/spring",
-    "/season/20x6/spring",
-    "/rankings/9999/spring",
-    "/exclusive/9999/spring",
-    "/service/d_anime/9999/summer",
-    "/person/%E6%82%A0%E6%9C%A8%E7%A2%A7/9999/summer",
+  const bad: [string, 400 | 404][] = [
+    ["/anime/0x3374", 404],
+    ["/anime/1e20", 404],
+    ["/anime/012", 404],
+    ["/anime/0", 404],
+    ["/anime/99999999999999999999", 404],
+    ["/anime/0x3374/", 404],
+    // 【2026-09-15】/api/work と /embed/anime は route handler 自身の契約が400
+    // （`app/api/work/[id]/route.ts`・`app/embed/anime/[id]/route.ts`）。
+    // middlewareが横取りするときも同じ400を返さないと、公開APIと埋め込みの
+    // 契約が壊れる（6日間気づかれなかった実例。Issue #146・`docs/operations.md`）。
+    ["/api/work/0x10", 400],
+    ["/embed/anime/abc", 400],
+    ["/season/9999/spring", 404],
+    ["/season/1500/spring", 404],
+    ["/season/20x6/spring", 404],
+    ["/rankings/9999/spring", 404],
+    ["/exclusive/9999/spring", 404],
+    ["/service/d_anime/9999/summer", 404],
+    ["/person/%E6%82%A0%E6%9C%A8%E7%A2%A7/9999/summer", 404],
   ];
   const good = [
     "/",
@@ -4928,7 +4933,7 @@ let guardNg = 0;
     "/studio/MAPPA",
     "/director/%E6%96%B0%E6%B5%B7%E8%AA%A0",
   ];
-  const missedBad = bad.filter((u) => !isMalformedRoutePath(u, gNow));
+  const missedBad = bad.filter(([u]) => !isMalformedRoutePath(u, gNow)).map(([u]) => u);
   const falsePositive = good.filter((u) => isMalformedRoutePath(u, gNow));
   gCheck(
     "不正な形を弾く",
@@ -4944,18 +4949,41 @@ let guardNg = 0;
       : `${good.length} 件すべて素通し`
   );
 
+  // ②' 弾いたときに、ルートごとに正しいstatusを返すこと（404一律に戻す逆戻り防止）。
+  const wrongStatus = bad
+    .map(([u, want]) => [u, want, malformedRouteStatus(u, gNow)] as const)
+    .filter(([, want, got]) => got !== want);
+  gCheck(
+    "弾いたルートごとに正しいstatusを返す（APIと埋め込みは400・ページは404）",
+    wrongStatus.length === 0,
+    wrongStatus.length
+      ? wrongStatus.map(([u, want, got]) => `${u}: ${got}（${want}のはず）`).join(" / ")
+      : "全件一致"
+  );
+
   // ③ middleware が、Supabaseのセッション更新**より前**に判定していること。
   // 後ろに置くと、弾くはずのリクエストでも先に Supabase 側の処理が走る。
   const mwSrc = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
-  const iGuard = mwSrc.indexOf("isMalformedRoutePath(");
+  const iGuard = mwSrc.indexOf("malformedRouteStatus(");
   const iSession = mwSrc.indexOf("updateSession(");
   const orderOk = iGuard > 0 && iSession > 0 && iGuard < iSession;
   gCheck(
     "middleware が描画前に判定する",
     orderOk,
     orderOk
-      ? "isMalformedRoutePath → updateSession の順"
+      ? "malformedRouteStatus → updateSession の順"
       : "middleware.ts が routeGuard を先に呼んでいない（ISRへの書き込みが止まらない）"
+  );
+
+  // ④ /api/work・/embed/anime が404固定に逆戻りしていないこと（middlewareのsrcを直接見る）。
+  const apiIdx = mwSrc.indexOf('pathname.startsWith("/api/work/")');
+  const embedIdx = mwSrc.indexOf('pathname.startsWith("/embed/anime/")');
+  gCheck(
+    "middlewareがAPI・埋め込みを404固定にしていない",
+    apiIdx > 0 && embedIdx > 0,
+    apiIdx > 0 && embedIdx > 0
+      ? "個別分岐あり"
+      : "/api/work・/embed/anime の個別分岐が無い（一律404に逆戻りしている可能性）"
   );
 
   console.log(`結果（不正な形のURL）: ${guardNg === 0 ? "全件OK" : guardNg + " 件NG"}`);
