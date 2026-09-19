@@ -63,6 +63,112 @@ function dirSize(dir) {
 
 const mb = (n) => (n / 1e6).toFixed(1) + "MB";
 
+/** 面ごとの「1ページあたりバイト数」を、このビルドの実測から出す（.html の枚数で割る）。 */
+function bytesPerPage(appDir, face) {
+  const dir = path.join(appDir, face);
+  if (!fs.existsSync(dir)) return null;
+  let pages = 0;
+  const stack = [dir];
+  while (stack.length) {
+    const d = stack.pop();
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (e.isDirectory()) stack.push(path.join(d, e.name));
+      else if (e.name.endsWith(".html")) pages++;
+    }
+  }
+  if (pages === 0) return null;
+  return { pages, perPage: dirSize(dir) / pages };
+}
+
+/**
+ * 1年あたりに増える成果物のバイト数。**実データから導出**する（手で書かない）。
+ * 材料が1つでも欠けたら null を返す（年数を推測で出さない）。
+ */
+function estimateGrowth(appDir) {
+  let index, people;
+  try {
+    index = JSON.parse(fs.readFileSync(path.join(ROOT, "content/archive/index.json"), "utf8"));
+    people = JSON.parse(fs.readFileSync(path.join(ROOT, "content/archive/people.json"), "utf8"));
+  } catch {
+    return null;
+  }
+
+  // 作品ページ: 配信1件以上（＝sitemapに載せ、焼く対象）を年で畳む。
+  const worksByYear = new Map();
+  for (const s of index.seasons || []) {
+    worksByYear.set(s.year, (worksByYear.get(s.year) || 0) + (s.workIds?.length || 0));
+  }
+  // 声優ページ: app/person/[name]/[year]/[season] の generateStaticParams と同じ規則で
+  // 組を作り、年で畳む。規則は①そのクールに2作品以上 ②過去年は総出演が閾値以上
+  // （＝索引に載るページだけ焼く）。
+  //
+  // **閾値をここに書き写さない。** lib/personPage.ts から読み取る（1箇所が持つ）。
+  // 読めなければ null を返して見通しを出さない（古い閾値で年数を出すほうが害になる）。
+  const personSrc = (() => {
+    try {
+      return fs.readFileSync(path.join(ROOT, "lib/personPage.ts"), "utf8");
+    } catch {
+      return "";
+    }
+  })();
+  const minAppear = Number(/PERSON_PAGE_MIN_APPEARANCES\s*=\s*(\d+)/.exec(personSrc)?.[1]);
+  const minTotal = Number(/PERSON_PAGE_INDEX_MIN_TOTAL_WORKS\s*=\s*(\d+)/.exec(personSrc)?.[1]);
+  if (!Number.isFinite(minAppear) || !Number.isFinite(minTotal)) return null;
+
+  const personByYear = new Map();
+  {
+    const counts = new Map();
+    const totalWorks = new Map();
+    for (const [name, works] of Object.entries(people.people || {})) {
+      totalWorks.set(name, works.length);
+      for (const w of works) {
+        const k = `${w[2]}/${w[3]}/${name}`;
+        counts.set(k, (counts.get(k) || 0) + 1);
+      }
+    }
+    for (const [key, c] of counts) {
+      if (c < minAppear) continue;
+      const parts = key.split("/");
+      const year = Number(parts[0]);
+      const name = parts.slice(2).join("/");
+      // 今年のクールは索引に載るが**焼かない**（ライブ取得なのでビルドを外部APIに
+      // 依存させない）。成長の見積もりに要るのは「翌年以降、過去年として焼かれる数」
+      // なので、ここでは過去年の規則（総出演が閾値以上）で数える。
+      if ((totalWorks.get(name) || 0) < minTotal) continue;
+      personByYear.set(year, (personByYear.get(year) || 0) + 1);
+    }
+  }
+
+  // 直近3年の平均。**最新年は途中（まだクールが揃っていない）ことがある**ので、
+  // 揃っている年だけを使う（作品数の索引に4クール分ある年）。
+  const completeYears = [...worksByYear.keys()]
+    .filter((y) => (index.seasons || []).filter((s) => s.year === y).length === 4)
+    .sort((a, b) => b - a)
+    .slice(0, 3);
+  if (completeYears.length === 0) return null;
+  const avg = (m) => completeYears.reduce((n, y) => n + (m.get(y) || 0), 0) / completeYears.length;
+  const worksPerYear = Math.round(avg(worksByYear));
+  const personPerYear = Math.round(avg(personByYear));
+
+  const anime = bytesPerPage(appDir, "anime");
+  const person = bytesPerPage(appDir, "person");
+  const season = bytesPerPage(appDir, "season");
+  if (!person || !season) return null;
+  // 作品ページを焼いていないビルド（スナップショットが旧形式）では実測が無い。
+  // その場合は作品ページ分を 0 として出し、注記で分かるようにする。
+  const animePer = anime ? anime.perPage : 0;
+
+  return {
+    worksPerYear,
+    personPerYear,
+    // 作品ページをまだ焼いていない断面（スナップショットが旧形式）では実測が無いので
+    // 0 として数える。**そのぶん見通しは長く出る**ので、呼び出し側で必ず断る。
+    animeMissing: !anime,
+    bytesPerYear:
+      worksPerYear * animePer + personPerYear * person.perPage + 4 * season.perPage,
+  };
+}
+
 function main() {
   console.log("【デプロイ成果物の大きさ】");
   if (!fs.existsSync(path.join(ROOT, ".next", "BUILD_ID"))) {
@@ -96,6 +202,45 @@ function main() {
       for (const [name, size] of rows.slice(0, 8)) {
         console.log(`  ${("/" + name).padEnd(16)} ${mb(size).padStart(9)}  (${Math.round((size / total) * 100)}%)`);
       }
+    }
+  }
+
+  // ── クールが増えたら何年で予算に当たるか（2026-09-19導入）────────────────
+  //
+  // 【なぜ要るか】この検査は「超えた日」に落ちるが、超えてから慌てても打てる手は
+  // 少ない（1ページを小さくする作業は数日かかる）。CLAUDE.md の条件④は
+  // 「クールが増えるたび作品数は増えることを加味する」なので、**いつ当たるか**を
+  // 毎回出しておく。
+  //
+  // 【数え方】増分は手で書かない（㊳）。実データから導出する:
+  //   ・作品ページ … content/archive/index.json の workIds を年で畳み、直近3年の平均
+  //   ・声優ページ … content/archive/people.json から generateStaticParams と
+  //                  同じ規則で組を作り、直近3年の平均
+  //   ・シーズンページ … 1年4クール（定義そのもの）
+  // 1ページの大きさは**このビルドの実測**（面ごとの合計 ÷ .html の枚数）を使う。
+  // どちらかが取れなければ「出さない」（推測で年数を書かない）。
+  const growth = estimateGrowth(appDir);
+  if (growth) {
+    const left = BUDGET_BYTES - total;
+    const years = growth.bytesPerYear > 0 ? left / growth.bytesPerYear : Infinity;
+    console.log(
+      `  ── 成長の見通し ──  1年あたり +${mb(growth.bytesPerYear)}` +
+        `（作品 ${growth.worksPerYear}件 / 声優 ${growth.personPerYear}件 / シーズン 4件）`
+    );
+    console.log(
+      left <= 0
+        ? "  残り 0 — すでに予算を超えています"
+        : `  残り ${mb(left)} — このままなら約 ${years.toFixed(1)} 年で予算に当たります` +
+          (years < 2 ? "（2年未満。1ページを小さくする手を先に決めておくこと）" : "")
+    );
+    // **この断りを消さないこと。** 作品ページを焼いていない断面では、いちばん増える面が
+    // 見通しから丸ごと抜けている＝年数が実際よりずっと長く出る。「10年ある」と読んで
+    // 安心したまま再生成し、その日に予算を超えるのがいちばん困る壊れ方。
+    if (growth.animeMissing) {
+      console.log(
+        "  ※ 作品ページをまだ焼いていないので、この見通しに作品ページ分は入っていません" +
+          "（スナップショット再生成後は大きく短くなる。docs/snapshot-regenerate.md の手順5）"
+      );
     }
   }
 

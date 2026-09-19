@@ -5,7 +5,7 @@
 // 代わりに app/inlineCss.ts（node scripts/build-inline-css.js が app/globals.css から
 // 生成・コミット）を <head> の <style> に埋め込む。**スタイルを書き換えるときは
 // app/globals.css を直してから必ず再生成する**（ズレは node scripts/check.ts が検出）。
-import { CSS_LAYERS } from "./inlineCss";
+import BaseCss from "@/components/BaseCss";
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
 import AuthProvider from "@/components/AuthProvider";
@@ -106,8 +106,10 @@ export default function RootLayout({
             作品ページでしか使わない分は、その面が本文の先頭で足す
             （components/PageCss.tsx）。全ページに全量を配ると、実測で声優ページの
             76%がCSSになり、成果物・ISR Writes・転送量・表示速度の全部に効いていた。
-            層の決め方は scripts/lib/css-layers.js。 */}
-        <style dangerouslySetInnerHTML={{ __html: CSS_LAYERS.base }} />
+            層の決め方は scripts/lib/css-layers.js。
+            描くのが**クライアントコンポーネント**なのは、サーバーで描くと同じCSSが
+            RSCペイロードと .rsc にもう2コピー焼かれるため（components/BaseCss.tsx）。 */}
+        <BaseCss />
         {/* ライトモードの選択を、描画前に <html data-theme="light"> として反映する
             （ちらつき防止のため、他のスクリプトより先に同期実行する）。 */}
         <script

@@ -94,7 +94,14 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   1デプロイの大きさ×10が消せない床になる（上限10GB）。予算は上限から逆算
   （`10GB × 0.65 ÷ 10件 = 650MB`）。**クールが増えるたび成果物は自動で増える**ので
   放置すれば必ずまた超える。超えたら落ち、面ごとの内訳を出す。
+  **「あと何年で予算に当たるか」も毎回出す**（2026-09-19追加）。超えた日に落ちるだけでは、
+  気づいてから1ページを小さくする作業に間に合わない。増分は手で書かず
+  `content/archive/*.json`と**そのビルドの実測**から導出する（閾値は`lib/personPage.ts`
+  から読み取り、定数名が変わったら見通しを**出さない**）。
   予算を上げるときは冒頭の式のどれを変えるのか書く（数字だけ書き換えない）。
+  **【未確認】Vercelが2026-09-16に保持ポリシーを変えた（直近10件→3件＋3件）という
+  記述がある。事実なら分母が古い（÷6なら予算1,083MB）。一次情報をこの環境から読めないので
+  数字は変えていない＝保守側**。経緯は`docs/operations.md`の[52]。
   ビルドが無いときは省略したと言って抜ける。CIはビルドの直後に回す
 - `node scripts/check-page-css.js` … **ビルド成果物のCSS網羅**（2026-09-14導入）。
   出来上がったHTMLの`class=`と`<style>`の中身だけを見て、使っているクラスにCSSが
@@ -440,8 +447,9 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   いまは**hover/touchstartの素振りがあったときだけ**先読みする。
   **作品ページの`loading.tsx`を置かない方針（ソフト404回避）の代替が先読みなので、
   素振りの先読みまで消さないこと**。検査は`node scripts/check.ts`の「リンクの先読み」節
-- `app/inlineCss.ts` + `scripts/build-inline-css.js` + `scripts/lib/css-layers.js` +
-  `components/PageCss.tsx` + `scripts/lib/minify-css.js` …
+- `app/inlineCss.ts` + `app/inlineCssBase.ts` + `scripts/build-inline-css.js` +
+  `scripts/lib/css-layers.js` + `components/BaseCss.tsx` + `components/PageCss.tsx` +
+  `scripts/lib/minify-css.js` …
   **HTMLに直接埋め込むCSS**（2026-09-04導入 / 2026-09-14に層分け）。`app/layout.tsx` は
   `globals.css` を**import しない**（importするとNext.jsが `<link rel="stylesheet">` を吐き、
   往復が1回増える）。スタイルを変えるときは**`app/globals.css` を直す**
@@ -452,7 +460,19 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   **層は`base`（全ページ・`<head>`）／`explorer`（`/`と`/season/**`）／`detail`（`/anime/[id]`）**で、
   追加層はその面が`<PageCss>`で本文の先頭に置く（ルートレイアウトの`<body>`は`{children}`で
   始まるので、追加の`<style>`より前に描画される可視要素が無い＝ちらつかない）。
-  **どのクラスがどの層かを人が書く場所は無い**（`app/`と`components/`のimportグラフから導出）
+  **どのクラスがどの層かを人が書く場所は無い**（`app/`と`components/`のimportグラフから導出）。
+  **2026-09-19から base 層は`components/BaseCss.tsx`（クライアントコンポーネント）が描く。
+  `"use client"`を外さないこと**（重大度高）。サーバーコンポーネントが描いた`<style>`は
+  そのままRSCペイロードへ直列化されるので、**同じCSSが1ページに3コピー**焼かれる
+  （`<style>`／HTML内の`self.__next_f.push`／`.rsc`ファイル。最後の1本は別ファイルなので
+  圧縮でも重複排除されない）。実測で声優ページ1枚97.5KBのうちCSSが23.0KBを占め、
+  4,483枚で約103MBだった。クライアントで描くとFlightにはモジュール参照しか出ないので
+  2本目と3本目が消え、CSS文字列はJSチャンク1本に入って全ページで共有される。
+  **見た目も往復の無さ（㊵）も変わらない**（サーバー描画時に`<style>`はHTMLに出る）。
+  `app/inlineCssBase.ts`が別ファイルなのは、`CSS_LAYERS`ごとimportすると使わない
+  explorer層(25.8KB)までクライアントに載るため。**外しても画面は1ピクセルも変わらず、
+  増えるのは成果物と請求だけ**なので`node scripts/check.ts`の「CSSの埋め込み」節が
+  `"use client"`の有無まで見張る。経緯は`docs/operations.md`の[52]
 - `vercel.json` … **表示に使わないデータのコミットで本番デプロイを起こさないための門番**
   （2026-08-25導入）。`ignoreCommand`が「`content/analytics/`・`content/coverage/`・
   `content/demand/`・`docs/`しか変更していないコミット」を判定し、その場合はビルドをスキップする
@@ -621,9 +641,10 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   （実測: 2025夏172作品中87作品=50.6%がちょうど5件＝上限で切断）。「そのクールに2作品以上」
   の閾値と噛み合って、リンクも声優ページも**消える**形で壊れる。転送量はJSON全体の3.3%
   しかないので件数をケチらない。`node scripts/check.ts` の「声優データの取りこぼし」が下限を
-  見張る。**既存の`content/snapshots/`は旧設定(5件)で作られているため、過去クール分は
-  スナップショットを再生成するまで取りこぼしたまま**。再生成の手順は
-  `docs/snapshot-regenerate.md`（PC作業・要`ANNICT_TOKEN`）、経緯は`docs/operations.md`の⑳。
+  見張る。**この取りこぼしは解消済み**（2026-09-19実測で切断率5.4%。ここにあった
+  「再生成するまで取りこぼしたまま」は古い記述）。`docs/snapshot-regenerate.md`が
+  いま残っている目的は別で、**`castCredits`を入れて作品ページを焼けるようにすること**
+  （`content/snapshots/`の項と`docs/operations.md`の㊻・[52]）。経緯は同書の⑳。
   現状の切断率は`node scripts/check.ts`が毎回表示する（`ℹ スナップショットの切断率`）
 - `lib/personIndex.ts` + `content/archive/people.json` + `scripts/build-person-index.ts` …
   声優の出演作索引（2026-08-07導入）。`/person/[name]/[year]/[season]`が持つ
@@ -906,6 +927,14 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   いまの規則は`lib/personPage.ts`が持つ「**今年のクールは全部／過去年は総出演50作品以上の
   声優だけ**」。クリック実績のある4人は83/98/70/97作品で全員残る。
   `node scripts/check.ts`が閾値と索引の実データを突き合わせて見張る。
+  **2026-09-19から、事前生成（`generateStaticParams`）もこの判定を通す**。
+  それまでは「そのクールに2作品以上」だけで焼いており、実測で4,483枚中**2,109枚(47%)が
+  noindex**＝検索から辿れないページのために成果物を164MB使っていた。
+  **sitemap・noindex・事前生成の3つが必ず同じ集合を指す**ようにしてある（閾値を写さない）。
+  焼かなくなったページは消えない（オンデマンドISR。過去クールはスナップショットから
+  描けるのでAnnictには出ない）。交換条件はISR Writesで、見積もりは+1,754/日に対し
+  作品ページの事前生成が−6,440/日＝**差し引きで減る見込みだが、どちらも実測ではない**
+  （反映後にダッシュボードで確かめる）。経緯は`docs/operations.md`の[52]。
 - **【基本ルール】次クールをsitemapに載せ続ける（2026-08-31導入）**:
   sitemapは長らく「今期」しか載せておらず、`/season/{次クール}`も次クールの作品ページも
   **検索エンジンに1件も知られていなかった**。放送時期（○年○月）は放送開始の3〜11ヶ月前に

@@ -17,6 +17,8 @@ const { LAYERS, collectRouteClasses, layerForRoutes, splitCss, findOrderConflict
 
 const SRC = path.join(__dirname, "..", "app", "globals.css");
 const OUT = path.join(__dirname, "..", "app", "inlineCss.ts");
+// base 層だけを**別ファイル**に出す（2026-09-19導入）。理由は buildBase の上に書いた。
+const OUT_BASE = path.join(__dirname, "..", "app", "inlineCssBase.ts");
 
 // globals.css を層ごとの最小化済みCSSに変換する。
 // scripts/check.ts もこの関数を通して「app/inlineCss.ts が globals.css と同期しているか」
@@ -32,20 +34,64 @@ function buildLayers(css) {
   return { minified, conflicts, warnings, classToLayer };
 }
 
+/**
+ * base 層だけを単体のモジュールとして出す（2026-09-19導入・重大度高）。
+ *
+ * 【なぜ分けるか】ビルド成果物の実測で、埋め込んだCSSが**1ページに3コピー**入っていた:
+ *   ①<style> の中身（HTML） ②同じ文字列がRSCペイロードにも入る（HTML内の
+ *   self.__next_f.push） ③さらに .rsc ファイルにもう1本。
+ * ②③が生まれるのは、<style> を**サーバーコンポーネント**が描いているせい。
+ * サーバーが描いた要素はそのまま Flight ペイロードへ直列化されるので、
+ * dangerouslySetInnerHTML に渡した文字列がまるごと2回余計に焼かれる。
+ * base は全ページに載るため、これが成果物のいちばん大きな塊になっていた
+ * （声優ページ1枚 97KB のうち CSS が 23KB＝24%。4,483枚で約103MB）。
+ *
+ * 【どう直すか】base を描くのを**クライアントコンポーネント**（components/BaseCss.tsx）に
+ * 移す。クライアントコンポーネントは Flight ペイロードには「モジュールの参照」しか
+ * 出ないので、②③が消える。サーバー描画時には従来どおり <style> がHTMLに出るので、
+ * **見た目もCSSの往復の無さ（㊵）も変わらない**。
+ * その代わりCSS文字列はクライアントのJSチャンクに入るが、それは**1本だけ**で
+ * 全ページで共有・キャッシュされる（ページ数を掛けない）。
+ *
+ * 【なぜ別ファイルにするか】CSS_LAYERS（base+explorer+detail の1オブジェクト）を
+ * クライアントから import すると、使わない explorer(26.5KB) までJSチャンクに入る。
+ * base だけの単体モジュールにしておけば、クライアントに渡るのは base だけで済む。
+ */
+function buildBase(css) {
+  const { minified } = buildLayers(css);
+  return (
+    "// 自動生成（node scripts/build-inline-css.js）。手で編集しない。\n" +
+    "// 元は app/globals.css。**base 層だけ**を単体で持つ。\n" +
+    "//\n" +
+    "// これを分けてあるのは components/BaseCss.tsx（クライアントコンポーネント）が\n" +
+    "// ここだけを import するため。CSS_LAYERS ごと渡すと、使わない explorer 層まで\n" +
+    "// クライアントのJSチャンクに入る。\n" +
+    "// なぜクライアントで描くのかは scripts/build-inline-css.js の buildBase を読むこと\n" +
+    "// （サーバーで描くとRSCペイロードと .rsc にCSSがもう2コピー焼かれる）。\n" +
+    "export const CSS_BASE = " +
+    JSON.stringify(minified.base) +
+    ";\n"
+  );
+}
+
 function build(css) {
   const { minified } = buildLayers(css);
-  const entries = LAYERS.map((l) => `  ${l}: ${JSON.stringify(minified[l])},`).join("\n");
+  const entries = LAYERS.map((l) =>
+    l === "base" ? "  base: CSS_BASE," : `  ${l}: ${JSON.stringify(minified[l])},`
+  ).join("\n");
   return (
     "// 自動生成（node scripts/build-inline-css.js）。手で編集しない。\n" +
     "// 元は app/globals.css。HTMLに <style> として直接埋め込み、CSS取得の往復\n" +
     "// （実測で描画開始が約370ms遅れる）を無くすためのもの。\n" +
     "//\n" +
-    "// base はルートレイアウトが <head> に入れる（全ページ共通）。\n" +
+    "// base はルートレイアウトが <head> に入れる（全ページ共通）。ただし実体は\n" +
+    "// app/inlineCssBase.ts にあり、描くのは components/BaseCss.tsx（クライアント）。\n" +
     "// explorer / detail は、それを使う面が本文の**先頭**で追加する\n" +
     "// （components/PageCss.tsx）。どのクラスがどの層かは app/ と components/ の\n" +
     "// import グラフから導出しており、人が並べる場所は無い。\n" +
     "// 仕組みと検査は scripts/lib/css-layers.js を読むこと。\n" +
     "// app/globals.css を編集したら必ず再生成する（ズレは node scripts/check.ts が検出）。\n" +
+    'import { CSS_BASE } from "./inlineCssBase";\n\n' +
     "export const CSS_LAYERS = {\n" +
     entries +
     "\n} as const;\n\n" +
@@ -53,7 +99,7 @@ function build(css) {
   );
 }
 
-module.exports = { build, buildLayers };
+module.exports = { build, buildBase, buildLayers };
 
 if (require.main === module) {
   const css = fs.readFileSync(SRC, "utf8");
@@ -72,10 +118,11 @@ if (require.main === module) {
     }
     process.exit(1);
   }
+  fs.writeFileSync(OUT_BASE, buildBase(css));
   fs.writeFileSync(OUT, build(css));
   const total = LAYERS.reduce((n, l) => n + minified[l].length, 0);
   console.log(
-    `app/inlineCss.ts を更新: ${(css.length / 1024).toFixed(1)}KB → ` +
+    `app/inlineCss.ts + app/inlineCssBase.ts を更新: ${(css.length / 1024).toFixed(1)}KB → ` +
       LAYERS.map((l) => `${l} ${(minified[l].length / 1024).toFixed(1)}KB`).join(" / ") +
       ` （計 ${(total / 1024).toFixed(1)}KB）`
   );
