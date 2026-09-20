@@ -1368,11 +1368,21 @@ export default function SeasonExplorer({
                 </span>
                 <span className="card-cool">{currentSeasonLabel}</span>
               </div>
-              {/* タイトル（全幅）。 */}
+              {/* タイトル（全幅）。タップ領域の基本ルール（2026-07-27）: この div にも
+                  「完結」の span にも position を付けないこと（.card-title a::after の
+                  引き伸ばしがカードではなくそちらを基準にしてしまう）。 */}
               <div className="card-head">
                 <h3 className="card-title">
                   <IntentLink href={`/anime/${it.id}`}>{it.title}</IntentLink>
                 </h3>
+                {hasLikelyEnded(it) && (
+                  <span
+                    className="card-finished-tag"
+                    title="最終話まで放送/配信された可能性があります（直近の配信記録からの推定）"
+                  >
+                    完結
+                  </span>
+                )}
               </div>
               {/* 中段：サムネ（左）＋配信サービス（右）。 */}
               <div className="card-main">

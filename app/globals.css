@@ -640,8 +640,10 @@ body {
   gap: 6px;
   min-width: 0;
 }
-/* 最終話まで放送/配信された「推定」なので、主張を強めない見た目にする（枠線＋muted）。 */
-.calendar-finished-tag {
+/* 最終話まで放送/配信された「推定」なので、主張を強めない見た目にする（枠線＋muted）。
+   カード一覧（.card-finished-tag）と共用する。 */
+.calendar-finished-tag,
+.card-finished-tag {
   flex-shrink: 0;
   font-size: 10px;
   font-weight: 700;
@@ -893,11 +895,21 @@ body {
 }
 .card-cool { color: var(--muted); }
 /* タイトル（全幅・2行まで）。 */
-.card-head { padding: 8px 12px 4px; }
+/* タイトルと「完結」の印を横に並べる。position は付けないこと（基本ルール:
+   付けると .card-title a::after の引き伸ばしがカードではなくここを基準にしてしまう）。 */
+.card-head {
+  padding: 8px 12px 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
 .card > .card-head > .card-title {
   font-size: 13.5px;
   line-height: 1.38;
   margin: 0;
+  /* flex の既定（min-width:auto）だと -webkit-line-clamp が効かず長いタイトルが
+     「完結」を押し出すので、縮められるようにする。 */
+  min-width: 0;
 }
 /* 中段：サムネ（上・全幅）＋配信サービス（下・全幅）の縦積み。
    横並び（サムネ42%幅×配信可変高）だと配信数が多い作品でチップがサムネ下辺を
