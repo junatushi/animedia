@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-19",
+  "updatedAt": "2026-09-20",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -480,6 +480,17 @@
       "fetchedDate": "2026-09-18",
       "matchedBy": "mal",
       "title": "新テニスの王子様 U-17 WORLD CUP 決勝メンバー決定戦"
+    },
+    "16584": {
+      "date": "2027-01-09",
+      "precision": "day",
+      "weekday": 6,
+      "time": "17:30",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/199337",
+      "fetchedDate": "2026-09-20",
+      "matchedBy": "mal",
+      "title": "真･侍伝 YAIBA 第2期"
     },
     "16586": {
       "date": "2026-10-16",
@@ -1114,6 +1125,15 @@
       "matchedBy": "mal",
       "title": "獣王武神ダンデヴァイン"
     },
+    "17679": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/213052",
+      "fetchedDate": "2026-09-20",
+      "matchedBy": "mal",
+      "title": "電撃デイジー"
+    },
     "17799": {
       "date": "2027-01",
       "precision": "month",
@@ -1162,11 +1182,11 @@
       "title": "すだちの魔王城"
     },
     "17850": {
-      "date": "2026-10",
-      "precision": "month",
+      "date": "2026-10-11",
+      "precision": "day",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/213657",
-      "fetchedDate": "2026-09-19",
+      "fetchedDate": "2026-09-20",
       "matchedBy": "mal",
       "title": "夜桜さんちの大作戦 第2期 第2クール"
     },
