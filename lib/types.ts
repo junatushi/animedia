@@ -137,6 +137,18 @@ export interface AnimeItem {
   // 放送開始の1週間より前は「今週の曜日」のように見せず日付表示に切り替え、
   // カレンダー（曜日別グリッド）にも出さない基本ルールの判定に使う（SeasonExplorer側）。
   broadcastStartDate: string | null;
+  // 直近に配信記録があった日（"YYYY-MM-DD", JST）。streamingStarts（配信サービス＋
+  // その他配信。TV除く）のうち最も新しい startedAt から求める（2026-09-19導入）。
+  // Annictは総話数を持たないため「最終話が既に放送されたか」は直接判定できないが、
+  // 「直近の記録から何日経ったか」なら分かる。最終話の放送後もSNS投稿の「今日の
+  // アニメ一覧」に載り続けていた問題（毎週その曜日に一致するかしか見ておらず、終わりを
+  // 一度も見ていなかった）の修正に使う。scripts/lib/build-digest.js・
+  // app/api/sns-image/route.tsx・components/SeasonExplorer.tsx がそれぞれ同じ考え方の
+  // hasLikelyEnded を持つ（値が食い違わないことを scripts/check.ts が検査する）。
+  // 人力補完（extraServices.ts の schedule）しか無い作品は実際の配信履歴が無いため
+  // null のまま（broadcastStartDate と違いフォールバックが無い＝「まだ配信中」の
+  // 既定側に倒す）。
+  broadcastLastKnownDate: string | null;
   // 声優・スタッフ名での検索用。casts(先頭5件)の人物名 + staffs(先頭40件)の
   // 人物/組織名をまとめたもの（重複除去済み）。UIには出さず検索マッチにのみ使う。
   creditNames: string[];

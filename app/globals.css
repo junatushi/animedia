@@ -631,6 +631,26 @@ body {
   position: absolute;
   inset: 0;
 }
+/* タイトルと「完結」の印を横に並べる。position は付けないこと（基本ルール:
+   付けると上の ::after の引き伸ばしが行ではなくこの行内箱を基準にしてしまう）。 */
+.calendar-title-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+/* 最終話まで放送/配信された「推定」なので、主張を強めない見た目にする（枠線＋muted）。 */
+.calendar-finished-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  letter-spacing: 0.04em;
+}
 .calendar-badges { gap: 4px; margin-top: 2px; }
 .calendar-badges .badge {
   font-size: 10px;

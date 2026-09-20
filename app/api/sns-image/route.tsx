@@ -68,6 +68,22 @@ function currentSeasonByMonth(m: number): { key: string; label: string } {
   return { key: "autumn", label: "秋" };
 }
 
+// scripts/lib/build-digest.js の LIKELY_ENDED_GAP_DAYS / hasLikelyEnded と同じもの。
+// この route は edge runtime で fs も root の lib/*.ts も使えないため、上の jstParts・
+// currentSeasonByMonth と同じ流儀で複製してある（値が食い違わないことを
+// scripts/check.ts が検査する）。本文（buildTodayAiring）から外した作品が画像にだけ
+// 残ると、投稿の文と添付画像で内容が食い違うので必ず両方に入れる。
+const LIKELY_ENDED_GAP_DAYS = 9;
+
+function hasLikelyEnded(it: { broadcastLastKnownDate: string | null }, todayStr: string): boolean {
+  if (!it.broadcastLastKnownDate) return false;
+  const lastMs = Date.parse(`${it.broadcastLastKnownDate}T00:00:00+09:00`);
+  const todayMs = Date.parse(`${todayStr}T00:00:00+09:00`);
+  if (Number.isNaN(lastMs) || Number.isNaN(todayMs)) return false;
+  const gapDays = Math.floor((todayMs - lastMs) / (24 * 60 * 60 * 1000));
+  return gapDays > LIKELY_ENDED_GAP_DAYS;
+}
+
 async function fetchSeasonData(origin: string, year: number, seasonKey: string): Promise<SeasonResponse> {
   const res = await fetch(`${origin}/api/season?year=${year}&season=${seasonKey}`);
   if (!res.ok) throw new Error(`season API ${res.status}`);
@@ -152,7 +168,8 @@ async function renderRanking(data: SeasonResponse, year: number, label: string):
 }
 
 // その曜日に放送/配信がある今期作品。scripts/lib/build-digest.js の buildTodayAiring と同じ抽出条件
-// （broadcastWeekday一致 かつ 放送開始1週間前ルール＝broadcastStartDateが今日以前）。
+// （broadcastWeekday一致 かつ 放送開始1週間前ルール＝broadcastStartDateが今日以前
+// かつ 直近の配信記録から間が空いていない＝最終話が放送済みと推定されない）。
 async function renderAiring(
   data: SeasonResponse,
   weekdayIdx: number,
@@ -163,6 +180,7 @@ async function renderAiring(
   const items = data.items
     .filter((it) => it.broadcastWeekday === weekdayIdx)
     .filter((it) => !it.broadcastStartDate || it.broadcastStartDate <= todayStr)
+    .filter((it) => !hasLikelyEnded(it, todayStr))
     .sort((a, b) => b.watchers - a.watchers);
 
   const MAX_ROWS = 6;

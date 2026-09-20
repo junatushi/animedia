@@ -62,6 +62,9 @@ import {
   jstParts,
   bodyIncludesUrl,
   pickDailyXPost,
+  buildTodayAiring,
+  hasLikelyEnded,
+  LIKELY_ENDED_GAP_DAYS,
 } from "./lib/build-digest.js";
 import { xPostUrl, xSearchUrl } from "./lib/x-intent.js";
 // 日次の下書きIssueの本文組み立て（--issue）。require.main ガードがあるので
@@ -331,6 +334,119 @@ checkSchedule(
 // programsが無い場合もnull。
 checkSchedule("programsなし", work([]), null, null, null);
 console.log(`結果（配信スケジュール）: ${scheduleOk} 件OK / ${scheduleNg} 件NG`);
+
+// ── 放送終了の推定（2026-09-19導入）の回帰テスト ──
+// 不具合: 最終話が放送された後も、SNS投稿の「今日のアニメ一覧」に作品が載り続けていた。
+// buildTodayAiring は broadcastWeekday が今日と一致するかしか見ておらず、
+// 「いつ終わるか」を一度も判定していなかったので、毎週同じ作品を出し続けていた。
+// Annictは総話数を持たないため最終話は直接判定できない。代わりに
+// broadcastLastKnownDate（直近の配信記録日）からの経過日数で推定する。
+console.log("\n── 放送終了の推定（SNS投稿の「今日のアニメ一覧」） ──");
+let lastKnownOk = 0;
+let lastKnownNg = 0;
+function checkLastKnown(name: string, w: AnnictWork, expect: string | null) {
+  const got = toAnimeItem(w).broadcastLastKnownDate;
+  const pass = got === expect;
+  if (pass) lastKnownOk++; else lastKnownNg++;
+  console.log(
+    `${pass ? "✓" : "✗"}  ${name.padEnd(34)} → ${got}` + (pass ? "" : `  (期待: ${expect})`)
+  );
+}
+// 複数話ぶんの記録があれば、最も新しい日付を採る（date＝最も古い日付とは別物）。
+checkLastKnown(
+  "複数回の配信記録 → 最新日",
+  work([
+    { channel: "dアニメストア", startedAt: "2026-07-01T13:30:00Z" },
+    { channel: "dアニメストア", startedAt: "2026-09-16T13:30:00Z" },
+    { channel: "ABEMA", startedAt: "2026-08-12T13:30:00Z" },
+  ]),
+  "2026-09-16"
+);
+// TVのみ・programsなしは曜日・時刻と同様に null（＝推定に使わない）。
+checkLastKnown("TV局のみ → null", work([{ channel: "TOKYO MX", startedAt: "2026-08-12T14:00:00Z" }]), null);
+checkLastKnown("programsなし → null", work([]), null);
+
+let endedOk = 0;
+let endedNg = 0;
+function checkEnded(name: string, lastKnown: string | null, todayStr: string, expect: boolean) {
+  const got = hasLikelyEnded({ broadcastLastKnownDate: lastKnown }, todayStr);
+  const pass = got === expect;
+  if (pass) endedOk++; else endedNg++;
+  console.log(
+    `${pass ? "✓" : "✗"}  ${name.padEnd(34)} → ${got}` + (pass ? "" : `  (期待: ${expect})`)
+  );
+}
+// 記録が無い作品（人力補完のscheduleだけ等）は「まだ配信中」の既定側に倒す。
+checkEnded("記録なし → まだ配信中扱い", null, "2026-09-19", false);
+// 閾値ちょうど（9日）はまだ外さない。Annictの登録遅れを飲み込むための猶予。
+checkEnded(`${LIKELY_ENDED_GAP_DAYS}日ちょうど → 外さない`, "2026-09-10", "2026-09-19", false);
+// 閾値+1日（10日）で初めて外す。
+checkEnded(`${LIKELY_ENDED_GAP_DAYS + 1}日 → 外す`, "2026-09-09", "2026-09-19", true);
+// 通常の週次放送（直近2日）は当然そのまま載せる。
+checkEnded("直近2日 → 外さない", "2026-09-17", "2026-09-19", false);
+
+// buildTodayAiring を実際に通して、終了した作品が本文から消えることを固定する
+// （関数単体が正しくてもフィルタ列に入れ忘れれば投稿には出続けるため）。
+{
+  const airingFixture = {
+    items: [
+      {
+        id: 1,
+        title: "まだ放送中の作品",
+        watchers: 100,
+        broadcastWeekday: 4,
+        broadcastTime: "22:30",
+        broadcastStartDate: "2026-07-02",
+        broadcastLastKnownDate: "2026-09-17",
+      },
+      {
+        id: 2,
+        title: "最終話が放送済みの作品",
+        watchers: 999, // 注目度は上なので、外れていなければ必ず本文に出る
+        broadcastWeekday: 4,
+        broadcastTime: "23:00",
+        broadcastStartDate: "2026-04-03",
+        broadcastLastKnownDate: "2026-09-05", // 14日前
+      },
+    ],
+  };
+  const text =
+    buildTodayAiring(airingFixture, 4, 2026, "夏", "https://example.com/", "2026-09-19") ?? "";
+  const keptOk = text.includes("まだ放送中の作品");
+  const droppedOk = !text.includes("最終話が放送済みの作品");
+  if (keptOk) endedOk++; else endedNg++;
+  if (droppedOk) endedOk++; else endedNg++;
+  console.log(`${keptOk ? "✓" : "✗"}  ${"放送中の作品は本文に残る".padEnd(34)} → ${keptOk}`);
+  console.log(`${droppedOk ? "✓" : "✗"}  ${"終了した作品は本文から消える".padEnd(32)} → ${droppedOk}`);
+}
+
+// 3ファイルの閾値が食い違わないこと。scripts/*.js は root の lib/*.ts を require しない
+// 設計（app/api/sns-image/route.tsx は edge runtime）なので同じ定数を3箇所が持っており、
+// 片方だけ直すと「投稿本文からは消えたのに画像には残る」「画面の『完結』と投稿がズレる」
+// という食い違いが静かに起きる。
+{
+  const files = [
+    "./lib/build-digest.js",
+    "../app/api/sns-image/route.tsx",
+    "../components/SeasonExplorer.tsx",
+  ];
+  const values = files.map((f) => {
+    const src = readFileSync(new URL(f, import.meta.url), "utf8");
+    const m = src.match(/LIKELY_ENDED_GAP_DAYS\s*=\s*(\d+);/);
+    return { file: f, value: m ? Number(m[1]) : null };
+  });
+  const allMatch =
+    values.every((v) => v.value !== null) &&
+    values.every((v) => v.value === LIKELY_ENDED_GAP_DAYS);
+  if (allMatch) endedOk++; else endedNg++;
+  console.log(
+    `${allMatch ? "✓" : "✗"}  ${"3ファイルの猶予日数が一致".padEnd(33)} → ` +
+      values.map((v) => `${v.file.split("/").pop()}=${v.value}`).join(" / ")
+  );
+}
+console.log(
+  `結果（放送終了の推定）: ${lastKnownOk + endedOk} 件OK / ${lastKnownNg + endedNg} 件NG`
+);
 
 // ── hasBroadcastData（TV放送のみ vs Annictにデータ自体が無い、の区別）の回帰テスト ──
 // 2026-07-12 実例: 片田舎のおっさん、剣聖になるⅡはTV放送28局分のデータはあるが
@@ -7712,6 +7828,8 @@ if (
   ssrNg > 0 ||
   ng > 0 ||
   scheduleNg > 0 ||
+  lastKnownNg > 0 ||
+  endedNg > 0 ||
   bdNg > 0 ||
   queryNg > 0 ||
   extraNg > 0 ||

@@ -67,6 +67,22 @@ function isFarBeforePremiere(it: AnimeItem): boolean {
   return daysUntilStart(it.broadcastStartDate) > PREMIERE_LOOKAHEAD_DAYS;
 }
 
+// 「最終話が既に放送された可能性が高い」と見なすまでの猶予日数。
+// **同じ値を scripts/lib/build-digest.js と app/api/sns-image/route.tsx も持つ**
+// （scripts/*.js は root の lib/*.ts を require しない設計のため。3つが食い違わない
+// ことを scripts/check.ts が検査する）。
+const LIKELY_ENDED_GAP_DAYS = 9;
+
+// 直近の配信記録から間が空いたか（true＝最終話まで放送/配信された可能性が高い）。
+// Annictは総話数を持たないので**断定はできない**。カレンダーからは外さず（過去の
+// 放送枠を見るのに使えるため）、タイトル横に「完結」の印を出すだけに留める。
+function hasLikelyEnded(it: AnimeItem): boolean {
+  if (!it.broadcastLastKnownDate) return false;
+  const lastMs = new Date(`${it.broadcastLastKnownDate}T00:00:00+09:00`).getTime();
+  const gapDays = Math.floor((Date.now() - lastMs) / (24 * 60 * 60 * 1000));
+  return gapDays > LIKELY_ENDED_GAP_DAYS;
+}
+
 // "YYYY-MM-DD" → "M/D"（JST日付文字列をそのまま分解するだけなのでタイムゾーン変換不要）。
 function formatMonthDay(dateStr: string): string {
   const [, m, d] = dateStr.split("-");
@@ -1276,9 +1292,22 @@ export default function SeasonExplorer({
                       {it.broadcastTime && (
                         <span className="calendar-time">{it.broadcastTime}</span>
                       )}
-                      <IntentLink href={`/anime/${it.id}`} className="calendar-title">
-                        {it.title}
-                      </IntentLink>
+                      {/* タップ領域の基本ルール（2026-07-27）: この div に position を
+                          付けないこと。付けると .calendar-title::after の引き伸ばしが
+                          行全体ではなくこの div を基準にしてしまう。 */}
+                      <div className="calendar-title-row">
+                        <IntentLink href={`/anime/${it.id}`} className="calendar-title">
+                          {it.title}
+                        </IntentLink>
+                        {hasLikelyEnded(it) && (
+                          <span
+                            className="calendar-finished-tag"
+                            title="最終話まで放送/配信された可能性があります（直近の配信記録からの推定）"
+                          >
+                            完結
+                          </span>
+                        )}
+                      </div>
                       {(() => {
                         const { streaming } = splitRentalServices(it.services, RENTAL_SERVICES[it.id]);
                         if (streaming.length === 0 && it.otherServices.length === 0) return null;

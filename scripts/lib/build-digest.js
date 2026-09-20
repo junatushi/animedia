@@ -467,16 +467,42 @@ function buildTop5(data, year, label, url, shotUrl = url, todayStr, platform = "
   };
 }
 
+// 「最終話が既に放送された可能性が高い」と見なすまでの猶予日数。
+// broadcastWeekday は「毎週その曜日」という推定なので、正常に続いている作品なら
+// 直近の記録は7日以内にある。Annictはコミュニティ更新なので当日分の登録が遅れることが
+// あり、2日ぶん足して9日にしてある。
+// **同じ値を app/api/sns-image/route.tsx と components/SeasonExplorer.tsx も持つ**
+// （scripts/*.js は root の lib/*.ts を require しない設計のため。3つが食い違わない
+// ことを scripts/check.ts が検査する）。
+const LIKELY_ENDED_GAP_DAYS = 9;
+
+// 直近の配信記録から LIKELY_ENDED_GAP_DAYS を超えて間が空いたか。
+// Annictは総話数を持たないので「最終話が放送された」ことは**断定できない**。
+// ここで返すのはあくまで推定で、用途は「今日のアニメ一覧から外す」ことだけに留める
+// （「完結しました」のような断定はしない。CLAUDE.md の一次情報のみの方針）。
+// 記録が1件も無い作品（人力補完のscheduleだけの作品など）は false＝これまで通り載せる。
+function hasLikelyEnded(it, todayStr) {
+  if (!it.broadcastLastKnownDate) return false;
+  const lastMs = Date.parse(`${it.broadcastLastKnownDate}T00:00:00+09:00`);
+  const todayMs = Date.parse(`${todayStr}T00:00:00+09:00`);
+  if (Number.isNaN(lastMs) || Number.isNaN(todayMs)) return false;
+  const gapDays = Math.floor((todayMs - lastMs) / (24 * 60 * 60 * 1000));
+  return gapDays > LIKELY_ENDED_GAP_DAYS;
+}
+
 // 月〜土: その曜日に放送/配信のある今期アニメ。注目度順に、字数上限まで詰める。
 // 該当作品が無ければ null（呼び出し側でTOP5にフォールバック）。
 // 基本ルール（2026-07-11）: broadcastWeekdayは「毎週その曜日」の推定でしかなく、
 // 放送開始前の作品も曜日が一致するだけで拾ってしまう（実例: Re:ゼロ4期奪還編を
 // 8月開始前の水曜に「今日放送」と誤案内しかける）。実際に放送開始日を迎えている
 // 作品（broadcastStartDate <= 今日）だけに絞る。
+// 2026-09-19追記: 上と同じ理由で**終わりも見ていなかった**ため、最終話の放送後も
+// 毎週この一覧に載り続けていた。直近の配信記録から間が空いた作品も外す（hasLikelyEnded）。
 function buildTodayAiring(data, weekday, year, label, url, todayStr, platform = "x") {
   const today = data.items
     .filter((it) => it.broadcastWeekday === weekday)
     .filter((it) => !it.broadcastStartDate || it.broadcastStartDate <= todayStr)
+    .filter((it) => !hasLikelyEnded(it, todayStr))
     .sort((a, b) => b.watchers - a.watchers);
   if (today.length === 0) return null;
 
@@ -846,6 +872,10 @@ module.exports = {
   buildTop5,
   buildTodayAiring,
   buildSpotlight,
+  // 放送終了の推定（2026-09-19導入）。scripts/check.ts が直接検査し、
+  // 他2ファイルの複製と値が一致しているかも突き合わせる。
+  hasLikelyEnded,
+  LIKELY_ENDED_GAP_DAYS,
   // 週次X成長キット（build-growth-kit.js）から再利用する小ヘルパー。
   jstParts,
   currentSeasonByMonth,

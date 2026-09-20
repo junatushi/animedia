@@ -200,26 +200,45 @@ export function textOn(hex: string): string {
 // date（YYYY-MM-DD、JST）も併せて返す。まだ放送開始前の作品を「今週の曜日」のように
 // 見せてしまうミスリードを防ぐため、UI側（SeasonExplorer）で放送開始日までの残日数を
 // 判定する基準値として使う（基本ルール。2026-07-11 導入）。
+// lastKnownDate（最も新しい記録の日付）も併せて返す。曜日・時刻・date が「いつ始まったか」
+// なのに対し、こちらは「いつまで記録があるか」。Annictは総話数を持たないので「最終話が
+// 既に放送されたか」は直接には判定できないが、「直近の記録から何日経ったか」なら分かる。
+// 最終話の放送後もSNS投稿の「今日のアニメ一覧」に作品が載り続けていた不具合
+// （毎週その曜日に一致するかしか見ておらず、終わりを一度も見ていなかった）の修正に使う。
+type BroadcastSlot = { weekday: number; time: string; date: string; lastKnownDate?: string };
+
 function deriveBroadcastSlot(
   nodes: ({ startedAt: string | null } | null)[]
-): { weekday: number; time: string; date: string } | null {
+): BroadcastSlot | null {
   let earliest: number | null = null;
+  let latest: number | null = null;
   for (const p of nodes) {
     if (!p || !p.startedAt) continue;
     const ms = Date.parse(p.startedAt);
     if (Number.isNaN(ms)) continue;
     if (earliest === null || ms < earliest) earliest = ms;
+    if (latest === null || ms > latest) latest = ms;
   }
-  if (earliest === null) return null;
+  if (earliest === null || latest === null) return null;
 
   const jst = new Date(earliest + 9 * 60 * 60 * 1000);
   const weekday = jst.getUTCDay();
   const hh = String(jst.getUTCHours()).padStart(2, "0");
   const mm = String(jst.getUTCMinutes()).padStart(2, "0");
+  return {
+    weekday,
+    time: `${hh}:${mm}`,
+    date: jstDateStr(earliest),
+    lastKnownDate: jstDateStr(latest),
+  };
+}
+
+function jstDateStr(ms: number): string {
+  const jst = new Date(ms + 9 * 60 * 60 * 1000);
   const yyyy = jst.getUTCFullYear();
   const MM = String(jst.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(jst.getUTCDate()).padStart(2, "0");
-  return { weekday, time: `${hh}:${mm}`, date: `${yyyy}-${MM}-${dd}` };
+  return `${yyyy}-${MM}-${dd}`;
 }
 
 // Annictにまだ登録されていない配信サービスを人力で補完するためのエントリ形。
@@ -289,7 +308,9 @@ export function toAnimeItem(
   // 無いため、streamingStarts（曜日・時刻の算出元）には加えない（誤った時刻を創作
   // しないため）。ただしextra側で一次情報の schedule が指定されていれば、Annictの
   // 実データが無いときだけフォールバックとして使う（下のmanualSlot参照）。
-  let manualSlot: { weekday: number; time: string; date: string } | null = null;
+  // 人力の schedule は「毎週この曜日」という一次情報なので lastKnownDate は持たない
+  // （＝実際の配信履歴が無い作品は「まだ配信中」の既定側に倒す）。
+  let manualSlot: BroadcastSlot | null = null;
   for (const e of extra) {
     const def = SERVICES.find((s) => s.key === e.key);
     if (!def) continue; // SERVICESに存在しないkeyは無視（extraServices.tsの入力ミス対策）
@@ -340,6 +361,7 @@ export function toAnimeItem(
     broadcastStartDate: slot?.date ?? null,
     broadcastWeekday: slot?.weekday ?? null,
     broadcastTime: slot?.time ?? null,
+    broadcastLastKnownDate: slot?.lastKnownDate ?? null,
     creditNames,
     castNames,
     media: w.media ?? null,
