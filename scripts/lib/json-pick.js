@@ -68,6 +68,17 @@ function main() {
       return;
     }
 
+    // archive-candidates が選ぶのと同じ「最新クール」の castCreditsComplete を返す
+    // （2026-09-20導入）。このクールがスナップショットだけで描き切れる（＝Annictに
+    // 問い合わせず fetchedAt が null になる。lib/dataFreshness.ts）かどうかで、
+    // 作品ページに「配信情報の取得日」を出してよいかが変わる。
+    case "archive-last-season-complete": {
+      const seasons = (json.seasons || []).filter((s) => (s.workIds || []).length > 0);
+      const last = seasons[seasons.length - 1];
+      console.log(last && last.castCreditsComplete ? "true" : "false");
+      return;
+    }
+
     // .items | sort_by(-(.watchers // 0)) | .[0:5][] | .id
     case "top-ids": {
       const items = [...(json.items || [])];
