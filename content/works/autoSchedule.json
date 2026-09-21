@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-20",
+  "updatedAt": "2026-09-21",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -589,6 +589,15 @@
       "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ガールズ&パンツァー 最終章 第5話"
+    },
+    "16727": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/202503",
+      "fetchedDate": "2026-09-21",
+      "matchedBy": "mal",
+      "title": "魔術を極めて旅に出た転生エルフ、持て余した寿命で生ける伝説となる"
     },
     "16767": {
       "date": "2027-01",
@@ -1307,6 +1316,15 @@
       "fetchedDate": "2026-09-19",
       "matchedBy": "title",
       "title": "蒼き伝承 ウェルシュ＆シェダー"
+    },
+    "18227": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/217070",
+      "fetchedDate": "2026-09-21",
+      "matchedBy": "mal",
+      "title": "ふつつかな悪女ではございますが ～雛宮蝶鼠とりかえ伝～ 第2クール"
     }
   }
 }
