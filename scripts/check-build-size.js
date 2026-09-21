@@ -57,10 +57,13 @@ const FLOOR_SHARE = 0.65; // 予算に使ってよい割合（残りは数え落
 const ALWAYS_RETAINED = 6;
 
 // 【必ずダッシュボードと一致させること】Project Settings → Security →
-// Deployment Retention Policy の設定値。Hobby の既定は本番30日。
+// Deployment Retention Policy の設定値。
 // **ここだけ直してダッシュボードを直さないと、この検査は緑のまま嘘をつく。**
-// 最後に確認した日: 2026-09-21（既定の30日のまま＝未変更）
-const RETENTION_DAYS = 30;
+// 2026-09-21に既定の30日から縮めた（Production Deployments = 1 week）。
+// 同時に Canceled/Errored/Pre-Production Deployments を 1 day にした
+// （Pre-Productionはプレビュー。vercel.json でプレビューのビルド自体を止めた
+// ので新規の積み増しは無いが、ダッシュボードの保持も最短にして念のため二重に絞る）。
+const RETENTION_DAYS = 7;
 
 // git から数えられなかったときに使う保守側の既定値。
 // 毎日コミットする収集が1本ある（fetch-upcoming.yml → content/works/autoSchedule.json）
