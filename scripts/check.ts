@@ -6692,6 +6692,34 @@ let isrNg = 0;
           : "これが無いと、表示に使わないデータのコミットでもキャッシュが全消去される")
     );
 
+    // 【2026-09-21追加・重大度高】プレビューデプロイのビルドを飛ばしているか。
+    //
+    // Deployment Storage（Hobbyは10GB）は保持しているデプロイ数ぶん掛かり、
+    // **生きているブランチのプレビューは保持期間で消えない**。実測（2026-09-21）で
+    // 41.93GB＝上限の419%まで積み上がり、そのうち本番で説明できるのは9.3GBだけで、
+    // 残り約32GBが作業ブランチ32本のプレビューだった。
+    // このサイトはプレビューURLを**どこからも使っていない**（cron・計測・巡回は
+    // すべて本番ドメイン直指定、CIはGitHub Actions内で自前ビルド）ので、
+    // 飛ばして失うものが無い。
+    //
+    // 判定は `$VERCEL_ENV` が preview のときだけ exit 0（＝スキップ）にすること。
+    // **「production でなければスキップ」と書かないこと**: 環境変数が取れなかった
+    // 日に本番まで丸ごと止まる。落ちる向きを安全側に倒しておく。
+    // **画面には何も出ない壊れ方**（消せばプレビューが復活するだけで表示は同じ、
+    // 増えるのは保存容量と請求だけ）なので機械的に見張る。経緯は docs/operations.md の[54]。
+    const skipsPreview =
+      /VERCEL_ENV/.test(vercelJson) &&
+      /preview/.test(vercelJson) &&
+      // 「production でなければ」の書き方に逆戻りしていないこと。
+      !/VERCEL_ENV[^;]*!=[^;]*production|production[^;]*\]\s*\|\|\s*exit 0/.test(vercelJson);
+    if (!skipsPreview) isrNg++;
+    console.log(
+      `${skipsPreview ? "✓" : "✗"}  ${"プレビューのビルドを飛ばしている".padEnd(48)} → ` +
+        (skipsPreview
+          ? "$VERCEL_ENV が preview ならスキップ"
+          : "生きているブランチのプレビューは保持期間で消えない（実測41.93GB＝上限の419%）")
+    );
+
     // ignoreCommand から除外パススペック（':!…'）を取り出す。
     const specs = [...vercelJson.matchAll(/':!([^']+)'/g)].map((m) => m[1]);
     const isExcluded = (p: string) =>

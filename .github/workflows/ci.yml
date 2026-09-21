@@ -55,7 +55,14 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
+      # 【2026-09-21】深さを足した。既定（深さ1）だと
+      # `scripts/check-build-size.js` が「1日あたり何件の本番デプロイが起きているか」を
+      # git から数えられず、保守側の既定値に落ちる（落ちたことは出力に出る）。
+      # 予算の分母がそこに乗っているので、CIでは本物の頻度で判定させる。
+      # 日数ではなく件数での指定なので、足りなければ検査側が自分で気づいて既定値に戻る。
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 400
 
       # Node 22 必須。`node scripts/check.ts` は拡張子 .ts をそのまま実行しており、
       # これは Node 22.18+ の型ストリッピング（既定で有効）に依存している。

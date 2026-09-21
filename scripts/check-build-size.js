@@ -1,36 +1,134 @@
-// デプロイ成果物の大きさに予算を設けて見張る（2026-09-14導入・重大度高）。
+// デプロイ成果物の大きさに予算を設けて見張る
+// （2026-09-14導入 / 2026-09-21に式を作り直し・重大度高）。
 //
 // 【なぜ要るか】Vercel Hobby の Deployment Storage は 10GB で、**保持している
-// デプロイ数ぶん掛かる**。しかも Hobby は「直近10件の本番デプロイ」を保持期間の
-// 設定に関わらず必ず保持する（https://vercel.com/changelog/hobby-projects-now-default-to-30-day-deployment-retention）。
-// つまり **1デプロイの成果物 × 10 が、何をしても消えない床**になる。
+// デプロイ数ぶん掛かる**。成果物はページ数とページの大きさの積で決まり、
+// **クールが増えるたびに自動で増える**（CLAUDE.md の条件④）。放っておくと必ず
+// また超えるので、増えたことに気づく仕掛けが要る。「気づく」だけでは足りない
+// （気づいても誰も見ない）ので、予算を超えたら落とす。
 //
-//   成果物 1.0GB → 床だけで 10GB ＝ 上限ちょうど（2026-09-14に実際にこの状態で、
-//                                        実測は 28.23GB ＝ 上限の282%だった）
-//   成果物 0.57GB → 床は 5.7GB ＝ 上限の57%
+// 【2026-09-21・この検査自身が桁で間違っていた】導入時の式は
+//   10GB × 0.65 ÷ 10件（保持期間に関わらず残る本番デプロイ数）= 650MB
+// で、同日の実測 303MB を「予算の47%」＝余裕あり、と報告していた。
+// ところが同じ日のダッシュボードの実測は **41.93GB ＝ 上限の419%** だった。
+// 数えているものが違えば、緑でも何の保証にもならない。外れた理由は2つある:
 //
-// 成果物はページ数とページの大きさの積で決まり、**クールが増えるたびに自動で増える**
-// （CLAUDE.md の条件④）。放っておくと必ずまた超えるので、増えたことに気づく仕掛けが要る。
-// 「気づく」だけでは足りない（気づいても誰も見ない）ので、予算を超えたら落とす。
+//   ①**「床」しか数えていなかった。** 保持期間（Hobby既定30日）の中に入った
+//     デプロイは全部残るので、実際に掛かるのは
+//        1デプロイの大きさ × (保持日数 × 1日あたりのデプロイ数)
+//     であって、「必ず残る件数」はその**下限**にすぎない。当時の本番は
+//     1日0.57件＝30日で18件で、床(10件)の1.8倍あった。
+//   ②**プレビューデプロイを1件も数えていなかった。** 作業ブランチが32本
+//     生きており、**生きているブランチのデプロイは保持期間で消えない**。
+//     実測41.93GBのうち本番で説明できるのは9.3GBだけで、残り約32GBがこれ。
+//     プレビューは vercel.json が本番以外のビルドを丸ごと飛ばすようにして止めた
+//     （`$VERCEL_ENV` が preview なら exit 0）。この分は式から落としてよくなった。
 //
-// 【予算の出し方】ここに書いた数字は逐次的に決めた値ではなく、上限から逆算している:
-//   10GB（上限） × 0.65（床に使ってよい割合） ÷ 10（必ず保持される本番デプロイ数）= 650MB
-// 残りの3.5GBはプレビューと、直近10件より古い本番デプロイの取り分。
+// 【いまの式】
+//   保持件数 = max(必ず残る件数, 保持日数 × 1日あたりの本番デプロイ数)
+//   予算     = 10GB × 0.65 ÷ 保持件数
+// 1日あたりの本番デプロイ数は**手で書かない**（㊳）。git の履歴に vercel.json の
+// ignoreCommand と**同じ除外**を当てて数える（門番と数え方がズレないように、
+// 除外パスはこのファイルに写さず vercel.json から読む）。履歴が浅くて数えられない
+// ときは**黙って通さず**、保守側の既定値を使ったと明示する。
 // **この値を上げるときは、上の式のどれを変えるのかを書くこと**（数字だけ書き換えない）。
 //
-// 【超えたときの手当て】ページを減らすのではなく、まず1ページを小さくする
-// （ISR Writes も転送量も同じ比率で効く）。内訳を出すのはそのため。
-// 経緯は docs/operations.md の㊻。
+// 【超えたときの手当て】順番がある:
+//   ①ダッシュボードの保持期間を縮める（Project Settings → Security →
+//     Deployment Retention Policy）。分母にそのまま効くので一番強い。
+//     縮めたら下の RETENTION_DAYS も同じ値に直すこと。
+//   ②1ページを小さくする（ISR Writes も転送量も同じ比率で効く）。内訳を出すのはそのため。
+//   ③事前生成の対象を減らすのは最後の手段（焼かないページはデプロイのたびに
+//     ISR Writes を払い直すので、成果物が減っても総費用が増えることがある）。
+// 経緯は docs/operations.md の㊻・[52]・[54]。
 
 const fs = require("fs");
 const path = require("path");
+const { execFileSync, spawnSync } = require("child_process");
 
 const ROOT = path.join(__dirname, "..");
 
 const QUOTA_BYTES = 10 * 1000 * 1000 * 1000; // Hobby の Deployment Storage
-const ALWAYS_RETAINED_PRODUCTION = 10; // 保持期間に関わらず残る本番デプロイ数
-const FLOOR_SHARE = 0.65; // 上の床に使ってよい割合（残りはプレビュー等）
-const BUDGET_BYTES = Math.round((QUOTA_BYTES * FLOOR_SHARE) / ALWAYS_RETAINED_PRODUCTION);
+const FLOOR_SHARE = 0.65; // 予算に使ってよい割合（残りは数え落としの取り分）
+
+// 保持期間に関わらず残るデプロイ数。2026-09-16に Vercel が Hobby の保持件数を
+// 減らした（本番3件＋種別を問わない直近3件＝実質6件）。導入時は10件と書いていた。
+// https://vercel.com/changelog/hobby-projects-now-retain-fewer-deployments-to-free-up-storage
+const ALWAYS_RETAINED = 6;
+
+// 【必ずダッシュボードと一致させること】Project Settings → Security →
+// Deployment Retention Policy の設定値。Hobby の既定は本番30日。
+// **ここだけ直してダッシュボードを直さないと、この検査は緑のまま嘘をつく。**
+// 最後に確認した日: 2026-09-21（既定の30日のまま＝未変更）
+const RETENTION_DAYS = 30;
+
+// git から数えられなかったときに使う保守側の既定値。
+// 毎日コミットする収集が1本ある（fetch-upcoming.yml → content/works/autoSchedule.json）
+// ので、下回ることはあっても上回りにくい値として 1 を採る。
+const FALLBACK_DEPLOYS_PER_DAY = 1;
+const RATE_WINDOW_DAYS = 30;
+
+// vercel.json の ignoreCommand から除外パススペック（':!…'）を取り出す。
+// **このファイルに写さない**（門番と数え方がズレると、数えたつもりのものが実際は違う）。
+function excludeSpecs() {
+  const vercelJson = fs.readFileSync(path.join(ROOT, "vercel.json"), "utf8");
+  return [...vercelJson.matchAll(/':!([^']+)'/g)].map((m) => `:!${m[1]}`);
+}
+
+// 1日あたり何件の本番デプロイが起きているかを git から導出する（手で書かない＝㊳）。
+// 数えられなければ null を返す（推測の数字を黙って使わない）。
+function deploysPerDay() {
+  try {
+    const since = new Date(Date.now() - RATE_WINDOW_DAYS * 86400 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    // 浅いクローンだと数え落とす（CIの actions/checkout は既定で深さ1）。
+    // 窓の始まりより古いコミットが見えることを先に確かめる。
+    const dates = execFileSync("git", ["log", "--format=%cs", "-n", "5000"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+    const oldest = dates[dates.length - 1];
+    if (!oldest || oldest > since) return null; // 履歴が窓を覆っていない
+    const shas = execFileSync("git", ["rev-list", `--since=${since}`, "HEAD"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+    const excl = excludeSpecs();
+    if (excl.length === 0) return null; // 除外が読めていない＝数え方が門番と違う
+    let n = 0;
+    for (const sha of shas) {
+      // `git diff --quiet` は差分ありで 1。親が無い等で 128 のときは門番も
+      // ビルドする側に倒すので、0 以外はまとめて「デプロイが起きる」と数える。
+      const r = spawnSync("git", ["diff", "--quiet", `${sha}^`, sha, "--", ".", ...excl], {
+        cwd: ROOT,
+      });
+      if (r.status !== 0) n++;
+    }
+    return n / RATE_WINDOW_DAYS;
+  } catch {
+    return null;
+  }
+}
+
+// 予算は固定値ではなく、上の式から毎回導出する。
+function budget() {
+  const derived = deploysPerDay();
+  const perDay = derived ?? FALLBACK_DEPLOYS_PER_DAY;
+  const retained = Math.max(ALWAYS_RETAINED, Math.ceil(RETENTION_DAYS * perDay));
+  return {
+    bytes: Math.round((QUOTA_BYTES * FLOOR_SHARE) / retained),
+    retained,
+    perDay,
+    derived: derived !== null,
+  };
+}
 
 // デプロイに含まれるもの。ビルドキャッシュ（.next/cache）は別枠なので数えない。
 const TARGETS = [".next/server", ".next/static", "public"];
@@ -171,6 +269,8 @@ function estimateGrowth(appDir) {
 
 function main() {
   console.log("【デプロイ成果物の大きさ】");
+  const B = budget();
+  const BUDGET_BYTES = B.bytes;
   if (!fs.existsSync(path.join(ROOT, ".next", "BUILD_ID"))) {
     // `npm run check` からも呼ばれる。ビルドが無いときは**黙って成功せず**、
     // 省略したと言ってから抜ける（CIでは build の直後に走るので必ず本物になる）。
@@ -244,19 +344,41 @@ function main() {
     }
   }
 
-  const pct = Math.round((total / BUDGET_BYTES) * 100);
-  const floor = total * ALWAYS_RETAINED_PRODUCTION;
+  // ── 予算の前提を毎回出す（2026-09-21追加）────────────────────────────
+  //
+  // **この3行を消さないこと。** 予算の分母は「ダッシュボードの保持期間」という
+  // CIからは読めない値に乗っている。前提を黙って抱えたままだと、設定を戻した日に
+  // 検査は緑のまま嘘をつき始める（実際にそれで419%まで気づけなかった）。
+  // 毎回・日付つきで出しておけば、読んだ人が食い違いに気づける。
+  console.log("  ── 予算の前提 ──");
   console.log(
-    `  合計 ${mb(total)} / 予算 ${mb(BUDGET_BYTES)}（${pct}%）` +
-      ` — 必ず保持される本番${ALWAYS_RETAINED_PRODUCTION}件ぶんの床は ${mb(floor)}` +
-      `（上限 ${mb(QUOTA_BYTES)} の ${Math.round((floor / QUOTA_BYTES) * 100)}%）`
+    `  保持期間 ${RETENTION_DAYS}日（ダッシュボードの設定と一致させること。最終確認 2026-09-21）` +
+      ` × 本番デプロイ ${B.perDay.toFixed(2)}件/日` +
+      (B.derived ? "（git の履歴から導出）" : "（**履歴が浅く数えられず既定値を使用**）")
+  );
+  const stored = total * B.retained;
+  console.log(
+    `  → 保持件数 ${B.retained}件（必ず残る ${ALWAYS_RETAINED}件が下限）` +
+      ` ＝ 保存される見込み ${mb(stored)}（上限 ${mb(QUOTA_BYTES)} の ${Math.round((stored / QUOTA_BYTES) * 100)}%）`
   );
 
+  const pct = Math.round((total / BUDGET_BYTES) * 100);
+  console.log(`  合計 ${mb(total)} / 予算 ${mb(BUDGET_BYTES)}（${pct}%）`);
+
   if (total > BUDGET_BYTES) {
+    // 保持期間をいくつにすればこの成果物が収まるかを、式を逆に解いて出す。
+    // 「小さくしろ」しか言われないと、いちばん強い手（分母）に手が伸びない。
+    const fits = Math.floor((QUOTA_BYTES * FLOOR_SHARE) / total);
+    const days = B.perDay > 0 ? Math.floor(fits / B.perDay) : Infinity;
     console.error(
       `結果: NG — 予算 ${mb(BUDGET_BYTES)} を超えています。\n` +
-        "  まず「1ページを小さくする」を検討すること（ISR Writes・転送量・表示速度に同じ比率で効く）。\n" +
-        "  事前生成の対象を減らすのは最後の手段（焼かないページはデプロイのたびに\n" +
+        `  いまの成果物(${mb(total)})なら保持件数 ${fits}件までが限界で、` +
+        `本番 ${B.perDay.toFixed(2)}件/日 だと保持期間 ${days}日ぶんに相当する。\n` +
+        "  ①まずダッシュボードの保持期間を縮める（Project Settings → Security →\n" +
+        `    Deployment Retention Policy を ${Number.isFinite(days) ? days : "?"}日以下に）。` +
+        "縮めたらこのファイルの RETENTION_DAYS も同じ値に直すこと。\n" +
+        "  ②次に「1ページを小さくする」（ISR Writes・転送量・表示速度に同じ比率で効く）。\n" +
+        "  ③事前生成の対象を減らすのは最後の手段（焼かないページはデプロイのたびに\n" +
         "  ISR Writes を払い直すので、成果物が減っても総費用が増えることがある）。\n" +
         "  予算そのものを上げるときは、このファイル冒頭の式のどれを変えるのかを書くこと。"
     );
@@ -266,4 +388,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { BUDGET_BYTES, dirSize };
+module.exports = { budget, dirSize };
