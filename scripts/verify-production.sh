@@ -155,6 +155,12 @@ CURRENT_ID=$(pick_with_services "$CURRENT_CANDIDATES") || {
 }
 echo "対象: 現在クール=${YEAR}/${SEASON} 作品#${CURRENT_ID} / 過去クール作品#${PAST_ID}"
 
+# 過去クール作品がどちらの経路（① スナップショットだけで描き切る／② ライブ取得優先）で
+# 描かれるかを、PAST_ID を選んだのと同じクールについて先に確定する（㊻）。
+# ①のときは Annict に一切問い合わせないため fetchedAt が null になり、
+# 「配信情報の取得日」は**出ないのが正しい**（lib/dataFreshness.ts）。
+PAST_SEASON_COMPLETE=$($PICK archive-last-season-complete content/archive/index.json)
+
 # ── A0. トップページのSSR（㊵の再発検知）─────────────────────────
 # 2026-08-05〜2026-09-04、"/" のHTMLは `<div class="wrap"></div>` だけだった
 # （h1が0個・作品リンク0件）。A節はシーズンページしか見ていなかったので、
@@ -211,7 +217,11 @@ PAST_HTML=$($CURL "$BASE/anime/${PAST_ID}")
 want    "$PAST_HTML" "の配信情報があるのは" "事実（配信情報がある）だけを述べている"
 wantnot "$PAST_HTML" "で視聴できます"       "現在形の断定をしていない"
 wantnot "$PAST_HTML" "もう配信されていません" "逆向きの未確認の断定もしていない"
-want    "$PAST_HTML" "配信情報の取得日"     "取得日と書いている（確認日ではない）"
+if [ "$PAST_SEASON_COMPLETE" = "true" ]; then
+  wantnot "$PAST_HTML" "配信情報の取得日"   "スナップショット由来なので取得日を出していない（正しい・㊻）"
+else
+  want    "$PAST_HTML" "配信情報の取得日"   "取得日と書いている（確認日ではない）"
+fi
 wantnot "$PAST_HTML" "配信情報の確認日"     "「確認日」と書いていない"
 want    "$PAST_HTML" "の配信先を貼る"       "埋め込みの案内が出ている"
 

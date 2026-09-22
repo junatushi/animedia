@@ -58,6 +58,11 @@ const latest = archive.seasons.filter((s) => s.workIds.length > 0).at(-1);
 const PAST_ID = latest.workIds[0];
 const CUR_ID = 99001;
 
+// verify-production.sh が archive-last-season-complete で読むのと同じ値
+// （2026-09-20追加。㊻でスナップショット再生成後は true になり、過去作は
+// 「配信情報の取得日」を出さないのが正しい挙動に変わった＝旧テストの前提が崩れた）。
+const PAST_SEASON_COMPLETE = Boolean(latest.castCreditsComplete);
+
 // F節（索引方針）で使う経路。verify-production.sh 側と同じ求め方をする。
 // ハードコードしないのは、索引や日付が変わったときに検査だけが古くなるのを避けるため。
 const INDEXED_PERSON_PATH = "/person/%E6%AB%BB%E4%BA%95%E5%AD%9D%E5%AE%8F/2023/summer";
@@ -127,13 +132,23 @@ const KNOWN_SERVICE_KEYS = new Set(["netflix", "d_anime"]);
 function startStub(broken) {
   const has = (k) => broken.has(k);
 
-  const workPage = (title, sentence, opts = {}) =>
-    `<!doctype html><html><body>` +
-    (opts.noH1 ? "" : `<h1>${title}</h1>`) +
-    `<p>${sentence}</p>` +
-    `<summary>ブログ・サイトに「${title}」の配信先を貼る（無料・HTMLをコピー）</summary>` +
-    `<p class="detail-updated">配信情報の${opts.confirmWord ? "確認日" : "取得日"}: 2026-08-07</p>` +
-    `</body></html>`;
+  // dateMode: "fetch"=取得日を出す（ライブ取得経路） / "confirm"=誤って確認日と書く
+  // （どちらの経路でも駄目） / "none"=日付を出さない（スナップショットだけで
+  // 描き切る経路＝㊻。fetchedAt が null なので日付を名乗らないのが正しい）。
+  const workPage = (title, sentence, opts = {}) => {
+    const dateLine =
+      opts.dateMode === "none"
+        ? ""
+        : `<p class="detail-updated">配信情報の${opts.dateMode === "confirm" ? "確認日" : "取得日"}: 2026-08-07</p>`;
+    return (
+      `<!doctype html><html><body>` +
+      (opts.noH1 ? "" : `<h1>${title}</h1>`) +
+      `<p>${sentence}</p>` +
+      `<summary>ブログ・サイトに「${title}」の配信先を貼る（無料・HTMLをコピー）</summary>` +
+      dateLine +
+      `</body></html>`
+    );
+  };
 
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://x");
@@ -320,13 +335,22 @@ function startStub(broken) {
       if (!validWorkId(aRaw) && !has("loose-id")) return notFoundPage(res);
       const id = Number(p.split("/").pop());
       if (id === PAST_ID) {
+        const dateMode = has("past-confirm-word")
+          ? "confirm"
+          : has("past-shows-fetch-date") || has("past-missing-fetch-date")
+            ? PAST_SEASON_COMPLETE
+              ? "fetch" // past-shows-fetch-date: ①経路なのに誤って取得日を出した
+              : "none" // past-missing-fetch-date: ②経路なのに取得日が消えた
+            : PAST_SEASON_COMPLETE
+              ? "none"
+              : "fetch";
         return send(
           workPage(
             "過去作",
             has("past-wording")
               ? "「過去作」は dアニメストア で視聴できます（2026-08-07時点）。"
               : "「過去作」の配信情報があるのは dアニメストア です（2026-08-07時点のAnnictデータ）。",
-            { confirmWord: has("past-confirm-word") }
+            { dateMode }
           )
         );
       }
@@ -435,7 +459,14 @@ async function main() {
     ["css-external", "外部CSSに戻った（㊵の再現）", "外部CSS"],
     ["current-no-h1", "作品ページに<h1>が無い", "<h1> が 0 個"],
     ["past-wording", "過去作に「視聴できます」（⑰の再現）", "現在形の断定をしていない"],
-    ["past-confirm-word", "「確認日」と書いてしまった", "取得日と書いている"],
+    ["past-confirm-word", "「確認日」と書いてしまった", "「確認日」と書いていない"],
+    // ㊻でスナップショットを全クール再生成した後は castCreditsComplete が true になり、
+    // 過去作は「配信情報の取得日」を**出さない**のが正しい（Annictに問い合わせない＝
+    // fetchedAt が null）。まだ①経路に切り替わっていない環境（false）では逆に、
+    // 取得日が消えるほうが異常（②経路なのに日付が出ない＝表示側の壊れ）。
+    PAST_SEASON_COMPLETE
+      ? ["past-shows-fetch-date", "スナップショット由来なのに取得日を出した（㊻に反する）", "取得日を出していない"]
+      : ["past-missing-fetch-date", "ライブ取得経路なのに取得日が消えた", "取得日と書いている"],
     ["current-wording", "放送中作品が終了作品の文言になった", "断定形が出ている"],
     ["embed-script", "埋め込みに<script>が入った（⑯の再現）", "<script> を含まない"],
     ["embed-external", "埋め込みに自サイト外リンクが入った（⑯の再現）", "自サイト外へのリンク"],
