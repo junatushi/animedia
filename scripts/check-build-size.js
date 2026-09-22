@@ -59,11 +59,23 @@ const ALWAYS_RETAINED = 6;
 // 【必ずダッシュボードと一致させること】Project Settings → Security →
 // Deployment Retention Policy の設定値。
 // **ここだけ直してダッシュボードを直さないと、この検査は緑のまま嘘をつく。**
+//
 // 2026-09-21に既定の30日から縮めた（Production Deployments = 1 week）。
 // 同時に Canceled/Errored/Pre-Production Deployments を 1 day にした
 // （Pre-Productionはプレビュー。vercel.json でプレビューのビルド自体を止めた
 // ので新規の積み増しは無いが、ダッシュボードの保持も最短にして念のため二重に絞る）。
-const RETENTION_DAYS = 7;
+//
+// 2026-09-22にさらに 1 day へ縮めた（Production Deployments も 1 day）。
+// 理由: CIで**初めて本物のデプロイ頻度**が使われた（それまでは checkout の既定が
+// 深さ1で履歴を数えられず、保守側の既定値1.00件/日に落ちていた）。実測は 1.80件/日で、
+// 1週間だと保持件数が13件になり、成果物509.9MBでは保存見込み6,629MB＝上限の66%、
+// 予算判定は102%＝NGだった。上限自体は超えていないが、成果物は年+62MBで増えるので
+// 余裕が薄い。分母にそのまま効く保持期間を縮めるのが一番強い手当て（上の①）。
+//
+// 1 day にしても**ロールバック先は消えない**。ALWAYS_RETAINED のとおり
+// Vercelは保持期間に関わらず本番3件＋直近3件を必ず残すので、保持件数は6件が下限になる
+// （1.80件/日 × 1日 = 2件 < 6件）。引き換えに、1週間前のデプロイへ戻す操作はできなくなる。
+const RETENTION_DAYS = 1;
 
 // git から数えられなかったときに使う保守側の既定値。
 // 毎日コミットする収集が1本ある（fetch-upcoming.yml → content/works/autoSchedule.json）
@@ -355,7 +367,7 @@ function main() {
   // 毎回・日付つきで出しておけば、読んだ人が食い違いに気づける。
   console.log("  ── 予算の前提 ──");
   console.log(
-    `  保持期間 ${RETENTION_DAYS}日（ダッシュボードの設定と一致させること。最終確認 2026-09-21）` +
+    `  保持期間 ${RETENTION_DAYS}日（ダッシュボードの設定と一致させること。最終確認 2026-09-22）` +
       ` × 本番デプロイ ${B.perDay.toFixed(2)}件/日` +
       (B.derived ? "（git の履歴から導出）" : "（**履歴が浅く数えられず既定値を使用**）")
   );
