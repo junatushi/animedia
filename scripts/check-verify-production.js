@@ -127,12 +127,19 @@ const KNOWN_SERVICE_KEYS = new Set(["netflix", "d_anime"]);
 function startStub(broken) {
   const has = (k) => broken.has(k);
 
+  // `fetchDate` を渡したときだけ「配信情報の取得日」の行を出す（2026-09-22）。
+  // 本番では lib/dataFreshness.ts が、スナップショット由来（過去クール＝静的な
+  // 確定データ）のページには日付を出さない。したがって**過去作のページにこの行が
+  // 無いのが正しい状態**で、今期作（ライブ取得）にはある。以前はどちらにも無条件で
+  // 出しており、過去作が本当に静的経路へ移った日に検査だけが取り残された。
   const workPage = (title, sentence, opts = {}) =>
     `<!doctype html><html><body>` +
     (opts.noH1 ? "" : `<h1>${title}</h1>`) +
     `<p>${sentence}</p>` +
     `<summary>ブログ・サイトに「${title}」の配信先を貼る（無料・HTMLをコピー）</summary>` +
-    `<p class="detail-updated">配信情報の${opts.confirmWord ? "確認日" : "取得日"}: 2026-08-07</p>` +
+    (opts.fetchDate
+      ? `<p class="detail-updated">配信情報の${opts.confirmWord ? "確認日" : "取得日"}: 2026-08-07</p>`
+      : "") +
     `</body></html>`;
 
   const server = http.createServer((req, res) => {
@@ -326,7 +333,13 @@ function startStub(broken) {
             has("past-wording")
               ? "「過去作」は dアニメストア で視聴できます（2026-08-07時点）。"
               : "「過去作」の配信情報があるのは dアニメストア です（2026-08-07時点のAnnictデータ）。",
-            { confirmWord: has("past-confirm-word") }
+            {
+              // 健全なスタブでは出さない（過去クール＝静的な確定データ）。
+              // `past-fetch-date` で「静的なのに取得日を名乗る」逆戻りを、
+              // `past-confirm-word` で「確認日と誤記する」事故を再現する。
+              confirmWord: has("past-confirm-word"),
+              fetchDate: has("past-fetch-date") || has("past-confirm-word"),
+            }
           )
         );
       }
@@ -336,7 +349,12 @@ function startStub(broken) {
           has("current-wording")
             ? "「今期作」の配信情報があるのは dアニメストア です。"
             : "「今期作」は dアニメストア で視聴できます（2026-08-07時点）。",
-          { noH1: has("current-no-h1") }
+          {
+            noH1: has("current-no-h1"),
+            // 今期作はライブ取得＝fetchedAt を持つので健全なスタブでは出す。
+            // 消えたら「サイト全体から日付が消えた」＝C節の対の検査が捕まえる。
+            fetchDate: !has("current-no-fetch-date"),
+          }
         )
       );
     }
@@ -410,10 +428,12 @@ async function main() {
     good.out.match(/^\s*NG\s+.*/m)?.[0]?.trim() ?? "NGなし"
   );
   const okCount = (good.out.match(/^\s*OK\s/gm) || []).length;
-  // 検査を削ると気づけるように件数も固定する
-  // （A:2 A2:1 B:6 C:2 D:3 E:3 F:4 G:7 H:4 I:3 = 35。
-  //  verify-production.sh に検査を足したらこの数も更新する）。
-  check("① OKが41件（検査の取りこぼしが無い）", okCount === 41, `${okCount}件`);
+  // 検査を削ると気づけるように件数も固定する。
+  // 内訳（2026-09-22に実測から数え直した。それまでの内訳コメントは合計35と
+  // 書いてあるのに期待値は41で、**内訳のほうが古いまま放置**されていた）:
+  //   事前:1 A0:4 A:3 A2:1 B:6 C:3 D:3 E:3 F:4 G:7 H:4 I:3 = 42
+  // verify-production.sh に検査を足したらこの数も内訳も更新する。
+  check("① OKが42件（検査の取りこぼしが無い）", okCount === 42, `${okCount}件`);
 
   // ①-2 sitemap全体からの抜き取りが**実際に1件以上叩いている**こと。
   // ここは「0件でもOKを出す」形で静かに無力化していた（awk の NR % s == 1 が s=1 のとき
@@ -435,7 +455,12 @@ async function main() {
     ["css-external", "外部CSSに戻った（㊵の再現）", "外部CSS"],
     ["current-no-h1", "作品ページに<h1>が無い", "<h1> が 0 個"],
     ["past-wording", "過去作に「視聴できます」（⑰の再現）", "現在形の断定をしていない"],
-    ["past-confirm-word", "「確認日」と書いてしまった", "取得日と書いている"],
+    ["past-confirm-word", "「確認日」と書いてしまった", "「確認日」と書いていない"],
+    // 取得日の向き（2026-09-22追加）。lib/dataFreshness.ts は静的な確定データに
+    // 日付を名乗らせない。この2件は必ず対で置くこと——過去作側だけだと
+    // 「どのページからも日付が消えた」壊れ方が緑のまま通る。
+    ["past-fetch-date", "静的な確定データに取得日を名乗った", "静的な確定データに取得日を名乗っていない"],
+    ["current-no-fetch-date", "ライブ取得の作品からも取得日が消えた", "ライブ取得の作品には取得日が出ている"],
     ["current-wording", "放送中作品が終了作品の文言になった", "断定形が出ている"],
     ["embed-script", "埋め込みに<script>が入った（⑯の再現）", "<script> を含まない"],
     ["embed-external", "埋め込みに自サイト外リンクが入った（⑯の再現）", "自サイト外へのリンク"],
