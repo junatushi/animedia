@@ -217,6 +217,22 @@ function collectRouteClasses() {
 const EXPLORER_ROUTES = new Set(["/", "/season/[year]/[season]"]);
 const DETAIL_ROUTES = new Set(["/anime/[id]"]);
 const LAYERS = ["base", "explorer", "detail"];
+// ── 層ごとの置き場所（名前は導出する。並べない）─────────────────
+// 層はそれぞれ2つの実体を持つ:
+//   ① 生成されたCSS文字列のモジュール  app/inlineCss<Layer>.ts（export const CSS_<LAYER>）
+//   ② それを <style> として描く部品     components/<Layer>Css.tsx（**必ず "use client"**）
+// ②がクライアントでなければならない理由は components/BaseCss.tsx の冒頭にある
+// （サーバーが描いた <style> はRSCペイロードと .rsc にもう2コピー焼かれる）。
+//
+// 【なぜ名前を1箇所で導出するか】生成（scripts/build-inline-css.js）と検査
+// （scripts/check.ts）が別々に名前を組み立てると、層を足したとき片方だけ追随して
+// **検査が存在しないファイルを見て緑を出す**状態が作れてしまう。ここから導出して
+// おけば、層を1つ足した時点で生成も検査も新しい名前を要求する（㊳）。
+const capitalizeLayer = (layer) => layer[0].toUpperCase() + layer.slice(1);
+const cssModuleFor = (layer) => `app/inlineCss${capitalizeLayer(layer)}.ts`;
+const cssConstFor = (layer) => `CSS_${layer.toUpperCase()}`;
+const cssComponentFor = (layer) => `${capitalizeLayer(layer)}Css`;
+const cssComponentFileFor = (layer) => `components/${cssComponentFor(layer)}.tsx`;
 
 function layerForRoutes(routeSet) {
   let allExplorer = true;
@@ -425,6 +441,10 @@ function findOrderConflicts(rules, classToLayer) {
 
 module.exports = {
   LAYERS,
+  cssModuleFor,
+  cssConstFor,
+  cssComponentFor,
+  cssComponentFileFor,
   specificity,
   subjectOf,
   subjectsOverlap,

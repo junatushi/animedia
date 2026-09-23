@@ -107,7 +107,7 @@ import { parseWorkId } from "../lib/workId.ts";
 // 検査の対象を**手で数えず、app/ を走査して導出する**ための道具（2026-08-31導入）。
 // 名指しの列挙が漏れて OG画像ルートだけ検証を通っていなかった事故から入れた。
 import { appRoutes, dynamicRoutes } from "./lib/app-routes.js";
-import { build as buildInlineCss, buildBase as buildInlineCssBase } from "./build-inline-css.js";
+import { buildLayerModule } from "./build-inline-css.js";
 import {
   LAYERS as CSS_LAYER_NAMES,
   collectRouteClasses,
@@ -116,6 +116,9 @@ import {
   splitCss,
   findOrderConflicts,
   routeIdFor,
+  cssModuleFor,
+  cssComponentFor,
+  cssComponentFileFor,
 } from "./lib/css-layers.js";
 import { minifyCss } from "./lib/minify-css.js";
 // 配信サービス追加の検知（2026-08-07追加）。純粋関数のみ。
@@ -7310,53 +7313,82 @@ let inlineCssNg = 0;
       (inlined ? "components/BaseCss.tsx" : "埋め込みが外れている（無スタイルになる）")
   );
 
-  // 【重要】base を描くのはクライアントコンポーネントであること（2026-09-19導入）。
+  // 【重要】<style> を描くのはクライアントコンポーネントであること
+  // （2026-09-19に base で導入 → 2026-09-24に explorer / detail へ広げた）。
   //
   // サーバーコンポーネントが <style> を描くと、そのCSS文字列がRSCペイロードへ
   // そのまま直列化され、**1ページに3コピー**焼かれる（<style> / HTML内の
-  // self.__next_f.push / .rsc ファイル）。base は全ページに載るので、これが
-  // ビルド成果物のいちばん大きな塊になる（2026-09-19実測: 声優ページ1枚97.5KBの
-  // うちCSS 23.0KB。4,483枚で約103MB）。成果物の大きさは Deployment Storage に
+  // self.__next_f.push / .rsc ファイル）。成果物の大きさは Deployment Storage に
   // 直接効く（保持しているデプロイ数ぶん掛かる）。
+  //
+  // 2026-09-24のビルド成果物の実測では、同じ作品ページのHTML内に base 層は1回・
+  // detail 層は2回現れ、.rsc には base 0回・detail 1回だった。**"use client" の
+  // 有無だけがこの差を作っている。** 余剰は detail 15.31MiB（1,961枚）＋
+  // explorer 3.52MiB（69枚）＝計 18.83MiB。
   //
   // **"use client" を外しても画面は1ピクセルも変わらない。**増えるのは成果物と
   // 請求だけなので、機械で見張る以外に気づく方法が無い。
-  const baseCss = readFileSync(new URL("../components/BaseCss.tsx", import.meta.url), "utf8");
-  const isClient = /^\s*["']use client["']/m.test(baseCss);
-  const usesBaseModule = /from "@\/app\/inlineCssBase"/.test(stripCommentLines(baseCss));
-  const clientOk = isClient && usesBaseModule;
-  if (!clientOk) inlineCssNg++;
+  //
+  // 【対象は層から導出する】部品名をここに並べない（㊳）。層を1つ足したら、その層の
+  // 部品が無い時点でここが落ちる。あわせて「自分の層だけを import しているか」も見る
+  // （層をまとめて import すると、その面が使わない層までJSチャンクに載る）。
+  const clientNg: string[] = [];
+  for (const layer of CSS_LAYER_NAMES) {
+    const file = cssComponentFileFor(layer);
+    let src: string;
+    try {
+      src = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+    } catch {
+      clientNg.push(`${file} が無い`);
+      continue;
+    }
+    const ownModule = `@/${cssModuleFor(layer).replace(/\.ts$/, "")}`;
+    if (!/^\s*["']use client["']/m.test(src)) {
+      clientNg.push(`${file}: "use client" が外れている（CSSが1ページ3コピーに戻る）`);
+    } else if (!stripCommentLines(src).includes(`from "${ownModule}"`)) {
+      clientNg.push(`${file}: ${ownModule} 以外を import している（他の層まで client に載る）`);
+    }
+  }
+  if (clientNg.length > 0) inlineCssNg++;
   console.log(
-    `${clientOk ? "✓" : "✗"}  ${"base はクライアントで描く（3重化を防ぐ）".padEnd(48)} → ` +
-      (clientOk
-        ? "RSCペイロードと .rsc にCSSが載らない"
-        : !isClient
-          ? '"use client" が外れている（CSSが1ページ3コピーに戻る）'
-          : "app/inlineCssBase.ts 以外を import している（explorer層まで client に載る）")
+    `${clientNg.length === 0 ? "✓" : "✗"}  ${"各層をクライアントで描く（3重化を防ぐ）".padEnd(48)} → ` +
+      (clientNg.length === 0
+        ? `${CSS_LAYER_NAMES.length} 層ともRSCペイロードと .rsc にCSSが載らない`
+        : clientNg.slice(0, 3).join(" / "))
   );
 
   // 生成物が元CSSと一致すること（＝再生成し忘れの検出）。
   //
   // 行末は LF に寄せてから比べる。このリポジトリは core.autocrlf=true の Windows 機で
   // 開発しており、.gitattributes で LF に固定してあるのは *.sh と *.yml だけなので、
-  // Windows の作業ツリーでは globals.css も inlineCss.ts も **CRLF で展開される**。
+  // Windows の作業ツリーでは globals.css も生成物も **CRLF で展開される**。
   // 生成側は "\n" を書くため、内容が同じでもヘッダーの行末だけで不一致になり、
   // 「再生成し忘れ」と区別が付かない偽陽性になる（2026-09-04 に Windows の CI で発覚）。
   const toLf = (t: string) => t.replace(/\r\n/g, "\n");
   const srcCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  const committed = readFileSync(new URL("../app/inlineCss.ts", import.meta.url), "utf8");
-  const committedBase = readFileSync(new URL("../app/inlineCssBase.ts", import.meta.url), "utf8");
-  // 生成物は2本ある（base だけを単体モジュールに切り出したため）。**両方**見ないと、
-  // 片方だけ再生成した状態＝base と explorer/detail が別世代、を通してしまう。
-  const inSync =
-    toLf(buildInlineCss(srcCss)) === toLf(committed) &&
-    toLf(buildInlineCssBase(srcCss)) === toLf(committedBase);
+  // 生成物は**層ごとに1本**ある。全部見ないと、一部だけ再生成した状態＝層が別世代、
+  // を通してしまう。ファイル名は層から導出する（ここに並べない。㊳）。
+  const stale: string[] = [];
+  let generatedLen = 0;
+  for (const layer of CSS_LAYER_NAMES) {
+    const file = cssModuleFor(layer);
+    let committed: string;
+    try {
+      committed = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+    } catch {
+      stale.push(`${file} が無い`);
+      continue;
+    }
+    generatedLen += committed.length;
+    if (toLf(buildLayerModule(srcCss, layer)) !== toLf(committed)) stale.push(file);
+  }
+  const inSync = stale.length === 0;
   if (!inSync) inlineCssNg++;
   console.log(
-    `${inSync ? "✓" : "✗"}  ${"生成した2本が globals.css と同期".padEnd(48)} → ` +
+    `${inSync ? "✓" : "✗"}  ${`生成した ${CSS_LAYER_NAMES.length} 本が globals.css と同期`.padEnd(48)} → ` +
       (inSync
-        ? `${((committed.length + committedBase.length) / 1024).toFixed(1)}KB（元 ${(srcCss.length / 1024).toFixed(1)}KB）`
-        : "`node scripts/build-inline-css.js` を実行すること")
+        ? `${(generatedLen / 1024).toFixed(1)}KB（元 ${(srcCss.length / 1024).toFixed(1)}KB）`
+        : `${stale.join(", ")} → node scripts/build-inline-css.js を実行すること`)
   );
 
   console.log(`結果（CSSの埋め込み）: ${inlineCssNg === 0 ? "全てOK" : `${inlineCssNg} 件NG`}`);
@@ -7416,7 +7448,7 @@ let cssLayerNg = 0;
         : conflicts.slice(0, 3).map((c) => `${c.earlier} ↔ ${c.later}`).join(" / "))
   );
 
-  // ④ 追加層を要るルートが、実際に <PageCss layer="..."> を描いているか。
+  // ④ 追加層を要るルートが、実際にその層の部品（<ExplorerCss /> 等）を描いているか。
   //    **対象は走査して導出する**（ここに面の名前を並べない。㊳）。
   const appDir = fileURLToPath(new URL("../app", import.meta.url));
   const pageFiles: string[] = [];
@@ -7436,7 +7468,9 @@ let cssLayerNg = 0;
     const routeId = routeIdFor(file);
     const want = layersForRoute(routeId).filter((l) => l !== "base");
     const src = stripCommentLines(readFileSync(file, "utf8"));
-    const have = [...src.matchAll(/<PageCss\s+layer="([a-z]+)"\s*\/>/g)].map((m) => m[1]);
+    // 部品名は層から導出する（並べない。㊳）。空白の揺れは潰してから見る。
+    const packed = src.replace(/\s+/g, "");
+    const have = CSS_LAYER_NAMES.filter((l) => packed.includes(`<${cssComponentFor(l)}/>`));
     const missing = want.filter((l) => !have.includes(l));
     const extra = have.filter((l) => !want.includes(l));
     if (missing.length > 0 || extra.length > 0) {
@@ -7446,7 +7480,7 @@ let cssLayerNg = 0;
   }
   if (wiringNg > 0) cssLayerNg++;
   console.log(
-    `${wiringNg === 0 ? "✓" : "✗"}  ${"追加層を要る面が PageCss を置いている".padEnd(48)} → ` +
+    `${wiringNg === 0 ? "✓" : "✗"}  ${"追加層を要る面がその層の部品を置いている".padEnd(48)} → ` +
       (wiringNg === 0 ? `${pageFiles.length} ページを確認` : wiringDetail.slice(0, 3).join(" / "))
   );
 

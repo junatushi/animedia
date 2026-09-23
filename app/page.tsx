@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import TopPageExplorer from "@/components/TopPageExplorer";
-import PageCss from "@/components/PageCss";
+import ExplorerCss from "@/components/ExplorerCss";
 import { getSeasonData } from "@/lib/getSeasonData";
 import { stripCreditNamesForSsr } from "@/lib/seasonPayload";
 import { currentSeasonKey } from "@/lib/resolveSeasonParams";
@@ -100,11 +100,11 @@ export default async function Page() {
   // creditNames はHTMLに埋め込まない（転送量の11%を占め、画面には出ない）。
   // 検索でスタッフ名に当てる段になって SeasonExplorer が取りに行く。lib/seasonPayload.ts
   // explorer 層のCSSは、この面（トップ）と /season/** でしか使わないので
-  // ルートレイアウトの <head> ではなく本文の先頭で足す（components/PageCss.tsx）。
-  // <PageCss> は body の最初の要素になるので、これより前に描画される可視要素は無い。
+  // ルートレイアウトの <head> ではなく本文の先頭で足す（components/ExplorerCss.tsx）。
+  // <ExplorerCss> は body の最初の要素になるので、これより前に描画される可視要素は無い。
   return (
     <>
-      <PageCss layer="explorer" />
+      <ExplorerCss />
       <TopPageExplorer initialData={stripCreditNamesForSsr(data)} />
     </>
   );

@@ -104,11 +104,12 @@ export default function RootLayout({
         {/* CSSは外部ファイルにせずここへ直接置く（往復を1回減らす。上のコメント参照）。
             ここに入れるのは **base 層だけ**（全ページが使う分）。一覧（SeasonExplorer）と
             作品ページでしか使わない分は、その面が本文の先頭で足す
-            （components/PageCss.tsx）。全ページに全量を配ると、実測で声優ページの
+            （components/ExplorerCss.tsx・components/DetailCss.tsx）。全ページに全量を配ると、実測で声優ページの
             76%がCSSになり、成果物・ISR Writes・転送量・表示速度の全部に効いていた。
             層の決め方は scripts/lib/css-layers.js。
             描くのが**クライアントコンポーネント**なのは、サーバーで描くと同じCSSが
-            RSCペイロードと .rsc にもう2コピー焼かれるため（components/BaseCss.tsx）。 */}
+            RSCペイロードと .rsc にもう2コピー焼かれるため（components/BaseCss.tsx）。
+            追加層の2つも同じ理由でクライアントコンポーネントにしてある。 */}
         <BaseCss />
         {/* ライトモードの選択を、描画前に <html data-theme="light"> として反映する
             （ちらつき防止のため、他のスクリプトより先に同期実行する）。 */}

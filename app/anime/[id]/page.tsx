@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import IntentLink from "@/components/IntentLink";
-import PageCss from "@/components/PageCss";
+import DetailCss from "@/components/DetailCss";
 import { getWorkData, staticWorkIds } from "@/lib/getWorkData";
 import { canStateFetchDate } from "@/lib/dataFreshness";
 import { getSeasonData } from "@/lib/getSeasonData";
@@ -536,8 +536,8 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   return (
     <>
       {/* detail 層のCSS。作品ページでしか使わない分を本文の先頭で足す
-          （components/PageCss.tsx の説明を読むこと）。 */}
-      <PageCss layer="detail" />
+          （components/DetailCss.tsx の説明を読むこと）。 */}
+      <DetailCss />
       <div className="wrap">
       <script
         type="application/ld+json"
