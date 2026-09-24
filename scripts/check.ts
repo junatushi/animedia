@@ -381,12 +381,14 @@ function checkEnded(name: string, lastKnown: string | null, todayStr: string, ex
 }
 // 記録が無い作品（人力補完のscheduleだけ等）は「まだ配信中」の既定側に倒す。
 checkEnded("記録なし → まだ配信中扱い", null, "2026-09-19", false);
-// 閾値ちょうど（9日）はまだ外さない。Annictの登録遅れを飲み込むための猶予。
-checkEnded(`${LIKELY_ENDED_GAP_DAYS}日ちょうど → 外さない`, "2026-09-10", "2026-09-19", false);
-// 閾値+1日（10日）で初めて外す。
-checkEnded(`${LIKELY_ENDED_GAP_DAYS + 1}日 → 外す`, "2026-09-09", "2026-09-19", true);
-// 通常の週次放送（直近2日）は当然そのまま載せる。
-checkEnded("直近2日 → 外さない", "2026-09-17", "2026-09-19", false);
+// 最終話の当日はまだ載せる（その日の放送そのものを案内するため）。
+checkEnded("最後の記録が今日 → 外さない", "2026-09-19", "2026-09-19", false);
+// 翌日からは外す（2026-09-24に猶予9日→0。docs/operations.md の[53]）。
+checkEnded("最後の記録が昨日 → 外す", "2026-09-18", "2026-09-19", true);
+// 実例: シナモロール S2（最終話9/17・木曜）が翌週木曜9/24の投稿に載った。
+checkEnded("最終話の翌週の同じ曜日 → 外す", "2026-09-17", "2026-09-24", true);
+// 放送中の作品は先の配信予定まで記録がある（2026-09-24実測で最短+3日）。
+checkEnded("先の予定が登録済み → 外さない", "2026-10-01", "2026-09-19", false);
 
 // buildTodayAiring を実際に通して、終了した作品が本文から消えることを固定する
 // （関数単体が正しくてもフィルタ列に入れ忘れれば投稿には出続けるため）。
@@ -400,7 +402,7 @@ checkEnded("直近2日 → 外さない", "2026-09-17", "2026-09-19", false);
         broadcastWeekday: 4,
         broadcastTime: "22:30",
         broadcastStartDate: "2026-07-02",
-        broadcastLastKnownDate: "2026-09-17",
+        broadcastLastKnownDate: "2026-10-01", // 放送中の作品は先の予定まで登録されている
       },
       {
         id: 2,
@@ -409,7 +411,7 @@ checkEnded("直近2日 → 外さない", "2026-09-17", "2026-09-19", false);
         broadcastWeekday: 4,
         broadcastTime: "23:00",
         broadcastStartDate: "2026-04-03",
-        broadcastLastKnownDate: "2026-09-05", // 14日前
+        broadcastLastKnownDate: "2026-09-12", // 最終話の翌週の同じ曜日（実例と同じ形）
       },
     ],
   };

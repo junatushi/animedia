@@ -71,7 +71,7 @@ function isFarBeforePremiere(it: AnimeItem): boolean {
 // **同じ値を scripts/lib/build-digest.js と app/api/sns-image/route.tsx も持つ**
 // （scripts/*.js は root の lib/*.ts を require しない設計のため。3つが食い違わない
 // ことを scripts/check.ts が検査する）。
-const LIKELY_ENDED_GAP_DAYS = 9;
+const LIKELY_ENDED_GAP_DAYS = 0;
 
 // 直近の配信記録から間が空いたか（true＝最終話まで放送/配信された可能性が高い）。
 // Annictは総話数を持たないので**断定はできない**。カレンダーからは外さず（過去の

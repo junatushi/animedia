@@ -73,7 +73,7 @@ function currentSeasonByMonth(m: number): { key: string; label: string } {
 // currentSeasonByMonth と同じ流儀で複製してある（値が食い違わないことを
 // scripts/check.ts が検査する）。本文（buildTodayAiring）から外した作品が画像にだけ
 // 残ると、投稿の文と添付画像で内容が食い違うので必ず両方に入れる。
-const LIKELY_ENDED_GAP_DAYS = 9;
+const LIKELY_ENDED_GAP_DAYS = 0;
 
 function hasLikelyEnded(it: { broadcastLastKnownDate: string | null }, todayStr: string): boolean {
   if (!it.broadcastLastKnownDate) return false;
