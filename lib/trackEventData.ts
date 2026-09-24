@@ -45,7 +45,7 @@
 // 検査は `node scripts/check.ts` の「行動ログの付随データ」節。
 // ───────────────────────────────────────────────────────────────
 
-/** 1イベントに付けられるキーの数。web_vitals が最大（5指標＋face＝6）。 */
+/** 1イベントに付けられるキーの数。web_vitals が最大（6指標＋face＋補助3＝10。components/WebVitals.tsx）。 */
 export const MAX_KEYS = 12;
 /** キー名の形。指標名（LCP・CLS…）と面（face）が通ればよい。 */
 const KEY_RE = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;

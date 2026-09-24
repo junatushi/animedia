@@ -78,6 +78,34 @@ function send(event: string, data: Record<string, string | number>) {
   }
 }
 
+// FCP/LCP が遅いときに「どこで遅いか」を切り分ける補助指標（2026-09-24追加）。
+// 合成計測は全面 LCP 600ms未満なのに、RUM の p75 は作品・声優・サービス別で
+// FCP 2.8〜3.2秒あった。TTFB の p75 は 0.3〜1.0秒なので、差の約2秒は
+// 「HTMLが届いてから描くまで」にあるが、端末の違いなのか回線の違いなのかを
+// RUM が区別できず、手元のラボでは再現しなかった（同一条件で FCP が 328〜2,324ms とぶれる）。
+//   ・HTML_DL … HTML本体の受信にかかった時間（responseEnd − responseStart）。
+//     大きければ回線、小さいのに FCP が遅ければ端末側（解析・レイアウト・描画）。
+//   ・FCP_touch / LCP_touch と FCP_mouse / LCP_mouse … 同じ値を操作手段で分けて複製する。
+//     集計（lib/adminAnalytics.ts の vitalsP75）は数値のキーを指標として面ごとに
+//     p75 を取るので、キー名で分ければ集計側を変えずにスマホとPCを分けて見られる。
+// どれも既存の FCP/LCP を置き換えない（既存の判定と時系列を途切れさせない）。
+// キー数は最大で 6指標＋face＋3＝10（lib/trackEventData.ts の MAX_KEYS は12）。
+function diagnostics(m: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = {};
+  try {
+    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    if (nav && nav.responseEnd > 0 && nav.responseStart > 0 && nav.responseEnd >= nav.responseStart) {
+      out.HTML_DL = Math.round(nav.responseEnd - nav.responseStart);
+    }
+    const kind = window.matchMedia("(pointer: coarse)").matches ? "touch" : "mouse";
+    if (typeof m.FCP === "number") out[`FCP_${kind}`] = m.FCP;
+    if (typeof m.LCP === "number") out[`LCP_${kind}`] = m.LCP;
+  } catch {
+    // 補助指標が取れなくても本体の指標は送る
+  }
+  return out;
+}
+
 export default function WebVitals() {
   // 指標が確定するたびにここへ溜め、離脱時に1件だけ送る。
   const metrics = useRef<Record<string, number>>({});
@@ -114,7 +142,7 @@ export default function WebVitals() {
       // 1つも確定していないなら送らない（空行を作らない）。
       if (Object.keys(m).length === 0) return;
       sent.current = true;
-      send("web_vitals", { ...m, face });
+      send("web_vitals", { ...m, ...diagnostics(m), face });
     };
 
     // visibilitychange(hidden) が最も確実。pagehide も併せて張る
