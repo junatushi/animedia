@@ -3812,6 +3812,13 @@ let dataNg = 0;
     ["外部リファラ", { ref: "www.google.com", face: "anime" }, ["ref", "face"]],
     ["配信サービス", { service: "d_anime" }, ["service"]],
     ["表示速度", { LCP: 1234, CLS: 0.05, INP: 88, face: "season" }, ["LCP", "CLS", "INP", "face"]],
+    // components/WebVitals.tsx が送りうる最大の形（6指標＋face＋補助3＝10キー）。
+    // 補助指標がMAX_KEYSやキー名の形で黙って落ちると、切り分けが0件のまま続く。
+    [
+      "表示速度（補助指標つき・最大形）",
+      { CLS: 0, FCP: 2800, FID: 20, INP: 40, LCP: 3100, TTFB: 480, HTML_DL: 120, FCP_touch: 2800, LCP_touch: 3100, face: "anime" },
+      ["CLS", "FCP", "FID", "INP", "LCP", "TTFB", "HTML_DL", "FCP_touch", "LCP_touch", "face"],
+    ],
     ["日本語の作品名", { title: "久保さんは僕を許さない" }, ["title"]],
     ["クール切替", { season: "summer", year: 2026 }, ["season", "year"]],
   ];

@@ -148,13 +148,13 @@ function main() {
     console.log("   最初の値が載るのは翌日以降の site-analytics cron から。");
     console.log("   数日経っても0件のままなら、収集が静かに壊れている（送信は sendBeacon なので画面に出ない）。\n");
   } else {
-    console.log("   面".padEnd(14) + "指標".padEnd(8) + "p75".padStart(9) + "件数".padStart(7) + "  判定");
+    console.log("   面".padEnd(14) + "指標".padEnd(11) + "p75".padStart(9) + "件数".padStart(7) + "  判定");
     for (const v of vitals) {
       const enough = v.count >= MIN_RUM_SAMPLES;
       const judged =
         v.metric !== "LCP" ? "" : !enough ? `  — 件数不足（${MIN_RUM_SAMPLES}件未満）` : v.p75 < GOALS.lcp ? "  ✓" : `  ✗ 目標${GOALS.lcp}ms超`;
       console.log(
-        "   " + String(v.face).padEnd(11) + String(v.metric).padEnd(8) +
+        "   " + String(v.face).padEnd(11) + String(v.metric).padEnd(11) +
           String(v.p75).padStart(9) + String(v.count).padStart(7) + judged
       );
     }
