@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import {
   classifyChannel,
   toAnimeItem,
+  lastEpisodeStreamAt,
   overlayManualData,
   SERVICES,
   textOn,
@@ -17,6 +18,7 @@ import {
   PROGRAMS_QUERY_LIST,
   PROGRAMS_QUERY_DETAIL,
   PROGRAMS_QUERY_EPISODE,
+  EPISODE_TAIL_QUERY,
   mergeEpisodeInfo,
   type ProgramNodes,
 } from "../lib/annict.ts";
@@ -369,6 +371,62 @@ checkLastKnown(
 checkLastKnown("TV局のみ → null", work([{ channel: "TOKYO MX", startedAt: "2026-08-12T14:00:00Z" }]), null);
 checkLastKnown("programsなし → null", work([]), null);
 
+// ── 話数の無い「先の枠」で最終日が延びる問題（2026-09-24・利用者の指摘） ──
+// Annictは放送枠を実際の話数より先の週まで登録することがあり、全件の最終日だと
+// 最終話の後も「まだ先の予定がある」と読めて「完結」が出なかった（LV999の村人:
+// 第12話＝9/24が最終なのに話数の無い枠が10/8まで。2026夏の配信記録がある91作品中82作品）。
+// 話数付きの最終配信（episodeTail）があればそちらを使うことを固定する。
+{
+  const lv999Programs = [
+    { channel: "dアニメストア", startedAt: "2026-09-16T15:30:00Z" }, // 第11話
+    { channel: "dアニメストア", startedAt: "2026-09-23T15:30:00Z" }, // 第12話（9/24 0:30 JST）
+    { channel: "dアニメストア", startedAt: "2026-09-30T15:30:00Z" }, // 話数の無い枠
+    { channel: "dアニメストア", startedAt: "2026-10-07T15:30:00Z" }, // 話数の無い枠
+  ];
+  const tail = {
+    lastRegisteredEpisode: 12,
+    programs: [
+      { channel: "dアニメストア", startedAt: "2026-09-23T15:30:00Z", episodeNumber: 12 },
+      { channel: "テレビ東京", startedAt: "2026-09-23T15:06:00Z", episodeNumber: 12 },
+      { channel: "dアニメストア", startedAt: "2026-09-16T15:30:00Z", episodeNumber: 11 },
+    ],
+  };
+  checkLastKnown("話数付きの最終配信がある → そちら", { ...work(lv999Programs), episodeTail: tail }, "2026-09-24");
+  // episodeTail を取れなかった（取得失敗）ときは従来どおり全件の最終日＝完結と言いにくい側。
+  checkLastKnown("episodeTailなし → 全件の最終日", work(lv999Programs), "2026-10-08");
+  // 画面の「完結」は時刻で出すので、日時もそのまま通ること。
+  const at = toAnimeItem({ ...work(lv999Programs), episodeTail: tail }).broadcastLastKnownAt;
+  const atOk = at === "2026-09-23T15:30:00.000Z";
+  if (atOk) lastKnownOk++; else lastKnownNg++;
+  console.log(`${atOk ? "✓" : "✗"}  ${"最終配信の日時も通す".padEnd(34)} → ${at}`);
+
+  function checkTail(name: string, t: Parameters<typeof lastEpisodeStreamAt>[0], expect: string | null) {
+    const got = lastEpisodeStreamAt(t);
+    const pass = got === expect;
+    if (pass) lastKnownOk++; else lastKnownNg++;
+    console.log(`${pass ? "✓" : "✗"}  ${name.padEnd(34)} → ${got}` + (pass ? "" : `  (期待: ${expect})`));
+  }
+  // TV局の枠は数えない（曜日・時刻と同じく配信だけで見る）。
+  checkTail(
+    "TV局の枠は数えない",
+    { lastRegisteredEpisode: 12, programs: [{ channel: "TOKYO MX", startedAt: "2026-09-30T15:00:00Z", episodeNumber: 12 }, ...tail.programs] },
+    "2026-09-23T15:30:00.000Z"
+  );
+  checkTail("話数付きの配信が無い → null", { lastRegisteredEpisode: 12, programs: [] }, null);
+  // 安全弁: 次の話が登録済みなのに枠との紐付けが追いついていない作品は、完結と言わない。
+  checkTail(
+    "登録済みの最新話が枠より先 → null",
+    { lastRegisteredEpisode: 9, programs: [{ channel: "dアニメストア", startedAt: "2026-09-09T16:00:00Z", episodeNumber: 8 }] },
+    null
+  );
+  // 通しの話数（2期が第13話から始まる等）で登録済みの最新話と一致するなら通す。
+  checkTail(
+    "登録済みの最新話と一致 → その日時",
+    { lastRegisteredEpisode: 36, programs: [{ channel: "ABEMA", startedAt: "2026-09-23T14:00:00Z", episodeNumber: 36 }] },
+    "2026-09-23T14:00:00.000Z"
+  );
+}
+
 let endedOk = 0;
 let endedNg = 0;
 function checkEnded(name: string, lastKnown: string | null, todayStr: string, expect: boolean) {
@@ -602,6 +660,23 @@ checkQueryField("SEASON_QUERY（シーズン一覧）", SEASON_QUERY, "episode",
 checkQueryField("WORK_QUERY（作品個別の1ページ目）", WORK_QUERY, "episode", false);
 checkQueryField("PROGRAMS_QUERY_DETAIL（作品個別の追い取得）", PROGRAMS_QUERY_DETAIL, "episode", false);
 checkQueryField("PROGRAMS_QUERY_EPISODE（通知の話数取得）", PROGRAMS_QUERY_EPISODE, "episode", true);
+// 完結の推定専用（2026-09-24）。話数の無い枠がノードごと null になることを使って
+// 「話数付きの枠」だけを数えるので、episode を要求しないと意味が無い。
+checkQueryField("EPISODE_TAIL_QUERY（完結の推定専用）", EPISODE_TAIL_QUERY, "episode", true);
+// その応答は**配信サービスの一覧に流し込まない**（流すと episode を直接要求したのと
+// 同じ事故＝配信サービスの消滅になる）。使ってよいのは episodeTail への格納だけ。
+{
+  const annictSrc = stripCommentLines(readFileSync(new URL("../lib/annict.ts", import.meta.url), "utf8"));
+  const uses = annictSrc.split("EPISODE_TAIL_QUERY").length - 1; // 定義＋fetchEpisodeTails の2箇所
+  const fnBody = annictSrc.slice(annictSrc.indexOf("async function fetchEpisodeTails"), annictSrc.indexOf("export async function fetchSeasonWorks"));
+  const touchesPrograms = /.programs.nodes.push|programss*:s*{s*nodes/.test(fnBody);
+  const ok = uses === 2 && fnBody.length > 0 && !touchesPrograms;
+  if (ok) queryOk++; else queryNg++;
+  console.log(
+    `${ok ? "✓" : "✗"}  ${"完結の推定用の応答を配信一覧に使わない".padEnd(34)} → ` +
+      (ok ? "episodeTailにだけ格納" : `参照${uses}箇所 / programsへの流し込み=${touchesPrograms}`)
+  );
+}
 // 通知バッチは「今日・再放送でない」番組を探すので rebroadcast は要る。episode を
 // 外した副作用で rebroadcast まで落ちると、再放送の日に誤って通知が飛ぶ
 // （rebroadcast は nullable なので要求してもノードは消えない＝落とす理由が無い）。

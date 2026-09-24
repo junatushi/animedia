@@ -13,6 +13,16 @@ export interface RawStaffNode {
   resource: { __typename: string; name: string } | null;
 }
 
+// 「話数が付いた最後の配信」を求めるための材料（lib/annict.ts の fetchEpisodeTails）。
+// programs と違い **配信サービスの一覧には使わない**（episode を要求した応答なので
+// 話数未紐付けの枠がノードごと欠けている）。完結の推定（broadcastLastKnownDate）専用。
+export interface EpisodeTail {
+  // Annictに登録済みの最新話（sortNumberの最大）の番号。番号の無い話なら null。
+  lastRegisteredEpisode: number | null;
+  // 話数が付いていて再放送でない枠だけを新しい順に（取得窓の中のもの）。
+  programs: { channel: string; startedAt: string; episodeNumber: number | null }[];
+}
+
 export interface AnnictWork {
   annictId: number;
   title: string;
@@ -40,6 +50,9 @@ export interface AnnictWork {
       episode?: { number: number | null; numberText: string | null } | null;
     } | null)[];
   } | null;
+  // シーズン一覧（fetchSeasonWorks）でだけ入る。undefined＝取っていない／取れなかった
+  // （そのときは従来どおり全件の最終日で推定する＝完結と言いにくい側に倒れる）。
+  episodeTail?: EpisodeTail;
   // 声優・スタッフ名での検索用に、シーズン一覧でも取得する（casts先頭5件・staffs先頭40件）。
   casts: RawCastNode[];
   staffs: RawStaffNode[];
@@ -149,6 +162,9 @@ export interface AnimeItem {
   // null のまま（broadcastStartDate と違いフォールバックが無い＝「まだ配信中」の
   // 既定側に倒す）。
   broadcastLastKnownDate: string | null;
+  // 上と同じ記録の日時（ISO）。画面の「完結」は日付ではなくこの時刻で出す
+  // （最終話を配信し終えた時点で出すため。SNSの「今日の一覧」は日付単位のまま）。
+  broadcastLastKnownAt: string | null;
   // 声優・スタッフ名での検索用。casts(先頭5件)の人物名 + staffs(先頭40件)の
   // 人物/組織名をまとめたもの（重複除去済み）。UIには出さず検索マッチにのみ使う。
   creditNames: string[];

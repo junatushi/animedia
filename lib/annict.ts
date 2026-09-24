@@ -3,7 +3,7 @@
 //   Annict の GraphQL API を叩いて、指定シーズンの作品＋放送/配信
 //   チャンネルを取得する。トークンを使うので必ずサーバー側で実行する。
 // ───────────────────────────────────────────────────────────────
-import type { AnnictWork, RawCastNode, RawStaffNode } from "./types";
+import type { AnnictWork, EpisodeTail, RawCastNode, RawStaffNode } from "./types";
 
 const ENDPOINT = "https://api.annict.com/graphql";
 
@@ -185,8 +185,8 @@ query ($id: Int!, $after: String) {
   }
 }`;
 
-// 配信開始通知メールの「話数」専用クエリ（2026-08-16分離）。**これだけが episode を
-// 要求してよい**。episode 未紐付けのprogramはノードごとnullで返るので、この応答は
+// 配信開始通知メールの「話数」専用クエリ（2026-08-16分離）。episode を要求してよいのは
+// **これと、完結の推定専用の EPISODE_TAIL_QUERY（下）の2本だけ**。episode 未紐付けのprogramはノードごとnullで返るので、この応答は
 // 「配信サービスの一覧」には決して使わず、mergeEpisodeInfo で話数だけを重ねる。
 // export はテスト用（scripts/check.ts）。
 export const PROGRAMS_QUERY_EPISODE = `
@@ -195,6 +195,38 @@ query ($id: Int!, $after: String) {
     nodes {
       programs(first: ${PROGRAMS_PER_WORK_DETAIL}, after: $after) {
         pageInfo { hasNextPage endCursor }
+        nodes { ${PROGRAM_FIELDS_EPISODE} }
+      }
+    }
+  }
+}`;
+
+// 「話数が付いた最後の配信」を求める専用（2026-09-24導入。docs/operations.md の[53]）。
+// **完結の推定（broadcastLastKnownDate）にだけ使い、配信サービスの一覧には決して使わない。**
+// Annictは放送枠を実際の話数より先の週まで登録することがあり（実測: 2026夏の配信記録が
+// ある91作品中82作品。LV999の村人は第12話＝9/24が最終なのに、話数の無い枠が10/8まで
+// 並んでいた）、全件の最終日で推定すると最終話の後も「まだ先の配信予定がある」と
+// 読めてしまい「完結」が出なかった。話数の無い枠は episode を要求するとノードごと
+// null で返る（PROGRAM_FIELDS_* の説明の現象）ので、ここではそれを逆手に取って
+// 「null でないノード＝話数が付いた枠」として数える。
+// 新しい順に EPISODE_TAIL_WINDOW 件だけ見る。窓が話数の無い枠で埋まった作品は
+// 何も見つからず、呼び出し側が従来の推定に戻す（＝完結と言いにくい側に倒れる）。
+// 複数作品をまとめて問い合わせる。窓100件では話数の無い枠で埋まる作品が19件残り
+// （天幕のジャードゥーガル・攻殻機動隊など最終話から2週間以上たった作品）、300件で10件に
+// 減った（残りは先の枠が無い＝従来と同じ結果になる作品がほとんど）。2026夏の一括取得は
+// 本体と合わせて約8秒（2026-09-24実測・3作品ずつ）。
+// export はテスト用（scripts/check.ts）。
+const EPISODE_TAIL_WINDOW = 300;
+const EPISODE_TAIL_BATCH = 3;
+export const EPISODE_TAIL_QUERY = `
+query ($ids: [Int!]) {
+  searchWorks(annictIds: $ids, first: ${EPISODE_TAIL_BATCH}) {
+    nodes {
+      annictId
+      episodes(first: 1, orderBy: { field: SORT_NUMBER, direction: DESC }) {
+        nodes { number }
+      }
+      programs(first: ${EPISODE_TAIL_WINDOW}, orderBy: { field: STARTED_AT, direction: DESC }) {
         nodes { ${PROGRAM_FIELDS_EPISODE} }
       }
     }
@@ -426,6 +458,50 @@ export function mergeEpisodeInfo(base: ProgramNodes, withEpisode: ProgramNodes):
   }
 }
 
+// 作品ごとの EpisodeTail を取る。失敗したバッチの作品は Map に入らない
+// （＝呼び出し側で従来の推定に戻る）。**ここで例外を投げないこと**: この取得は
+// 「完結」の印のためのもので、失敗してシーズン一覧ごと落ちるのは割に合わない。
+async function fetchEpisodeTails(ids: number[], token: string): Promise<Map<number, EpisodeTail>> {
+  type Raw = {
+    annictId: number;
+    episodes: { nodes: ({ number: number | null } | null)[] } | null;
+    programs: { nodes: ProgramNodes } | null;
+  };
+  const tails = new Map<number, EpisodeTail>();
+  const batches: number[][] = [];
+  for (let i = 0; i < ids.length; i += EPISODE_TAIL_BATCH) {
+    batches.push(ids.slice(i, i + EPISODE_TAIL_BATCH));
+  }
+  await mapWithConcurrency(batches, PROGRAMS_FETCH_CONCURRENCY, async (batch) => {
+    try {
+      const data = await gql<{ searchWorks: { nodes: (Raw | null)[] } }>(
+        { query: EPISODE_TAIL_QUERY, variables: { ids: batch } },
+        token
+      );
+      for (const w of data.searchWorks?.nodes ?? []) {
+        if (!w || !w.programs) continue;
+        const programs: EpisodeTail["programs"] = [];
+        for (const p of w.programs.nodes) {
+          // null＝話数が付いていない枠。再放送も最終話の判定には使わない。
+          if (!p || !p.episode || p.rebroadcast || !p.channel?.name || !p.startedAt) continue;
+          programs.push({
+            channel: p.channel.name,
+            startedAt: p.startedAt,
+            episodeNumber: p.episode.number ?? null,
+          });
+        }
+        tails.set(w.annictId, {
+          lastRegisteredEpisode: w.episodes?.nodes?.[0]?.number ?? null,
+          programs,
+        });
+      }
+    } catch (e) {
+      console.warn("話数付きの最終配信を取得できませんでした（従来の推定で続行）:", String(e).slice(0, 200));
+    }
+  });
+  return tails;
+}
+
 export async function fetchSeasonWorks(
   season: string,
   token: string
@@ -483,6 +559,12 @@ export async function fetchSeasonWorks(
     }
   });
 
+  // 「完結」の推定用に、番組表を持つ作品だけ話数付きの最終配信を取る（fetchEpisodeTails）。
+  const tails = await fetchEpisodeTails(
+    deduped.filter((w) => (w.programs?.nodes.length ?? 0) > 0).map((w) => w.annictId),
+    token
+  );
+
   // API 窓口（route.ts）が使う AnnictWork 形へ整形（programs は nodes だけ渡す）。
   return deduped.map((w) => ({
     annictId: w.annictId,
@@ -493,6 +575,7 @@ export async function fetchSeasonWorks(
     media: w.media,
     image: w.image,
     programs: w.programs ? { nodes: w.programs.nodes } : null,
+    episodeTail: tails.get(w.annictId),
     casts: w.casts?.nodes ?? [],
     staffs: w.staffs?.nodes ?? [],
   }));

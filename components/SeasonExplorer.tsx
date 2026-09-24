@@ -76,10 +76,16 @@ const LIKELY_ENDED_GAP_DAYS = 0;
 // 直近の配信記録から間が空いたか（true＝最終話まで放送/配信された可能性が高い）。
 // Annictは総話数を持たないので**断定はできない**。カレンダーからは外さず（過去の
 // 放送枠を見るのに使えるため）、タイトル横に「完結」の印を出すだけに留める。
+// 画面では**最終話の配信時刻**を過ぎたら出す（2026-09-24）。SNSの「今日の一覧」は
+// 日付単位（最終話の日はその日の放送として載せ、翌日から外す）だが、画面の印は
+// 「もう最後まで配信された」を表すので時刻で見る。時刻の無い古いデータは日付で見る。
 function hasLikelyEnded(it: AnimeItem): boolean {
+  const dayMs = 24 * 60 * 60 * 1000;
+  const atMs = it.broadcastLastKnownAt ? Date.parse(it.broadcastLastKnownAt) : NaN;
+  if (!Number.isNaN(atMs)) return Date.now() > atMs + LIKELY_ENDED_GAP_DAYS * dayMs;
   if (!it.broadcastLastKnownDate) return false;
   const lastMs = new Date(`${it.broadcastLastKnownDate}T00:00:00+09:00`).getTime();
-  const gapDays = Math.floor((Date.now() - lastMs) / (24 * 60 * 60 * 1000));
+  const gapDays = Math.floor((Date.now() - lastMs) / dayMs);
   return gapDays > LIKELY_ENDED_GAP_DAYS;
 }
 

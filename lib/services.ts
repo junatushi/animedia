@@ -205,7 +205,14 @@ export function textOn(hex: string): string {
 // 既に放送されたか」は直接には判定できないが、「直近の記録から何日経ったか」なら分かる。
 // 最終話の放送後もSNS投稿の「今日のアニメ一覧」に作品が載り続けていた不具合
 // （毎週その曜日に一致するかしか見ておらず、終わりを一度も見ていなかった）の修正に使う。
-type BroadcastSlot = { weekday: number; time: string; date: string; lastKnownDate?: string };
+// lastKnownAt は同じ記録の日時（ISO）。画面の「完結」を最終話の配信時刻から出すのに使う。
+type BroadcastSlot = {
+  weekday: number;
+  time: string;
+  date: string;
+  lastKnownDate?: string;
+  lastKnownAt?: string;
+};
 
 function deriveBroadcastSlot(
   nodes: ({ startedAt: string | null } | null)[]
@@ -230,7 +237,42 @@ function deriveBroadcastSlot(
     time: `${hh}:${mm}`,
     date: jstDateStr(earliest),
     lastKnownDate: jstDateStr(latest),
+    lastKnownAt: new Date(latest).toISOString(),
   };
+}
+
+// 話数が付いた最後の配信の日時（ISO）。見つからなければ null（＝呼び出し側は従来の
+// 全件の最終日で推定する）。2026-09-24導入。docs/operations.md の[53]。
+// Annictは放送枠を実際の話数より先の週まで登録することがあり、全件の最終日だと
+// 最終話の後も「まだ先の配信予定がある」と読めてしまう（LV999の村人: 第12話＝9/24が
+// 最終なのに、話数の無い枠が10/8まで並んでいた）。
+// 安全弁: 登録済みの最新話より、配信枠に紐付いた最新話の番号が小さい作品は null を返す。
+// 次の話が登録されているのに枠との紐付けが追いついていないだけ（＝まだ続いている）
+// かもしれないので、完結と言いにくい従来の推定に戻す（実例: 同じゼミの染谷さん＝
+// 第9話まで登録・第8話までしか枠に紐付いていない）。
+// 数える対象は配信（国内サービス＋その他配信）だけで、TV局は曜日・時刻と同じく除く。
+// export はテスト用（scripts/check.ts）。
+export function lastEpisodeStreamAt(tail: import("./types").EpisodeTail): string | null {
+  let latestMs: number | null = null;
+  let latestEpisode: number | null = null;
+  for (const p of tail.programs) {
+    if (classifyChannel(p.channel).kind === "tv") continue;
+    const ms = Date.parse(p.startedAt);
+    if (Number.isNaN(ms)) continue;
+    if (latestMs === null || ms > latestMs) latestMs = ms;
+    if (p.episodeNumber !== null && (latestEpisode === null || p.episodeNumber > latestEpisode)) {
+      latestEpisode = p.episodeNumber;
+    }
+  }
+  if (latestMs === null) return null;
+  if (
+    tail.lastRegisteredEpisode !== null &&
+    latestEpisode !== null &&
+    tail.lastRegisteredEpisode > latestEpisode
+  ) {
+    return null;
+  }
+  return new Date(latestMs).toISOString();
 }
 
 function jstDateStr(ms: number): string {
@@ -323,7 +365,15 @@ export function toAnimeItem(
 
   // Annictの実データ（streamingStarts）があれば必ずそちらを優先する。
   // 人力のscheduleはAnnictに配信の実データが1件も無いときのフォールバック専用。
-  const slot = deriveBroadcastSlot(streamingStarts) ?? manualSlot;
+  const annictSlot = deriveBroadcastSlot(streamingStarts);
+  const slot = annictSlot ?? manualSlot;
+
+  // 最後の配信記録（完結の推定に使う）。話数の付いた最終配信が分かればそれを、
+  // 分からなければ全件の最終日時を使う（lastEpisodeStreamAt のコメント参照）。
+  // 人力の schedule（manualSlot）には配信履歴が無いので null のまま＝「まだ配信中」側。
+  const lastKnownAt = annictSlot
+    ? (w.episodeTail ? lastEpisodeStreamAt(w.episodeTail) : null) ?? annictSlot.lastKnownAt ?? null
+    : null;
 
   // 機械補完（AniList由来。content/works/autoSchedule.json）は最下位の層。
   // Annictの実データ・人力補完のどちらかがあれば**使わない**（二次情報が確定情報を
@@ -361,7 +411,8 @@ export function toAnimeItem(
     broadcastStartDate: slot?.date ?? null,
     broadcastWeekday: slot?.weekday ?? null,
     broadcastTime: slot?.time ?? null,
-    broadcastLastKnownDate: slot?.lastKnownDate ?? null,
+    broadcastLastKnownDate: lastKnownAt ? jstDateStr(Date.parse(lastKnownAt)) : null,
+    broadcastLastKnownAt: lastKnownAt,
     creditNames,
     castNames,
     media: w.media ?? null,
