@@ -1,0 +1,508 @@
+{
+  "fetchedAt": "2026-09-24T00:28:21.489Z",
+  "source": "https://animedia-khaki.vercel.app/api/admin/analytics",
+  "configured": true,
+  "windowDays": 30,
+  "rowCount": 760,
+  "truncated": false,
+  "events": [
+    {
+      "event": "share_site",
+      "label": "サイト全体を共有",
+      "last7": 1,
+      "last30": 1
+    },
+    {
+      "event": "share_work",
+      "label": "作品を共有",
+      "last7": 0,
+      "last30": 1
+    },
+    {
+      "event": "favorite_add",
+      "label": "お気に入り登録",
+      "last7": 0,
+      "last30": 1
+    },
+    {
+      "event": "watched_add",
+      "label": "視聴済みに登録",
+      "last7": 0,
+      "last30": 1
+    },
+    {
+      "event": "notify_add",
+      "label": "配信通知を登録",
+      "last7": 0,
+      "last30": 1
+    },
+    {
+      "event": "filter_service",
+      "label": "配信サービスで絞り込み",
+      "last7": 1,
+      "last30": 1
+    },
+    {
+      "event": "filter_cast",
+      "label": "声優で絞り込み",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "change_season",
+      "label": "シーズン切り替え",
+      "last7": 29,
+      "last30": 90
+    },
+    {
+      "event": "follow_click",
+      "label": "SNSフォロー導線をクリック",
+      "last7": 0,
+      "last30": 4
+    },
+    {
+      "event": "calendar_subscribe",
+      "label": "カレンダー購読をクリック",
+      "last7": 1,
+      "last30": 2
+    },
+    {
+      "event": "plan_open",
+      "label": "視聴プランを開いた",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "affiliate_click",
+      "label": "広告リンクをクリック（提携済み）",
+      "last7": 0,
+      "last30": 5
+    },
+    {
+      "event": "official_link_click",
+      "label": "公式サイトへ（未提携）",
+      "last7": 4,
+      "last30": 22
+    },
+    {
+      "event": "embed_copy",
+      "label": "埋め込みコードをコピー",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "web_vitals",
+      "label": "表示速度の実測（1ページビュー1件）",
+      "last7": 215,
+      "last30": 374
+    },
+    {
+      "event": "page_view",
+      "label": "外部からの流入（リファラあり）",
+      "last7": 178,
+      "last30": 257
+    }
+  ],
+  "filterService": [
+    [
+      "d_anime",
+      1
+    ]
+  ],
+  "officialClicks": [
+    [
+      "d_anime",
+      4
+    ],
+    [
+      "prime",
+      3
+    ],
+    [
+      "fod",
+      3
+    ],
+    [
+      "netflix",
+      3
+    ],
+    [
+      "youtube",
+      2
+    ],
+    [
+      "dmm",
+      2
+    ],
+    [
+      "bandai",
+      2
+    ],
+    [
+      "niconico",
+      2
+    ],
+    [
+      "unext",
+      1
+    ]
+  ],
+  "affiliateClicks": [
+    [
+      "prime",
+      4
+    ],
+    [
+      "abema",
+      1
+    ]
+  ],
+  "vitals": [
+    {
+      "face": "anime",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 59
+    },
+    {
+      "face": "anime",
+      "metric": "FCP",
+      "p75": 2892,
+      "count": 97
+    },
+    {
+      "face": "anime",
+      "metric": "FID",
+      "p75": 24,
+      "count": 25
+    },
+    {
+      "face": "anime",
+      "metric": "INP",
+      "p75": 32,
+      "count": 26
+    },
+    {
+      "face": "anime",
+      "metric": "LCP",
+      "p75": 3164,
+      "count": 90
+    },
+    {
+      "face": "anime",
+      "metric": "TTFB",
+      "p75": 490,
+      "count": 118
+    },
+    {
+      "face": "director",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 1
+    },
+    {
+      "face": "director",
+      "metric": "FCP",
+      "p75": 2751,
+      "count": 2
+    },
+    {
+      "face": "director",
+      "metric": "FID",
+      "p75": 11,
+      "count": 1
+    },
+    {
+      "face": "director",
+      "metric": "INP",
+      "p75": 56,
+      "count": 1
+    },
+    {
+      "face": "director",
+      "metric": "LCP",
+      "p75": 2751,
+      "count": 2
+    },
+    {
+      "face": "director",
+      "metric": "TTFB",
+      "p75": 141,
+      "count": 2
+    },
+    {
+      "face": "exclusive",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 3
+    },
+    {
+      "face": "exclusive",
+      "metric": "FCP",
+      "p75": 2976,
+      "count": 3
+    },
+    {
+      "face": "exclusive",
+      "metric": "LCP",
+      "p75": 2976,
+      "count": 3
+    },
+    {
+      "face": "exclusive",
+      "metric": "TTFB",
+      "p75": 986,
+      "count": 3
+    },
+    {
+      "face": "home",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 31
+    },
+    {
+      "face": "home",
+      "metric": "FCP",
+      "p75": 1524,
+      "count": 33
+    },
+    {
+      "face": "home",
+      "metric": "FID",
+      "p75": 23,
+      "count": 27
+    },
+    {
+      "face": "home",
+      "metric": "INP",
+      "p75": 200,
+      "count": 27
+    },
+    {
+      "face": "home",
+      "metric": "LCP",
+      "p75": 1524,
+      "count": 33
+    },
+    {
+      "face": "home",
+      "metric": "TTFB",
+      "p75": 303,
+      "count": 36
+    },
+    {
+      "face": "person",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 84
+    },
+    {
+      "face": "person",
+      "metric": "FCP",
+      "p75": 3209,
+      "count": 123
+    },
+    {
+      "face": "person",
+      "metric": "FID",
+      "p75": 23,
+      "count": 32
+    },
+    {
+      "face": "person",
+      "metric": "INP",
+      "p75": 80,
+      "count": 33
+    },
+    {
+      "face": "person",
+      "metric": "LCP",
+      "p75": 3318,
+      "count": 116
+    },
+    {
+      "face": "person",
+      "metric": "TTFB",
+      "p75": 963,
+      "count": 125
+    },
+    {
+      "face": "rankings",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 1
+    },
+    {
+      "face": "rankings",
+      "metric": "FCP",
+      "p75": 4104,
+      "count": 1
+    },
+    {
+      "face": "rankings",
+      "metric": "FID",
+      "p75": 23,
+      "count": 1
+    },
+    {
+      "face": "rankings",
+      "metric": "INP",
+      "p75": 88,
+      "count": 2
+    },
+    {
+      "face": "rankings",
+      "metric": "LCP",
+      "p75": 4104,
+      "count": 1
+    },
+    {
+      "face": "rankings",
+      "metric": "TTFB",
+      "p75": 1029,
+      "count": 2
+    },
+    {
+      "face": "season",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 1
+    },
+    {
+      "face": "season",
+      "metric": "FCP",
+      "p75": 2512,
+      "count": 1
+    },
+    {
+      "face": "season",
+      "metric": "FID",
+      "p75": 3,
+      "count": 1
+    },
+    {
+      "face": "season",
+      "metric": "INP",
+      "p75": 408,
+      "count": 1
+    },
+    {
+      "face": "season",
+      "metric": "LCP",
+      "p75": 2512,
+      "count": 1
+    },
+    {
+      "face": "season",
+      "metric": "TTFB",
+      "p75": 912,
+      "count": 6
+    },
+    {
+      "face": "service",
+      "metric": "CLS",
+      "p75": 0.003,
+      "count": 43
+    },
+    {
+      "face": "service",
+      "metric": "FCP",
+      "p75": 2831,
+      "count": 76
+    },
+    {
+      "face": "service",
+      "metric": "FID",
+      "p75": 19,
+      "count": 22
+    },
+    {
+      "face": "service",
+      "metric": "INP",
+      "p75": 32,
+      "count": 23
+    },
+    {
+      "face": "service",
+      "metric": "LCP",
+      "p75": 2912,
+      "count": 70
+    },
+    {
+      "face": "service",
+      "metric": "TTFB",
+      "p75": 255,
+      "count": 78
+    },
+    {
+      "face": "studio",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 3
+    },
+    {
+      "face": "studio",
+      "metric": "FCP",
+      "p75": 2524,
+      "count": 4
+    },
+    {
+      "face": "studio",
+      "metric": "FID",
+      "p75": 24,
+      "count": 2
+    },
+    {
+      "face": "studio",
+      "metric": "INP",
+      "p75": 280,
+      "count": 2
+    },
+    {
+      "face": "studio",
+      "metric": "LCP",
+      "p75": 2524,
+      "count": 4
+    },
+    {
+      "face": "studio",
+      "metric": "TTFB",
+      "p75": 380,
+      "count": 4
+    }
+  ],
+  "referrers": [
+    [
+      "www.google.com",
+      170
+    ],
+    [
+      "search.yahoo.co.jp",
+      55
+    ],
+    [
+      "www.facebook.com",
+      14
+    ],
+    [
+      "m.facebook.com",
+      8
+    ],
+    [
+      "www.google.co.jp",
+      4
+    ],
+    [
+      "t.co",
+      3
+    ],
+    [
+      "www.bing.com",
+      2
+    ],
+    [
+      "bing.com",
+      1
+    ]
+  ]
+}
