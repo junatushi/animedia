@@ -80,15 +80,17 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   `.github/workflows/season-prep.yml`が毎日呼ぶ。窓の定義は`scripts/lib/build-season-prep.js`
   **だけ**が持ち、YAMLに月日を書かない（`node scripts/check.ts`が検査する）。ネットワーク不要
 - `node scripts/build-inline-css.js` … **CSSをHTMLに焼き込む生成**（2026-09-04導入）。
-  `app/globals.css` を `app/inlineCss.ts`（文字列定数）に変換する。`npm run dev` と
+  `app/globals.css` を層ごとの文字列定数（`app/inlineCss<層>.ts`）に変換する。`npm run dev` と
   `npm run build` の前に自動で走る（`predev`/`prebuild`）ので**手で実行する必要は普通は無い**。
   なぜ埋め込むか: Next.jsが `<link rel="stylesheet">` を吐くとHTMLの後にもう1往復
   掛かり、実測で描画開始が約370ms遅れていた（PageSpeedの見積もりは150ms）。
   スマホ主体のサイトなので直撃する。ネットワーク不要。経緯は`docs/operations.md`の㊵。
-  **2026-09-14から「面ごとの層」を出す**（`CSS_LAYERS`）。全ページに全量を入れていたため
+  **2026-09-14から「面ごとの層」を出す**。全ページに全量を入れていたため
   実測で声優ページの**76%がCSS**（`<style>`・RSCペイロード・`.rsc` に計3コピー）だった。
   層の決め方はimportグラフからの導出で、`scripts/lib/css-layers.js`が持つ。
-  導出できないclassNameや、層をまたぐカスケードの順序の入れ替わりがあると**生成の時点で落ちる**
+  導出できないclassNameや、層をまたぐカスケードの順序の入れ替わりがあると**生成の時点で落ちる**。
+  **2026-09-24から出力は層ごとに1本**（`app/inlineCssBase.ts`／`inlineCssExplorer.ts`／
+  `inlineCssDetail.ts`）。1つのオブジェクトにまとめない理由は下の「HTMLに直接埋め込むCSS」節
 - `node scripts/check-build-size.js` … **デプロイ成果物の大きさの予算**
   （2026-09-14導入 / 2026-09-21に式を作り直し）。Deployment Storage（Hobbyは10GB）は
   **保持しているデプロイ数ぶん掛かる**。**クールが増えるたび成果物は自動で増える**ので
@@ -461,32 +463,38 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   いまは**hover/touchstartの素振りがあったときだけ**先読みする。
   **作品ページの`loading.tsx`を置かない方針（ソフト404回避）の代替が先読みなので、
   素振りの先読みまで消さないこと**。検査は`node scripts/check.ts`の「リンクの先読み」節
-- `app/inlineCss.ts` + `app/inlineCssBase.ts` + `scripts/build-inline-css.js` +
-  `scripts/lib/css-layers.js` + `components/BaseCss.tsx` + `components/PageCss.tsx` +
+- `app/inlineCss<層>.ts` + `scripts/build-inline-css.js` +
+  `scripts/lib/css-layers.js` + `components/<層>Css.tsx` +
   `scripts/lib/minify-css.js` …
   **HTMLに直接埋め込むCSS**（2026-09-04導入 / 2026-09-14に層分け）。`app/layout.tsx` は
   `globals.css` を**import しない**（importするとNext.jsが `<link rel="stylesheet">` を吐き、
   往復が1回増える）。スタイルを変えるときは**`app/globals.css` を直す**
-  （`app/inlineCss.ts` は自動生成なので手で編集しない）。ズレは
+  （`app/inlineCss<層>.ts` は自動生成なので手で編集しない）。ズレは
   `node scripts/check.ts`の「CSSの埋め込み」節が検出し、`predev`/`prebuild` が自動で再生成する。
   ミニファイアは「壊れると全ページ無スタイル」なので賢い最適化をしない方針
   （コメント除去と空白畳みだけ・文字列の中身は触らない）。
   **層は`base`（全ページ・`<head>`）／`explorer`（`/`と`/season/**`）／`detail`（`/anime/[id]`）**で、
-  追加層はその面が`<PageCss>`で本文の先頭に置く（ルートレイアウトの`<body>`は`{children}`で
+  追加層はその面が`<ExplorerCss />`／`<DetailCss />`で本文の先頭に置く（ルートレイアウトの`<body>`は`{children}`で
   始まるので、追加の`<style>`より前に描画される可視要素が無い＝ちらつかない）。
   **どのクラスがどの層かを人が書く場所は無い**（`app/`と`components/`のimportグラフから導出）。
-  **2026-09-19から base 層は`components/BaseCss.tsx`（クライアントコンポーネント）が描く。
-  `"use client"`を外さないこと**（重大度高）。サーバーコンポーネントが描いた`<style>`は
+  **`<style>`を描くのは全層ともクライアントコンポーネント（`components/<層>Css.tsx`）。
+  `"use client"`を外さないこと**（2026-09-19に base で導入 → 2026-09-24に全層へ。重大度高）。サーバーコンポーネントが描いた`<style>`は
   そのままRSCペイロードへ直列化されるので、**同じCSSが1ページに3コピー**焼かれる
   （`<style>`／HTML内の`self.__next_f.push`／`.rsc`ファイル。最後の1本は別ファイルなので
   圧縮でも重複排除されない）。実測で声優ページ1枚97.5KBのうちCSSが23.0KBを占め、
-  4,483枚で約103MBだった。クライアントで描くとFlightにはモジュール参照しか出ないので
+  4,483枚で約103MBだった。**2026-09-24のビルド成果物の実測**では、同じ作品ページの
+  HTML内に`base`層は1回・`detail`層は2回現れ、`.rsc`には`base`0回・`detail`1回
+  ＝`"use client"`の有無だけがこの差を作っていた（余剰は`detail` 15.31MiB／1,961枚、
+  `explorer` 3.52MiB／69枚、計18.83MiB）。クライアントで描くとFlightにはモジュール参照しか出ないので
   2本目と3本目が消え、CSS文字列はJSチャンク1本に入って全ページで共有される。
   **見た目も往復の無さ（㊵）も変わらない**（サーバー描画時に`<style>`はHTMLに出る）。
-  `app/inlineCssBase.ts`が別ファイルなのは、`CSS_LAYERS`ごとimportすると使わない
-  explorer層(25.8KB)までクライアントに載るため。**外しても画面は1ピクセルも変わらず、
-  増えるのは成果物と請求だけ**なので`node scripts/check.ts`の「CSSの埋め込み」節が
-  `"use client"`の有無まで見張る。経緯は`docs/operations.md`の[52]
+  **層ごとに別ファイルなのは**、層をまとめた1つのオブジェクトをimportすると、その面が
+  使わない層までクライアントのJSチャンクに載るため（`explorer`は26.1KBあり、作品ページには
+  1文字も要らない）。**外しても画面は1ピクセルも変わらず、増えるのは成果物と請求だけ**なので
+  `node scripts/check.ts`の「CSSの埋め込み」節が`"use client"`の有無と「自分の層だけを
+  importしているか」まで見張る。**部品名・ファイル名は層から導出する**ので
+  （`scripts/lib/css-layers.js`の`cssModuleFor`ほか）、層を1つ足すと生成も検査も
+  自動で新しい名前を要求する。経緯は`docs/operations.md`の[52]・[56]
 - `vercel.json` の**プレビュー停止**（2026-09-21追加・重大度高） …
   `ignoreCommand`の先頭で`$VERCEL_ENV`が`preview`ならビルドを飛ばす。
   Deployment Storageは保持しているデプロイ数ぶん掛かるが、**生きているブランチの
@@ -1151,7 +1159,7 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   **76%がCSS**（`<style>`とRSCペイロードに二重、さらに`.rsc`にもう1コピー）で、
   本文は4,575文字（4%）しか無かった。そのページが実際に使うCSSは9.2KBだけ。
   いまは`base`（全ページ）／`explorer`（`/`と`/season/**`）／`detail`（`/anime/[id]`）に分け、
-  追加層は`components/PageCss.tsx`でその面が本文の先頭に置く。
+  追加層は`components/<層>Css.tsx`でその面が本文の先頭に置く（全層とも`"use client"`）。
   **層の割り当てを手で書かないこと**（`app/`と`components/`のimportグラフから導出する。
   `scripts/lib/css-layers.js`）。新しい面が`SeasonExplorer`を使い始めればそのクラスは
   自動的に`base`へ上がる。**間違えるとそのページだけ無スタイルになり、画面を開くまで

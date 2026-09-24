@@ -1,4 +1,4 @@
-// app/globals.css → app/inlineCss.ts（HTMLに直接埋め込む文字列定数）を生成する。
+// app/globals.css → app/inlineCss<Layer>.ts（HTMLに直接埋め込む文字列定数）を生成する。
 //
 // なぜ埋め込むか（2026-09-04・㊵）: Next.js が <link rel="stylesheet"> を吐くと
 // HTMLが届いた後にもう1往復かかり、実測で描画開始が約370ms遅れる。
@@ -12,16 +12,25 @@
 const fs = require("fs");
 const path = require("path");
 const { minifyCss } = require("./lib/minify-css");
-const { LAYERS, collectRouteClasses, layerForRoutes, splitCss, findOrderConflicts } =
-  require("./lib/css-layers");
+const {
+  LAYERS,
+  collectRouteClasses,
+  layerForRoutes,
+  splitCss,
+  findOrderConflicts,
+  cssModuleFor,
+  cssConstFor,
+  cssComponentFor,
+} = require("./lib/css-layers");
 
 const SRC = path.join(__dirname, "..", "app", "globals.css");
-const OUT = path.join(__dirname, "..", "app", "inlineCss.ts");
-// base 層だけを**別ファイル**に出す（2026-09-19導入）。理由は buildBase の上に書いた。
-const OUT_BASE = path.join(__dirname, "..", "app", "inlineCssBase.ts");
+// 出力は**層ごとに1本**（app/inlineCssBase.ts / inlineCssExplorer.ts / inlineCssDetail.ts）。
+// 1つの CSS_LAYERS オブジェクトにまとめない理由は buildLayerModule の上に書いた。
+// ファイル名は層から導出する（ここに並べない。㊳）。
+const outFor = (layer) => path.join(__dirname, "..", cssModuleFor(layer));
 
 // globals.css を層ごとの最小化済みCSSに変換する。
-// scripts/check.ts もこの関数を通して「app/inlineCss.ts が globals.css と同期しているか」
+// scripts/check.ts もこの関数を通して「生成物が globals.css と同期しているか」
 // を確かめるので、生成とテストで同じ経路を通る（片方だけ直すことができない）。
 function buildLayers(css) {
   const { classToRoutes, warnings } = collectRouteClasses();
@@ -35,71 +44,46 @@ function buildLayers(css) {
 }
 
 /**
- * base 層だけを単体のモジュールとして出す（2026-09-19導入・重大度高）。
+ * 層1つを単体のモジュールとして出す（2026-09-19に base で導入 → 2026-09-24に全層へ）。
  *
- * 【なぜ分けるか】ビルド成果物の実測で、埋め込んだCSSが**1ページに3コピー**入っていた:
- *   ①<style> の中身（HTML） ②同じ文字列がRSCペイロードにも入る（HTML内の
- *   self.__next_f.push） ③さらに .rsc ファイルにもう1本。
- * ②③が生まれるのは、<style> を**サーバーコンポーネント**が描いているせい。
- * サーバーが描いた要素はそのまま Flight ペイロードへ直列化されるので、
- * dangerouslySetInnerHTML に渡した文字列がまるごと2回余計に焼かれる。
- * base は全ページに載るため、これが成果物のいちばん大きな塊になっていた
- * （声優ページ1枚 97KB のうち CSS が 23KB＝24%。4,483枚で約103MB）。
+ * 【なぜ層ごとに別ファイルなのか】このモジュールを import するのは
+ * components/<Layer>Css.tsx（**クライアントコンポーネント**）だけ。層をまとめた
+ * 1つのオブジェクト（かつての CSS_LAYERS）を渡すと、その面が使わない層まで同じ
+ * JSチャンクに載る（explorer は 26.1KB あり、作品ページには1文字も要らない）。
  *
- * 【どう直すか】base を描くのを**クライアントコンポーネント**（components/BaseCss.tsx）に
- * 移す。クライアントコンポーネントは Flight ペイロードには「モジュールの参照」しか
- * 出ないので、②③が消える。サーバー描画時には従来どおり <style> がHTMLに出るので、
- * **見た目もCSSの往復の無さ（㊵）も変わらない**。
- * その代わりCSS文字列はクライアントのJSチャンクに入るが、それは**1本だけ**で
- * 全ページで共有・キャッシュされる（ページ数を掛けない）。
+ * 【なぜクライアントで描くのか】サーバーコンポーネントが描いた <style> は、そのまま
+ * Flight ペイロードへ直列化されるので、同じCSS文字列が **1ページに3コピー**焼かれる:
+ *   ① <style> の中身（HTML） ② HTML内の self.__next_f.push ③ 同じページの .rsc
+ * ②③は圧縮でも重複排除されない（③は別ファイル）。クライアントコンポーネントなら
+ * Flight に出るのは「モジュールの参照」だけなので②③が消え、CSS文字列は
+ * JSチャンク1本に入って全ページで共有される（ページ数を掛けない）。
  *
- * 【なぜ別ファイルにするか】CSS_LAYERS（base+explorer+detail の1オブジェクト）を
- * クライアントから import すると、使わない explorer(26.5KB) までJSチャンクに入る。
- * base だけの単体モジュールにしておけば、クライアントに渡るのは base だけで済む。
+ * ビルド成果物の実測（2026-09-24・修正前）: 同じ作品ページのHTML内で base 層は
+ * 1回・detail 層は2回現れ、.rsc には base 0回・detail 1回。**"use client" の有無
+ * だけがこの差を作っていた。** 余剰は detail 15.31MiB（1,961枚）＋
+ * explorer 3.52MiB（69枚）＝計 18.83MiB。
+ *
+ * 【見た目・速度は変わらない】サーバー描画時には従来どおり <style> がHTMLに出るので、
+ * 「CSSを外部ファイルにしない（㊵）」は守られたまま＝往復は増えない。
  */
-function buildBase(css) {
+function buildLayerModule(css, layer) {
   const { minified } = buildLayers(css);
   return (
     "// 自動生成（node scripts/build-inline-css.js）。手で編集しない。\n" +
-    "// 元は app/globals.css。**base 層だけ**を単体で持つ。\n" +
+    `// 元は app/globals.css の「${layer}」層**だけ**。\n` +
     "//\n" +
-    "// これを分けてあるのは components/BaseCss.tsx（クライアントコンポーネント）が\n" +
-    "// ここだけを import するため。CSS_LAYERS ごと渡すと、使わない explorer 層まで\n" +
-    "// クライアントのJSチャンクに入る。\n" +
-    "// なぜクライアントで描くのかは scripts/build-inline-css.js の buildBase を読むこと\n" +
-    "// （サーバーで描くとRSCペイロードと .rsc にCSSがもう2コピー焼かれる）。\n" +
-    "export const CSS_BASE = " +
-    JSON.stringify(minified.base) +
+    `// これを単体のファイルにしてあるのは components/${cssComponentFor(layer)}.tsx\n` +
+    "// （クライアントコンポーネント）がここだけを import するため。層をまとめて渡すと、\n" +
+    "// その面が使わない層までクライアントのJSチャンクに入る。\n" +
+    "// なぜクライアントで描くのかは scripts/build-inline-css.js の buildLayerModule を\n" +
+    "// 読むこと（サーバーで描くとRSCペイロードと .rsc にCSSがもう2コピー焼かれる）。\n" +
+    `export const ${cssConstFor(layer)} = ` +
+    JSON.stringify(minified[layer]) +
     ";\n"
   );
 }
 
-function build(css) {
-  const { minified } = buildLayers(css);
-  const entries = LAYERS.map((l) =>
-    l === "base" ? "  base: CSS_BASE," : `  ${l}: ${JSON.stringify(minified[l])},`
-  ).join("\n");
-  return (
-    "// 自動生成（node scripts/build-inline-css.js）。手で編集しない。\n" +
-    "// 元は app/globals.css。HTMLに <style> として直接埋め込み、CSS取得の往復\n" +
-    "// （実測で描画開始が約370ms遅れる）を無くすためのもの。\n" +
-    "//\n" +
-    "// base はルートレイアウトが <head> に入れる（全ページ共通）。ただし実体は\n" +
-    "// app/inlineCssBase.ts にあり、描くのは components/BaseCss.tsx（クライアント）。\n" +
-    "// explorer / detail は、それを使う面が本文の**先頭**で追加する\n" +
-    "// （components/PageCss.tsx）。どのクラスがどの層かは app/ と components/ の\n" +
-    "// import グラフから導出しており、人が並べる場所は無い。\n" +
-    "// 仕組みと検査は scripts/lib/css-layers.js を読むこと。\n" +
-    "// app/globals.css を編集したら必ず再生成する（ズレは node scripts/check.ts が検出）。\n" +
-    'import { CSS_BASE } from "./inlineCssBase";\n\n' +
-    "export const CSS_LAYERS = {\n" +
-    entries +
-    "\n} as const;\n\n" +
-    "export type CssLayer = keyof typeof CSS_LAYERS;\n"
-  );
-}
-
-module.exports = { build, buildBase, buildLayers };
+module.exports = { buildLayerModule, buildLayers };
 
 if (require.main === module) {
   const css = fs.readFileSync(SRC, "utf8");
@@ -118,11 +102,10 @@ if (require.main === module) {
     }
     process.exit(1);
   }
-  fs.writeFileSync(OUT_BASE, buildBase(css));
-  fs.writeFileSync(OUT, build(css));
+  for (const l of LAYERS) fs.writeFileSync(outFor(l), buildLayerModule(css, l));
   const total = LAYERS.reduce((n, l) => n + minified[l].length, 0);
   console.log(
-    `app/inlineCss.ts + app/inlineCssBase.ts を更新: ${(css.length / 1024).toFixed(1)}KB → ` +
+    `${LAYERS.map(cssModuleFor).join(" + ")} を更新: ${(css.length / 1024).toFixed(1)}KB → ` +
       LAYERS.map((l) => `${l} ${(minified[l].length / 1024).toFixed(1)}KB`).join(" / ") +
       ` （計 ${(total / 1024).toFixed(1)}KB）`
   );
