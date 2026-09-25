@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-24",
+  "updatedAt": "2026-09-25",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -991,6 +991,17 @@
       "matchedBy": "mal",
       "title": "らんま1/2 第3期"
     },
+    "17358": {
+      "date": "2026-10-04",
+      "precision": "day",
+      "weekday": 0,
+      "time": "09:16",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/216860",
+      "fetchedDate": "2026-09-25",
+      "matchedBy": "title",
+      "title": "ぷにるんず ぷに4"
+    },
     "17366": {
       "date": "2027-01",
       "precision": "month",
@@ -1329,6 +1340,28 @@
       "fetchedDate": "2026-09-21",
       "matchedBy": "mal",
       "title": "ふつつかな悪女ではございますが ～雛宮蝶鼠とりかえ伝～ 第2クール"
+    },
+    "18233": {
+      "date": "2026-10-04",
+      "precision": "day",
+      "weekday": 0,
+      "time": "22:30",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/209032",
+      "fetchedDate": "2026-09-25",
+      "matchedBy": "url",
+      "title": "魔法の姉妹ルルットリリィ 近くて遠いふたりの距離"
+    },
+    "18237": {
+      "date": "2026-10-02",
+      "precision": "day",
+      "weekday": 5,
+      "time": "23:30",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/204650",
+      "fetchedDate": "2026-09-25",
+      "matchedBy": "url",
+      "title": "桃源暗鬼 第一期 特別編集版"
     }
   }
 }
