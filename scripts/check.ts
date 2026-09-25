@@ -425,6 +425,56 @@ checkLastKnown("programsなし → null", work([]), null);
     { lastRegisteredEpisode: 36, programs: [{ channel: "ABEMA", startedAt: "2026-09-23T14:00:00Z", episodeNumber: 36 }] },
     "2026-09-23T14:00:00.000Z"
   );
+  // 遅れて配信するサービスがあっても、最終話が最初に出た日時を採る（2026-09-26・利用者の指摘。
+  // 実例: 領民０人スタートの辺境領主様＝Prime Videoで9/18に最終話、別サービスが9/30まで）。
+  checkTail(
+    "最終話は最初の配信を採る",
+    {
+      lastRegisteredEpisode: 12,
+      programs: [
+        { channel: "U-NEXT", startedAt: "2026-09-30T13:30:00Z", episodeNumber: 12 },
+        { channel: "Amazon プライム・ビデオ", startedAt: "2026-09-18T13:30:00Z", episodeNumber: 12 },
+        { channel: "dアニメストア", startedAt: "2026-09-24T13:30:00Z", episodeNumber: 12 },
+      ],
+    },
+    "2026-09-18T13:30:00.000Z"
+  );
+  // 手前の話が遅れて配信されていても、最終話の最初の配信が基準（最新の配信日時ではない）。
+  checkTail(
+    "手前の話の遅れ配信は数えない",
+    {
+      lastRegisteredEpisode: 12,
+      programs: [
+        { channel: "U-NEXT", startedAt: "2026-09-26T13:30:00Z", episodeNumber: 11 },
+        { channel: "dアニメストア", startedAt: "2026-09-21T12:30:00Z", episodeNumber: 12 },
+      ],
+    },
+    "2026-09-21T12:30:00.000Z"
+  );
+  // 最終話が放送局で先に出ていても、配信の最初を採る（配信の曜日とずらさない）。
+  checkTail(
+    "最終話のTV先行は数えない",
+    {
+      lastRegisteredEpisode: 12,
+      programs: [
+        { channel: "TOKYO MX", startedAt: "2026-09-21T15:00:00Z", episodeNumber: 12 },
+        { channel: "dアニメストア", startedAt: "2026-09-22T15:30:00Z", episodeNumber: 12 },
+      ],
+    },
+    "2026-09-22T15:30:00.000Z"
+  );
+  // 話数の番号がどれにも無いときは最終話を特定できないので、最後の配信を採る（導入時と同じ）。
+  checkTail(
+    "話数の番号が無い → 最後の配信",
+    {
+      lastRegisteredEpisode: null,
+      programs: [
+        { channel: "dアニメストア", startedAt: "2026-09-10T15:30:00Z", episodeNumber: null },
+        { channel: "U-NEXT", startedAt: "2026-09-17T15:30:00Z", episodeNumber: null },
+      ],
+    },
+    "2026-09-17T15:30:00.000Z"
+  );
 }
 
 let endedOk = 0;

@@ -241,30 +241,35 @@ function deriveBroadcastSlot(
   };
 }
 
-// 話数が付いた最後の配信の日時（ISO）。見つからなければ null（＝呼び出し側は従来の
-// 全件の最終日で推定する）。2026-09-24導入。docs/operations.md の[53]。
+// 最終話が**最初に**配信された日時（ISO）。見つからなければ null（＝呼び出し側は従来の
+// 全件の最終日で推定する）。2026-09-24導入・2026-09-26に「最初」へ変更。docs/operations.md の[53]。
 // Annictは放送枠を実際の話数より先の週まで登録することがあり、全件の最終日だと
 // 最終話の後も「まだ先の配信予定がある」と読めてしまう（LV999の村人: 第12話＝9/24が
 // 最終なのに、話数の無い枠が10/8まで並んでいた）。
+// 「最初」を採る理由: 導入時は話数付きの配信の**最後**を採っていたため、数日〜12日遅れで
+// 配信するサービスがあると、最終話が出たあともそこまで「完結」が出なかった（2026-09-25
+// 実測で未完結扱い51作品中19作品。領民０人スタートの辺境領主様＝9/18に最終話が出たのに
+// 9/30まで出ない）。「完結」は「放送・配信が一巡した」の意味で出す。
 // 安全弁: 登録済みの最新話より、配信枠に紐付いた最新話の番号が小さい作品は null を返す。
 // 次の話が登録されているのに枠との紐付けが追いついていないだけ（＝まだ続いている）
 // かもしれないので、完結と言いにくい従来の推定に戻す（実例: 同じゼミの染谷さん＝
 // 第9話まで登録・第8話までしか枠に紐付いていない）。
-// 数える対象は配信（国内サービス＋その他配信）だけで、TV局は曜日・時刻と同じく除く。
+// 数える対象は配信（国内サービス＋その他配信）だけで、TV局は曜日・時刻と同じく除く
+// （TVの日付を使うと、SNS投稿の曜日＝配信の曜日とずれ、最終話の当日に一覧から落ちる）。
 // export はテスト用（scripts/check.ts）。
 export function lastEpisodeStreamAt(tail: import("./types").EpisodeTail): string | null {
-  let latestMs: number | null = null;
-  let latestEpisode: number | null = null;
+  const streams: { ms: number; episode: number | null }[] = [];
   for (const p of tail.programs) {
     if (classifyChannel(p.channel).kind === "tv") continue;
     const ms = Date.parse(p.startedAt);
     if (Number.isNaN(ms)) continue;
-    if (latestMs === null || ms > latestMs) latestMs = ms;
-    if (p.episodeNumber !== null && (latestEpisode === null || p.episodeNumber > latestEpisode)) {
-      latestEpisode = p.episodeNumber;
-    }
+    streams.push({ ms, episode: p.episodeNumber });
   }
-  if (latestMs === null) return null;
+  if (streams.length === 0) return null;
+  let latestEpisode: number | null = null;
+  for (const s of streams) {
+    if (s.episode !== null && (latestEpisode === null || s.episode > latestEpisode)) latestEpisode = s.episode;
+  }
   if (
     tail.lastRegisteredEpisode !== null &&
     latestEpisode !== null &&
@@ -272,7 +277,13 @@ export function lastEpisodeStreamAt(tail: import("./types").EpisodeTail): string
   ) {
     return null;
   }
-  return new Date(latestMs).toISOString();
+  // 話数の番号がどれにも無い（numberText だけ等）ときは、最終話を特定できないので
+  // 導入時と同じく最後の配信を採る。
+  const picked =
+    latestEpisode === null
+      ? Math.max(...streams.map((s) => s.ms))
+      : Math.min(...streams.filter((s) => s.episode === latestEpisode).map((s) => s.ms));
+  return new Date(picked).toISOString();
 }
 
 function jstDateStr(ms: number): string {
@@ -368,7 +379,7 @@ export function toAnimeItem(
   const annictSlot = deriveBroadcastSlot(streamingStarts);
   const slot = annictSlot ?? manualSlot;
 
-  // 最後の配信記録（完結の推定に使う）。話数の付いた最終配信が分かればそれを、
+  // 完結の推定に使う日時。最終話が最初に配信された日時が分かればそれを、
   // 分からなければ全件の最終日時を使う（lastEpisodeStreamAt のコメント参照）。
   // 人力の schedule（manualSlot）には配信履歴が無いので null のまま＝「まだ配信中」側。
   const lastKnownAt = annictSlot
