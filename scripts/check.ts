@@ -557,6 +557,16 @@ checkEnded("先の予定が登録済み → 外さない", "2026-10-01", "2026-0
       values.map((v) => `${v.file.split("/").pop()}=${v.value}`).join(" / ")
   );
 }
+// SNS画像は /api/season を1時間ごとに変わるキーで取る（2026-09-26）。キーを外すと、
+// edge が動く地域（sin1）のCDNが古い応答を抱えたまま、完結作品が画像にだけ残る
+// （revalidate後3時間以上。docs/operations.md の[53]）。画面には何も出ない壊れ方。
+{
+  const src = readFileSync(new URL("../app/api/sns-image/route.tsx", import.meta.url), "utf8");
+  const fetches = [...src.matchAll(/fetch\(`\$\{origin\}\/api\/season\?[^`]*`/g)].map((m) => m[0]);
+  const keyed = fetches.length > 0 && fetches.every((f) => f.includes("&_h=${hourKey("));
+  if (keyed) endedOk++; else endedNg++;
+  console.log(`${keyed ? "✓" : "✗"}  ${"SNS画像は時間ごとのキーで取る".padEnd(32)} → ${fetches.length}箇所`);
+}
 console.log(
   `結果（放送終了の推定）: ${lastKnownOk + endedOk} 件OK / ${lastKnownNg + endedNg} 件NG`
 );

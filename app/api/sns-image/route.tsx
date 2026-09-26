@@ -84,8 +84,19 @@ function hasLikelyEnded(it: { broadcastLastKnownDate: string | null }, todayStr:
   return gapDays > LIKELY_ENDED_GAP_DAYS;
 }
 
+// _h（JSTの日付＋時）はCDNのキャッシュキーを1時間ごとに変えるためだけの値で、
+// /api/season 側は読まない（2026-09-26導入。docs/operations.md の[53]）。
+// この route は edge でシンガポール（sin1）から動き、その地域のCDNが古い /api/season を
+// 抱えたまま入れ替えなかった（revalidate後3時間以上、完結作品が画像にだけ残った）。
+// キーが変われば古い応答は使われず、データ層（unstable_cache）から取り直す。
+// Annictには出ない。古さは最大1時間。
+function hourKey(now: Date): string {
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return jst.toISOString().slice(0, 13).replace(/\D/g, "");
+}
+
 async function fetchSeasonData(origin: string, year: number, seasonKey: string): Promise<SeasonResponse> {
-  const res = await fetch(`${origin}/api/season?year=${year}&season=${seasonKey}`);
+  const res = await fetch(`${origin}/api/season?year=${year}&season=${seasonKey}&_h=${hourKey(new Date())}`);
   if (!res.ok) throw new Error(`season API ${res.status}`);
   return (await res.json()) as SeasonResponse;
 }
