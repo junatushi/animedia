@@ -61,6 +61,68 @@ function realValues() {
   };
 }
 
+/** 季節の並び順。lib/resolveSeasonParams.ts の SEASON_KEYS から読む（書き写さない）。 */
+function seasonOrder() {
+  const src = fs.readFileSync(path.join(REPO, "lib/resolveSeasonParams.ts"), "utf8");
+  const m = src.match(/SEASON_KEYS\s*=\s*new Set\(\[([^\]]*)\]\)/);
+  const keys = m ? [...m[1].matchAll(/"([a-z]+)"/g)].map((x) => x[1]) : [];
+  // 読めなかったら既定値に倒さない。黙って倒すと、定数名が変わった日に
+  // 「今期」の判定だけが静かにズレて、また測っていない面ができる。
+  if (keys.length !== 4) {
+    throw new Error("lib/resolveSeasonParams.ts の SEASON_KEYS を読めませんでした（定義が変わった？）");
+  }
+  return keys;
+}
+
+/**
+ * **今期（現在クール）**の実在する値（2026-09-27追加）。
+ *
+ * 【なぜ要るか・重大度高】上の realValues() が返すのは**過去クールの値だけ**である
+ * （`content/archive/index.json` はスナップショット＝2010〜昨年しか持たない）。
+ * そのため毎日の表示速度の計測は、**全面が事前生成済みのページしか測っていなかった**。
+ * 実利用者が見るのは今期のページで、そちらは `generateStaticParams` の対象外＝
+ * `fallback: blocking` でその場生成になる。2026-09-27の実測では、
+ * 合成計測が「12面中12面が目標(2秒)を満たす」と報告し続けている裏で、
+ * 実利用者(RUM)の p75 LCP は person 3,332ms / anime 2,885ms だった。
+ * **測っていない面が遅い**という、画面を見ても計測ログを見ても気づけない形の穴。
+ *
+ * 【クール名を書かない】今期の判定は `content/coverage/first-seen.json` から導出する。
+ * `scripts/track-season.js` が毎日「現在クール＋先2クール」を書くので、
+ * 季節の並び順でいちばん早いキーが今期になる。**日付の計算をここに書き写さない**
+ * （書き写すとクールが変わった日に静かにズレ、また同じ穴が開く）。
+ *
+ * 声優名だけは今期ぶんの一次情報がリポジトリに無い（people.json は過去クールのみ）ので
+ * null を返す。呼び出し側が `skipped` として出すので、**黙って対象から外れない**。
+ */
+function currentValues() {
+  const order = seasonOrder();
+  let fresh;
+  try {
+    fresh = readJson("content/coverage/first-seen.json");
+  } catch {
+    return null;
+  }
+  const keys = Object.keys(fresh?.sources?.annict ?? {});
+  if (keys.length === 0) return null;
+  const rank = (k) => {
+    const [y, s] = k.split("-");
+    return Number(y) * 4 + order.indexOf(s);
+  };
+  const currentKey = keys.slice().sort((a, b) => rank(a) - rank(b))[0];
+  const [year, season] = currentKey.split("-");
+  const works = fresh.sources.annict[currentKey]?.works ?? {};
+  // 配信サービスが1件以上ある作品を選ぶ（実際に人が開くページに近い形）。
+  // 並べてから先頭を採るので、日が変わっても同じURLを測り続けられる＝前日比が意味を持つ。
+  const workId = Object.entries(works)
+    .filter(([, w]) => w && w.services && Object.keys(w.services).length > 0)
+    .map(([id]) => id)
+    .sort((a, b) => Number(a) - Number(b))[0];
+  if (!workId || !order.includes(season)) return null;
+  const svcSrc = fs.readFileSync(path.join(REPO, "lib/services.ts"), "utf8");
+  const serviceKey = (svcSrc.match(/\{\s*key:\s*"([a-z_]+)"/) || [])[1] || "d_anime";
+  return { year, season, workId, serviceKey, studio: null, director: null, person: null };
+}
+
 /**
  * 動的セグメントの名前 → そこに入る実在する値。
  * [name] はルートによって指すものが違う（制作会社／監督／声優）ので route も見る。
@@ -86,7 +148,7 @@ function realFor(segment, route, v) {
  * face は先頭セグメント（"/" は "home"）。表示速度は面ごとに傾向が違うので、
  * 面を単位にすると `scripts/seo-report.js` の「面別」と並べて読める。
  */
-function sampleUrls(values = realValues()) {
+function buildUrls(values, { faceSuffix = "", onlySeasonal = false, label = "" } = {}) {
   // robots.txt が拒否している面は測らない（訪問者もクローラーも来ないので、
   // 表示速度の代表値に混ぜる意味が無く、しかも /admin はトークン必須で404になる）。
   // **手で "/admin" と書かない**。app/robots.ts から読み取る＝拒否を増やしたとき自動で従う。
@@ -94,7 +156,10 @@ function sampleUrls(values = realValues()) {
   const disallow = [...robotsSrc.matchAll(/disallow:\s*"([^"]+)"/g)].map((m) => m[1]);
   const routes = appRoutes(path.join(REPO, "app"))
     .filter((r) => r.kind === "html")
-    .filter((r) => !disallow.some((d) => d !== "/" && r.routePath.startsWith(d)));
+    .filter((r) => !disallow.some((d) => d !== "/" && r.routePath.startsWith(d)))
+    // 今期ぶんでは「クールや作品でURLが変わる面」だけを測る。/ や /about は
+    // 今期でも過去クールでも同じURLなので、入れると同じページを2回測るだけになる。
+    .filter((r) => !onlySeasonal || r.segments.includes("season") || r.segments.includes("id"));
   const urls = [];
   const skipped = [];
   for (const r of routes) {
@@ -104,7 +169,7 @@ function sampleUrls(values = realValues()) {
       const real = realFor(s, r, values);
       if (!real) {
         ok = false;
-        skipped.push(`${r.routePath}（[${s}] の実在値が無い）`);
+        skipped.push(`${r.routePath}${label}（[${s}] の実在値が無い）`);
         break;
       }
       reals[s] = real;
@@ -112,9 +177,36 @@ function sampleUrls(values = realValues()) {
     if (!ok) continue;
     const p = r.routePath.replace(/\[(?:\.{0,3})([^\]]+)\]/g, (_, name) => E(reals[name]));
     const first = p.split("/")[1] ?? "";
-    urls.push({ face: first === "" ? "home" : first, routePath: r.routePath, path: p });
+    urls.push({ face: (first === "" ? "home" : first) + faceSuffix, routePath: r.routePath, path: p });
   }
   return { urls, skipped };
 }
 
-module.exports = { realValues, realFor, sampleUrls };
+function sampleUrls(values = realValues()) {
+  return buildUrls(values);
+}
+
+/**
+ * **今期ぶん**の代表URL（2026-09-27追加）。face に `-current` を付けて返す。
+ *
+ * 上の sampleUrls() が返すのは過去クール＝**事前生成済み**のページなので、
+ * それだけを測っていると「焼けていない面が遅い」ことに永久に気づけない
+ * （currentValues() の説明を参照）。接尾辞を付けるのは、
+ * ①`scripts/speed-report.js` が face 単位で前回比・7日前比を出すため、
+ * 名前がクールごとに変わると比較が切れる ②既存の断面（過去クール）と
+ * 並べて読めると「焼いてある／いない」の差がそのまま表に出る、の2つの理由から。
+ *
+ * **今期の作品が取れないときは空で返さず skipped に出す**（黙って対象から外れない）。
+ */
+function currentSampleUrls() {
+  const v = currentValues();
+  if (!v) {
+    return {
+      urls: [],
+      skipped: ["今期の全面（content/coverage/first-seen.json から今期の作品を導出できない）"],
+    };
+  }
+  return buildUrls(v, { faceSuffix: "-current", onlySeasonal: true, label: "（今期）" });
+}
+
+module.exports = { realValues, realFor, currentValues, sampleUrls, currentSampleUrls };

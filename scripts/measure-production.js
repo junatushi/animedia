@@ -38,7 +38,7 @@
 // ───────────────────────────────────────────────────────────────
 const fs = require("node:fs");
 const path = require("node:path");
-const { sampleUrls } = require("./lib/route-samples.js");
+const { sampleUrls, currentSampleUrls } = require("./lib/route-samples.js");
 const { measure, CPU_THROTTLE, NET_KBPS, NET_LATENCY_MS } = require("./lib/measure-page.js");
 
 const REPO = path.join(__dirname, "..");
@@ -91,10 +91,20 @@ async function main() {
     return;
   }
 
-  const { urls, skipped } = sampleUrls();
+  // 過去クール（事前生成済み）と**今期**の両方を測る（2026-09-27）。
+  // 今期を足すまで、この計測は「焼いてあるページ」しか見ておらず、
+  // 毎日「12面中12面が目標を満たす」と報告する裏で、実利用者(RUM)の p75 LCP は
+  // 2秒を大きく超えていた。**測っていない面が遅い**形の穴で、画面を見ても
+  // 計測ログを見ても気づけない。詳細は scripts/lib/route-samples.js の currentValues()。
+  const past = sampleUrls();
+  const current = currentSampleUrls();
+  const urls = [...past.urls, ...current.urls];
+  const skipped = [...past.skipped, ...current.skipped];
   console.log(`本番の表示速度: ${BASE}`);
   console.log(`条件: CPU ${CPU_THROTTLE}倍 / 回線 ${NET_KBPS}kbps・遅延${NET_LATENCY_MS}ms / 390×844 / ${RUNS}回の中央値`);
-  console.log(`対象: ${urls.length} 面（app/ の走査から導出）`);
+  console.log(
+    `対象: ${urls.length} 面（app/ の走査から導出。うち ${current.urls.length} 面が今期＝末尾 -current）`
+  );
   // 測れなかった面を黙って落とさない。**静かに対象から外れる**のがこの種の道具の
   // いちばん危ない壊れ方（毎日緑のまま無力化する）。
   for (const s of skipped) console.log(`  ⚠ 測っていない: ${s}`);
@@ -131,6 +141,15 @@ async function main() {
       // スクロール系は1回しか測っていないので中央値ではなく、その1回の値。
       scrollKB: runs[0].scrollKB,
       scrollPrefetch: runs[0].scrollPrefetch,
+      // **初回の値も別に残す**（2026-09-27追加・重大度高）。
+      // 同じURLを3回叩くので、事前生成されていないページは
+      // 1回目がその場生成（fallback: blocking）で遅く、2・3回目は
+      // 1回目が温めたキャッシュに当たって速い。つまり**中央値は必ず
+      // 「温かいページ」の値**になり、焼けていないことが中央値からは見えない。
+      // 事前生成されていれば初回も速いので、`lcpFirst ≫ lcp` は
+      // 「このURLは焼けていない」の signal になる（絶対値ではなく差で見る）。
+      lcpFirst: runs[0].lcp,
+      ttfbFirst: runs[0].ttfb,
     };
     pages.push(row);
     console.log(
