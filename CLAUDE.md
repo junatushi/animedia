@@ -290,7 +290,20 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   動的セグメントを埋める（新しいページ種別を足すと自動で対象に入る。robots.txtが
   拒否している面は`app/robots.ts`から読んで除く）。条件は`measure-pages.js`と同一
   （`scripts/lib/measure-page.js`が1箇所で持つ）。1URLにつき3回測って中央値を採る。
-  結果は`content/analytics/speed/<日付>.json`。読むのは上の`speed-report.js`
+  結果は`content/analytics/speed/<日付>.json`。読むのは上の`speed-report.js`。
+  **【2026-09-27・この計測自身が「速いほうだけ」を測っていた】**
+  `realValues()`が動的セグメントに入れる値を`content/archive/index.json`
+  （＝スナップショット＝2010〜昨年）から取るため、**対象が必ず過去クール**になり、
+  過去クールの作品ページは全件が事前生成済み＝速い経路しか測っていなかった。
+  同じレポートのRUM（実利用者）は4面すべてが2秒超だったのに、合成計測は毎日
+  「12面中12面が目標を満たす」と報告し続けていた。いまは`currentSampleUrls()`が
+  **今期の面も測る**（faceの末尾が`-current`）。**クール名は書かない**（今期の判定は
+  `content/coverage/first-seen.json`から導出し、季節の並びは
+  `lib/resolveSeasonParams.ts`の`SEASON_KEYS`から読む）。
+  さらに**初回の値（`lcpFirst`/`ttfbFirst`）も残す**。3回測って中央値を採ると、
+  焼けていないページでも1回目がキャッシュを温めるので**中央値は必ず温かい側に寄り**、
+  初回の遅さが記録に残らない。`lcpFirst ≫ lcp`が「事前生成されていない」の signal で、
+  `speed-report.js`がそれを警告する。経緯は`docs/operations.md`の[57]
 - `node scripts/measure-pages.js <URL>` … **表示の速さの実測**（2026-09-03導入）。
   先に`npm run build && npx next start -p 3100`を動かしてからURLを渡す。スマホ相当の条件
   （CPU4倍スロットル・1.6Mbps・390×844）でFCP/LCP・TBT（操作をブロックする時間）・DOMノード数・

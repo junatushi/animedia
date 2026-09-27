@@ -97,7 +97,7 @@ function main() {
     console.log(`   条件: CPU ${c.cpuThrottle ?? "?"}倍 / ${c.netKbps ?? "?"}kbps / ${c.runs ?? "?"}回の中央値 ／ 断面 ${usable.length} 日ぶん\n`);
     const rows = [...latest.json.pages].sort((a, b) => (b.lcp ?? 0) - (a.lcp ?? 0));
     console.log(
-      "   面".padEnd(14) + "LCP".padStart(9) + "前回比".padStart(9) + "7日前比".padStart(10) +
+      "   面".padEnd(19) + "LCP".padStart(9) + "初回".padStart(9) + "前回比".padStart(9) + "7日前比".padStart(10) +
         "FCP".padStart(8) + "TTFB".padStart(8) + "TBT".padStart(8) + "KB".padStart(7) + "  判定"
     );
     let over = 0;
@@ -105,8 +105,9 @@ function main() {
       const ok = p.lcp != null && p.lcp < GOALS.lcp;
       if (!ok) over++;
       console.log(
-        "   " + String(p.face).padEnd(11) +
+        "   " + String(p.face).padEnd(16) +
           `${p.lcp}ms`.padStart(9) +
+          (p.lcpFirst == null ? "—" : `${p.lcpFirst}ms`).padStart(9) +
           fmtDelta(p.lcp, byFace(prev, p.face)?.lcp).padStart(9) +
           fmtDelta(p.lcp, byFace(weekAgo, p.face)?.lcp).padStart(10) +
           `${p.fcp}ms`.padStart(8) + `${p.ttfb}ms`.padStart(8) +
@@ -118,6 +119,24 @@ function main() {
       `\n   → ${rows.length} 面中 ${rows.length - over} 面が目標（LCP ${GOALS.lcp}ms未満）を満たす` +
         `／Google基準(${GOALS.lcpReference}ms)なら ${rows.filter((p) => p.lcp < GOALS.lcpReference).length} 面`
     );
+    // **初回だけ遅い面＝事前生成されていない疑い**（2026-09-27追加）。
+    // 同じURLを3回叩くので、焼けていないページは1回目がその場生成（fallback: blocking）で
+    // 遅く、2・3回目は1回目が温めたキャッシュに当たって速い。**中央値は必ず温かい側**に寄るので、
+    // 中央値だけ見ていると焼けていないことに永久に気づけない（実際にそうなっていた）。
+    // デプロイのたびにISRキャッシュは実質全消去されるので、焼けていない面は
+    // 訪問者がこの「1回目」を毎回引かされる＝RUMのp75がここに出る。
+    const cold = rows.filter(
+      (p) => typeof p.lcpFirst === "number" && typeof p.lcp === "number" &&
+        p.lcpFirst - p.lcp > 500 && p.lcpFirst > p.lcp * 1.5
+    );
+    if (cold.length > 0) {
+      console.log(
+        `   ⚠ 初回だけ遅い面（事前生成されていない疑い）: ` +
+          cold.map((p) => `${p.face}(初回${p.lcpFirst}ms / 中央値${p.lcp}ms)`).join(" ")
+      );
+      console.log("     `generateStaticParams` の対象から外れていないか見ること。");
+      console.log("     デプロイのたびにキャッシュが飛ぶので、訪問者はこの初回の値を引く。");
+    }
     // ㊴の逆戻り（画面内の先読みが復活すると、押してもいないページのために数MB飛ぶ）。
     const pf = rows.filter((p) => typeof p.scrollPrefetch === "number" && p.scrollPrefetch > 0);
     if (pf.length > 0) {
