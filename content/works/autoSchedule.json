@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-26",
+  "updatedAt": "2026-09-27",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -624,8 +624,8 @@
       "precision": "day",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/203275",
-      "fetchedDate": "2026-09-19",
-      "matchedBy": "title",
+      "fetchedDate": "2026-09-27",
+      "matchedBy": "mal",
       "title": "デモンズ・クレスト"
     },
     "16806": {
