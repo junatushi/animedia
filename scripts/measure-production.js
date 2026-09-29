@@ -39,7 +39,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { sampleUrls, currentSampleUrls } = require("./lib/route-samples.js");
-const { measure, CPU_THROTTLE, NET_KBPS, NET_LATENCY_MS } = require("./lib/measure-page.js");
+const { measure, CPU_THROTTLE, NET_KBPS, NET_LATENCY_MS, LATENCY_MODE } = require("./lib/measure-page.js");
 
 const REPO = path.join(__dirname, "..");
 const BASE = process.env.BASE || "https://animedia-khaki.vercel.app";
@@ -169,7 +169,15 @@ async function main() {
   const result = {
     fetchedAt: new Date().toISOString(),
     base: BASE,
-    conditions: { cpuThrottle: CPU_THROTTLE, netKbps: NET_KBPS, latencyMs: NET_LATENCY_MS, runs: RUNS },
+    conditions: {
+      cpuThrottle: CPU_THROTTLE,
+      netKbps: NET_KBPS,
+      latencyMs: NET_LATENCY_MS,
+      // **遅延の当て方を残す**（2026-09-29追加）。これが無い断面は
+      // 擬似遅延がTTFBに乗っていないので、TTFBを跨いで比べてはいけない。
+      latencyMode: LATENCY_MODE,
+      runs: RUNS,
+    },
     // 測れなかったものを結果に残す（後から「その日は何面だったか」を数えられるように）。
     skipped,
     failures,

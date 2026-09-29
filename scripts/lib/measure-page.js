@@ -12,6 +12,25 @@ const NET_KBPS = 1600;
 const NET_LATENCY_MS = 150;
 const SCROLL_STEPS = 24;
 
+// **擬似遅延をリクエストの手前で当てる**（2026-09-29修正・重大度高）。
+// それまでは遅延も帯域も `Network.emulateNetworkConditions` に渡していたが、
+// Chromiumのこの実装は遅延を**応答が始まったあと**に効かせるので、
+// `PerformanceNavigationTiming.responseStart`（＝計測しているTTFB）に**一切乗らない**。
+// 結果、`latencyMs: 150` と記録しながらTTFBは実測で16〜89ms（10日分の全断面）になり、
+// 同じレポートに並ぶRUMのTTFB（実測 p75 で273〜874ms）と**比べられない数字**を
+// 「TTFB」という同じ名前で出していた。合成計測が毎日「全面が目標を満たす」と報告する一方
+// RUMでは4面中3面が2秒超、という食い違いの一因。
+// 局所実験（127.0.0.1・副資源16件のページ・計17リクエスト）での実測:
+//   条件なし            ttfb   3ms / fcp  36ms / load   59ms
+//   CDPに遅延を渡す     ttfb   8ms / fcp 372ms / load  937ms  ← 遅延はloadには出るがTTFBに出ない
+//   リクエスト手前で待つ ttfb 160ms / fcp 356ms / load  781ms  ← TTFBが正直になり、FCP/LCPは同帯
+// 帯域はCDP側が正しく効いている（対照とloadが59ms→937ms）ので**そのまま残す**。
+// 遅延だけをPlaywrightのrouteに移し、CDPへは `latency: 0` を渡す（二重計上を防ぐ）。
+// **両方に遅延を書かないこと**（実測でFCPが356ms→516msに膨らむ＝実体より遅く見える）。
+// 記録するJSONには `latencyMode` を残す（古い断面と区別できないと、
+// TTFBが30ms→180msに跳ねた日を「悪化」と誤読する）。
+const LATENCY_MODE = "perRequest";
+
 async function measure(chromium, url, options = {}) {
   const withScroll = options.withScroll !== false;
   const browser = await chromium.launch({
@@ -49,9 +68,21 @@ async function measure(chromium, url, options = {}) {
     await cdp.send("Network.enable");
     await cdp.send("Network.emulateNetworkConditions", {
       offline: false,
-      latency: NET_LATENCY_MS,
+      // 遅延は下の route で当てる（この値を0以外に戻すと二重計上になる）。
+      latency: 0,
       downloadThroughput: (NET_KBPS * 1024) / 8,
       uploadThroughput: (750 * 1024) / 8,
+    });
+    // 往復の遅延を「応答が始まる前」に当てる。文書リクエストも副資源も同じだけ待たせる
+    // （実ネットワークでは1往復ぶんを各リクエストが払う）。
+    await context.route("**/*", async (route) => {
+      await new Promise((r) => setTimeout(r, NET_LATENCY_MS));
+      try {
+        await route.continue();
+      } catch {
+        // ページが先に遷移・終了したリクエストは続行できない。ここで落とすと
+        // 面ごとの計測が丸ごと失敗するので、その1件だけ諦める。
+      }
     });
 
     const reqs = [];
@@ -121,4 +152,4 @@ async function measure(chromium, url, options = {}) {
   }
 }
 
-module.exports = { measure, CPU_THROTTLE, NET_KBPS, NET_LATENCY_MS, SCROLL_STEPS };
+module.exports = { measure, CPU_THROTTLE, NET_KBPS, NET_LATENCY_MS, LATENCY_MODE, SCROLL_STEPS };

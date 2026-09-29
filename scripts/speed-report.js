@@ -77,9 +77,28 @@ function main() {
   // 同じディレクトリにファイルが落ちるので、放っておくと「本番が急に速くなった」に見える
   // （ローカルはネットワーク往復もコールドスタートも無いので必ず速く出る）。
   // 最新の base と同じものだけを時系列として扱い、混ざっていることは必ず告げる。
+  //
+  // **計測条件（擬似遅延の当て方）が違う断面も同じ理由で混ぜない**（2026-09-29追加）。
+  // 2026-09-29まで擬似遅延はTTFBに乗っていなかった（Chromiumのネットワーク擬似条件は
+  // 遅延を応答が始まったあとに効かせるので `responseStart` に出ない。経緯は
+  // `scripts/lib/measure-page.js` の `LATENCY_MODE`）。直すとTTFBだけでなく
+  // **LCP・FCPも動く**——局所実験では多資源のページで372ms→356ms（−4%）だったが、
+  // 単一の大きな文書では384ms→220ms（−43%）だった。前者だけを見て
+  //「LCPは跨いで比べてよい」と書きかけたが、後者で否定された。
+  // どの指標が安全かを当て推量で決めるより、**境界で時系列を切る**ほうが静かに間違わない。
+  // 新しい当て方の断面が2日ぶん溜まれば前回比は自動で復活する。
   const latestBase = all.at(-1)?.json.base ?? null;
-  const usable = all.filter((s) => (s.json.base ?? null) === latestBase);
-  const otherBases = [...new Set(all.filter((s) => (s.json.base ?? null) !== latestBase).map((s) => s.json.base))];
+  const latestLatencyMode = (all.at(-1)?.json.conditions ?? {}).latencyMode ?? null;
+  const sameSetup = (s) =>
+    (s.json.base ?? null) === latestBase &&
+    ((s.json.conditions ?? {}).latencyMode ?? null) === latestLatencyMode;
+  const usable = all.filter(sameSetup);
+  const otherBaseSnaps = all.filter((s) => (s.json.base ?? null) !== latestBase);
+  const otherBases = [...new Set(otherBaseSnaps.map((s) => s.json.base))];
+  // baseは同じだが遅延の当て方が違う断面（＝直した日の境界）。
+  const otherLatency = all.filter(
+    (s) => (s.json.base ?? null) === latestBase && !sameSetup(s)
+  );
   if (usable.length === 0) {
     console.log("① 合成計測: **まだデータが無い**");
     console.log("   `node scripts/measure-production.js` が1日1回書く（.github/workflows/measure-speed.yml）。");
@@ -94,7 +113,12 @@ function main() {
 
     const c = latest.json.conditions ?? {};
     console.log(`① 合成計測（${latest.date}・${latest.json.base ?? "?"}）`);
-    console.log(`   条件: CPU ${c.cpuThrottle ?? "?"}倍 / ${c.netKbps ?? "?"}kbps / ${c.runs ?? "?"}回の中央値 ／ 断面 ${usable.length} 日ぶん\n`);
+    const latMode = c.latencyMode ?? null;
+    console.log(
+      `   条件: CPU ${c.cpuThrottle ?? "?"}倍 / ${c.netKbps ?? "?"}kbps / ` +
+        `遅延${c.latencyMs ?? "?"}ms（${latMode === "perRequest" ? "リクエストごと＝TTFBに乗る" : "TTFBには乗っていない"}） / ` +
+        `${c.runs ?? "?"}回の中央値 ／ 断面 ${usable.length} 日ぶん\n`
+    );
     const rows = [...latest.json.pages].sort((a, b) => (b.lcp ?? 0) - (a.lcp ?? 0));
     console.log(
       "   面".padEnd(19) + "LCP".padStart(9) + "初回".padStart(9) + "前回比".padStart(9) + "7日前比".padStart(10) +
@@ -119,23 +143,64 @@ function main() {
       `\n   → ${rows.length} 面中 ${rows.length - over} 面が目標（LCP ${GOALS.lcp}ms未満）を満たす` +
         `／Google基準(${GOALS.lcpReference}ms)なら ${rows.filter((p) => p.lcp < GOALS.lcpReference).length} 面`
     );
-    // **初回だけ遅い面＝事前生成されていない疑い**（2026-09-27追加）。
-    // 同じURLを3回叩くので、焼けていないページは1回目がその場生成（fallback: blocking）で
-    // 遅く、2・3回目は1回目が温めたキャッシュに当たって速い。**中央値は必ず温かい側**に寄るので、
-    // 中央値だけ見ていると焼けていないことに永久に気づけない（実際にそうなっていた）。
-    // デプロイのたびにISRキャッシュは実質全消去されるので、焼けていない面は
-    // 訪問者がこの「1回目」を毎回引かされる＝RUMのp75がここに出る。
-    const cold = rows.filter(
-      (p) => typeof p.lcpFirst === "number" && typeof p.lcp === "number" &&
-        p.lcpFirst - p.lcp > 500 && p.lcpFirst > p.lcp * 1.5
+    // ── 初回（1回目）の値の読み方（2026-09-27導入 → **2026-09-29に判定を作り直した**）。
+    //
+    // 導入時は `lcpFirst - lcp > 500 && lcpFirst > lcp * 1.5` を
+    // 「事前生成されていない疑い」として警告していたが、**この判定は間違いだった**。
+    // 2026-09-29の実データ（今期の面を含む17面）で17面中11面が発火し、
+    // その中には`generateStaticParams`と無関係な**完全静的なページ**
+    // （about 初回1784ms・privacy 976ms・director 1596ms）まで入っていた。
+    // つまり「初回が遅い」は事前生成の有無を分けていない。
+    //
+    // 事前生成の有無を分けるのは**TTFBのほう**。その場生成（fallback: blocking）なら
+    // 1回目は応答そのものが遅れるので `ttfbFirst` が跳ねる。同日の実測では
+    // 17面すべてが `ttfbFirst ≒ ttfb`（27〜52ms・面ごとの幅6ms）で、**焼いている面も
+    // 焼いていない面も区別がつかなかった**＝どの面もISRキャッシュから返っていた。
+    // なので**この計測から事前生成の有無は判定できない**（判定したいなら
+    // ビルド成果物の`.next/prerender-manifest.json`を見る）。
+    //
+    // いま出すのは次の2つだけにする:
+    //   A 事前生成の疑い ＝ `ttfbFirst` が `ttfb` を大きく超える面（本物のsignal）
+    //   B 初回が目標を超えた面 ＝ `lcpFirst` が目標(2秒)を超える面。原因は断定しない。
+    // Bの閾値を「中央値との比」から「目標そのもの」に変えたのは、
+    // **要件が「表示2秒未満」**であって「初回と中央値の差」ではないから。
+    const hasFirst = (p) => typeof p.lcpFirst === "number" && typeof p.lcp === "number";
+
+    // A: その場生成の疑い（応答そのものが1回目だけ遅れている）。
+    const slowFirstByte = rows.filter(
+      (p) => typeof p.ttfbFirst === "number" && typeof p.ttfb === "number" &&
+        p.ttfbFirst - p.ttfb > 300 && p.ttfbFirst > p.ttfb * 1.5
     );
-    if (cold.length > 0) {
+    if (slowFirstByte.length > 0) {
       console.log(
-        `   ⚠ 初回だけ遅い面（事前生成されていない疑い）: ` +
-          cold.map((p) => `${p.face}(初回${p.lcpFirst}ms / 中央値${p.lcp}ms)`).join(" ")
+        `   ⚠ 初回だけ応答が遅い面（その場生成＝事前生成されていない疑い）: ` +
+          slowFirstByte.map((p) => `${p.face}(初回TTFB${p.ttfbFirst}ms / 中央値${p.ttfb}ms)`).join(" ")
       );
       console.log("     `generateStaticParams` の対象から外れていないか見ること。");
-      console.log("     デプロイのたびにキャッシュが飛ぶので、訪問者はこの初回の値を引く。");
+    }
+
+    // B: 初回が目標を超えた面。**原因は書かない**（この計測では特定できない）。
+    // 初回は1回しか測らない＝n=1なので、何日続いたかを添える。
+    const streakOf = (face) => {
+      let n = 0;
+      for (let i = usable.length - 1; i >= 0; i--) {
+        const q = byFace(usable[i], face);
+        if (!q || typeof q.lcpFirst !== "number") break;
+        if (q.lcpFirst < GOALS.lcp) break;
+        n++;
+      }
+      return n;
+    };
+    const coldFirst = rows.filter((p) => hasFirst(p) && p.lcpFirst >= GOALS.lcp);
+    if (coldFirst.length > 0) {
+      console.log(
+        `   ⚠ 初回が目標(${GOALS.lcp}ms)を超えた面: ` +
+          coldFirst.map((p) => `${p.face}(初回${p.lcpFirst}ms / 中央値${p.lcp}ms・${streakOf(p.face)}日連続)`).join(" ")
+      );
+      console.log("     初回は1回しか測らない（n=1）ので、1日だけなら偶発と区別できない。2日以上続いたら実体として扱う。");
+      console.log(`     デプロイのたびにISRキャッシュが飛ぶので、訪問者はこの初回の値を引きうる。`);
+      console.log("     **原因はこの計測では特定できない**（その場生成かどうかは上の「初回だけ応答が遅い面」の行、");
+      console.log("     事前生成の有無はビルド成果物の .next/prerender-manifest.json で確かめる）。");
     }
     // ㊴の逆戻り（画面内の先読みが復活すると、押してもいないページのために数MB飛ぶ）。
     const pf = rows.filter((p) => typeof p.scrollPrefetch === "number" && p.scrollPrefetch > 0);
@@ -146,8 +211,18 @@ function main() {
     const missing = (latest.json.failures ?? []).concat(latest.json.skipped ?? []);
     if (missing.length > 0) console.log(`   ⚠ 測っていない: ${missing.join(" / ")}`);
     if (otherBases.length > 0) {
-      console.log(`   ⚠ 別の計測元の断面が ${all.length - usable.length} 日ぶん混ざっている（${otherBases.join(", ")}）。`);
+      // **`all.length - usable.length` で数えないこと**（2026-09-29修正）。usable は
+      // 遅延の当て方が違う断面も外すようになったので、その差を「別の計測元」として
+      // 数えると水増しになる（外した理由が2つあるのに1つの名前で報告してしまう）。
+      console.log(`   ⚠ 別の計測元の断面が ${otherBaseSnaps.length} 日ぶん混ざっている（${otherBases.join(", ")}）。`);
       console.log("     比較からは外してある。手元で試したファイルなら消すこと。");
+    }
+    // 直した日の境界を必ず告げる（黙って断面が減ると「収集が止まった」と読まれる）。
+    if (otherLatency.length > 0) {
+      const last = otherLatency.at(-1).date;
+      console.log(`   ⚠ ${last} までの ${otherLatency.length} 日ぶんは擬似遅延の当て方が違う（TTFBに乗っていない）ので比較から外してある。`);
+      console.log("     この境界でTTFBは30ms前後→180ms前後に跳ねるが、**遅くなったのではなく**");
+      console.log("     それまで測れていなかった往復ぶんが乗っただけ。LCP・FCPも動くので前回比は出さない。");
     }
     if (/localhost|127\.0\.0\.1/.test(String(latest.json.base))) {
       console.log("   ⚠ これは**ローカルの計測**。本番の数字ではない（実データ・実画像が無いので");
