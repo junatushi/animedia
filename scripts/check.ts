@@ -141,6 +141,7 @@ import {
 import { AFFILIATE_PROGRAMS } from "../content/affiliate/programs.ts";
 // 行動ログの付随データの検証（2026-09-07追加）。純粋関数のみ。
 import { sanitizeEventData, MAX_KEYS, MAX_STRING } from "../lib/trackEventData.ts";
+import { buildDiagnostics, networkClass, REPORTED_METRICS } from "../lib/vitalsDiagnostics.ts";
 
 
 // `generateMetadata` を持つページのうち、title / description を
@@ -3949,13 +3950,26 @@ let dataNg = 0;
     ["外部リファラ", { ref: "www.google.com", face: "anime" }, ["ref", "face"]],
     ["配信サービス", { service: "d_anime" }, ["service"]],
     ["表示速度", { LCP: 1234, CLS: 0.05, INP: 88, face: "season" }, ["LCP", "CLS", "INP", "face"]],
-    // components/WebVitals.tsx が送りうる最大の形（6指標＋face＋補助3＝10キー）。
-    // 補助指標がMAX_KEYSやキー名の形で黙って落ちると、切り分けが0件のまま続く。
-    [
-      "表示速度（補助指標つき・最大形）",
-      { CLS: 0, FCP: 2800, FID: 20, INP: 40, LCP: 3100, TTFB: 480, HTML_DL: 120, FCP_touch: 2800, LCP_touch: 3100, face: "anime" },
-      ["CLS", "FCP", "FID", "INP", "LCP", "TTFB", "HTML_DL", "FCP_touch", "LCP_touch", "face"],
-    ],
+    // components/WebVitals.tsx が送りうる最大の形。**手で書き写さず** lib/vitalsDiagnostics.ts を
+    // 実際に呼んで作る（2026-09-29。補助指標を足した日に MAX_KEYS で face ごと黙って落ちるのを防ぐ㊳）。
+    // 回線の種類3通り × タッチ/マウスの全部を通す（どの分岐でもキー数が増えうるため）。
+    ...(() => {
+      const m: Record<string, number> = {};
+      for (const k of REPORTED_METRICS) m[k] = 1000;
+      const conns = [{ effectiveType: "4g", rtt: 50 }, { effectiveType: "3g", rtt: 400 }, undefined];
+      const shapes: [string, Record<string, unknown>, string[]][] = [];
+      for (const connection of conns) {
+        for (const coarse of [true, false]) {
+          const data = {
+            face: "anime",
+            ...m,
+            ...buildDiagnostics(m, { nav: { responseStart: 300, responseEnd: 2300, transferSize: 15000 }, coarse, connection }),
+          };
+          shapes.push([`表示速度（補助指標つき・最大形 ${networkClass(connection)}/${coarse ? "touch" : "mouse"}）`, data, Object.keys(data)]);
+        }
+      }
+      return shapes;
+    })(),
     ["日本語の作品名", { title: "久保さんは僕を許さない" }, ["title"]],
     ["クール切替", { season: "summer", year: 2026 }, ["season", "year"]],
   ];
@@ -3968,6 +3982,33 @@ let dataNg = 0;
   console.log(
     `${p2 ? "✓" : "✗"}  ${"正常な計測値は通す".padEnd(40)} → ${legit.length}件中 落ちた${broken.length}件` +
       (p2 ? "" : `  (${broken.map(([n]) => n).join(", ")})`)
+  );
+
+  // ②-2 補助指標の中身（2026-09-29）。切り分けの軸が静かに崩れると、p75 は出続けるのに
+  //      何も区別できていない状態になる（例: 全部 na に落ちる・壊れた計時で負の HTML_DL を送る）。
+  const nav = { responseStart: 300, responseEnd: 2300, transferSize: 15000 };
+  const dg4 = buildDiagnostics({ FCP: 2500, LCP: 2600 }, { nav, coarse: true, connection: { effectiveType: "4g", rtt: 75 } });
+  const dgSlow = buildDiagnostics({}, { nav, connection: { effectiveType: "slow-2g" } });
+  const dgNa = buildDiagnostics({}, { nav, connection: undefined });
+  const dgBroken = buildDiagnostics({}, { nav: { responseStart: 900, responseEnd: 100 }, connection: { effectiveType: "4g", rtt: Number.NaN } });
+  const dgChecks: [string, boolean][] = [
+    ["4g は HTML_DL_4g に入る", dg4.HTML_DL_4g === 2000 && dg4.HTML_DL === 2000],
+    ["転送量と RTT を送る", dg4.HTML_TX === 15000 && dg4.RTT === 75],
+    ["タッチは FCP_touch/LCP_touch", dg4.FCP_touch === 2500 && dg4.LCP_touch === 2600 && !("FCP_mouse" in dg4)],
+    ["4g 以外は slow", dgSlow.HTML_DL_slow === 2000 && !("HTML_DL_4g" in dgSlow)],
+    ["API が無ければ na（iPhone）", dgNa.HTML_DL_na === 2000 && !("RTT" in dgNa)],
+    ["逆転した計時・NaN は送らない", Object.keys(dgBroken).length === 0],
+  ];
+  const dgBad = dgChecks.filter(([, ok]) => !ok).map(([n]) => n);
+  // face は先頭で送ること（MAX_KEYS は先頭から数える。末尾だと上限で face だけ落ちる）。
+  const wvSrc = readFileSync(new URL("../components/WebVitals.tsx", import.meta.url), "utf8");
+  if (!/send\("web_vitals",\s*\{\s*face\s*,/.test(wvSrc)) dgBad.push("WebVitals.tsx が face を先頭で送っていない");
+  if (!/buildDiagnostics\(/.test(wvSrc)) dgBad.push("WebVitals.tsx が buildDiagnostics を通していない");
+  const p2b = dgBad.length === 0;
+  if (!p2b) dataNg++;
+  console.log(
+    `${p2b ? "✓" : "✗"}  ${"補助指標で回線・端末を切り分けられる".padEnd(40)} → ${dgChecks.length + 2}項目中 NG${dgBad.length}件` +
+      (p2b ? "" : `  (${dgBad.join(", ")})`)
   );
 
   // ③ 上限が効いていること（DBとメモリを守る土台）。
