@@ -134,6 +134,9 @@ async function main() {
       lcp: median(runs.map((r) => r.lcp)),
       fcp: median(runs.map((r) => r.fcp)),
       ttfb: median(runs.map((r) => r.ttfb)),
+      // **本文を作り終えるまでの時間**（2026-09-29追加）。ストリーミングなので
+      // `ttfb` には出ない。RUMの `HTML_DL` と同じ定義にしてあるので直に比べられる。
+      htmlDl: median(runs.map((r) => r.htmlDl)),
       load: median(runs.map((r) => r.load)),
       blockingMs: median(runs.map((r) => r.blockingMs)),
       domNodes: median(runs.map((r) => r.domNodes)),
@@ -150,11 +153,16 @@ async function main() {
       // 「このURLは焼けていない」の signal になる（絶対値ではなく差で見る）。
       lcpFirst: runs[0].lcp,
       ttfbFirst: runs[0].ttfb,
+      // **事前生成の有無を分けるのはこれ**。焼いていないページは1回目だけ
+      // その場生成（fallback: blocking）になり、本文を作り終えるまでが長くなる。
+      // `ttfbFirst` では検出できない（ストリーミングでヘッダーが先に流れるため）。
+      htmlDlFirst: runs[0].htmlDl,
     };
     pages.push(row);
     console.log(
       `  ${row.face.padEnd(11)} LCP ${String(row.lcp).padStart(5)}ms  FCP ${String(row.fcp).padStart(5)}ms  ` +
-        `TTFB ${String(row.ttfb).padStart(4)}ms  TBT ${String(row.blockingMs).padStart(5)}ms  ${String(row.loadKB).padStart(4)}KB`
+        `TTFB ${String(row.ttfb).padStart(4)}ms  HTML_DL ${String(row.htmlDl).padStart(5)}ms  ` +
+        `TBT ${String(row.blockingMs).padStart(5)}ms  ${String(row.loadKB).padStart(4)}KB`
     );
   }
 

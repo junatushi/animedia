@@ -122,7 +122,7 @@ function main() {
     const rows = [...latest.json.pages].sort((a, b) => (b.lcp ?? 0) - (a.lcp ?? 0));
     console.log(
       "   面".padEnd(19) + "LCP".padStart(9) + "初回".padStart(9) + "前回比".padStart(9) + "7日前比".padStart(10) +
-        "FCP".padStart(8) + "TTFB".padStart(8) + "TBT".padStart(8) + "KB".padStart(7) + "  判定"
+        "FCP".padStart(8) + "TTFB".padStart(8) + "生成".padStart(8) + "TBT".padStart(8) + "KB".padStart(7) + "  判定"
     );
     let over = 0;
     for (const p of rows) {
@@ -135,6 +135,10 @@ function main() {
           fmtDelta(p.lcp, byFace(prev, p.face)?.lcp).padStart(9) +
           fmtDelta(p.lcp, byFace(weekAgo, p.face)?.lcp).padStart(10) +
           `${p.fcp}ms`.padStart(8) + `${p.ttfb}ms`.padStart(8) +
+          // 「生成」＝ responseEnd − responseStart。RUMの `HTML_DL` と同じ定義なので
+          // ②の表と直に比べられる。**この列が無かったせいで、RUMが問題だと言っている
+          // 場所を合成計測が一度も測っていなかった**（2026-09-29追加）。
+          (p.htmlDl == null ? "—" : `${p.htmlDl}ms`).padStart(8) +
           `${p.blockingMs}ms`.padStart(8) + `${p.loadKB}KB`.padStart(7) +
           (ok ? "  ✓" : `  ✗ 目標${GOALS.lcp}ms超`)
       );
@@ -152,31 +156,41 @@ function main() {
     // （about 初回1784ms・privacy 976ms・director 1596ms）まで入っていた。
     // つまり「初回が遅い」は事前生成の有無を分けていない。
     //
-    // 事前生成の有無を分けるのは**TTFBのほう**。その場生成（fallback: blocking）なら
-    // 1回目は応答そのものが遅れるので `ttfbFirst` が跳ねる。同日の実測では
-    // 17面すべてが `ttfbFirst ≒ ttfb`（27〜52ms・面ごとの幅6ms）で、**焼いている面も
-    // 焼いていない面も区別がつかなかった**＝どの面もISRキャッシュから返っていた。
-    // なので**この計測から事前生成の有無は判定できない**（判定したいなら
-    // ビルド成果物の`.next/prerender-manifest.json`を見る）。
+    // 事前生成の有無を分けるのは**「本文を作り終えるまで」（`htmlDl`）のほう**。
+    // **TTFBでは検出できない。** App Router はストリーミングで返すので、ヘッダーは
+    // 先に流れ、その場生成（fallback: blocking）の待ち時間は `responseEnd` 側に入る。
+    // 局所実験（本文を作るのに2,000ms掛かるサーバー）:
+    //   ストリーミング   ttfb   35ms / htmlDl 2000ms
+    //   非ストリーミング ttfb 2005ms / htmlDl    8ms
+    // **2026-09-29に一度ここを間違えた。** `ttfbFirst ≒ ttfb`（17面すべて・幅6ms）を
+    // 根拠に「どの面もキャッシュから返っている＝事前生成の話はできない」と結論したが、
+    // 上のとおりTTFBは元から生成コストを見ない指標だった。同じ日のRUMは
+    // `HTML_DL` の p75 が1,940〜2,353msで、遅さの大半がここに入っていた。
     //
-    // いま出すのは次の2つだけにする:
-    //   A 事前生成の疑い ＝ `ttfbFirst` が `ttfb` を大きく超える面（本物のsignal）
+    // いま出すのは次の2つ:
+    //   A 事前生成の疑い ＝ `htmlDlFirst` が `htmlDl` を大きく超える面
     //   B 初回が目標を超えた面 ＝ `lcpFirst` が目標(2秒)を超える面。原因は断定しない。
     // Bの閾値を「中央値との比」から「目標そのもの」に変えたのは、
     // **要件が「表示2秒未満」**であって「初回と中央値の差」ではないから。
     const hasFirst = (p) => typeof p.lcpFirst === "number" && typeof p.lcp === "number";
 
-    // A: その場生成の疑い（応答そのものが1回目だけ遅れている）。
-    const slowFirstByte = rows.filter(
-      (p) => typeof p.ttfbFirst === "number" && typeof p.ttfb === "number" &&
-        p.ttfbFirst - p.ttfb > 300 && p.ttfbFirst > p.ttfb * 1.5
+    // A: その場生成の疑い（1回目だけ本文の生成に時間が掛かっている）。
+    const slowFirstGen = rows.filter(
+      (p) => typeof p.htmlDlFirst === "number" && typeof p.htmlDl === "number" &&
+        p.htmlDlFirst - p.htmlDl > 300 && p.htmlDlFirst > p.htmlDl * 1.5
     );
-    if (slowFirstByte.length > 0) {
+    if (slowFirstGen.length > 0) {
       console.log(
-        `   ⚠ 初回だけ応答が遅い面（その場生成＝事前生成されていない疑い）: ` +
-          slowFirstByte.map((p) => `${p.face}(初回TTFB${p.ttfbFirst}ms / 中央値${p.ttfb}ms)`).join(" ")
+        `   ⚠ 初回だけ本文の生成が遅い面（その場生成＝事前生成されていない疑い）: ` +
+          slowFirstGen.map((p) => `${p.face}(初回${p.htmlDlFirst}ms / 中央値${p.htmlDl}ms)`).join(" ")
       );
       console.log("     `generateStaticParams` の対象から外れていないか見ること。");
+    }
+    // `htmlDl` を持たない断面（この列を入れる前のJSON）では、上の判定が
+    // **静かに沈黙する**。黙って見張りが消えるのが最悪なので、そのことを告げる。
+    if (rows.length > 0 && rows.every((p) => typeof p.htmlDlFirst !== "number")) {
+      console.log("   ℹ この断面は「本文を作り終えるまで」(生成) を記録していないので、その場生成の判定はしていない。");
+      console.log("     `scripts/measure-production.js` が新しくなった翌日の断面から効く。");
     }
 
     // B: 初回が目標を超えた面。**原因は書かない**（この計測では特定できない）。
@@ -199,7 +213,7 @@ function main() {
       );
       console.log("     初回は1回しか測らない（n=1）ので、1日だけなら偶発と区別できない。2日以上続いたら実体として扱う。");
       console.log(`     デプロイのたびにISRキャッシュが飛ぶので、訪問者はこの初回の値を引きうる。`);
-      console.log("     **原因はこの計測では特定できない**（その場生成かどうかは上の「初回だけ応答が遅い面」の行、");
+      console.log("     **原因はこの計測では特定できない**（その場生成かどうかは上の「初回だけ本文の生成が遅い面」の行、");
       console.log("     事前生成の有無はビルド成果物の .next/prerender-manifest.json で確かめる）。");
     }
     // ㊴の逆戻り（画面内の先読みが復活すると、押してもいないページのために数MB飛ぶ）。
