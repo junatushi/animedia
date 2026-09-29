@@ -37,6 +37,7 @@
 
 import { useEffect, useRef } from "react";
 import { useReportWebVitals } from "next/web-vitals";
+import { buildDiagnostics } from "@/lib/vitalsDiagnostics";
 
 // 面（ページ種別）。SEOレポートの「面」と同じ粒度に揃えるが、
 // 分類そのものは共有しない（上の④）。知らない接頭辞は "other" に落とす。
@@ -89,21 +90,23 @@ function send(event: string, data: Record<string, string | number>) {
 //     集計（lib/adminAnalytics.ts の vitalsP75）は数値のキーを指標として面ごとに
 //     p75 を取るので、キー名で分ければ集計側を変えずにスマホとPCを分けて見られる。
 // どれも既存の FCP/LCP を置き換えない（既存の判定と時系列を途切れさせない）。
-// キー数は最大で 6指標＋face＋3＝10（lib/trackEventData.ts の MAX_KEYS は12）。
+// 2026-09-29に回線の種類・転送量・RTTを追加し、組み立ては lib/vitalsDiagnostics.ts へ移した
+// （キー数の上限を node scripts/check.ts がその関数の実際の出力で検査するため）。
+// ここではブラウザから値を読むだけにする。
 function diagnostics(m: Record<string, number>): Record<string, number> {
-  const out: Record<string, number> = {};
   try {
     const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
-    if (nav && nav.responseEnd > 0 && nav.responseStart > 0 && nav.responseEnd >= nav.responseStart) {
-      out.HTML_DL = Math.round(nav.responseEnd - nav.responseStart);
-    }
-    const kind = window.matchMedia("(pointer: coarse)").matches ? "touch" : "mouse";
-    if (typeof m.FCP === "number") out[`FCP_${kind}`] = m.FCP;
-    if (typeof m.LCP === "number") out[`LCP_${kind}`] = m.LCP;
+    const conn = (navigator as Navigator & { connection?: { effectiveType?: string; rtt?: number } })
+      .connection;
+    return buildDiagnostics(m, {
+      nav,
+      coarse: window.matchMedia("(pointer: coarse)").matches,
+      connection: conn ? { effectiveType: conn.effectiveType, rtt: conn.rtt } : undefined,
+    });
   } catch {
     // 補助指標が取れなくても本体の指標は送る
+    return {};
   }
-  return out;
 }
 
 export default function WebVitals() {
@@ -142,7 +145,9 @@ export default function WebVitals() {
       // 1つも確定していないなら送らない（空行を作らない）。
       if (Object.keys(m).length === 0) return;
       sent.current = true;
-      send("web_vitals", { ...m, ...diagnostics(m), face });
+      // face を先頭に置く。キー数の上限（MAX_KEYS）は先頭から数えるので、
+      // 末尾に置くと補助指標を足した日に face だけ落ちて面が "other" に化ける。
+      send("web_vitals", { face, ...m, ...diagnostics(m) });
     };
 
     // visibilitychange(hidden) が最も確実。pagehide も併せて張る
