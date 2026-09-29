@@ -105,6 +105,35 @@ console.log("── 表示速度レポートの回帰テスト ──");
   check("別の計測元を前回比に使わない", !/-900ms|\+900ms/.test(out), out.match(/anime[^\n]*/)?.[0] ?? "");
   check("混ざっていることを告げる", /別の計測元の断面/.test(out));
 }
+{
+  // **外した理由が2つあるとき、件数を取り違えないこと**（2026-09-29追加）。
+  // usable は「計測元が違う」と「遅延の当て方が違う」の両方を外すので、
+  // その差をまとめて「別の計測元」として数えると水増しになる。
+  // ここは計測元違い1件・当て方違い1件で、どちらも「1 日ぶん」と出るのが正しい。
+  const withMode = (base, pages) => {
+    const sn = snap(base, pages);
+    sn.conditions = { ...sn.conditions, latencyMode: "perRequest" };
+    return sn;
+  };
+  const out = run(
+    {
+      "2026-09-06.json": snap("http://localhost:3100", [{ ...page("anime", false), lcp: 100 }]),
+      "2026-09-07.json": snap(PROD, [{ ...page("anime", false), ttfb: 30 }]),
+      "2026-09-08.json": withMode(PROD, [{ ...page("anime", false), ttfb: 180 }]),
+    },
+    {}
+  );
+  check(
+    "別の計測元の件数を水増ししない",
+    /別の計測元の断面が 1 日ぶん/.test(out),
+    out.match(/別の計測元の断面[^\n]*/)?.[0] ?? "(出ていない)"
+  );
+  check(
+    "当て方違いの件数も別に数える",
+    /2026-09-07 までの 1 日ぶんは擬似遅延の当て方が違う/.test(out),
+    out.match(/⚠[^\n]*擬似遅延[^\n]*/)?.[0] ?? "(出ていない)"
+  );
+}
 
 // ④ 先読みの復活（㊴）を警告する。
 {
@@ -119,37 +148,161 @@ console.log("── 表示速度レポートの回帰テスト ──");
   check("先読み0件では警告しない", !/先読みが飛んでいる面/.test(out));
 }
 
-// ④-2 **初回だけ遅い面＝事前生成されていない疑い**（2026-09-27追加）。
-// 同じURLを3回叩くので、焼けていないページは1回目だけ遅く2・3回目は速い。
-// **中央値は必ず温かい側に寄る**ので、中央値だけ見ていると焼けていないことに
-// 気づけない（実際に、今期の面が2秒超なのに毎日「全面が目標を満たす」と
-// 報告し続けていた）。**必ず対で固定する**——警告が出る側だけだと
-// 「常に警告する」方向に壊れたとき通ってしまう。
+// ④-2 初回（1回目）の値の読み方（2026-09-27追加 → **2026-09-29に2度作り直した**）。
+//
+// 1度目の判定は「`lcpFirst` が中央値より1.5倍かつ500ms以上大きい＝事前生成されていない疑い」
+// だったが、**実データで17面中11面が発火し、完全静的なページまで含んでいた**
+// （about・privacy・director。`generateStaticParams`と何の関係も無い）。
+//
+// 2度目は `ttfbFirst` に替えたが、**これも間違いだった**。App Router はストリーミングで
+// 返すのでヘッダーが先に流れ、その場生成の待ち時間は `responseEnd` 側に入る。
+// 局所実験（本文を作るのに2,000ms掛かるサーバー）では、ストリーミングだと
+// ttfb 35ms / htmlDl 2,000ms、非ストリーミングだと ttfb 2,005ms / htmlDl 8ms。
+// **TTFBは元から生成コストを見ない指標**なので、`ttfbFirst` の判定は永久に沈黙する。
+//
+// 3度目＝いまの判定は `htmlDlFirst`（responseEnd − responseStart の1回目）。
+// **静かに間違った原因を名指しするレポートも、静かに沈黙する見張りも、無いより悪い。**
+// 以下は「どちらの向きに壊れても落ちる」ように対で固定する。
 {
+  // A: 1回目だけ本文の生成が遅い＝その場生成の疑い。これだけが事前生成の話をしてよい。
   const out = run(
-    { "2026-09-08.json": snap(PROD, [{ ...page("anime", false), lcpFirst: 2600, ttfbFirst: 900 }]) },
+    { "2026-09-08.json": snap(PROD, [{ ...page("anime", false), lcpFirst: 2600, htmlDl: 120, htmlDlFirst: 2200 }]) },
     {}
   );
   check(
-    "初回だけ遅い面を警告する",
-    /初回だけ遅い面[\s\S]*anime\(初回2600ms/.test(out),
-    out.match(/初回だけ遅い面[^\n]*/)?.[0] ?? "(警告が出ていない)"
+    "初回だけ本文の生成が遅い面を「その場生成の疑い」として警告する",
+    /初回だけ本文の生成が遅い面[\s\S]*anime\(初回2200ms/.test(out),
+    out.match(/初回だけ本文の生成が遅い面[^\n]*/)?.[0] ?? "(警告が出ていない)"
   );
-  check("事前生成を見るよう促す", /generateStaticParams/.test(out));
+  check("その場生成の疑いでは事前生成を見るよう促す", /generateStaticParams/.test(out));
+}
+{
+  // **TTFBで判定しないこと**（2026-09-29の2度目の誤り）。ストリーミングでは
+  // その場生成でもTTFBは速いままなので、TTFBが平坦でも生成が遅ければ警告する。
+  const out = run(
+    {
+      "2026-09-08.json": snap(PROD, [
+        { ...page("anime", false), ttfb: 30, ttfbFirst: 30, htmlDl: 100, htmlDlFirst: 2100 },
+      ]),
+    },
+    {}
+  );
+  check(
+    "TTFBが平坦でも生成が遅ければ警告する",
+    /初回だけ本文の生成が遅い面[\s\S]*anime\(初回2100ms/.test(out),
+    out.match(/初回だけ本文の生成が遅い面[^\n]*/)?.[0] ?? "(警告が出ていない)"
+  );
+}
+{
+  // 生成が1回目から速ければ、その場生成の疑いは出さない。
+  const out = run(
+    { "2026-09-08.json": snap(PROD, [{ ...page("anime", false), htmlDl: 100, htmlDlFirst: 130 }]) },
+    {}
+  );
+  check("生成が初回から速ければ警告しない", !/初回だけ本文の生成が遅い面/.test(out));
+}
+{
+  // **生成の値を持たない古い断面では、見張りが黙って消える。** それを告げること
+  // （黙って沈黙するのが最悪の壊れ方。1度目・2度目の誤りはどちらもこの形だった）。
+  const out = run({ "2026-09-08.json": snap(PROD, [{ ...page("anime", false), lcpFirst: 950 }]) }, {});
+  check("生成を記録していない断面ではそう告げる", /その場生成の判定はしていない/.test(out));
+  check("生成が無い列は「—」で示す", /anime[^\n]*—/.test(out), out.match(/anime[^\n]*/)?.[0] ?? "");
+}
+{
+  // 1度目の誤りの再発防止。初回のLCPだけが遅い面を「事前生成されていない疑い」と呼ばない。
+  const out = run(
+    { "2026-09-08.json": snap(PROD, [{ ...page("anime", false), lcpFirst: 2600, htmlDl: 100, htmlDlFirst: 120 }]) },
+    {}
+  );
+  check("初回のLCPが遅いだけでは事前生成のせいにしない", !/その場生成＝事前生成されていない疑い/.test(out));
+  check("その場合も generateStaticParams を促さない", !/generateStaticParams/.test(out));
+  check("生成を記録していれば「判定していない」とは言わない", !/その場生成の判定はしていない/.test(out));
+  check(
+    "初回が目標を超えたことは出す",
+    /初回が目標\(2000ms\)を超えた面[\s\S]*anime\(初回2600ms/.test(out),
+    out.match(/初回が目標[^\n]*/)?.[0] ?? "(警告が出ていない)"
+  );
+  check("原因を特定できないと明示する", /原因はこの計測では特定できない/.test(out));
+}
+{
+  // 初回が目標の内側なら何も言わない（導入時の判定はここで11面ぶん誤発火していた。
+  // 実データの about は初回1784ms・中央値436ms＝比では4.1倍だが、目標は満たしている）。
+  const out = run(
+    { "2026-09-08.json": snap(PROD, [{ ...page("anime", false), lcp: 436, lcpFirst: 1784, ttfbFirst: 105 }]) },
+    {}
+  );
+  check("初回が目標内なら警告しない", !/初回が目標\(2000ms\)を超えた面/.test(out));
+}
+{
+  // 初回は1回しか測らない（n=1）ので、何日続いたかを添えること。
+  // 1日だけの跳ねを「実体」と読ませない。
+  const out = run(
+    {
+      "2026-09-06.json": snap(PROD, [{ ...page("anime", false), lcpFirst: 900, ttfbFirst: 105 }]),
+      "2026-09-07.json": snap(PROD, [{ ...page("anime", false), lcpFirst: 2600, ttfbFirst: 105 }]),
+      "2026-09-08.json": snap(PROD, [{ ...page("anime", false), lcpFirst: 2700, ttfbFirst: 105 }]),
+    },
+    {}
+  );
+  check("続いた日数を数える", /anime\(初回2700ms[^)]*・2日連続\)/.test(out), out.match(/初回が目標[^\n]*/)?.[0] ?? "");
+  check("n=1であることを断る", /n=1/.test(out));
 }
 {
   const out = run(
     { "2026-09-08.json": snap(PROD, [{ ...page("anime", false), lcpFirst: 950, ttfbFirst: 110 }]) },
     {}
   );
-  check("初回も速ければ警告しない", !/初回だけ遅い面/.test(out));
+  check("初回も速ければどちらの警告も出さない", !/初回が目標|初回だけ応答が遅い面/.test(out));
 }
 {
   // 初回の値を持たない古い断面（この仕組みを入れる前のJSON）で、
   // 警告も例外も出さずに「—」と出すこと。
   const out = run({ "2026-09-08.json": snap(PROD, [page("anime", false)]) }, {});
-  check("初回の値が無い断面では警告しない", !/初回だけ遅い面/.test(out));
+  check("初回の値が無い断面では警告しない", !/初回が目標|初回だけ応答が遅い面/.test(out));
   check("初回の値が無いことを「—」で示す", /anime[^\n]*—/.test(out), out.match(/anime[^\n]*/)?.[0] ?? "");
+}
+
+// ④-3 **擬似遅延の当て方が変わった日を跨いでTTFBを比べない**（2026-09-29追加）。
+// 2026-09-29まで擬似遅延はTTFBに乗っていなかった（Chromiumのネットワーク擬似条件は
+// 遅延を応答が始まったあとに効かせるため、`responseStart`に出ない）。直した日に
+// TTFBは30ms前後から180ms前後へ跳ねるが、**それは悪化ではない**。
+// 黙っていると次に読む人が必ず「遅くなった」と読む。
+{
+  const withMode = (base, pages) => {
+    const sn = snap(base, pages);
+    sn.conditions = { ...sn.conditions, latencyMode: "perRequest" };
+    return sn;
+  };
+  const out = run(
+    {
+      "2026-09-07.json": snap(PROD, [{ ...page("anime", false), ttfb: 30 }]),
+      "2026-09-08.json": withMode(PROD, [{ ...page("anime", false), ttfb: 180 }]),
+    },
+    {}
+  );
+  check(
+    "当て方が違う断面を外したことを告げる",
+    /2026-09-07 までの 1 日ぶんは擬似遅延の当て方が違う/.test(out),
+    out.match(/⚠[^\n]*擬似遅延[^\n]*/)?.[0] ?? "(出ていない)"
+  );
+  check("跳ね上がりは悪化ではないと断る", /遅くなったのではなく/.test(out));
+  check("条件行に当て方を出す", /遅延150ms（リクエストごと＝TTFBに乗る）/.test(out), out.match(/条件:[^\n]*/)?.[0] ?? "");
+  // **当て方が違う断面を前回比に使わないこと**（TTFBは30→180msで+150ms、
+  // LCP・FCPも動くので、跨いだ前回比はどの指標でも意味を持たない）。
+  check("当て方が違う断面を前回比に使わない", !/\+150ms/.test(out), out.match(/anime[^\n]*/)?.[0] ?? "");
+  check("外した結果を断面数に反映する", /断面 1 日ぶん/.test(out), out.match(/条件:[^\n]*/)?.[0] ?? "");
+}
+{
+  // 全断面が同じ当て方なら、この注意は出さない（毎回出ると読まれなくなる）。
+  const sn = snap(PROD, [{ ...page("anime", false), ttfb: 180 }]);
+  sn.conditions = { ...sn.conditions, latencyMode: "perRequest" };
+  const out = run({ "2026-09-08.json": sn }, {});
+  check("混ざっていなければ注意を出さない", !/擬似遅延の当て方が変わって/.test(out));
+}
+{
+  // 古い断面だけのときは「TTFBには乗っていない」と正直に出す。
+  const out = run({ "2026-09-08.json": snap(PROD, [page("anime", false)]) }, {});
+  check("古い断面では遅延がTTFBに乗っていないと書く", /遅延150ms（TTFBには乗っていない）/.test(out), out.match(/条件:[^\n]*/)?.[0] ?? "");
 }
 
 // ⑤ RUM は件数が足りないうちは判定しない（少数からの一般化を再発させない）。

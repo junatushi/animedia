@@ -39,7 +39,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { sampleUrls, currentSampleUrls } = require("./lib/route-samples.js");
-const { measure, CPU_THROTTLE, NET_KBPS, NET_LATENCY_MS } = require("./lib/measure-page.js");
+const { measure, CPU_THROTTLE, NET_KBPS, NET_LATENCY_MS, LATENCY_MODE } = require("./lib/measure-page.js");
 
 const REPO = path.join(__dirname, "..");
 const BASE = process.env.BASE || "https://animedia-khaki.vercel.app";
@@ -134,6 +134,9 @@ async function main() {
       lcp: median(runs.map((r) => r.lcp)),
       fcp: median(runs.map((r) => r.fcp)),
       ttfb: median(runs.map((r) => r.ttfb)),
+      // **本文を作り終えるまでの時間**（2026-09-29追加）。ストリーミングなので
+      // `ttfb` には出ない。RUMの `HTML_DL` と同じ定義にしてあるので直に比べられる。
+      htmlDl: median(runs.map((r) => r.htmlDl)),
       load: median(runs.map((r) => r.load)),
       blockingMs: median(runs.map((r) => r.blockingMs)),
       domNodes: median(runs.map((r) => r.domNodes)),
@@ -150,11 +153,16 @@ async function main() {
       // 「このURLは焼けていない」の signal になる（絶対値ではなく差で見る）。
       lcpFirst: runs[0].lcp,
       ttfbFirst: runs[0].ttfb,
+      // **事前生成の有無を分けるのはこれ**。焼いていないページは1回目だけ
+      // その場生成（fallback: blocking）になり、本文を作り終えるまでが長くなる。
+      // `ttfbFirst` では検出できない（ストリーミングでヘッダーが先に流れるため）。
+      htmlDlFirst: runs[0].htmlDl,
     };
     pages.push(row);
     console.log(
       `  ${row.face.padEnd(11)} LCP ${String(row.lcp).padStart(5)}ms  FCP ${String(row.fcp).padStart(5)}ms  ` +
-        `TTFB ${String(row.ttfb).padStart(4)}ms  TBT ${String(row.blockingMs).padStart(5)}ms  ${String(row.loadKB).padStart(4)}KB`
+        `TTFB ${String(row.ttfb).padStart(4)}ms  HTML_DL ${String(row.htmlDl).padStart(5)}ms  ` +
+        `TBT ${String(row.blockingMs).padStart(5)}ms  ${String(row.loadKB).padStart(4)}KB`
     );
   }
 
@@ -169,7 +177,15 @@ async function main() {
   const result = {
     fetchedAt: new Date().toISOString(),
     base: BASE,
-    conditions: { cpuThrottle: CPU_THROTTLE, netKbps: NET_KBPS, latencyMs: NET_LATENCY_MS, runs: RUNS },
+    conditions: {
+      cpuThrottle: CPU_THROTTLE,
+      netKbps: NET_KBPS,
+      latencyMs: NET_LATENCY_MS,
+      // **遅延の当て方を残す**（2026-09-29追加）。これが無い断面は
+      // 擬似遅延がTTFBに乗っていないので、TTFBを跨いで比べてはいけない。
+      latencyMode: LATENCY_MODE,
+      runs: RUNS,
+    },
     // 測れなかったものを結果に残す（後から「その日は何面だったか」を数えられるように）。
     skipped,
     failures,
