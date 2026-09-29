@@ -59,6 +59,7 @@ async function main() {
     "FCP".padStart(7),
     "LCP".padStart(7),
     "load".padStart(7),
+    "生成".padStart(7),
     "TBT".padStart(7),
     "最長".padStart(7),
     "DOM".padStart(7),
@@ -75,6 +76,9 @@ async function main() {
         `${r.fcp}ms`.padStart(7),
         `${r.lcp}ms`.padStart(7),
         `${r.load}ms`.padStart(7),
+        // 「生成」＝ responseEnd − responseStart。ストリーミングなのでTTFBには出ない
+        // （＝サーバーが本文を作り終えるまで。RUMの HTML_DL と同じ定義）。
+        `${r.htmlDl}ms`.padStart(7),
         `${r.blockingMs}ms`.padStart(7),
         `${r.maxTaskMs}ms`.padStart(7),
         String(r.domNodes).padStart(7),
