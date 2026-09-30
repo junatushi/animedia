@@ -122,7 +122,7 @@ function main() {
     const rows = [...latest.json.pages].sort((a, b) => (b.lcp ?? 0) - (a.lcp ?? 0));
     console.log(
       "   面".padEnd(19) + "LCP".padStart(9) + "初回".padStart(9) + "前回比".padStart(9) + "7日前比".padStart(10) +
-        "FCP".padStart(8) + "TTFB".padStart(8) + "生成".padStart(8) + "TBT".padStart(8) + "KB".padStart(7) + "  判定"
+        "FCP".padStart(8) + "TTFB".padStart(8) + "受信".padStart(8) + "TBT".padStart(8) + "KB".padStart(7) + "  判定"
     );
     let over = 0;
     for (const p of rows) {
@@ -135,9 +135,12 @@ function main() {
           fmtDelta(p.lcp, byFace(prev, p.face)?.lcp).padStart(9) +
           fmtDelta(p.lcp, byFace(weekAgo, p.face)?.lcp).padStart(10) +
           `${p.fcp}ms`.padStart(8) + `${p.ttfb}ms`.padStart(8) +
-          // 「生成」＝ responseEnd − responseStart。RUMの `HTML_DL` と同じ定義なので
+          // 「受信」＝ responseEnd − responseStart。RUMの `HTML_DL` と同じ定義なので
           // ②の表と直に比べられる。**この列が無かったせいで、RUMが問題だと言っている
           // 場所を合成計測が一度も測っていなかった**（2026-09-29追加）。
+          // **列名は2026-09-30に「生成」から「受信」へ訂正した。** 本番の実測では生成の
+          // 待ちはTTFB側に出ており（`docs/operations.md`の[59]）、この列を「サーバーが
+          // 本文を作り終えるまで」と読むと診断を丸ごと間違える（下の「初回の値の読み方」）。
           (p.htmlDl == null ? "—" : `${p.htmlDl}ms`).padStart(8) +
           `${p.blockingMs}ms`.padStart(8) + `${p.loadKB}KB`.padStart(7) +
           (ok ? "  ✓" : `  ✗ 目標${GOALS.lcp}ms超`)
@@ -147,49 +150,68 @@ function main() {
       `\n   → ${rows.length} 面中 ${rows.length - over} 面が目標（LCP ${GOALS.lcp}ms未満）を満たす` +
         `／Google基準(${GOALS.lcpReference}ms)なら ${rows.filter((p) => p.lcp < GOALS.lcpReference).length} 面`
     );
-    // ── 初回（1回目）の値の読み方（2026-09-27導入 → **2026-09-29に判定を作り直した**）。
+    // ── 初回（1回目）の値の読み方
+    //   （2026-09-27導入 → 09-29に作り直し → **09-30にもう一度作り直した**）。
     //
-    // 導入時は `lcpFirst - lcp > 500 && lcpFirst > lcp * 1.5` を
-    // 「事前生成されていない疑い」として警告していたが、**この判定は間違いだった**。
-    // 2026-09-29の実データ（今期の面を含む17面）で17面中11面が発火し、
-    // その中には`generateStaticParams`と無関係な**完全静的なページ**
-    // （about 初回1784ms・privacy 976ms・director 1596ms）まで入っていた。
-    // つまり「初回が遅い」は事前生成の有無を分けていない。
+    // **経緯を全部残すのは、同じ間違いを3度やったから。** 形はいつも同じで、
+    // 「初回が遅い」という観測に「事前生成されていない」という**原因を貼り付けた**。
     //
-    // 事前生成の有無を分けるのは**「本文を作り終えるまで」（`htmlDl`）のほう**。
-    // **TTFBでは検出できない。** App Router はストリーミングで返すので、ヘッダーは
-    // 先に流れ、その場生成（fallback: blocking）の待ち時間は `responseEnd` 側に入る。
-    // 局所実験（本文を作るのに2,000ms掛かるサーバー）:
-    //   ストリーミング   ttfb   35ms / htmlDl 2000ms
-    //   非ストリーミング ttfb 2005ms / htmlDl    8ms
-    // **2026-09-29に一度ここを間違えた。** `ttfbFirst ≒ ttfb`（17面すべて・幅6ms）を
-    // 根拠に「どの面もキャッシュから返っている＝事前生成の話はできない」と結論したが、
-    // 上のとおりTTFBは元から生成コストを見ない指標だった。同じ日のRUMは
-    // `HTML_DL` の p75 が1,940〜2,353msで、遅さの大半がここに入っていた。
+    // ① 2026-09-27: `lcpFirst - lcp > 500 && lcpFirst > lcp * 1.5` を
+    //    「事前生成されていない疑い」として警告した。実データ17面中11面で発火し、
+    //    `generateStaticParams` と無関係な**完全静的なページ**（about・privacy・director）
+    //    まで入った。→ 判定を `lcpFirst >= GOALS.lcp`（下のB）へ置き換えた。
+    // ② 2026-09-29: 同じ主張を `htmlDlFirst` に載せ替えた。「ストリーミングなので生成の
+    //    待ちは responseEnd 側に出る」という理屈は**局所実験では成り立った**
+    //    （本文に2,000ms掛かるサーバー: ストリーミング ttfb 35ms/htmlDl 2000ms、
+    //    非ストリーミング ttfb 2005ms/htmlDl 8ms）。
+    // ③ 2026-09-30の実データで②も外れた:
+    //    ・17面中**15面**で発火。`about`・`privacy`（データ取得ゼロ・動的セグメント無し＝
+    //      完全静的）まで初回596/686ms vs 中央値238/251ms。
+    //    ・**焼いていない面のほうが短い**。`anime-current` 112ms・`service-current` 115ms
+    //      vs 焼いてある `season-current` 1111ms・`rankings-current` 239ms。
+    //      同一ルートでも `anime`（過去・焼いてある）266ms > `anime-current`（焼いていない）112ms。
+    //    ・本番をcurlした実測（`docs/operations.md`の[59]）では、キャッシュMISSでも
+    //      最初のバイト→完了が14〜17ms。**生成の待ちはTTFB側に出ていた。**
     //
-    // いま出すのは次の2つ:
-    //   A 事前生成の疑い ＝ `htmlDlFirst` が `htmlDl` を大きく超える面
-    //   B 初回が目標を超えた面 ＝ `lcpFirst` が目標(2秒)を超える面。原因は断定しない。
+    // **なぜ初回だけ長いのか（分かっていること）**: `measure()` は毎回ブラウザを起動し直し、
+    // 指標の読み取りも `withScroll` の分岐より前なので、3回とも条件は同じ。差はサーバー／
+    // CDN側の状態だけ（2・3回目は1回目が温めたエッジに当たる）。だから `htmlDlFirst` が
+    // 見ているのは**エッジの温まり具合**で、事前生成の有無ではない。
+    //
+    // **この計測では事前生成の有無を判定できない**（構造的な限界）。長い裾の `revalidate` は
+    // 604800秒なので、毎日同じURLを測るとISRキャッシュは前日から生きており、
+    // **初回生成をそもそも踏めない**。知りたいときはビルド成果物の
+    // `.next/prerender-manifest.json` を見る。
+    //
+    // いま出すのは次の2つで、**どちらも原因を書かない**:
+    //   A 初回だけHTML本体の受信が長い面（絶対値が目標の半分を超えたときだけ）
+    //   B 初回のLCPが目標(2秒)を超えた面
     // Bの閾値を「中央値との比」から「目標そのもの」に変えたのは、
     // **要件が「表示2秒未満」**であって「初回と中央値の差」ではないから。
     const hasFirst = (p) => typeof p.lcpFirst === "number" && typeof p.lcp === "number";
 
-    // A: その場生成の疑い（1回目だけ本文の生成に時間が掛かっている）。
-    const slowFirstGen = rows.filter(
+    // A: 初回だけHTML本体の受信が長い面。**原因は言わない**（上の③）。
+    // 絶対値の門（目標の半分）を置くのは、比だけで見ると**完全静的な面まで全部入る**から。
+    // 訪問者にとって意味があるのは「2秒の予算のうち何msを受信で使ったか」なので、
+    // 予算の半分を超えたときだけ出す（09-30の実データでは15面→2面）。
+    const FIRST_DL_FLOOR = Math.round(GOALS.lcp / 2);
+    const slowFirstDl = rows.filter(
       (p) => typeof p.htmlDlFirst === "number" && typeof p.htmlDl === "number" &&
+        p.htmlDlFirst >= FIRST_DL_FLOOR &&
         p.htmlDlFirst - p.htmlDl > 300 && p.htmlDlFirst > p.htmlDl * 1.5
     );
-    if (slowFirstGen.length > 0) {
+    if (slowFirstDl.length > 0) {
       console.log(
-        `   ⚠ 初回だけ本文の生成が遅い面（その場生成＝事前生成されていない疑い）: ` +
-          slowFirstGen.map((p) => `${p.face}(初回${p.htmlDlFirst}ms / 中央値${p.htmlDl}ms)`).join(" ")
+        `   ⚠ 初回だけHTML本体の受信が長い面（${FIRST_DL_FLOOR}ms以上）: ` +
+          slowFirstDl.map((p) => `${p.face}(初回${p.htmlDlFirst}ms / 中央値${p.htmlDl}ms)`).join(" ")
       );
-      console.log("     `generateStaticParams` の対象から外れていないか見ること。");
+      console.log("     **原因はこの計測では特定できない**（完全静的な面でも初回は長く出る＝上のコメント③）。");
+      console.log("     事前生成の有無はビルド成果物の .next/prerender-manifest.json で確かめる。");
     }
-    // `htmlDl` を持たない断面（この列を入れる前のJSON）では、上の判定が
+    // `htmlDlFirst` を持たない断面（この列を入れる前のJSON）では、上の判定が
     // **静かに沈黙する**。黙って見張りが消えるのが最悪なので、そのことを告げる。
     if (rows.length > 0 && rows.every((p) => typeof p.htmlDlFirst !== "number")) {
-      console.log("   ℹ この断面は「本文を作り終えるまで」(生成) を記録していないので、その場生成の判定はしていない。");
+      console.log("   ℹ この断面はHTML本体の受信時間(受信)を記録していないので、初回の受信の判定はしていない。");
       console.log("     `scripts/measure-production.js` が新しくなった翌日の断面から効く。");
     }
 
@@ -213,8 +235,9 @@ function main() {
       );
       console.log("     初回は1回しか測らない（n=1）ので、1日だけなら偶発と区別できない。2日以上続いたら実体として扱う。");
       console.log(`     デプロイのたびにISRキャッシュが飛ぶので、訪問者はこの初回の値を引きうる。`);
-      console.log("     **原因はこの計測では特定できない**（その場生成かどうかは上の「初回だけ本文の生成が遅い面」の行、");
-      console.log("     事前生成の有無はビルド成果物の .next/prerender-manifest.json で確かめる）。");
+      console.log("     **原因はこの計測では特定できない**（受信の内訳は上の「初回だけHTML本体の受信が長い面」の行、");
+      console.log("     事前生成の有無はビルド成果物の .next/prerender-manifest.json で確かめる。");
+      console.log("     この計測はISRキャッシュが温まった後を見るので、その場生成そのものは踏めない）。");
     }
     // ㊴の逆戻り（画面内の先読みが復活すると、押してもいないページのために数MB飛ぶ）。
     const pf = rows.filter((p) => typeof p.scrollPrefetch === "number" && p.scrollPrefetch > 0);
