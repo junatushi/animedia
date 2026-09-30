@@ -1,0 +1,840 @@
+{
+  "fetchedAt": "2026-09-30T01:16:39.086Z",
+  "source": "https://animedia-khaki.vercel.app/api/admin/analytics",
+  "configured": true,
+  "windowDays": 30,
+  "rowCount": 1000,
+  "truncated": false,
+  "events": [
+    {
+      "event": "share_site",
+      "label": "サイト全体を共有",
+      "last7": 0,
+      "last30": 1
+    },
+    {
+      "event": "share_work",
+      "label": "作品を共有",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "favorite_add",
+      "label": "お気に入り登録",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "watched_add",
+      "label": "視聴済みに登録",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "notify_add",
+      "label": "配信通知を登録",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "filter_service",
+      "label": "配信サービスで絞り込み",
+      "last7": 1,
+      "last30": 1
+    },
+    {
+      "event": "filter_cast",
+      "label": "声優で絞り込み",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "change_season",
+      "label": "シーズン切り替え",
+      "last7": 48,
+      "last30": 73
+    },
+    {
+      "event": "follow_click",
+      "label": "SNSフォロー導線をクリック",
+      "last7": 2,
+      "last30": 2
+    },
+    {
+      "event": "calendar_subscribe",
+      "label": "カレンダー購読をクリック",
+      "last7": 1,
+      "last30": 1
+    },
+    {
+      "event": "plan_open",
+      "label": "視聴プランを開いた",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "affiliate_click",
+      "label": "広告リンクをクリック（提携済み）",
+      "last7": 0,
+      "last30": 1
+    },
+    {
+      "event": "official_link_click",
+      "label": "公式サイトへ（未提携）",
+      "last7": 9,
+      "last30": 12
+    },
+    {
+      "event": "embed_copy",
+      "label": "埋め込みコードをコピー",
+      "last7": 0,
+      "last30": 0
+    },
+    {
+      "event": "web_vitals",
+      "label": "表示速度の実測（1ページビュー1件）",
+      "last7": 250,
+      "last30": 520
+    },
+    {
+      "event": "page_view",
+      "label": "外部からの流入（リファラあり）",
+      "last7": 199,
+      "last30": 389
+    }
+  ],
+  "filterService": [
+    [
+      "d_anime",
+      1
+    ]
+  ],
+  "officialClicks": [
+    [
+      "prime",
+      6
+    ],
+    [
+      "dmm",
+      1
+    ],
+    [
+      "netflix",
+      1
+    ],
+    [
+      "hulu",
+      1
+    ],
+    [
+      "d_anime",
+      1
+    ],
+    [
+      "niconico",
+      1
+    ],
+    [
+      "youtube",
+      1
+    ]
+  ],
+  "affiliateClicks": [
+    [
+      "prime",
+      1
+    ]
+  ],
+  "vitals": [
+    {
+      "face": "anime",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 71
+    },
+    {
+      "face": "anime",
+      "metric": "FCP",
+      "p75": 2767,
+      "count": 139
+    },
+    {
+      "face": "anime",
+      "metric": "FCP_mouse",
+      "p75": 2364,
+      "count": 13
+    },
+    {
+      "face": "anime",
+      "metric": "FCP_touch",
+      "p75": 2464,
+      "count": 58
+    },
+    {
+      "face": "anime",
+      "metric": "FID",
+      "p75": 26,
+      "count": 45
+    },
+    {
+      "face": "anime",
+      "metric": "HTML_DL",
+      "p75": 1963,
+      "count": 75
+    },
+    {
+      "face": "anime",
+      "metric": "HTML_DL_4g",
+      "p75": 1467,
+      "count": 5
+    },
+    {
+      "face": "anime",
+      "metric": "HTML_DL_na",
+      "p75": 1095,
+      "count": 11
+    },
+    {
+      "face": "anime",
+      "metric": "HTML_TX",
+      "p75": 15686,
+      "count": 16
+    },
+    {
+      "face": "anime",
+      "metric": "INP",
+      "p75": 40,
+      "count": 48
+    },
+    {
+      "face": "anime",
+      "metric": "LCP",
+      "p75": 2824,
+      "count": 129
+    },
+    {
+      "face": "anime",
+      "metric": "LCP_mouse",
+      "p75": 2364,
+      "count": 13
+    },
+    {
+      "face": "anime",
+      "metric": "LCP_touch",
+      "p75": 2676,
+      "count": 55
+    },
+    {
+      "face": "anime",
+      "metric": "RTT",
+      "p75": 50,
+      "count": 5
+    },
+    {
+      "face": "anime",
+      "metric": "TTFB",
+      "p75": 451,
+      "count": 162
+    },
+    {
+      "face": "developers",
+      "metric": "FCP",
+      "p75": 844,
+      "count": 1
+    },
+    {
+      "face": "developers",
+      "metric": "FCP_touch",
+      "p75": 844,
+      "count": 1
+    },
+    {
+      "face": "developers",
+      "metric": "FID",
+      "p75": 27,
+      "count": 1
+    },
+    {
+      "face": "developers",
+      "metric": "HTML_DL",
+      "p75": 642,
+      "count": 1
+    },
+    {
+      "face": "developers",
+      "metric": "INP",
+      "p75": 32,
+      "count": 1
+    },
+    {
+      "face": "developers",
+      "metric": "LCP",
+      "p75": 876,
+      "count": 1
+    },
+    {
+      "face": "developers",
+      "metric": "LCP_touch",
+      "p75": 876,
+      "count": 1
+    },
+    {
+      "face": "developers",
+      "metric": "TTFB",
+      "p75": 164,
+      "count": 1
+    },
+    {
+      "face": "director",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 1
+    },
+    {
+      "face": "director",
+      "metric": "FCP",
+      "p75": 2751,
+      "count": 2
+    },
+    {
+      "face": "director",
+      "metric": "FID",
+      "p75": 11,
+      "count": 1
+    },
+    {
+      "face": "director",
+      "metric": "INP",
+      "p75": 56,
+      "count": 1
+    },
+    {
+      "face": "director",
+      "metric": "LCP",
+      "p75": 2751,
+      "count": 2
+    },
+    {
+      "face": "director",
+      "metric": "TTFB",
+      "p75": 141,
+      "count": 2
+    },
+    {
+      "face": "exclusive",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 3
+    },
+    {
+      "face": "exclusive",
+      "metric": "FCP",
+      "p75": 2588,
+      "count": 3
+    },
+    {
+      "face": "exclusive",
+      "metric": "FCP_mouse",
+      "p75": 2588,
+      "count": 1
+    },
+    {
+      "face": "exclusive",
+      "metric": "FID",
+      "p75": 2,
+      "count": 1
+    },
+    {
+      "face": "exclusive",
+      "metric": "HTML_DL",
+      "p75": 2301,
+      "count": 1
+    },
+    {
+      "face": "exclusive",
+      "metric": "INP",
+      "p75": 0,
+      "count": 1
+    },
+    {
+      "face": "exclusive",
+      "metric": "LCP",
+      "p75": 2588,
+      "count": 3
+    },
+    {
+      "face": "exclusive",
+      "metric": "LCP_mouse",
+      "p75": 2588,
+      "count": 1
+    },
+    {
+      "face": "exclusive",
+      "metric": "TTFB",
+      "p75": 986,
+      "count": 3
+    },
+    {
+      "face": "home",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 53
+    },
+    {
+      "face": "home",
+      "metric": "FCP",
+      "p75": 2296,
+      "count": 56
+    },
+    {
+      "face": "home",
+      "metric": "FCP_mouse",
+      "p75": 2532,
+      "count": 18
+    },
+    {
+      "face": "home",
+      "metric": "FCP_touch",
+      "p75": 1772,
+      "count": 13
+    },
+    {
+      "face": "home",
+      "metric": "FID",
+      "p75": 22,
+      "count": 36
+    },
+    {
+      "face": "home",
+      "metric": "HTML_DL",
+      "p75": 1296,
+      "count": 36
+    },
+    {
+      "face": "home",
+      "metric": "HTML_DL_4g",
+      "p75": 1719,
+      "count": 1
+    },
+    {
+      "face": "home",
+      "metric": "HTML_DL_na",
+      "p75": 198,
+      "count": 1
+    },
+    {
+      "face": "home",
+      "metric": "HTML_TX",
+      "p75": 55012,
+      "count": 2
+    },
+    {
+      "face": "home",
+      "metric": "INP",
+      "p75": 328,
+      "count": 39
+    },
+    {
+      "face": "home",
+      "metric": "LCP",
+      "p75": 2364,
+      "count": 56
+    },
+    {
+      "face": "home",
+      "metric": "LCP_mouse",
+      "p75": 2920,
+      "count": 18
+    },
+    {
+      "face": "home",
+      "metric": "LCP_touch",
+      "p75": 1872,
+      "count": 13
+    },
+    {
+      "face": "home",
+      "metric": "RTT",
+      "p75": 100,
+      "count": 1
+    },
+    {
+      "face": "home",
+      "metric": "TTFB",
+      "p75": 347,
+      "count": 65
+    },
+    {
+      "face": "person",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 88
+    },
+    {
+      "face": "person",
+      "metric": "FCP",
+      "p75": 3156,
+      "count": 151
+    },
+    {
+      "face": "person",
+      "metric": "FCP_mouse",
+      "p75": 1796,
+      "count": 6
+    },
+    {
+      "face": "person",
+      "metric": "FCP_touch",
+      "p75": 2912,
+      "count": 39
+    },
+    {
+      "face": "person",
+      "metric": "FID",
+      "p75": 23,
+      "count": 56
+    },
+    {
+      "face": "person",
+      "metric": "HTML_DL",
+      "p75": 2056,
+      "count": 44
+    },
+    {
+      "face": "person",
+      "metric": "HTML_DL_4g",
+      "p75": 2421,
+      "count": 4
+    },
+    {
+      "face": "person",
+      "metric": "HTML_DL_na",
+      "p75": 1490,
+      "count": 5
+    },
+    {
+      "face": "person",
+      "metric": "HTML_DL_slow",
+      "p75": 1315,
+      "count": 1
+    },
+    {
+      "face": "person",
+      "metric": "HTML_TX",
+      "p75": 12081,
+      "count": 10
+    },
+    {
+      "face": "person",
+      "metric": "INP",
+      "p75": 88,
+      "count": 58
+    },
+    {
+      "face": "person",
+      "metric": "LCP",
+      "p75": 3332,
+      "count": 144
+    },
+    {
+      "face": "person",
+      "metric": "LCP_mouse",
+      "p75": 1796,
+      "count": 6
+    },
+    {
+      "face": "person",
+      "metric": "LCP_touch",
+      "p75": 3156,
+      "count": 38
+    },
+    {
+      "face": "person",
+      "metric": "RTT",
+      "p75": 150,
+      "count": 5
+    },
+    {
+      "face": "person",
+      "metric": "TTFB",
+      "p75": 834,
+      "count": 155
+    },
+    {
+      "face": "rankings",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 1
+    },
+    {
+      "face": "rankings",
+      "metric": "FCP",
+      "p75": 4104,
+      "count": 1
+    },
+    {
+      "face": "rankings",
+      "metric": "FID",
+      "p75": 23,
+      "count": 1
+    },
+    {
+      "face": "rankings",
+      "metric": "INP",
+      "p75": 88,
+      "count": 2
+    },
+    {
+      "face": "rankings",
+      "metric": "LCP",
+      "p75": 4104,
+      "count": 1
+    },
+    {
+      "face": "rankings",
+      "metric": "TTFB",
+      "p75": 1029,
+      "count": 2
+    },
+    {
+      "face": "season",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 1
+    },
+    {
+      "face": "season",
+      "metric": "FCP",
+      "p75": 2512,
+      "count": 3
+    },
+    {
+      "face": "season",
+      "metric": "FCP_touch",
+      "p75": 2324,
+      "count": 2
+    },
+    {
+      "face": "season",
+      "metric": "FID",
+      "p75": 29,
+      "count": 3
+    },
+    {
+      "face": "season",
+      "metric": "HTML_DL",
+      "p75": 10,
+      "count": 4
+    },
+    {
+      "face": "season",
+      "metric": "INP",
+      "p75": 408,
+      "count": 3
+    },
+    {
+      "face": "season",
+      "metric": "LCP",
+      "p75": 2561,
+      "count": 3
+    },
+    {
+      "face": "season",
+      "metric": "LCP_touch",
+      "p75": 2561,
+      "count": 2
+    },
+    {
+      "face": "season",
+      "metric": "TTFB",
+      "p75": 912,
+      "count": 10
+    },
+    {
+      "face": "service",
+      "metric": "CLS",
+      "p75": 0.003,
+      "count": 64
+    },
+    {
+      "face": "service",
+      "metric": "FCP",
+      "p75": 2788,
+      "count": 111
+    },
+    {
+      "face": "service",
+      "metric": "FCP_mouse",
+      "p75": 3248,
+      "count": 10
+    },
+    {
+      "face": "service",
+      "metric": "FCP_touch",
+      "p75": 2389,
+      "count": 30
+    },
+    {
+      "face": "service",
+      "metric": "FID",
+      "p75": 19,
+      "count": 36
+    },
+    {
+      "face": "service",
+      "metric": "HTML_DL",
+      "p75": 1918,
+      "count": 37
+    },
+    {
+      "face": "service",
+      "metric": "HTML_DL_4g",
+      "p75": 13137,
+      "count": 2
+    },
+    {
+      "face": "service",
+      "metric": "HTML_DL_na",
+      "p75": 16297,
+      "count": 3
+    },
+    {
+      "face": "service",
+      "metric": "HTML_TX",
+      "p75": 12643,
+      "count": 5
+    },
+    {
+      "face": "service",
+      "metric": "INP",
+      "p75": 40,
+      "count": 39
+    },
+    {
+      "face": "service",
+      "metric": "LCP",
+      "p75": 2819,
+      "count": 101
+    },
+    {
+      "face": "service",
+      "metric": "LCP_mouse",
+      "p75": 3248,
+      "count": 10
+    },
+    {
+      "face": "service",
+      "metric": "LCP_touch",
+      "p75": 2143,
+      "count": 25
+    },
+    {
+      "face": "service",
+      "metric": "RTT",
+      "p75": 100,
+      "count": 3
+    },
+    {
+      "face": "service",
+      "metric": "TTFB",
+      "p75": 273,
+      "count": 116
+    },
+    {
+      "face": "studio",
+      "metric": "CLS",
+      "p75": 0,
+      "count": 2
+    },
+    {
+      "face": "studio",
+      "metric": "FCP",
+      "p75": 2524,
+      "count": 4
+    },
+    {
+      "face": "studio",
+      "metric": "FCP_touch",
+      "p75": 1753,
+      "count": 1
+    },
+    {
+      "face": "studio",
+      "metric": "FID",
+      "p75": 24,
+      "count": 2
+    },
+    {
+      "face": "studio",
+      "metric": "HTML_DL",
+      "p75": 1643,
+      "count": 1
+    },
+    {
+      "face": "studio",
+      "metric": "INP",
+      "p75": 280,
+      "count": 2
+    },
+    {
+      "face": "studio",
+      "metric": "LCP",
+      "p75": 2524,
+      "count": 4
+    },
+    {
+      "face": "studio",
+      "metric": "LCP_touch",
+      "p75": 1753,
+      "count": 1
+    },
+    {
+      "face": "studio",
+      "metric": "TTFB",
+      "p75": 204,
+      "count": 4
+    }
+  ],
+  "referrers": [
+    [
+      "www.google.com",
+      253
+    ],
+    [
+      "search.yahoo.co.jp",
+      74
+    ],
+    [
+      "t.co",
+      15
+    ],
+    [
+      "www.facebook.com",
+      15
+    ],
+    [
+      "www.bing.com",
+      10
+    ],
+    [
+      "www.google.co.jp",
+      10
+    ],
+    [
+      "m.facebook.com",
+      7
+    ],
+    [
+      "bing.com",
+      2
+    ],
+    [
+      "duckduckgo.com",
+      1
+    ],
+    [
+      "vercel.com",
+      1
+    ]
+  ]
+}
