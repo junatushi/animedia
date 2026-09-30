@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-29",
+  "updatedAt": "2026-09-30",
   "sources": {
     "annict": {
       "2026-summer": {
@@ -15,7 +15,7 @@
               }
             },
             "seeded": true,
-            "rank": 1523,
+            "rank": 1525,
             "startDate": "2026-07-05"
           },
           "6528": {
@@ -60,7 +60,7 @@
               }
             },
             "seeded": true,
-            "rank": 380,
+            "rank": 381,
             "startDate": "2026-07-10"
           },
           "7915": {
@@ -105,7 +105,7 @@
               }
             },
             "seeded": true,
-            "rank": 1340,
+            "rank": 1343,
             "startDate": "2026-07-07"
           },
           "8410": {
@@ -113,7 +113,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3109,
+            "rank": 3119,
             "startDate": null
           },
           "8632": {
@@ -162,7 +162,7 @@
               }
             },
             "seeded": true,
-            "rank": 2958,
+            "rank": 2966,
             "startDate": "2026-07-08"
           },
           "10352": {
@@ -207,7 +207,7 @@
               }
             },
             "seeded": true,
-            "rank": 1024,
+            "rank": 1031,
             "startDate": "2026-07-09"
           },
           "11119": {
@@ -252,7 +252,7 @@
               }
             },
             "seeded": true,
-            "rank": 455,
+            "rank": 458,
             "startDate": "2026-07-06"
           },
           "11193": {
@@ -293,7 +293,7 @@
               }
             },
             "seeded": true,
-            "rank": 1104,
+            "rank": 1109,
             "startDate": "2026-07-07"
           },
           "11195": {
@@ -334,7 +334,7 @@
               }
             },
             "seeded": true,
-            "rank": 729,
+            "rank": 731,
             "startDate": "2026-07-06"
           },
           "13010": {
@@ -379,7 +379,7 @@
               }
             },
             "seeded": true,
-            "rank": 1492,
+            "rank": 1499,
             "startDate": "2026-07-06"
           },
           "13052": {
@@ -412,7 +412,7 @@
               }
             },
             "seeded": true,
-            "rank": 1604,
+            "rank": 1608,
             "startDate": "2026-07-07"
           },
           "13582": {
@@ -465,7 +465,7 @@
               }
             },
             "seeded": true,
-            "rank": 3533,
+            "rank": 3550,
             "startDate": "2026-07-04"
           },
           "13779": {
@@ -530,7 +530,7 @@
               }
             },
             "seeded": true,
-            "rank": 1043,
+            "rank": 1052,
             "startDate": "2026-07-03"
           },
           "14132": {
@@ -583,7 +583,7 @@
               }
             },
             "seeded": true,
-            "rank": 2165,
+            "rank": 2172,
             "startDate": "2026-07-18"
           },
           "14929": {
@@ -636,7 +636,7 @@
               }
             },
             "seeded": true,
-            "rank": 913,
+            "rank": 915,
             "startDate": "2026-07-04"
           },
           "14969": {
@@ -734,7 +734,7 @@
               }
             },
             "seeded": true,
-            "rank": 1062,
+            "rank": 1065,
             "startDate": "2026-07-26"
           },
           "15036": {
@@ -779,7 +779,7 @@
               }
             },
             "seeded": true,
-            "rank": 912,
+            "rank": 917,
             "startDate": "2026-07-05"
           },
           "15481": {
@@ -873,7 +873,7 @@
               }
             },
             "seeded": true,
-            "rank": 2361,
+            "rank": 2370,
             "startDate": "2026-07-08"
           },
           "15623": {
@@ -975,7 +975,7 @@
               }
             },
             "seeded": true,
-            "rank": 1414,
+            "rank": 1428,
             "startDate": "2026-07-13"
           },
           "15751": {
@@ -1024,7 +1024,7 @@
               }
             },
             "seeded": true,
-            "rank": 1733,
+            "rank": 1746,
             "startDate": "2026-07-04"
           },
           "15881": {
@@ -1073,7 +1073,7 @@
               }
             },
             "seeded": true,
-            "rank": 1813,
+            "rank": 1819,
             "startDate": "2026-07-05"
           },
           "16023": {
@@ -1106,7 +1106,7 @@
               }
             },
             "seeded": true,
-            "rank": 1030,
+            "rank": 1031,
             "startDate": "2026-06-24"
           },
           "16132": {
@@ -1159,7 +1159,7 @@
               }
             },
             "seeded": true,
-            "rank": 715,
+            "rank": 716,
             "startDate": "2026-07-05"
           },
           "16248": {
@@ -1172,7 +1172,7 @@
               }
             },
             "seeded": true,
-            "rank": 1425,
+            "rank": 1428,
             "startDate": "2026-07-09"
           },
           "16328": {
@@ -1217,7 +1217,7 @@
               }
             },
             "seeded": true,
-            "rank": 524,
+            "rank": 527,
             "startDate": "2026-07-06"
           },
           "16339": {
@@ -1266,7 +1266,7 @@
               }
             },
             "seeded": true,
-            "rank": 1601,
+            "rank": 1605,
             "startDate": "2026-07-05"
           },
           "16391": {
@@ -1311,7 +1311,7 @@
               }
             },
             "seeded": true,
-            "rank": 2223,
+            "rank": 2229,
             "startDate": "2026-07-10"
           },
           "16393": {
@@ -1373,7 +1373,7 @@
               }
             },
             "seeded": true,
-            "rank": 712,
+            "rank": 713,
             "startDate": "2026-07-03"
           },
           "16396": {
@@ -1398,7 +1398,7 @@
               }
             },
             "seeded": true,
-            "rank": 711,
+            "rank": 713,
             "startDate": "2026-06-30"
           },
           "16405": {
@@ -1439,7 +1439,7 @@
               }
             },
             "seeded": true,
-            "rank": 935,
+            "rank": 934,
             "startDate": "2026-07-08"
           },
           "16440": {
@@ -1447,7 +1447,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 334,
+            "rank": 335,
             "startDate": null
           },
           "16468": {
@@ -1480,7 +1480,7 @@
               }
             },
             "seeded": true,
-            "rank": 869,
+            "rank": 873,
             "startDate": "2026-07-07"
           },
           "16475": {
@@ -1525,7 +1525,7 @@
               }
             },
             "seeded": true,
-            "rank": 830,
+            "rank": 831,
             "startDate": "2026-07-02"
           },
           "16519": {
@@ -1570,7 +1570,7 @@
               }
             },
             "seeded": true,
-            "rank": 961,
+            "rank": 963,
             "startDate": "2026-07-02"
           },
           "16524": {
@@ -1607,7 +1607,7 @@
               }
             },
             "seeded": true,
-            "rank": 692,
+            "rank": 694,
             "startDate": "2026-07-05"
           },
           "16538": {
@@ -1647,7 +1647,7 @@
               }
             },
             "seeded": true,
-            "rank": 944,
+            "rank": 949,
             "startDate": "2026-07-08"
           },
           "16555": {
@@ -1672,7 +1672,7 @@
               }
             },
             "seeded": true,
-            "rank": 786,
+            "rank": 790,
             "startDate": "2026-07-08"
           },
           "16569": {
@@ -1717,7 +1717,7 @@
               }
             },
             "seeded": true,
-            "rank": 793,
+            "rank": 797,
             "startDate": "2026-07-12"
           },
           "16571": {
@@ -1762,7 +1762,7 @@
               }
             },
             "seeded": true,
-            "rank": 1334,
+            "rank": 1342,
             "startDate": "2026-07-07"
           },
           "16606": {
@@ -1896,7 +1896,7 @@
               }
             },
             "seeded": true,
-            "rank": 1469,
+            "rank": 1471,
             "startDate": "2026-07-05"
           },
           "16677": {
@@ -1941,7 +1941,7 @@
               }
             },
             "seeded": true,
-            "rank": 1356,
+            "rank": 1360,
             "startDate": "2026-07-05"
           },
           "16681": {
@@ -1986,7 +1986,7 @@
               }
             },
             "seeded": true,
-            "rank": 242,
+            "rank": 243,
             "startDate": "2026-07-02"
           },
           "16714": {
@@ -2031,7 +2031,7 @@
               }
             },
             "seeded": true,
-            "rank": 1393,
+            "rank": 1395,
             "startDate": "2026-07-06"
           },
           "16726": {
@@ -2039,7 +2039,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 107,
+            "rank": 114,
             "startDate": null
           },
           "16734": {
@@ -2047,7 +2047,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 814,
+            "rank": 821,
             "startDate": null
           },
           "16792": {
@@ -2084,7 +2084,7 @@
               }
             },
             "seeded": true,
-            "rank": 181,
+            "rank": 180,
             "startDate": "2026-07-08"
           },
           "16808": {
@@ -2133,7 +2133,7 @@
               }
             },
             "seeded": true,
-            "rank": 583,
+            "rank": 582,
             "startDate": "2026-07-04"
           },
           "16822": {
@@ -2178,7 +2178,7 @@
               }
             },
             "seeded": true,
-            "rank": 868,
+            "rank": 871,
             "startDate": "2026-07-02"
           },
           "16856": {
@@ -2223,7 +2223,7 @@
               }
             },
             "seeded": true,
-            "rank": 1075,
+            "rank": 1080,
             "startDate": "2026-07-05"
           },
           "16904": {
@@ -2304,7 +2304,7 @@
               }
             },
             "seeded": true,
-            "rank": 1176,
+            "rank": 1180,
             "startDate": "2026-07-03"
           },
           "16982": {
@@ -2373,7 +2373,7 @@
               }
             },
             "seeded": true,
-            "rank": 496,
+            "rank": 499,
             "startDate": "2026-07-09"
           },
           "17043": {
@@ -2426,7 +2426,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 178,
+            "rank": 177,
             "startDate": null
           },
           "17057": {
@@ -2467,7 +2467,7 @@
               }
             },
             "seeded": true,
-            "rank": 1239,
+            "rank": 1241,
             "startDate": "2026-06-29"
           },
           "17069": {
@@ -2475,7 +2475,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 336,
+            "rank": 333,
             "startDate": null
           },
           "17088": {
@@ -2524,7 +2524,7 @@
               }
             },
             "seeded": true,
-            "rank": 2633,
+            "rank": 2642,
             "startDate": "2026-07-03"
           },
           "17092": {
@@ -2537,7 +2537,7 @@
               }
             },
             "seeded": true,
-            "rank": 273,
+            "rank": 274,
             "startDate": "2026-07-09"
           },
           "17114": {
@@ -2574,7 +2574,7 @@
               }
             },
             "seeded": true,
-            "rank": 914,
+            "rank": 918,
             "startDate": "2026-07-04"
           },
           "17121": {
@@ -2619,7 +2619,7 @@
               }
             },
             "seeded": true,
-            "rank": 421,
+            "rank": 420,
             "startDate": "2026-07-08"
           },
           "17130": {
@@ -2672,7 +2672,7 @@
               }
             },
             "seeded": true,
-            "rank": 959,
+            "rank": 965,
             "startDate": "2026-06-26"
           },
           "17134": {
@@ -2709,7 +2709,7 @@
               }
             },
             "seeded": true,
-            "rank": 165,
+            "rank": 164,
             "startDate": "2026-07-08"
           },
           "17147": {
@@ -2754,7 +2754,7 @@
               }
             },
             "seeded": true,
-            "rank": 630,
+            "rank": 632,
             "startDate": "2026-07-05"
           },
           "17190": {
@@ -2762,7 +2762,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 110,
+            "rank": 109,
             "startDate": null
           },
           "17192": {
@@ -2799,7 +2799,7 @@
               }
             },
             "seeded": true,
-            "rank": 359,
+            "rank": 363,
             "startDate": "2026-06-12"
           },
           "17196": {
@@ -2820,7 +2820,7 @@
               }
             },
             "seeded": true,
-            "rank": 59,
+            "rank": 58,
             "startDate": "2026-07-12"
           },
           "17197": {
@@ -2873,7 +2873,7 @@
               }
             },
             "seeded": true,
-            "rank": 2403,
+            "rank": 2415,
             "startDate": "2026-08-12"
           },
           "17296": {
@@ -2914,7 +2914,7 @@
               }
             },
             "seeded": true,
-            "rank": 694,
+            "rank": 697,
             "startDate": "2026-07-07"
           },
           "17308": {
@@ -2971,7 +2971,7 @@
               }
             },
             "seeded": true,
-            "rank": 360,
+            "rank": 362,
             "startDate": "2026-07-02"
           },
           "17333": {
@@ -3057,7 +3057,7 @@
               }
             },
             "seeded": true,
-            "rank": 960,
+            "rank": 965,
             "startDate": "2026-07-04"
           },
           "17354": {
@@ -3065,7 +3065,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 795,
+            "rank": 802,
             "startDate": null
           },
           "17361": {
@@ -3118,7 +3118,7 @@
               }
             },
             "seeded": true,
-            "rank": 1983,
+            "rank": 1987,
             "startDate": "2026-07-05"
           },
           "17370": {
@@ -3167,7 +3167,7 @@
               }
             },
             "seeded": true,
-            "rank": 217,
+            "rank": 216,
             "startDate": "2026-07-07"
           },
           "17379": {
@@ -3175,7 +3175,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 384,
+            "rank": 388,
             "startDate": null
           },
           "17390": {
@@ -3191,7 +3191,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 438,
+            "rank": 439,
             "startDate": null
           },
           "17519": {
@@ -3199,7 +3199,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 967,
+            "rank": 975,
             "startDate": null
           },
           "17521": {
@@ -3232,7 +3232,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 509,
+            "rank": 510,
             "startDate": null
           },
           "17562": {
@@ -3314,7 +3314,7 @@
               }
             },
             "seeded": true,
-            "rank": 133,
+            "rank": 134,
             "startDate": "2026-07-04"
           },
           "17802": {
@@ -3486,7 +3486,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 66,
+            "rank": 67,
             "startDate": null
           },
           "17940": {
@@ -3531,7 +3531,7 @@
               }
             },
             "seeded": true,
-            "rank": 25,
+            "rank": 24,
             "startDate": "2026-07-13"
           },
           "17955": {
@@ -3558,7 +3558,7 @@
               }
             },
             "seeded": true,
-            "rank": 104,
+            "rank": 106,
             "startDate": "2026-09-05"
           },
           "17962": {
@@ -3566,7 +3566,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 77,
+            "rank": 78,
             "startDate": null
           },
           "17963": {
@@ -3654,7 +3654,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 14,
+            "rank": 15,
             "startDate": null
           },
           "17990": {
@@ -3820,7 +3820,7 @@
                 "firstSeen": "2026-08-21"
               }
             },
-            "rank": 50,
+            "rank": 52,
             "startDate": "2026-08-20"
           },
           "18096": {
@@ -3841,7 +3841,7 @@
             "title": "KAエスマ文庫『草原の輝き』アニメーションCM",
             "firstSeen": "2026-08-24",
             "services": {},
-            "rank": 16,
+            "rank": 17,
             "startDate": null
           },
           "18118": {
@@ -3873,7 +3873,7 @@
             "title": "猫猫のひとりごと 特別編～目の栄養～",
             "firstSeen": "2026-08-28",
             "services": {},
-            "rank": 28,
+            "rank": 29,
             "startDate": null
           },
           "18134": {
@@ -3887,14 +3887,14 @@
             "title": "【崩壊：スターレイル】ショートアニメ「あんたの終点、私の始まり」",
             "firstSeen": "2026-08-30",
             "services": {},
-            "rank": 9,
+            "rank": 10,
             "startDate": null
           },
           "18137": {
             "title": " 【NTE】残虹 キャラアニメ｜魂の色",
             "firstSeen": "2026-08-30",
             "services": {},
-            "rank": 8,
+            "rank": 9,
             "startDate": null
           },
           "18138": {
@@ -3947,7 +3947,7 @@
             "title": "名探偵コナン 30号殺人事件",
             "firstSeen": "2026-09-06",
             "services": {},
-            "rank": 97,
+            "rank": 106,
             "startDate": null
           },
           "18154": {
@@ -3958,7 +3958,7 @@
                 "firstSeen": "2026-09-12"
               }
             },
-            "rank": 14,
+            "rank": 16,
             "startDate": "2026-09-28"
           },
           "18155": {
@@ -4105,7 +4105,7 @@
             "title": " 「高橋和希原画展 YU-GI-OH! ART WORKS」開催記念スペシャルアニメーション",
             "firstSeen": "2026-09-14",
             "services": {},
-            "rank": 14,
+            "rank": 16,
             "startDate": null
           },
           "18200": {
@@ -4133,21 +4133,77 @@
             "title": "スパイディ and アベンジャーズ: しゅつどう！ハロウィーン",
             "firstSeen": "2026-09-25",
             "services": {},
-            "rank": 1,
+            "rank": 2,
             "startDate": null
           },
           "18244": {
             "title": "餓狼伝説 CotW｜キム･カッファン｜アニメーショントレーラー",
             "firstSeen": "2026-09-26",
             "services": {},
-            "rank": 1,
+            "rank": 2,
             "startDate": null
           },
           "18248": {
             "title": "子猫の配達員うーにゃん(アニメシリーズ)",
             "firstSeen": "2026-09-27",
             "services": {},
-            "rank": 1,
+            "rank": 3,
+            "startDate": null
+          },
+          "18253": {
+            "title": "兇手一族の末息子は五大魔王の力を宿して回帰する",
+            "firstSeen": "2026-09-30",
+            "services": {},
+            "rank": 0,
+            "startDate": null
+          },
+          "18254": {
+            "title": "シャチ族の赤ちゃん公女様、人生逆転します！",
+            "firstSeen": "2026-09-30",
+            "services": {},
+            "rank": 0,
+            "startDate": null
+          },
+          "18255": {
+            "title": "アイリス～スマホを持った貴族令嬢～",
+            "firstSeen": "2026-09-30",
+            "services": {},
+            "rank": 0,
+            "startDate": null
+          },
+          "18256": {
+            "title": "執着はお断りします",
+            "firstSeen": "2026-09-30",
+            "services": {},
+            "rank": 0,
+            "startDate": null
+          },
+          "18257": {
+            "title": "武人転生史",
+            "firstSeen": "2026-09-30",
+            "services": {},
+            "rank": 0,
+            "startDate": null
+          },
+          "18258": {
+            "title": "悪役の完璧なエンディングプラン",
+            "firstSeen": "2026-09-30",
+            "services": {},
+            "rank": 0,
+            "startDate": null
+          },
+          "18259": {
+            "title": "男主人公を誘惑するつもりはありませんでした",
+            "firstSeen": "2026-09-30",
+            "services": {},
+            "rank": 0,
+            "startDate": null
+          },
+          "18260": {
+            "title": "黒幕の世話係になりました",
+            "firstSeen": "2026-09-30",
+            "services": {},
+            "rank": 0,
             "startDate": null
           }
         },
@@ -4386,6 +4442,11 @@
             "date": "2026-09-29",
             "works": 197,
             "withServices": 92
+          },
+          {
+            "date": "2026-09-30",
+            "works": 205,
+            "withServices": 92
           }
         ]
       },
@@ -4397,7 +4458,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 743,
+            "rank": 761,
             "startDate": null
           },
           "9753": {
@@ -4436,7 +4497,7 @@
               }
             },
             "seeded": true,
-            "rank": 905,
+            "rank": 920,
             "startDate": "2026-10-07"
           },
           "10258": {
@@ -4466,7 +4527,7 @@
               }
             },
             "seeded": true,
-            "rank": 730,
+            "rank": 743,
             "startDate": "2026-10-01"
           },
           "10404": {
@@ -4474,7 +4535,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1041,
+            "rank": 1056,
             "startDate": null
           },
           "11196": {
@@ -4516,7 +4577,7 @@
               }
             },
             "seeded": true,
-            "rank": 314,
+            "rank": 329,
             "startDate": "2026-10-04"
           },
           "12204": {
@@ -4552,7 +4613,7 @@
               }
             },
             "seeded": true,
-            "rank": 231,
+            "rank": 237,
             "startDate": "2026-10-08"
           },
           "12433": {
@@ -4567,7 +4628,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 525,
+            "rank": 534,
             "startDate": null
           },
           "12849": {
@@ -4603,7 +4664,7 @@
               }
             },
             "seeded": true,
-            "rank": 563,
+            "rank": 583,
             "startDate": "2026-10-07"
           },
           "13286": {
@@ -4615,7 +4676,7 @@
               }
             },
             "seeded": true,
-            "rank": 485,
+            "rank": 494,
             "startDate": "2026-10-03"
           },
           "13592": {
@@ -4651,7 +4712,7 @@
               }
             },
             "seeded": true,
-            "rank": 439,
+            "rank": 453,
             "startDate": "2026-10-08"
           },
           "13731": {
@@ -4686,7 +4747,7 @@
                 "firstSeen": "2026-09-19"
               }
             },
-            "rank": 135,
+            "rank": 143,
             "startDate": "2026-10-14"
           },
           "13957": {
@@ -4704,7 +4765,7 @@
               }
             },
             "seeded": true,
-            "rank": 270,
+            "rank": 283,
             "startDate": "2026-10-03"
           },
           "14032": {
@@ -4712,7 +4773,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 482,
+            "rank": 497,
             "startDate": null
           },
           "14745": {
@@ -4728,7 +4789,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 612,
+            "rank": 626,
             "startDate": null
           },
           "14998": {
@@ -4770,7 +4831,7 @@
               }
             },
             "seeded": true,
-            "rank": 650,
+            "rank": 669,
             "startDate": "2026-09-28"
           },
           "15285": {
@@ -4806,7 +4867,7 @@
               }
             },
             "seeded": true,
-            "rank": 312,
+            "rank": 327,
             "startDate": "2026-10-04"
           },
           "15391": {
@@ -4842,7 +4903,7 @@
               }
             },
             "seeded": true,
-            "rank": 847,
+            "rank": 869,
             "startDate": "2026-10-03"
           },
           "15574": {
@@ -4878,7 +4939,7 @@
               }
             },
             "seeded": true,
-            "rank": 263,
+            "rank": 274,
             "startDate": "2026-10-03"
           },
           "15600": {
@@ -4914,7 +4975,7 @@
               }
             },
             "seeded": true,
-            "rank": 403,
+            "rank": 421,
             "startDate": "2026-10-03"
           },
           "15716": {
@@ -4947,7 +5008,7 @@
               }
             },
             "seeded": true,
-            "rank": 67,
+            "rank": 71,
             "startDate": "2026-10-06"
           },
           "15795": {
@@ -4989,7 +5050,7 @@
               }
             },
             "seeded": true,
-            "rank": 952,
+            "rank": 973,
             "startDate": "2026-10-04"
           },
           "15872": {
@@ -5000,7 +5061,7 @@
                 "firstSeen": "2026-09-26"
               }
             },
-            "rank": 279,
+            "rank": 284,
             "startDate": "2026-10-25"
           },
           "15941": {
@@ -5042,7 +5103,7 @@
               }
             },
             "seeded": true,
-            "rank": 990,
+            "rank": 1028,
             "startDate": "2026-10-04"
           },
           "15978": {
@@ -5078,7 +5139,7 @@
               }
             },
             "seeded": true,
-            "rank": 345,
+            "rank": 354,
             "startDate": "2026-10-04"
           },
           "16282": {
@@ -5094,7 +5155,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 666,
+            "rank": 679,
             "startDate": null
           },
           "16290": {
@@ -5136,7 +5197,7 @@
               }
             },
             "seeded": true,
-            "rank": 1667,
+            "rank": 1698,
             "startDate": "2026-10-03"
           },
           "16294": {
@@ -5144,7 +5205,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 318,
+            "rank": 326,
             "startDate": null
           },
           "16295": {
@@ -5156,7 +5217,7 @@
               }
             },
             "seeded": true,
-            "rank": 140,
+            "rank": 145,
             "startDate": "2026-10-10"
           },
           "16301": {
@@ -5195,7 +5256,7 @@
               }
             },
             "seeded": true,
-            "rank": 252,
+            "rank": 261,
             "startDate": "2026-10-04"
           },
           "16335": {
@@ -5231,7 +5292,7 @@
               }
             },
             "seeded": true,
-            "rank": 58,
+            "rank": 62,
             "startDate": "2026-10-05"
           },
           "16454": {
@@ -5239,7 +5300,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 360,
+            "rank": 363,
             "startDate": null
           },
           "16563": {
@@ -5275,7 +5336,7 @@
               }
             },
             "seeded": true,
-            "rank": 414,
+            "rank": 435,
             "startDate": "2026-10-04"
           },
           "16570": {
@@ -5308,7 +5369,7 @@
               }
             },
             "seeded": true,
-            "rank": 143,
+            "rank": 148,
             "startDate": "2026-10-01"
           },
           "16586": {
@@ -5316,7 +5377,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1149,
+            "rank": 1162,
             "startDate": null
           },
           "16593": {
@@ -5349,7 +5410,7 @@
               }
             },
             "seeded": true,
-            "rank": 188,
+            "rank": 193,
             "startDate": "2026-10-05"
           },
           "16602": {
@@ -5385,7 +5446,7 @@
               }
             },
             "seeded": true,
-            "rank": 392,
+            "rank": 407,
             "startDate": "2026-10-09"
           },
           "16635": {
@@ -5421,7 +5482,7 @@
               }
             },
             "seeded": true,
-            "rank": 294,
+            "rank": 309,
             "startDate": "2026-10-06"
           },
           "16646": {
@@ -5456,7 +5517,7 @@
                 "firstSeen": "2026-09-08"
               }
             },
-            "rank": 170,
+            "rank": 183,
             "startDate": "2026-10-05"
           },
           "16662": {
@@ -5464,7 +5525,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 928,
+            "rank": 944,
             "startDate": null
           },
           "16703": {
@@ -5472,7 +5533,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 166,
+            "rank": 171,
             "startDate": null
           },
           "16708": {
@@ -5487,7 +5548,7 @@
               }
             },
             "seeded": true,
-            "rank": 302,
+            "rank": 315,
             "startDate": "2026-10-04"
           },
           "16716": {
@@ -5495,7 +5556,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 439,
+            "rank": 444,
             "startDate": null
           },
           "16796": {
@@ -5503,7 +5564,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 247,
+            "rank": 258,
             "startDate": null
           },
           "16806": {
@@ -5511,7 +5572,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 158,
+            "rank": 161,
             "startDate": null
           },
           "16852": {
@@ -5541,10 +5602,13 @@
               },
               "bandai": {
                 "firstSeen": "2026-09-29"
+              },
+              "niconico": {
+                "firstSeen": "2026-09-30"
               }
             },
             "seeded": true,
-            "rank": 368,
+            "rank": 378,
             "startDate": "2026-10-05"
           },
           "16906": {
@@ -5562,7 +5626,7 @@
               }
             },
             "seeded": true,
-            "rank": 289,
+            "rank": 298,
             "startDate": "2026-09-26"
           },
           "16912": {
@@ -5601,7 +5665,7 @@
               }
             },
             "seeded": true,
-            "rank": 224,
+            "rank": 234,
             "startDate": "2026-10-03"
           },
           "16919": {
@@ -5651,7 +5715,7 @@
               }
             },
             "seeded": true,
-            "rank": 264,
+            "rank": 269,
             "startDate": "2026-10-03"
           },
           "17025": {
@@ -5687,7 +5751,7 @@
               }
             },
             "seeded": true,
-            "rank": 277,
+            "rank": 288,
             "startDate": "2026-10-11"
           },
           "17026": {
@@ -5729,7 +5793,7 @@
               }
             },
             "seeded": true,
-            "rank": 424,
+            "rank": 441,
             "startDate": "2026-10-10"
           },
           "17039": {
@@ -5776,7 +5840,7 @@
               }
             },
             "seeded": true,
-            "rank": 749,
+            "rank": 779,
             "startDate": "2026-10-01"
           },
           "17068": {
@@ -5791,7 +5855,7 @@
               }
             },
             "seeded": true,
-            "rank": 240,
+            "rank": 246,
             "startDate": "2026-10-12"
           },
           "17071": {
@@ -5802,7 +5866,7 @@
                 "firstSeen": "2026-09-16"
               }
             },
-            "rank": 133,
+            "rank": 141,
             "startDate": "2026-10-08"
           },
           "17077": {
@@ -5814,7 +5878,7 @@
               }
             },
             "seeded": true,
-            "rank": 543,
+            "rank": 568,
             "startDate": "2026-10-06"
           },
           "17089": {
@@ -5847,7 +5911,7 @@
               }
             },
             "seeded": true,
-            "rank": 367,
+            "rank": 381,
             "startDate": "2026-10-05"
           },
           "17097": {
@@ -5892,7 +5956,7 @@
               }
             },
             "seeded": true,
-            "rank": 597,
+            "rank": 621,
             "startDate": "2026-10-07"
           },
           "17108": {
@@ -5900,7 +5964,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 499,
+            "rank": 508,
             "startDate": null
           },
           "17132": {
@@ -5930,7 +5994,7 @@
               }
             },
             "seeded": true,
-            "rank": 175,
+            "rank": 185,
             "startDate": "2026-10-08"
           },
           "17136": {
@@ -5963,7 +6027,7 @@
               }
             },
             "seeded": true,
-            "rank": 50,
+            "rank": 51,
             "startDate": "2026-10-08"
           },
           "17168": {
@@ -6045,7 +6109,7 @@
               }
             },
             "seeded": true,
-            "rank": 224,
+            "rank": 235,
             "startDate": "2026-10-05"
           },
           "17295": {
@@ -6078,7 +6142,7 @@
               }
             },
             "seeded": true,
-            "rank": 180,
+            "rank": 192,
             "startDate": "2026-10-04"
           },
           "17297": {
@@ -6114,7 +6178,7 @@
               }
             },
             "seeded": true,
-            "rank": 141,
+            "rank": 148,
             "startDate": "2026-10-05"
           },
           "17298": {
@@ -6153,7 +6217,7 @@
               }
             },
             "seeded": true,
-            "rank": 585,
+            "rank": 607,
             "startDate": "2026-10-06"
           },
           "17314": {
@@ -6189,7 +6253,7 @@
               }
             },
             "seeded": true,
-            "rank": 327,
+            "rank": 347,
             "startDate": "2026-10-03"
           },
           "17316": {
@@ -6197,7 +6261,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 167,
+            "rank": 171,
             "startDate": null
           },
           "17329": {
@@ -6218,10 +6282,14 @@
           "17344": {
             "title": "らんま1/2 第3期",
             "firstSeen": "2026-08-13",
-            "services": {},
+            "services": {
+              "netflix": {
+                "firstSeen": "2026-09-30"
+              }
+            },
             "seeded": true,
-            "rank": 305,
-            "startDate": null
+            "rank": 316,
+            "startDate": "2026-10-04"
           },
           "17352": {
             "title": "タヌキとキツネ",
@@ -6235,7 +6303,7 @@
             "title": "風を継ぐもの -はじまり-",
             "firstSeen": "2026-09-16",
             "services": {},
-            "rank": 25,
+            "rank": 28,
             "startDate": null
           },
           "17358": {
@@ -6255,7 +6323,7 @@
               }
             },
             "seeded": true,
-            "rank": 481,
+            "rank": 499,
             "startDate": "2026-09-25"
           },
           "17365": {
@@ -6263,7 +6331,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 426,
+            "rank": 431,
             "startDate": null
           },
           "17367": {
@@ -6271,7 +6339,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 447,
+            "rank": 459,
             "startDate": null
           },
           "17381": {
@@ -6279,7 +6347,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 63,
+            "rank": 64,
             "startDate": null
           },
           "17433": {
@@ -6302,7 +6370,7 @@
               }
             },
             "seeded": true,
-            "rank": 388,
+            "rank": 403,
             "startDate": "2026-10-07"
           },
           "17547": {
@@ -6335,7 +6403,7 @@
               }
             },
             "seeded": true,
-            "rank": 183,
+            "rank": 193,
             "startDate": "2026-10-08"
           },
           "17556": {
@@ -6371,7 +6439,7 @@
               }
             },
             "seeded": true,
-            "rank": 95,
+            "rank": 99,
             "startDate": "2026-10-03"
           },
           "17586": {
@@ -6407,14 +6475,14 @@
               }
             },
             "seeded": true,
-            "rank": 329,
+            "rank": 339,
             "startDate": "2026-10-09"
           },
           "17589": {
             "title": "タコピーの原罪 -ありがとう、また明日-",
             "firstSeen": "2026-08-19",
             "services": {},
-            "rank": 161,
+            "rank": 165,
             "startDate": null
           },
           "17600": {
@@ -6441,7 +6509,7 @@
               }
             },
             "seeded": true,
-            "rank": 171,
+            "rank": 177,
             "startDate": "2026-10-08"
           },
           "17627": {
@@ -6453,7 +6521,7 @@
               }
             },
             "seeded": true,
-            "rank": 170,
+            "rank": 180,
             "startDate": "2026-10-04"
           },
           "17635": {
@@ -6495,7 +6563,7 @@
               }
             },
             "seeded": true,
-            "rank": 152,
+            "rank": 166,
             "startDate": "2026-09-27"
           },
           "17636": {
@@ -6510,7 +6578,7 @@
               }
             },
             "seeded": true,
-            "rank": 184,
+            "rank": 191,
             "startDate": "2026-10-11"
           },
           "17698": {
@@ -6518,7 +6586,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 16,
+            "rank": 18,
             "startDate": null
           },
           "17785": {
@@ -6574,14 +6642,14 @@
               }
             },
             "seeded": true,
-            "rank": 272,
+            "rank": 283,
             "startDate": "2026-10-04"
           },
           "17818": {
             "title": "フールナイト",
             "firstSeen": "2026-09-19",
             "services": {},
-            "rank": 196,
+            "rank": 215,
             "startDate": null
           },
           "17850": {
@@ -6617,7 +6685,7 @@
               }
             },
             "seeded": true,
-            "rank": 291,
+            "rank": 299,
             "startDate": "2026-10-11"
           },
           "17851": {
@@ -6629,7 +6697,7 @@
               }
             },
             "seeded": true,
-            "rank": 197,
+            "rank": 200,
             "startDate": "2026-10-09"
           },
           "17853": {
@@ -6644,7 +6712,7 @@
               }
             },
             "seeded": true,
-            "rank": 102,
+            "rank": 104,
             "startDate": "2026-10-11"
           },
           "17862": {
@@ -6690,7 +6758,7 @@
               }
             },
             "seeded": true,
-            "rank": 718,
+            "rank": 740,
             "startDate": "2026-10-02"
           },
           "17935": {
@@ -6726,7 +6794,7 @@
               }
             },
             "seeded": true,
-            "rank": 75,
+            "rank": 76,
             "startDate": "2026-10-10"
           },
           "17942": {
@@ -6741,7 +6809,7 @@
               }
             },
             "seeded": true,
-            "rank": 65,
+            "rank": 67,
             "startDate": "2026-10-18"
           },
           "17983": {
@@ -6781,7 +6849,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 21,
+            "rank": 22,
             "startDate": null
           },
           "18102": {
@@ -6807,7 +6875,7 @@
                 "firstSeen": "2026-08-24"
               }
             },
-            "rank": 30,
+            "rank": 31,
             "startDate": "2026-10-09"
           },
           "18106": {
@@ -6818,7 +6886,7 @@
                 "firstSeen": "2026-09-28"
               }
             },
-            "rank": 61,
+            "rank": 68,
             "startDate": "2026-09-27"
           },
           "18128": {
@@ -6858,7 +6926,7 @@
             "title": "ちょこっとヤバシティ",
             "firstSeen": "2026-09-08",
             "services": {},
-            "rank": 9,
+            "rank": 10,
             "startDate": null
           },
           "18192": {
@@ -6911,7 +6979,7 @@
                 "firstSeen": "2026-09-18"
               }
             },
-            "rank": 22,
+            "rank": 23,
             "startDate": "2026-09-18"
           },
           "18210": {
@@ -6932,7 +7000,7 @@
             "title": "蒼き伝承 ウェルシュ＆シェダー",
             "firstSeen": "2026-09-19",
             "services": {},
-            "rank": 44,
+            "rank": 47,
             "startDate": null
           },
           "18221": {
@@ -6960,7 +7028,7 @@
             "title": "魔法の姉妹ルルットリリィ 近くて遠いふたりの距離",
             "firstSeen": "2026-09-25",
             "services": {},
-            "rank": 21,
+            "rank": 22,
             "startDate": null
           },
           "18237": {
@@ -7210,6 +7278,11 @@
             "date": "2026-09-29",
             "works": 127,
             "withServices": 74
+          },
+          {
+            "date": "2026-09-30",
+            "works": 127,
+            "withServices": 75
           }
         ]
       },
@@ -7897,6 +7970,11 @@
             "date": "2026-09-29",
             "works": 58,
             "withServices": 0
+          },
+          {
+            "date": "2026-09-30",
+            "works": 58,
+            "withServices": 0
           }
         ]
       }
@@ -7910,7 +7988,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 59603,
+            "rank": 59925,
             "startDate": "2026-07-05"
           },
           "108992": {
@@ -7918,7 +7996,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 7938,
+            "rank": 7945,
             "startDate": "2026-07-09"
           },
           "128757": {
@@ -7926,7 +8004,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 29217,
+            "rank": 29288,
             "startDate": "2026-07-07"
           },
           "133007": {
@@ -7934,7 +8012,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 49410,
+            "rank": 49446,
             "startDate": "2026-08-28"
           },
           "135865": {
@@ -7942,7 +8020,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 95312,
+            "rank": 95491,
             "startDate": "2026-07-08"
           },
           "159309": {
@@ -7950,7 +8028,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 55788,
+            "rank": 55970,
             "startDate": "2026-07-08"
           },
           "169080": {
@@ -7958,7 +8036,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4131,
+            "rank": 4141,
             "startDate": "2026-07-06"
           },
           "169582": {
@@ -7966,7 +8044,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 26754,
+            "rank": 26845,
             "startDate": "2026-07-06"
           },
           "169583": {
@@ -7974,7 +8052,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 42051,
+            "rank": 42175,
             "startDate": "2026-07-06"
           },
           "176373": {
@@ -7982,7 +8060,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1694,
+            "rank": 1695,
             "startDate": "2026-08-21"
           },
           "177637": {
@@ -7990,7 +8068,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 34738,
+            "rank": 34833,
             "startDate": "2026-07-06"
           },
           "177699": {
@@ -7998,7 +8076,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 54549,
+            "rank": 54649,
             "startDate": "2026-07-07"
           },
           "178789": {
@@ -8006,7 +8084,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 163662,
+            "rank": 164503,
             "startDate": "2026-07-04"
           },
           "180136": {
@@ -8014,7 +8092,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 65250,
+            "rank": 65460,
             "startDate": "2026-07-03"
           },
           "182616": {
@@ -8022,7 +8100,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 27944,
+            "rank": 28035,
             "startDate": "2026-07-17"
           },
           "185542": {
@@ -8030,7 +8108,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 50600,
+            "rank": 50718,
             "startDate": "2026-07-04"
           },
           "185692": {
@@ -8038,7 +8116,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 7417,
+            "rank": 7445,
             "startDate": "2026-07-05"
           },
           "185874": {
@@ -8046,7 +8124,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 89771,
+            "rank": 90011,
             "startDate": "2026-07-25"
           },
           "185875": {
@@ -8054,7 +8132,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 10186,
+            "rank": 10210,
             "startDate": "2026-07-05"
           },
           "186863": {
@@ -8062,7 +8140,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 25227,
+            "rank": 25282,
             "startDate": "2026-06-27"
           },
           "187260": {
@@ -8070,7 +8148,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 56473,
+            "rank": 56616,
             "startDate": "2026-07-07"
           },
           "187538": {
@@ -8078,7 +8156,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 72343,
+            "rank": 72566,
             "startDate": "2026-07-04"
           },
           "188139": {
@@ -8086,7 +8164,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 45549,
+            "rank": 45900,
             "startDate": "2026-07-12"
           },
           "188525": {
@@ -8094,7 +8172,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 12251,
+            "rank": 12350,
             "startDate": "2026-07-03"
           },
           "190569": {
@@ -8102,7 +8180,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 44786,
+            "rank": 44899,
             "startDate": "2026-07-04"
           },
           "192800": {
@@ -8110,14 +8188,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 22762,
+            "rank": 22810,
             "startDate": "2026-06-24"
           },
           "194116": {
             "title": "最終楽章 響け！ユーフォニアム後編",
             "firstSeen": "2026-09-17",
             "services": {},
-            "rank": 3396,
+            "rank": 3403,
             "startDate": "2026-09-11"
           },
           "194219": {
@@ -8125,7 +8203,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 23829,
+            "rank": 23921,
             "startDate": "2026-07-05"
           },
           "194829": {
@@ -8133,7 +8211,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 46305,
+            "rank": 46458,
             "startDate": "2026-07-08"
           },
           "195833": {
@@ -8141,7 +8219,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2147,
+            "rank": 2150,
             "startDate": "2026-07-06"
           },
           "196017": {
@@ -8149,7 +8227,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 10006,
+            "rank": 10063,
             "startDate": "2026-07-05"
           },
           "196187": {
@@ -8157,7 +8235,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 126864,
+            "rank": 127385,
             "startDate": "2026-07-10"
           },
           "196218": {
@@ -8165,7 +8243,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 33707,
+            "rank": 33819,
             "startDate": "2026-07-03"
           },
           "196219": {
@@ -8173,7 +8251,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 21485,
+            "rank": 21525,
             "startDate": "2026-06-30"
           },
           "196223": {
@@ -8181,7 +8259,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 946,
+            "rank": 947,
             "startDate": "2026-07-19"
           },
           "196356": {
@@ -8189,7 +8267,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 12854,
+            "rank": 12905,
             "startDate": "2026-07-08"
           },
           "197178": {
@@ -8197,7 +8275,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 15926,
+            "rank": 15933,
             "startDate": "2026-07-05"
           },
           "197715": {
@@ -8205,7 +8283,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 38922,
+            "rank": 39010,
             "startDate": "2026-07-02"
           },
           "198044": {
@@ -8213,7 +8291,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 342,
+            "rank": 343,
             "startDate": "2026-07-03"
           },
           "198376": {
@@ -8221,7 +8299,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 7912,
+            "rank": 7938,
             "startDate": "2026-07-02"
           },
           "198409": {
@@ -8229,14 +8307,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 29225,
+            "rank": 29289,
             "startDate": "2026-07-05"
           },
           "198654": {
             "title": "名探偵プリキュア！不思議な庭と2人の秘密",
             "firstSeen": "2026-09-19",
             "services": {},
-            "rank": 756,
+            "rank": 761,
             "startDate": "2026-09-18"
           },
           "198709": {
@@ -8244,7 +8322,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 16113,
+            "rank": 16146,
             "startDate": "2026-07-08"
           },
           "198946": {
@@ -8252,7 +8330,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 46197,
+            "rank": 46332,
             "startDate": "2026-07-08"
           },
           "199066": {
@@ -8260,7 +8338,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 26711,
+            "rank": 26934,
             "startDate": "2026-07-12"
           },
           "199111": {
@@ -8268,7 +8346,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 42713,
+            "rank": 42842,
             "startDate": "2026-07-07"
           },
           "199408": {
@@ -8276,7 +8354,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 25836,
+            "rank": 25931,
             "startDate": "2026-07-06"
           },
           "199748": {
@@ -8284,7 +8362,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 41738,
+            "rank": 41833,
             "startDate": "2026-07-03"
           },
           "200230": {
@@ -8292,7 +8370,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 6021,
+            "rank": 6062,
             "startDate": "2026-07-05"
           },
           "200637": {
@@ -8300,7 +8378,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 41517,
+            "rank": 41632,
             "startDate": "2026-07-05"
           },
           "201514": {
@@ -8308,7 +8386,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 44863,
+            "rank": 44970,
             "startDate": "2026-07-05"
           },
           "201667": {
@@ -8316,7 +8394,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4875,
+            "rank": 4879,
             "startDate": "2026-07-02"
           },
           "202269": {
@@ -8324,7 +8402,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 50039,
+            "rank": 50382,
             "startDate": "2026-07-06"
           },
           "202429": {
@@ -8332,7 +8410,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3430,
+            "rank": 3445,
             "startDate": "2026-09-25"
           },
           "202717": {
@@ -8340,7 +8418,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2809,
+            "rank": 2819,
             "startDate": "2026-07-24"
           },
           "202896": {
@@ -8348,7 +8426,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 578,
+            "rank": 581,
             "startDate": "2026-07-03"
           },
           "203490": {
@@ -8356,7 +8434,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 10286,
+            "rank": 10319,
             "startDate": "2026-07-04"
           },
           "203880": {
@@ -8364,7 +8442,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 15072,
+            "rank": 15154,
             "startDate": "2026-07-02"
           },
           "204060": {
@@ -8372,7 +8450,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 11592,
+            "rank": 11642,
             "startDate": "2026-07-05"
           },
           "204466": {
@@ -8380,7 +8458,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 41323,
+            "rank": 41428,
             "startDate": "2026-07-03"
           },
           "205116": {
@@ -8396,7 +8474,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 6575,
+            "rank": 6590,
             "startDate": "2026-07-04"
           },
           "206521": {
@@ -8404,7 +8482,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 22546,
+            "rank": 22571,
             "startDate": "2026-06-29"
           },
           "206682": {
@@ -8420,7 +8498,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 6191,
+            "rank": 6211,
             "startDate": "2026-07-17"
           },
           "207141": {
@@ -8428,7 +8506,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 77608,
+            "rank": 77936,
             "startDate": "2026-07-03"
           },
           "207254": {
@@ -8436,7 +8514,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2087,
+            "rank": 2094,
             "startDate": "2026-07-09"
           },
           "207674": {
@@ -8444,7 +8522,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 21064,
+            "rank": 21106,
             "startDate": "2026-07-04"
           },
           "207809": {
@@ -8452,7 +8530,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 10966,
+            "rank": 10993,
             "startDate": "2026-07-08"
           },
           "208044": {
@@ -8460,7 +8538,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 53496,
+            "rank": 53633,
             "startDate": "2026-06-26"
           },
           "208225": {
@@ -8468,7 +8546,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 12965,
+            "rank": 13009,
             "startDate": "2026-07-05"
           },
           "208685": {
@@ -8476,7 +8554,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1550,
+            "rank": 1554,
             "startDate": "2026-07-06"
           },
           "208754": {
@@ -8484,7 +8562,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 8620,
+            "rank": 8633,
             "startDate": "2026-07-10"
           },
           "208824": {
@@ -8492,7 +8570,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 357,
+            "rank": 358,
             "startDate": "2026-07-12"
           },
           "208829": {
@@ -8500,7 +8578,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 498,
+            "rank": 497,
             "startDate": "2026-07-31"
           },
           "209504": {
@@ -8508,7 +8586,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 15486,
+            "rank": 15529,
             "startDate": "2026-07-06"
           },
           "209669": {
@@ -8516,7 +8594,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 7410,
+            "rank": 7430,
             "startDate": "2026-07-02"
           },
           "209800": {
@@ -8524,7 +8602,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1781,
+            "rank": 1786,
             "startDate": "2026-07-07"
           },
           "209961": {
@@ -8532,7 +8610,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 11859,
+            "rank": 11889,
             "startDate": "2026-07-10"
           },
           "209983": {
@@ -8540,7 +8618,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 42646,
+            "rank": 42870,
             "startDate": "2026-07-04"
           },
           "210031": {
@@ -8548,7 +8626,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 62344,
+            "rank": 62700,
             "startDate": "2026-07-05"
           },
           "211232": {
@@ -8556,7 +8634,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 832,
+            "rank": 835,
             "startDate": "2026-07-08"
           },
           "211308": {
@@ -8564,7 +8642,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 16214,
+            "rank": 16245,
             "startDate": "2026-08-08"
           },
           "211338": {
@@ -8572,7 +8650,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 567,
+            "rank": 571,
             "startDate": "2026-07-31"
           },
           "211711": {
@@ -8580,7 +8658,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 17936,
+            "rank": 17977,
             "startDate": "2026-08-03"
           },
           "212272": {
@@ -8588,7 +8666,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 703,
+            "rank": 705,
             "startDate": "2026-07-31"
           },
           "212308": {
@@ -8596,7 +8674,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 234,
+            "rank": 235,
             "startDate": "2026-07-04"
           },
           "212574": {
@@ -8604,7 +8682,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 553,
+            "rank": 560,
             "startDate": "2026-08-28"
           },
           "212575": {
@@ -8612,7 +8690,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 288,
+            "rank": 295,
             "startDate": "2026-08-28"
           },
           "212617": {
@@ -8620,7 +8698,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 740,
+            "rank": 745,
             "startDate": "2026-07-31"
           },
           "212652": {
@@ -8628,7 +8706,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 743,
+            "rank": 745,
             "startDate": "2026-08-21"
           },
           "213066": {
@@ -8636,7 +8714,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 416,
+            "rank": 418,
             "startDate": "2026-09-11"
           },
           "213067": {
@@ -8644,7 +8722,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 308,
+            "rank": 313,
             "startDate": "2026-09-18"
           },
           "213097": {
@@ -8684,7 +8762,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 325,
+            "rank": 326,
             "startDate": "2026-07-06"
           },
           "213665": {
@@ -8692,7 +8770,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3108,
+            "rank": 3118,
             "startDate": "2026-07-07"
           },
           "213666": {
@@ -8700,7 +8778,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2996,
+            "rank": 3002,
             "startDate": "2026-07-08"
           },
           "213686": {
@@ -8708,7 +8786,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 231,
+            "rank": 233,
             "startDate": "2026-09-25"
           },
           "213732": {
@@ -8716,7 +8794,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 256,
+            "rank": 259,
             "startDate": "2026-09-25"
           },
           "213733": {
@@ -8724,7 +8802,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 595,
+            "rank": 601,
             "startDate": "2026-08-28"
           },
           "213750": {
@@ -8740,7 +8818,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1230,
+            "rank": 1236,
             "startDate": "2026-07-04"
           },
           "213847": {
@@ -8748,7 +8826,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4541,
+            "rank": 4550,
             "startDate": "2026-08-05"
           },
           "213861": {
@@ -8756,7 +8834,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 126,
+            "rank": 127,
             "startDate": "2026-07-02"
           },
           "213908": {
@@ -8764,7 +8842,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 279,
+            "rank": 281,
             "startDate": "2026-08-01"
           },
           "213961": {
@@ -8772,7 +8850,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 931,
+            "rank": 936,
             "startDate": "2026-07-09"
           },
           "214031": {
@@ -8780,7 +8858,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 8799,
+            "rank": 8818,
             "startDate": "2026-07-12"
           },
           "214068": {
@@ -8788,7 +8866,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 313,
+            "rank": 316,
             "startDate": "2026-07-19"
           },
           "214070": {
@@ -8796,14 +8874,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 439,
+            "rank": 441,
             "startDate": "2026-07-19"
           },
           "214551": {
             "title": "桜春女学院の男優",
             "firstSeen": "2026-09-16",
             "services": {},
-            "rank": 125,
+            "rank": 126,
             "startDate": "2026-09-25"
           },
           "214703": {
@@ -8811,7 +8889,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 998,
+            "rank": 1022,
             "startDate": "2026-09-05"
           },
           "214855": {
@@ -8819,21 +8897,21 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 189,
+            "rank": 192,
             "startDate": "2026-08-07"
           },
           "215761": {
             "title": "POKÉTOON (2026)",
             "firstSeen": "2026-08-21",
             "services": {},
-            "rank": 440,
+            "rank": 441,
             "startDate": "2026-08-12"
           },
           "216625": {
             "title": "ポケ起き SEASON 2",
             "firstSeen": "2026-09-13",
             "services": {},
-            "rank": 163,
+            "rank": 168,
             "startDate": "2026-09-07"
           },
           "216643": {
@@ -8847,7 +8925,7 @@
             "title": "ヘタリア World★Stars (2026)",
             "firstSeen": "2026-09-13",
             "services": {},
-            "rank": 199,
+            "rank": 201,
             "startDate": "2026-09-05"
           }
         },
@@ -9061,6 +9139,11 @@
             "date": "2026-09-29",
             "works": 119,
             "withServices": 0
+          },
+          {
+            "date": "2026-09-30",
+            "works": 119,
+            "withServices": 0
           }
         ]
       },
@@ -9072,7 +9155,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 38119,
+            "rank": 38396,
             "startDate": "2026-11-20"
           },
           "152677": {
@@ -9080,7 +9163,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 20897,
+            "rank": 21032,
             "startDate": "2026-10-07"
           },
           "157330": {
@@ -9088,7 +9171,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3935,
+            "rank": 3958,
             "startDate": "2026-11-13"
           },
           "159042": {
@@ -9096,7 +9179,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 39223,
+            "rank": 39468,
             "startDate": "2026-10-01"
           },
           "160275": {
@@ -9104,7 +9187,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 40401,
+            "rank": 40588,
             "startDate": "2026-10-23"
           },
           "160803": {
@@ -9112,7 +9195,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5346,
+            "rank": 5399,
             "startDate": "2026-10-06"
           },
           "169581": {
@@ -9120,7 +9203,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 7706,
+            "rank": 7959,
             "startDate": "2026-09-26"
           },
           "172192": {
@@ -9128,7 +9211,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 20966,
+            "rank": 21140,
             "startDate": "2026-10-08"
           },
           "176314": {
@@ -9136,7 +9219,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 9771,
+            "rank": 9864,
             "startDate": "2026-10-07"
           },
           "178083": {
@@ -9144,7 +9227,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 24672,
+            "rank": 24927,
             "startDate": "2026-10-03"
           },
           "178868": {
@@ -9152,7 +9235,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 7206,
+            "rank": 7313,
             "startDate": "2026-10-07"
           },
           "178972": {
@@ -9160,14 +9243,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 9676,
+            "rank": 9818,
             "startDate": "2026-11-06"
           },
           "179876": {
             "title": "DARK MACHINE -The Animation-",
             "firstSeen": "2026-08-20",
             "services": {},
-            "rank": 1318,
+            "rank": 1372,
             "startDate": "2026-10-14"
           },
           "180894": {
@@ -9175,7 +9258,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3823,
+            "rank": 3974,
             "startDate": "2026-10-03"
           },
           "185756": {
@@ -9183,7 +9266,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 17159,
+            "rank": 18438,
             "startDate": "2026-09-27"
           },
           "186541": {
@@ -9191,7 +9274,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 8525,
+            "rank": 8784,
             "startDate": "2026-10-04"
           },
           "186742": {
@@ -9199,7 +9282,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 6653,
+            "rank": 6828,
             "startDate": "2026-10-09"
           },
           "187316": {
@@ -9207,7 +9290,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3087,
+            "rank": 3185,
             "startDate": "2026-10-03"
           },
           "187402": {
@@ -9215,7 +9298,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 7821,
+            "rank": 8013,
             "startDate": "2026-10-03"
           },
           "187990": {
@@ -9223,7 +9306,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 785,
+            "rank": 806,
             "startDate": "2026-10-06"
           },
           "189123": {
@@ -9231,14 +9314,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 35545,
+            "rank": 35843,
             "startDate": "2026-10-04"
           },
           "190054": {
             "title": "わたしの幸せな結婚 特別篇",
             "firstSeen": "2026-08-31",
             "services": {},
-            "rank": 9014,
+            "rank": 9098,
             "startDate": "2026-10-25"
           },
           "191656": {
@@ -9246,7 +9329,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 14986,
+            "rank": 15327,
             "startDate": "2026-10-04"
           },
           "191788": {
@@ -9254,7 +9337,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 16722,
+            "rank": 16872,
             "startDate": "2026-10-04"
           },
           "194116": {
@@ -9270,7 +9353,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 270,
+            "rank": 276,
             "startDate": "2026-10-02"
           },
           "195516": {
@@ -9278,7 +9361,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 75118,
+            "rank": 75790,
             "startDate": "2026-10-02"
           },
           "195539": {
@@ -9286,7 +9369,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 68226,
+            "rank": 68875,
             "startDate": "2026-10-20"
           },
           "195571": {
@@ -9294,7 +9377,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5879,
+            "rank": 6040,
             "startDate": "2026-10-10"
           },
           "195604": {
@@ -9302,7 +9385,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 65774,
+            "rank": 66280,
             "startDate": "2026-10-03"
           },
           "197543": {
@@ -9310,7 +9393,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3139,
+            "rank": 3173,
             "startDate": "2026-10-16"
           },
           "198654": {
@@ -9326,7 +9409,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 9905,
+            "rank": 10060,
             "startDate": "2026-10-13"
           },
           "199007": {
@@ -9334,7 +9417,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4412,
+            "rank": 4555,
             "startDate": "2026-10-03"
           },
           "199068": {
@@ -9342,7 +9425,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 939,
+            "rank": 951,
             "startDate": "2026-10-01"
           },
           "199340": {
@@ -9350,7 +9433,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 30161,
+            "rank": 30336,
             "startDate": "2026-10-16"
           },
           "199426": {
@@ -9358,7 +9441,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2285,
+            "rank": 2322,
             "startDate": "2026-10-04"
           },
           "199594": {
@@ -9366,7 +9449,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2152,
+            "rank": 2213,
             "startDate": "2026-10-09"
           },
           "200294": {
@@ -9374,7 +9457,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2546,
+            "rank": 2606,
             "startDate": "2026-10-06"
           },
           "200455": {
@@ -9382,7 +9465,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4397,
+            "rank": 4560,
             "startDate": "2026-10-04"
           },
           "200929": {
@@ -9390,7 +9473,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 26522,
+            "rank": 26796,
             "startDate": "2026-12-11"
           },
           "202079": {
@@ -9398,7 +9481,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2510,
+            "rank": 2597,
             "startDate": "2026-10-04"
           },
           "202250": {
@@ -9406,7 +9489,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4815,
+            "rank": 4992,
             "startDate": "2026-10-04"
           },
           "202390": {
@@ -9414,7 +9497,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3498,
+            "rank": 3523,
             "startDate": "2026-10-09"
           },
           "203275": {
@@ -9422,7 +9505,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4005,
+            "rank": 4126,
             "startDate": "2026-11-06"
           },
           "203473": {
@@ -9430,7 +9513,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3228,
+            "rank": 3313,
             "startDate": "2026-10-10"
           },
           "204011": {
@@ -9438,7 +9521,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 8788,
+            "rank": 9005,
             "startDate": "2026-10-05"
           },
           "204389": {
@@ -9446,7 +9529,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 14122,
+            "rank": 14854,
             "startDate": "2026-09-26"
           },
           "204431": {
@@ -9454,7 +9537,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 6328,
+            "rank": 6405,
             "startDate": "2026-09-05"
           },
           "204561": {
@@ -9462,7 +9545,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 521,
+            "rank": 525,
             "startDate": "2026-11-13"
           },
           "204650": {
@@ -9470,7 +9553,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 11270,
+            "rank": 11442,
             "startDate": "2026-10-02"
           },
           "205289": {
@@ -9478,7 +9561,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 147,
+            "rank": 150,
             "startDate": null
           },
           "205896": {
@@ -9486,7 +9569,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3630,
+            "rank": 3768,
             "startDate": "2026-10-11"
           },
           "205909": {
@@ -9494,7 +9577,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 20067,
+            "rank": 20370,
             "startDate": "2026-10-09"
           },
           "206163": {
@@ -9502,7 +9585,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1921,
+            "rank": 1952,
             "startDate": "2026-11-20"
           },
           "206401": {
@@ -9510,14 +9593,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5755,
+            "rank": 5923,
             "startDate": "2026-10-01"
           },
           "206774": {
             "title": "マウスカーソルで現実を操作できるようになったので、女の子をいっぱいクリックしまーす",
             "firstSeen": "2026-08-28",
             "services": {},
-            "rank": 2721,
+            "rank": 2839,
             "startDate": "2026-10-05"
           },
           "206814": {
@@ -9525,7 +9608,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 11606,
+            "rank": 11817,
             "startDate": "2026-10-11"
           },
           "206949": {
@@ -9533,7 +9616,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 8127,
+            "rank": 8334,
             "startDate": "2026-10-06"
           },
           "207191": {
@@ -9541,14 +9624,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 9316,
+            "rank": 9646,
             "startDate": "2026-10-05"
           },
           "207217": {
             "title": "子猫の配達員うーにゃん",
             "firstSeen": "2026-09-28",
             "services": {},
-            "rank": 61,
+            "rank": 66,
             "startDate": "2026-09-27"
           },
           "207327": {
@@ -9556,7 +9639,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 10750,
+            "rank": 10908,
             "startDate": "2026-10-09"
           },
           "207329": {
@@ -9564,7 +9647,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5955,
+            "rank": 6159,
             "startDate": "2026-10-07"
           },
           "208025": {
@@ -9572,14 +9655,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 7592,
+            "rank": 7812,
             "startDate": "2026-10-05"
           },
           "208367": {
             "title": "Duel Masters LOST ～断罪の少年～",
             "firstSeen": "2026-09-13",
             "services": {},
-            "rank": 173,
+            "rank": 181,
             "startDate": "2026-10-09"
           },
           "209032": {
@@ -9587,7 +9670,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1077,
+            "rank": 1085,
             "startDate": "2026-10-04"
           },
           "209132": {
@@ -9603,7 +9686,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3643,
+            "rank": 3799,
             "startDate": "2026-10-05"
           },
           "209463": {
@@ -9611,7 +9694,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2757,
+            "rank": 2826,
             "startDate": "2026-10-05"
           },
           "209499": {
@@ -9619,7 +9702,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3400,
+            "rank": 3515,
             "startDate": "2026-10-04"
           },
           "209502": {
@@ -9627,7 +9710,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 7633,
+            "rank": 7844,
             "startDate": "2026-10-06"
           },
           "209562": {
@@ -9635,7 +9718,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2221,
+            "rank": 2282,
             "startDate": "2026-10-03"
           },
           "209642": {
@@ -9643,7 +9726,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 546,
+            "rank": 551,
             "startDate": "2026-10-23"
           },
           "209709": {
@@ -9651,7 +9734,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 246,
+            "rank": 249,
             "startDate": "2026-10-03"
           },
           "209872": {
@@ -9659,7 +9742,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 11144,
+            "rank": 11303,
             "startDate": "2026-10-04"
           },
           "210482": {
@@ -9667,7 +9750,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 31869,
+            "rank": 32591,
             "startDate": "2026-09-25"
           },
           "211778": {
@@ -9675,7 +9758,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5019,
+            "rank": 5150,
             "startDate": "2026-10-07"
           },
           "211877": {
@@ -9683,7 +9766,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5674,
+            "rank": 5816,
             "startDate": "2026-10-05"
           },
           "212144": {
@@ -9691,7 +9774,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1203,
+            "rank": 1223,
             "startDate": "2026-10-02"
           },
           "212503": {
@@ -9699,14 +9782,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 9963,
+            "rank": 10145,
             "startDate": "2026-10-09"
           },
           "212539": {
             "title": "タコピーの原罪 -ありがとう、また明日-",
             "firstSeen": "2026-08-19",
             "services": {},
-            "rank": 4984,
+            "rank": 5030,
             "startDate": "2026-11-27"
           },
           "212667": {
@@ -9714,7 +9797,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3934,
+            "rank": 3955,
             "startDate": "2026-10-04"
           },
           "212799": {
@@ -9722,7 +9805,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2653,
+            "rank": 2761,
             "startDate": "2026-10-03"
           },
           "212888": {
@@ -9730,7 +9813,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 14958,
+            "rank": 18101,
             "startDate": "2026-09-27"
           },
           "213068": {
@@ -9738,7 +9821,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1040,
+            "rank": 1084,
             "startDate": "2026-10-08"
           },
           "213298": {
@@ -9746,14 +9829,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 133,
+            "rank": 134,
             "startDate": null
           },
           "213457": {
             "title": "フールナイト",
             "firstSeen": "2026-08-21",
             "services": {},
-            "rank": 18206,
+            "rank": 18609,
             "startDate": "2026-11-26"
           },
           "213657": {
@@ -9761,7 +9844,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5770,
+            "rank": 5855,
             "startDate": "2026-10-11"
           },
           "213658": {
@@ -9769,7 +9852,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2560,
+            "rank": 2607,
             "startDate": "2026-10-11"
           },
           "213805": {
@@ -9777,7 +9860,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 21933,
+            "rank": 22281,
             "startDate": "2026-10-01"
           },
           "214443": {
@@ -9785,7 +9868,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 121,
+            "rank": 124,
             "startDate": "2026-10-30"
           },
           "214536": {
@@ -9793,7 +9876,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 327,
+            "rank": 332,
             "startDate": "2026-11-07"
           },
           "214593": {
@@ -9801,7 +9884,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 88,
+            "rank": 90,
             "startDate": "2026-10-05"
           },
           "214968": {
@@ -9816,91 +9899,91 @@
             "title": "夏日 The Animation",
             "firstSeen": "2026-09-19",
             "services": {},
-            "rank": 142,
+            "rank": 145,
             "startDate": "2026-12-25"
           },
           "215835": {
             "title": "うまゆるふるげ〜と!",
             "firstSeen": "2026-08-23",
             "services": {},
-            "rank": 2135,
+            "rank": 2203,
             "startDate": "2026-09-27"
           },
           "215989": {
             "title": "堕ちるパート妻 年下男との情事に溺れた果てに…",
             "firstSeen": "2026-08-27",
             "services": {},
-            "rank": 118,
+            "rank": 120,
             "startDate": "2026-11-27"
           },
           "216171": {
             "title": "真面目なキミにハマるカラダ THE ANIMATION",
             "firstSeen": "2026-08-31",
             "services": {},
-            "rank": 168,
+            "rank": 172,
             "startDate": "2026-11-27"
           },
           "216557": {
             "title": "ケロロ軍曹☆",
             "firstSeen": "2026-09-13",
             "services": {},
-            "rank": 870,
+            "rank": 902,
             "startDate": "2026-10-03"
           },
           "216617": {
             "title": "ふたなり神社は乙女おチ○ポ相談所",
             "firstSeen": "2026-09-13",
             "services": {},
-            "rank": 106,
+            "rank": 112,
             "startDate": "2026-12-04"
           },
           "216860": {
             "title": "ぷにるんず ぷに４",
             "firstSeen": "2026-09-16",
             "services": {},
-            "rank": 34,
+            "rank": 36,
             "startDate": "2026-10-04"
           },
           "216895": {
             "title": "蒼き伝承 ウェルシュ＆シェダー",
             "firstSeen": "2026-09-17",
             "services": {},
-            "rank": 677,
+            "rank": 739,
             "startDate": "2026-10-02"
           },
           "216926": {
             "title": "お隣の贄",
             "firstSeen": "2026-09-18",
             "services": {},
-            "rank": 118,
+            "rank": 124,
             "startDate": "2026-11-27"
           },
           "217009": {
             "title": "ギャルズフィクション THE ANIMATION",
             "firstSeen": "2026-09-20",
             "services": {},
-            "rank": 102,
+            "rank": 108,
             "startDate": "2026-12-18"
           },
           "217282": {
             "title": "ゲルぴよ 2",
             "firstSeen": "2026-09-25",
             "services": {},
-            "rank": 18,
+            "rank": 19,
             "startDate": "2026-10-21"
           },
           "217458": {
             "title": "悪霊退散！おねが～い！色神様",
             "firstSeen": "2026-09-28",
             "services": {},
-            "rank": 3,
+            "rank": 17,
             "startDate": "2026-12-25"
           },
           "217459": {
             "title": "姉モネ",
             "firstSeen": "2026-09-29",
             "services": {},
-            "rank": 2,
+            "rank": 19,
             "startDate": "2026-12-25"
           }
         },
@@ -10114,6 +10197,11 @@
             "date": "2026-09-29",
             "works": 104,
             "withServices": 0
+          },
+          {
+            "date": "2026-09-30",
+            "works": 104,
+            "withServices": 0
           }
         ]
       },
@@ -10124,7 +10212,7 @@
             "title": "世界最高の暗殺者、異世界貴族に転生する 2ndシーズン",
             "firstSeen": "2026-09-05",
             "services": {},
-            "rank": 27199,
+            "rank": 27279,
             "startDate": null
           },
           "171630": {
@@ -10132,7 +10220,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 26784,
+            "rank": 26856,
             "startDate": null
           },
           "174427": {
@@ -10140,7 +10228,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2929,
+            "rank": 2950,
             "startDate": null
           },
           "177704": {
@@ -10148,14 +10236,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 34188,
+            "rank": 34370,
             "startDate": null
           },
           "185697": {
             "title": "アルカナディア",
             "firstSeen": "2026-08-30",
             "services": {},
-            "rank": 1175,
+            "rank": 1182,
             "startDate": null
           },
           "185699": {
@@ -10163,7 +10251,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1046,
+            "rank": 1047,
             "startDate": null
           },
           "186741": {
@@ -10171,7 +10259,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5159,
+            "rank": 5209,
             "startDate": null
           },
           "186822": {
@@ -10179,7 +10267,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 21877,
+            "rank": 21973,
             "startDate": null
           },
           "187303": {
@@ -10187,14 +10275,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2419,
+            "rank": 2436,
             "startDate": null
           },
           "188546": {
             "title": "俺と悠兄！",
             "firstSeen": "2026-08-22",
             "services": {},
-            "rank": 1452,
+            "rank": 1462,
             "startDate": null
           },
           "188892": {
@@ -10202,7 +10290,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 8837,
+            "rank": 8876,
             "startDate": null
           },
           "189121": {
@@ -10210,7 +10298,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4700,
+            "rank": 4711,
             "startDate": null
           },
           "189323": {
@@ -10218,7 +10306,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 34086,
+            "rank": 34185,
             "startDate": "2027-01-10"
           },
           "194030": {
@@ -10226,7 +10314,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2296,
+            "rank": 2313,
             "startDate": null
           },
           "194213": {
@@ -10234,7 +10322,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5999,
+            "rank": 6030,
             "startDate": "2027-02-11"
           },
           "196333": {
@@ -10242,7 +10330,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4758,
+            "rank": 4982,
             "startDate": null
           },
           "197095": {
@@ -10250,7 +10338,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2060,
+            "rank": 2088,
             "startDate": null
           },
           "197619": {
@@ -10258,14 +10346,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4306,
+            "rank": 4362,
             "startDate": null
           },
           "197620": {
             "title": "SEKIRO: NO DEFEAT",
             "firstSeen": "2026-09-25",
             "services": {},
-            "rank": 16534,
+            "rank": 16663,
             "startDate": null
           },
           "198728": {
@@ -10273,14 +10361,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2271,
+            "rank": 2289,
             "startDate": null
           },
           "199337": {
             "title": "真•侍伝 YAIBA 第二期",
             "firstSeen": "2026-09-20",
             "services": {},
-            "rank": 2310,
+            "rank": 2316,
             "startDate": "2027-01-09"
           },
           "199590": {
@@ -10288,7 +10376,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2102,
+            "rank": 2118,
             "startDate": null
           },
           "200578": {
@@ -10296,7 +10384,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4471,
+            "rank": 4500,
             "startDate": null
           },
           "202282": {
@@ -10304,21 +10392,21 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2853,
+            "rank": 2870,
             "startDate": null
           },
           "202503": {
             "title": "魔術を極めて旅に出た転生エルフ、持て余した寿命で生ける伝説となる",
             "firstSeen": "2026-09-22",
             "services": {},
-            "rank": 2462,
+            "rank": 2499,
             "startDate": null
           },
           "202564": {
             "title": "描くなるうえは",
             "firstSeen": "2026-09-25",
             "services": {},
-            "rank": 11718,
+            "rank": 11837,
             "startDate": null
           },
           "203116": {
@@ -10326,7 +10414,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 667,
+            "rank": 671,
             "startDate": null
           },
           "203141": {
@@ -10334,7 +10422,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 453,
+            "rank": 458,
             "startDate": null
           },
           "204363": {
@@ -10342,7 +10430,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 23963,
+            "rank": 24086,
             "startDate": null
           },
           "204579": {
@@ -10350,7 +10438,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 8268,
+            "rank": 8386,
             "startDate": null
           },
           "205130": {
@@ -10358,14 +10446,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5063,
+            "rank": 5119,
             "startDate": null
           },
           "206298": {
             "title": "劇場版 メダリスト",
             "firstSeen": "2026-08-31",
             "services": {},
-            "rank": 5723,
+            "rank": 5740,
             "startDate": "2027-02-19"
           },
           "207251": {
@@ -10373,7 +10461,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4490,
+            "rank": 4532,
             "startDate": null
           },
           "207328": {
@@ -10381,14 +10469,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 886,
+            "rank": 891,
             "startDate": null
           },
           "208766": {
             "title": "ブレス",
             "firstSeen": "2026-09-13",
             "services": {},
-            "rank": 4634,
+            "rank": 4669,
             "startDate": null
           },
           "209221": {
@@ -10396,7 +10484,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1832,
+            "rank": 1838,
             "startDate": null
           },
           "209224": {
@@ -10404,7 +10492,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 869,
+            "rank": 877,
             "startDate": null
           },
           "209661": {
@@ -10412,7 +10500,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2734,
+            "rank": 2771,
             "startDate": null
           },
           "210073": {
@@ -10420,7 +10508,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4964,
+            "rank": 4984,
             "startDate": null
           },
           "210157": {
@@ -10428,28 +10516,28 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1107,
+            "rank": 1113,
             "startDate": null
           },
           "210199": {
             "title": "ザ・ファブル 第2期",
             "firstSeen": "2026-09-15",
             "services": {},
-            "rank": 3944,
+            "rank": 3963,
             "startDate": null
           },
           "211070": {
             "title": "ペンと手錠と事実婚",
             "firstSeen": "2026-08-22",
             "services": {},
-            "rank": 1139,
+            "rank": 1155,
             "startDate": null
           },
           "211258": {
             "title": "アラフォー賢者の異世界生活日記",
             "firstSeen": "2026-09-19",
             "services": {},
-            "rank": 953,
+            "rank": 968,
             "startDate": null
           },
           "212653": {
@@ -10464,7 +10552,7 @@
             "title": "電撃デイジー",
             "firstSeen": "2026-09-20",
             "services": {},
-            "rank": 2958,
+            "rank": 2977,
             "startDate": null
           },
           "213360": {
@@ -10472,7 +10560,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 6672,
+            "rank": 6706,
             "startDate": null
           },
           "213497": {
@@ -10480,7 +10568,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2634,
+            "rank": 2654,
             "startDate": null
           },
           "213752": {
@@ -10488,14 +10576,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 12575,
+            "rank": 12645,
             "startDate": null
           },
           "213877": {
             "title": "ムルシエラゴ",
             "firstSeen": "2026-08-23",
             "services": {},
-            "rank": 2884,
+            "rank": 2902,
             "startDate": null
           },
           "214049": {
@@ -10503,7 +10591,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 954,
+            "rank": 969,
             "startDate": null
           },
           "215695": {
@@ -10517,21 +10605,21 @@
             "title": "死して生きるSSS級ハンター",
             "firstSeen": "2026-09-13",
             "services": {},
-            "rank": 4970,
+            "rank": 5051,
             "startDate": null
           },
           "216858": {
             "title": "ハルとゲン ～70歳、はじめての子育て～",
             "firstSeen": "2026-09-16",
             "services": {},
-            "rank": 58,
+            "rank": 60,
             "startDate": null
           },
           "217070": {
             "title": "ふつつかな悪女ではございますが ～雛宮蝶鼠とりかえ伝～ 第二幕",
             "firstSeen": "2026-09-21",
             "services": {},
-            "rank": 7020,
+            "rank": 7189,
             "startDate": null
           },
           "217129": {
@@ -10545,7 +10633,7 @@
             "title": "メラ×デス 死神と僕の異常な恋",
             "firstSeen": "2026-09-28",
             "services": {},
-            "rank": 149,
+            "rank": 206,
             "startDate": "2027-01-05"
           }
         },
@@ -10757,6 +10845,11 @@
           },
           {
             "date": "2026-09-29",
+            "works": 56,
+            "withServices": 0
+          },
+          {
+            "date": "2026-09-30",
             "works": 56,
             "withServices": 0
           }
