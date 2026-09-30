@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-27",
+  "updatedAt": "2026-09-30",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -1321,6 +1321,15 @@
       "matchedBy": "title",
       "title": "ハルとゲン ～70歳、はじめての子育て～"
     },
+    "18205": {
+      "date": "2026-10-02",
+      "precision": "day",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/217577",
+      "fetchedDate": "2026-09-30",
+      "matchedBy": "mal",
+      "title": "マゼンチュ"
+    },
     "18218": {
       "date": "2026-10-02",
       "precision": "day",
@@ -1328,8 +1337,8 @@
       "time": "21:26",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/216895",
-      "fetchedDate": "2026-09-19",
-      "matchedBy": "title",
+      "fetchedDate": "2026-09-30",
+      "matchedBy": "mal",
       "title": "蒼き伝承 ウェルシュ＆シェダー"
     },
     "18227": {
