@@ -300,10 +300,19 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   **今期の面も測る**（faceの末尾が`-current`）。**クール名は書かない**（今期の判定は
   `content/coverage/first-seen.json`から導出し、季節の並びは
   `lib/resolveSeasonParams.ts`の`SEASON_KEYS`から読む）。
-  さらに**初回の値（`lcpFirst`/`ttfbFirst`）も残す**。3回測って中央値を採ると、
-  焼けていないページでも1回目がキャッシュを温めるので**中央値は必ず温かい側に寄り**、
-  初回の遅さが記録に残らない。`lcpFirst ≫ lcp`が「事前生成されていない」の signal で、
-  `speed-report.js`がそれを警告する。経緯は`docs/operations.md`の[57]
+  さらに**初回の値（`lcpFirst`/`ttfbFirst`/`htmlDlFirst`）も残す**。3回測って中央値を
+  採ると、1回目が温めたエッジに2・3回目が当たるので**中央値は必ず温かい側に寄り**、
+  初回の遅さが記録に残らない。訪問者はデプロイ直後などにこの初回の値を引きうる。
+  **【2026-09-30・訂正】初回の遅さを「事前生成されていない」の signal と読まないこと**
+  （重大度高）。ここには`lcpFirst ≫ lcp`がその signal だと書いてあったが、
+  実測で**データ取得ゼロ・動的セグメント無しの完全静的なページ**（`/about`・`/privacy`）
+  まで同じだけ遅く、**焼いていない面のほうが速い**という結果になった。
+  指標を`htmlDlFirst`に替えても同じで、同じ間違いを3度やっている。
+  **そもそもこの計測は「その場生成」を踏めない**（長い裾の`revalidate`は1週間なので、
+  毎日同じURLを測るとISRキャッシュは前日から生きている）。
+  **事前生成の有無はビルド成果物の`.next/prerender-manifest.json`で確かめる。**
+  `speed-report.js`の警告は原因を名乗らない（`htmlDl`の列名も「生成」ではなく「受信」）。
+  経緯は`docs/operations.md`の[57]・[59]・[60]
 - `node scripts/measure-pages.js <URL>` … **表示の速さの実測**（2026-09-03導入）。
   先に`npm run build && npx next start -p 3100`を動かしてからURLを渡す。スマホ相当の条件
   （CPU4倍スロットル・1.6Mbps・390×844）でFCP/LCP・TBT（操作をブロックする時間）・DOMノード数・

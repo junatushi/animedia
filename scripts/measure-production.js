@@ -149,13 +149,16 @@ async function main() {
       // 1回目がその場生成（fallback: blocking）で遅く、2・3回目は
       // 1回目が温めたキャッシュに当たって速い。つまり**中央値は必ず
       // 「温かいページ」の値**になり、焼けていないことが中央値からは見えない。
-      // 事前生成されていれば初回も速いので、`lcpFirst ≫ lcp` は
-      // 「このURLは焼けていない」の signal になる（絶対値ではなく差で見る）。
+      // **`lcpFirst ≫ lcp` を「このURLは焼けていない」と読んではいけない**
+      // （2026-09-30訂正）。完全静的なページでも初回は長く出る。この値で言えるのは
+      // 「訪問者が引きうる初回の値」までで、事前生成の有無はビルド成果物の
+      // `.next/prerender-manifest.json` で確かめる。
       lcpFirst: runs[0].lcp,
       ttfbFirst: runs[0].ttfb,
-      // **事前生成の有無を分けるのはこれ**。焼いていないページは1回目だけ
-      // その場生成（fallback: blocking）になり、本文を作り終えるまでが長くなる。
-      // `ttfbFirst` では検出できない（ストリーミングでヘッダーが先に流れるため）。
+      // HTML本体の受信時間（responseEnd − responseStart）の1回目。RUMの `HTML_DL` と
+      // 同じ定義なのでレポート②と直に比べられる。**事前生成の有無は分けられない**
+      // （2026-09-30実測。焼いていない面のほうが短かった。理由と経緯は
+      // `scripts/speed-report.js` の「初回の値の読み方」）。
       htmlDlFirst: runs[0].htmlDl,
     };
     pages.push(row);
