@@ -47,87 +47,15 @@ jobs:
   revalidate:
     runs-on: ubuntu-latest
     steps:
-      - name: 現在クールと次クールを順に再検証し、そのあと温める
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # 手順はスクリプト側（scripts/warm-revalidated.sh）。ここに書き写さない。
+      - name: 現在クールと次クールを再検証し、そのあと温める
         env:
           BASE: https://animedia-khaki.vercel.app
           CRON_SECRET: ${{ secrets.NOTIFY_CRON_SECRET }}
-        run: |
-          # -f はグロブ展開を止める（温め先のURLに `?` が入るため。`?` はシェルの
-          # ワイルドカードなので、たまたま一致するファイルがあると化ける）。
-          set -u -f
-          FAILED=0
-
-          # **順番に意味がある**（current が先）。共有のデータキャッシュのタグ
-          # （"annict" / "season-current"）は今期と次クールが同じ1枚を使うため、
-          # 窓口は scope=current のときだけそれを古くする。逆順にすると
-          # 2回目の古くしで1回目に温めたぶんが冷える。
-          # 理由は app/api/revalidate/route.ts の該当箇所。
-          for SCOPE in current next; do
-            echo "::group::${SCOPE}"
-
-            # ① 消す（窓口が「温める先」も返す）
-            BODY=$(mktemp)
-            STATUS=$(curl -s -X POST \
-              -H "x-cron-secret: ${CRON_SECRET}" \
-              -o "$BODY" -w "%{http_code}" --max-time 120 \
-              "${BASE}/api/revalidate?scope=${SCOPE}")
-            cat "$BODY"; echo
-            if [ "$STATUS" != "200" ]; then
-              echo "::error::再検証に失敗しました（scope=${SCOPE} status=${STATUS}）"
-              FAILED=1
-              echo "::endgroup::"
-              continue
-            fi
-
-            # 温める先はすべて応答から取る（ここにパスもクール名も書かない）。
-            DATA_URLS=$(jq -r '.warm.data[]?' "$BODY")
-            PAGE_PATHS=$(jq -r '.warm.pages[]?' "$BODY")
-            if [ -z "$PAGE_PATHS" ]; then
-              echo "::error::温める先が返ってきませんでした（scope=${SCOPE}）。応答に warm.pages が無い"
-              FAILED=1
-              echo "::endgroup::"
-              continue
-            fi
-
-            # ② データ層を先に温める（ページ側の温めが軽くなる）。
-            #    /api/season は毎回計算する窓口なので x-vercel-cache は見ない。
-            #    **--max-time が上限の見張りも兼ねている**: 作品数が増えてここが
-            #    タイムアウトし始めたら、それは「クール一括取得が重くなった」合図。
-            # `/api/season` は CDN にキャッシュされる窓口（s-maxage 付き）なので、
-            # そのまま叩くと**関数が走らずCDNから返り、データ層が温まらない**
-            # ＝成功と出るのに何もしていない、という最悪の形になる。
-            # 毎回違うクエリを足して必ず関数を走らせる（窓口は year / season しか読まない）。
-            # 窓口が返す URL は必ず `?` を含む（app/api/revalidate/route.ts の warm.data）。
-            STAMP=$(date +%s)
-            for u in $DATA_URLS; do
-              S=$(curl -s -o /dev/null -w "%{http_code}" --max-time 180 "${BASE}${u}&_warm=${STAMP}")
-              echo "data ${u} -> ${S}"
-              if [ "$S" != "200" ]; then
-                echo "::error::データ層を温められませんでした（${u} status=${S}）"
-                FAILED=1
-              fi
-            done
-
-            # ③ ページを温める → もう1回取って温まったか確認する。
-            for p in $PAGE_PATHS; do
-              S=$(curl -s -o /dev/null -w "%{http_code}" --max-time 180 "${BASE}${p}")
-              if [ "$S" != "200" ]; then
-                echo "::error::温められませんでした（${p} status=${S}）"
-                FAILED=1
-                continue
-              fi
-              CACHE=$(curl -s -o /dev/null -D - --max-time 60 "${BASE}${p}" \
-                | tr -d '\r' | awk 'tolower($1)=="x-vercel-cache:"{print tolower($2)}' | tail -1)
-              echo "page ${p} -> ${S} / x-vercel-cache=${CACHE:-(なし)}"
-              case "$CACHE" in
-                hit|stale|prerender) ;;
-                *)
-                  echo "::error::温めが効いていません（${p} x-vercel-cache=${CACHE:-なし}）。訪問者がその場生成を待つ状態が残っています"
-                  FAILED=1
-                  ;;
-              esac
-            done
-            echo "::endgroup::"
-          done
-
-          exit "$FAILED"
+        run: bash scripts/warm-revalidated.sh

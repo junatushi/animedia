@@ -6845,40 +6845,64 @@ let isrNg = 0;
     );
   }
 
-  const wfWarmPieces: [string, boolean][] = [
-    ["ページを温める", wf.includes("warm.pages")],
-    ["データ層を先に温める", wf.includes("warm.data")],
+  // 温めの手順は**スクリプト側**が持つ（YAMLの run: に書くと子プロセスとして実行できず
+  // 回帰テストが書けない。シェルの検査は「NGを出さなくなる」方向に壊れると毎日緑のまま
+  // 無力化するので、テストできる形であることまでが要件）。
+  const warmShUrl = new URL("../scripts/warm-revalidated.sh", import.meta.url);
+  const warmSh = existsSync(warmShUrl) ? readFileSync(warmShUrl, "utf8") : "";
+  const warmTestUrl = new URL("../scripts/check-warm-revalidated.js", import.meta.url);
+  const wfCallsScript = wf.includes("scripts/warm-revalidated.sh");
+  if (!wfCallsScript) isrNg++;
+  console.log(
+    `${wfCallsScript ? "✓" : "✗"}  ${"revalidate.yml が温めのスクリプトを呼ぶ".padEnd(48)} → ` +
+      (wfCallsScript ? "あり" : "手順がYAMLに戻っている＝回帰テストが効かない形")
+  );
+
+  const warmShPieces: [string, boolean][] = [
+    ["ページを温める", warmSh.includes("warm-pages")],
+    ["データ層を先に温める", warmSh.includes("warm-data")],
     // `/api/season` は s-maxage 付き＝CDNから返ると関数が走らずデータ層が温まらない。
     // そのまま叩くと**成功と出るのに何もしていない**という最悪の形になる。
-    ["データ層の温めでCDNを避ける", wf.includes("_warm=")],
+    ["データ層の温めでCDNを避ける", warmSh.includes("_warm=")],
     // 温めたつもりで効いていない状態を黙って通さないための確認。
-    ["温まったことを確認する", wf.includes("x-vercel-cache")],
+    ["温まったことを確認する", warmSh.includes("x-vercel-cache")],
     // **順番に意味がある**（上の「共有タグを scope=next では古くしない」と対）。
     // 逆順にすると2回目の古くしで1回目に温めたぶんが冷え、今期が冷えたまま終わる。
-    ["current → next の順に叩く", /for SCOPE in current next/.test(wf)],
+    ["current → next の順に叩く", /for SCOPE in current next/.test(warmSh)],
+    // jq は Windows に無く「CIは緑なのに手元では必ず失敗する」状態を一度作っている
+    // （scripts/lib/json-pick.js の冒頭）。同じ轍を踏まない。
+    ["jq に依存しない", !/\bjq\b/.test(warmSh.replace(/^\s*#.*$/gm, ""))],
+    // このスクリプト自身の回帰テストがある（無いと壊れても緑のまま）。
+    ["自身の回帰テストがある", existsSync(warmTestUrl)],
   ];
-  for (const [label, ok] of wfWarmPieces) {
+  for (const [label, ok] of warmShPieces) {
     if (!ok) isrNg++;
     console.log(
-      `${ok ? "✓" : "✗"}  ${`revalidate.yml が${label}`.padEnd(48)} → ` +
+      `${ok ? "✓" : "✗"}  ${`warm-revalidated.sh が${label}`.padEnd(48)} → ` +
         (ok ? "あり" : "これが無いと、消すだけ消して訪問者に待たせる状態に戻る")
     );
   }
 
-  // 温め先をYAMLに書き写さない（クールが変わった日に古い面を温め続ける）。
+  // 温め先を書き写さない（クールが変わった日に古い面を温め続ける）。
   // 【2026-08-05の基本ルールと同型】時刻をYAMLとコードの両方に書かないのと同じ理由。
-  const wfBody = wf.replace(/^\s*#.*$/gm, "");
-  const wfHardcoded = [
-    ["クール単位の面のパス", /\/(season|rankings|exclusive)\//],
-    ["季節の名前", /\b(winter|spring|summer|autumn)\b/],
-  ].filter(([, re]) => (re as RegExp).test(wfBody));
-  const wfNoHardcodeOk = wfHardcoded.length === 0;
-  if (!wfNoHardcodeOk) isrNg++;
+  // YAMLとスクリプトの**両方**を見る（どちらに書いても同じ事故になる）。
+  const warmHardcoded: string[] = [];
+  for (const [where, text] of [["revalidate.yml", wf], ["warm-revalidated.sh", warmSh]] as const) {
+    const body = text.replace(/^\s*#.*$/gm, "");
+    for (const [label, re] of [
+      ["クール単位の面のパス", /\/(season|rankings|exclusive)\//],
+      ["季節の名前", /\b(winter|spring|summer|autumn)\b/],
+    ] as const) {
+      if (re.test(body)) warmHardcoded.push(`${where}: ${label}`);
+    }
+  }
+  const warmNoHardcodeOk = warmHardcoded.length === 0;
+  if (!warmNoHardcodeOk) isrNg++;
   console.log(
-    `${wfNoHardcodeOk ? "✓" : "✗"}  ${"revalidate.yml に面もクール名も書いていない".padEnd(48)} → ` +
-      (wfNoHardcodeOk
+    `${warmNoHardcodeOk ? "✓" : "✗"}  ${"温めに面もクール名も書いていない".padEnd(48)} → ` +
+      (warmNoHardcodeOk
         ? "温め先は窓口の応答から取っている"
-        : `書かれている: ${wfHardcoded.map(([l]) => l).join(" / ")}。クールが変わった日に古い面を温め続ける`)
+        : `書かれている: ${warmHardcoded.join(" / ")}。クールが変わった日に古い面を温め続ける`)
   );
 
   // ── 作品ページはクール全体の取得を待たない（2026-10-01導入・重大度高） ──

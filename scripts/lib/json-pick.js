@@ -81,6 +81,25 @@ function main() {
       console.log(json.airingStatus ?? "missing");
       return;
 
+    // .warm.data[]? / .warm.pages[]?（2026-10-01追加）
+    // /api/revalidate が返す「温める先」。scripts/warm-revalidated.sh が使う。
+    // **1行1件で出す**（呼び出し側が for で回す）。URLに `?` や `&` が入るので、
+    // 呼び出し側は set -f（グロブ展開の停止）を併用すること。
+    // 無い／空のときは1行も出さない＝呼び出し側が「温め先が無い」として落とせる
+    // （空文字を出すと for が空文字1件を回してしまい、黙って成功する）。
+    case "warm-data":
+    case "warm-pages": {
+      const key = mode === "warm-data" ? "data" : "pages";
+      const list = (json.warm || {})[key];
+      if (!Array.isArray(list)) return;
+      for (const v of list) {
+        // 文字列以外・空文字は出さない（URLとして叩けないものを温め先に混ぜない）。
+        if (typeof v !== "string" || v === "") continue;
+        console.log(v);
+      }
+      return;
+    }
+
     default:
       console.error(`json-pick: 未知のモード "${mode}"`);
       process.exitCode = 1;
