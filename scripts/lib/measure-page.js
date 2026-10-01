@@ -110,8 +110,30 @@ async function measure(chromium, url, options = {}) {
       reqs.push({ size, rsc: Boolean(h["rsc"] || h["next-router-prefetch"]) });
     });
 
-    await page.goto(url, { waitUntil: "load", timeout: 120000 });
+    const response = await page.goto(url, { waitUntil: "load", timeout: 120000 });
     await page.waitForTimeout(2500);
+
+    // **文書応答の `x-vercel-cache` を記録する**（2026-10-01追加・重大度高）。
+    // これが無かったせいで「初回だけ遅い」の原因を3回続けて誤って名指しした
+    // （事前生成のせいだと書いて、完全静的なページでも同じだけ遅いことで否定された。
+    // 経緯は docs/operations.md の[60]）。
+    // Vercelはこのヘッダーで**その応答がキャッシュから出たのか作り直したのか**を返す:
+    //   HIT       … キャッシュから配った（その場生成していない）
+    //   STALE     … 期限切れを配りつつ裏で作り直した（訪問者は待っていない）
+    //   PRERENDER … ビルド時の成果物から配った
+    //   MISS      … キャッシュに無く、**その場で作って待たせた**
+    //   BYPASS    … キャッシュを通さない（動的）
+    // つまり「初回が遅い」の原因が**その場生成かどうか**は、この1つで確実に分かれる。
+    // 本番以外（ローカルの next start など）では付かないので null になる＝
+    // **0や"miss"に倒さない**（「付いていない」と「MISSだった」を混ぜると誤読する）。
+    let cache = null;
+    try {
+      const h = response ? response.headers() : {};
+      const raw = h["x-vercel-cache"] || h["X-Vercel-Cache"] || "";
+      cache = raw ? String(raw).toLowerCase() : null;
+    } catch {
+      // 応答が消えている場合は不明のまま（null）。
+    }
 
     const m = await page.evaluate(() => {
       const nav = performance.getEntriesByType("navigation")[0] || {};
@@ -139,6 +161,7 @@ async function measure(chromium, url, options = {}) {
     if (!withScroll) {
       return {
         ...m,
+        cache,
         loadRequests: atLoad,
         loadKB: Math.round(bytesAtLoad / 1024),
         scrollRequests: null,
@@ -155,6 +178,7 @@ async function measure(chromium, url, options = {}) {
 
     return {
       ...m,
+      cache,
       loadRequests: atLoad,
       loadKB: Math.round(bytesAtLoad / 1024),
       scrollRequests: scrolled.length,

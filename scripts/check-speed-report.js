@@ -218,6 +218,131 @@ console.log("── 表示速度レポートの回帰テスト ──");
   check("受信を記録していない断面ではそう告げる", /初回の受信の判定はしていない/.test(out));
   check("受信が無い列は「—」で示す", /anime[^\n]*—/.test(out), out.match(/anime[^\n]*/)?.[0] ?? "");
 }
+// ④-2b 初期表示のバイト数の増加（2026-10-01追加）。
+// 一覧系の面のHTMLは作品数に比例する。いまは律速ではないが、クールが増えれば増えるので
+// **増えたことに気づける**ようにしておく。鳴りすぎても読まれなくなるので両方向を固定する。
+{
+  const out = run(
+    {
+      "2026-09-01.json": snap(PROD, [{ ...page("home", false), loadKB: 200 }]),
+      "2026-09-08.json": snap(PROD, [{ ...page("home", false), loadKB: 260 }]),
+    },
+    {}
+  );
+  check("7日前より太った面を警告する", /初期表示のバイト数が7日前より増えた面[\s\S]*home\(200KB→260KB\)/.test(out),
+    out.match(/初期表示のバイト数[^\n]*/)?.[0] ?? "(警告が出ていない)");
+  check("作品数のせいか別物かを分けるよう促す", /作品数なのか、別のものを足したのか/.test(out));
+}
+{
+  // 比は超えるが絶対値が小さい（小さい面の数KBのぶれ）→ 鳴らさない。
+  const out = run(
+    {
+      "2026-09-01.json": snap(PROD, [{ ...page("about", false), loadKB: 20 }]),
+      "2026-09-08.json": snap(PROD, [{ ...page("about", false), loadKB: 40 }]),
+    },
+    {}
+  );
+  check("絶対値が小さい増加では警告しない", !/初期表示のバイト数が7日前より増えた面/.test(out),
+    out.match(/初期表示のバイト数[^\n]*/)?.[0] ?? "");
+}
+{
+  // 絶対値は超えるが比が小さい（大きい面の通常のゆらぎ）→ 鳴らさない。
+  const out = run(
+    {
+      "2026-09-01.json": snap(PROD, [{ ...page("home", false), loadKB: 500 }]),
+      "2026-09-08.json": snap(PROD, [{ ...page("home", false), loadKB: 535 }]),
+    },
+    {}
+  );
+  check("比が小さい増加では警告しない", !/初期表示のバイト数が7日前より増えた面/.test(out),
+    out.match(/初期表示のバイト数[^\n]*/)?.[0] ?? "");
+}
+{
+  // 減った側では鳴らさない（改善を警告に出すと信用が落ちる）。
+  const out = run(
+    {
+      "2026-09-01.json": snap(PROD, [{ ...page("home", false), loadKB: 300 }]),
+      "2026-09-08.json": snap(PROD, [{ ...page("home", false), loadKB: 200 }]),
+    },
+    {}
+  );
+  check("減った面では警告しない", !/初期表示のバイト数が7日前より増えた面/.test(out));
+}
+// ④-3 初回の原因を**ヘッダーで**分ける（2026-10-01追加）。
+//
+// ④-2の3度の誤りは全部「初回が遅い」から原因を**推測**したことで起きた。
+// `cacheFirst`（1回目の文書応答の `x-vercel-cache`）が入ったので、推測せずに分かれる。
+// ここで固定するのは3方向すべて: MISSなら名指しする／HITなら生成のせいにしない／
+// 列が無ければ黙らずに「切り分けていない」と言う。
+{
+  // 初回がキャッシュに無かった（＝その場生成を待った）。原因を名乗ってよい唯一の形。
+  const out = run(
+    {
+      "2026-09-08.json": snap(PROD, [
+        { ...page("anime", false), lcpFirst: 9000, htmlDl: 120, htmlDlFirst: 8800, cacheFirst: "miss" },
+      ]),
+    },
+    {}
+  );
+  check("初回がMISSならその場生成を名指しする", /その場生成を待っている/.test(out),
+    out.match(/→[^\n]*/)?.[0] ?? "(原因が出ていない)");
+  check("そのとき x-vercel-cache の実測値を添える", /anime=miss/.test(out));
+  check("そのとき温めの仕組みを名指しする", /revalidate\.yml/.test(out));
+  check("そのとき warm.pages を見るよう促す", /warm\.pages/.test(out));
+  // **逆戻り防止**: MISSだと分かっている面に「特定できない」と書かない
+  // （書くと、せっかく記録したヘッダーが読まれなくなる）。
+  check("MISSのときは「特定できない」と書かない", !/原因はこの計測では特定できない/.test(out));
+}
+{
+  // 初回もキャッシュから出ていた。**ここで生成のせいにしてはいけない**
+  // （④-2の3度の誤りはすべてこの形＝キャッシュから出ている面を生成のせいにした）。
+  const out = run(
+    {
+      "2026-09-08.json": snap(PROD, [
+        { ...page("about", false), lcpFirst: 2600, htmlDl: 200, htmlDlFirst: 2400, cacheFirst: "hit" },
+      ]),
+    },
+    {}
+  );
+  check("初回がHITならその場生成のせいにしない", !/その場生成を待っている/.test(out),
+    out.match(/→[^\n]*/)?.[0] ?? "");
+  check("代わりに転送と描画を見るよう促す", /その場生成ではない/.test(out));
+  check("HITのときも事前生成のせいにしない", !/generateStaticParams/.test(out));
+}
+{
+  // ビルド時の成果物から配った（PRERENDER）も「待っていない」側。
+  const out = run(
+    {
+      "2026-09-08.json": snap(PROD, [
+        { ...page("anime", false), lcpFirst: 2600, htmlDl: 200, htmlDlFirst: 2400, cacheFirst: "prerender" },
+      ]),
+    },
+    {}
+  );
+  check("PRERENDERもその場生成として扱わない", !/その場生成を待っている/.test(out));
+}
+{
+  // 今日は目標内でも、MISSを踏んでいる事実は残す（作品数が増えた日に遅くなる）。
+  const out = run(
+    {
+      "2026-09-08.json": snap(PROD, [
+        { ...page("anime", false), lcpFirst: 900, htmlDl: 100, htmlDlFirst: 130, cacheFirst: "miss" },
+      ]),
+    },
+    {}
+  );
+  check("目標内でも初回がMISSなら記録に残す", /初回がキャッシュに無かった面/.test(out),
+    out.match(/ℹ[^\n]*/)?.[0] ?? "(出ていない)");
+}
+{
+  // **列を持たない断面で黙らない。** 黙って沈黙するのが最悪の壊れ方。
+  const out = run(
+    { "2026-09-08.json": snap(PROD, [{ ...page("anime", false), lcpFirst: 950, htmlDl: 100, htmlDlFirst: 120 }]) },
+    {}
+  );
+  check("x-vercel-cacheを記録していない断面ではそう告げる",
+    /その場生成かどうかの切り分けはしていない/.test(out));
+}
 {
   // 1度目の誤りの再発防止。初回のLCPだけが遅い面を「事前生成されていない疑い」と呼ばない。
   const out = run(

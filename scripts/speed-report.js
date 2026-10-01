@@ -190,6 +190,51 @@ function main() {
     // **要件が「表示2秒未満」**であって「初回と中央値の差」ではないから。
     const hasFirst = (p) => typeof p.lcpFirst === "number" && typeof p.lcp === "number";
 
+    // 【2026-10-01追加】**初回がその場生成だったかを、推測ではなくヘッダーで分ける。**
+    // `cacheFirst` は1回目の文書応答の `x-vercel-cache`（scripts/lib/measure-page.js）。
+    // これが入る前は「初回だけ遅い」の原因を言う手段が無く、**3回続けて事前生成のせいだと
+    // 誤って名指しした**（docs/operations.md の[60]）。いまは次のように分かれる:
+    //   miss / bypass            … キャッシュに無く、**その場で作って待たせた**
+    //   hit / stale / prerender  … キャッシュから配った＝待ちは生成ではない
+    // **付いていない（null）を「違う」に倒さないこと。** 本番以外では付かないし、
+    // この列を入れる前の断面にも無い。分からないときは分からないと書く。
+    const COLD_CACHE = new Set(["miss", "bypass"]);
+    const WARM_CACHE = new Set(["hit", "stale", "prerender"]);
+    const isColdGen = (p) => typeof p.cacheFirst === "string" && COLD_CACHE.has(p.cacheFirst);
+    const isWarmGen = (p) => typeof p.cacheFirst === "string" && WARM_CACHE.has(p.cacheFirst);
+    // 原因を1行で付け足す。`list` に入っている面だけを見て判断する
+    // （断面全体で判断すると、速い面のHITで遅い面のMISSを打ち消してしまう）。
+    const explainFirst = (list) => {
+      const cold = list.filter(isColdGen);
+      const warm = list.filter(isWarmGen);
+      const lines = [];
+      if (cold.length > 0) {
+        lines.push(
+          `     → **その場生成を待っている**（初回の x-vercel-cache が ` +
+            cold.map((p) => `${p.face}=${p.cacheFirst}`).join(" ") +
+            "）。"
+        );
+        lines.push(
+          "       消したあとの温めが届いていない。`.github/workflows/revalidate.yml` の温めステップと、"
+        );
+        lines.push(
+          "       その面が `app/api/revalidate/route.ts` の `warm.pages` に入っているかを見る。"
+        );
+      }
+      if (warm.length > 0) {
+        lines.push(
+          `     → 初回もキャッシュから出ている面（` +
+            warm.map((p) => `${p.face}=${p.cacheFirst}`).join(" ") +
+            "）は**その場生成ではない**ので、転送量と描画の側を見る。"
+        );
+      }
+      if (cold.length === 0 && warm.length === 0) {
+        lines.push("     **原因はこの計測では特定できない**（この断面は初回の x-vercel-cache を記録していない）。");
+        lines.push("     事前生成の有無はビルド成果物の .next/prerender-manifest.json で確かめる。");
+      }
+      return lines;
+    };
+
     // A: 初回だけHTML本体の受信が長い面。**原因は言わない**（上の③）。
     // 絶対値の門（目標の半分）を置くのは、比だけで見ると**完全静的な面まで全部入る**から。
     // 訪問者にとって意味があるのは「2秒の予算のうち何msを受信で使ったか」なので、
@@ -205,8 +250,9 @@ function main() {
         `   ⚠ 初回だけHTML本体の受信が長い面（${FIRST_DL_FLOOR}ms以上）: ` +
           slowFirstDl.map((p) => `${p.face}(初回${p.htmlDlFirst}ms / 中央値${p.htmlDl}ms)`).join(" ")
       );
-      console.log("     **原因はこの計測では特定できない**（完全静的な面でも初回は長く出る＝上のコメント③）。");
-      console.log("     事前生成の有無はビルド成果物の .next/prerender-manifest.json で確かめる。");
+      // 原因は `cacheFirst` が答える。**推測では書かない**（完全静的な面でも初回は長く出る＝
+      // 上のコメント③。だから「初回が長い」だけでは生成のせいだと言えない）。
+      for (const line of explainFirst(slowFirstDl)) console.log(line);
     }
     // `htmlDlFirst` を持たない断面（この列を入れる前のJSON）では、上の判定が
     // **静かに沈黙する**。黙って見張りが消えるのが最悪なので、そのことを告げる。
@@ -235,10 +281,54 @@ function main() {
       );
       console.log("     初回は1回しか測らない（n=1）ので、1日だけなら偶発と区別できない。2日以上続いたら実体として扱う。");
       console.log(`     デプロイのたびにISRキャッシュが飛ぶので、訪問者はこの初回の値を引きうる。`);
-      console.log("     **原因はこの計測では特定できない**（受信の内訳は上の「初回だけHTML本体の受信が長い面」の行、");
-      console.log("     事前生成の有無はビルド成果物の .next/prerender-manifest.json で確かめる。");
-      console.log("     この計測はISRキャッシュが温まった後を見るので、その場生成そのものは踏めない）。");
+      for (const line of explainFirst(coldFirst)) console.log(line);
     }
+
+    // 初回がその場生成だった面は、遅くなかった日も記録に残す（今日は間に合っていても
+    // **温めが届いていない**という事実は同じで、作品数が増えた日に遅くなる）。
+    const coldCacheOnly = rows.filter((p) => isColdGen(p) && !(hasFirst(p) && p.lcpFirst >= GOALS.lcp));
+    if (coldCacheOnly.length > 0) {
+      console.log(
+        "   ℹ 初回がキャッシュに無かった面（今日は目標内だが、その場生成を踏んでいる）: " +
+          coldCacheOnly.map((p) => `${p.face}(${p.cacheFirst}・初回${p.lcpFirst ?? "—"}ms)`).join(" ")
+      );
+    }
+    // `cacheFirst` を持たない断面では上の切り分けが**静かに沈黙する**ので、そう告げる。
+    if (rows.length > 0 && rows.every((p) => typeof p.cacheFirst !== "string")) {
+      console.log("   ℹ この断面は初回の x-vercel-cache を記録していないので、その場生成かどうかの切り分けはしていない。");
+      console.log("     `scripts/lib/measure-page.js` が新しくなった翌日の断面から効く。");
+    }
+    // ── 初期表示のバイト数が増えていないか（2026-10-01追加） ──
+    //
+    // 一覧系の面（トップ・シーズン・ランキング・独占配信）のHTMLは**作品数に比例する**。
+    // いまの実測ではここは律速ではない（遅さの大半はサーバー側の待ち＝上のA/B）が、
+    // クールが増えるたび作品数は増えるので、**いつか律速に変わる**。
+    // そのとき気づけるように、増えたことだけを出す（どれだけが上限かは決めない＝
+    // 数字をここに書き写さない）。比較は7日前の同じ面と行い、
+    // 比（+15%以上）と絶対値（+30KB以上）の**両方**を満たしたときだけ出す
+    // （小さい面の±数KBのぶれで毎日鳴ると読まれなくなる）。
+    const KB_GROWTH_RATIO = 1.15;
+    const KB_GROWTH_FLOOR_KB = 30;
+    const fatter = rows
+      .map((p) => ({ p, was: byFace(weekAgo, p.face)?.loadKB }))
+      .filter(
+        ({ p, was }) =>
+          typeof p.loadKB === "number" &&
+          typeof was === "number" &&
+          was > 0 &&
+          p.loadKB - was >= KB_GROWTH_FLOOR_KB &&
+          p.loadKB >= was * KB_GROWTH_RATIO
+      );
+    if (fatter.length > 0) {
+      console.log(
+        `   ⚠ 初期表示のバイト数が7日前より増えた面（+${KB_GROWTH_FLOOR_KB}KB以上かつ+${Math.round(
+          (KB_GROWTH_RATIO - 1) * 100
+        )}%以上）: ` + fatter.map(({ p, was }) => `${p.face}(${was}KB→${p.loadKB}KB)`).join(" ")
+      );
+      console.log("     一覧系の面のHTMLは作品数に比例する。クールが増えれば必ず増えるので、");
+      console.log("     増えた理由が作品数なのか、別のものを足したのかを先に分ける。");
+    }
+
     // ㊴の逆戻り（画面内の先読みが復活すると、押してもいないページのために数MB飛ぶ）。
     const pf = rows.filter((p) => typeof p.scrollPrefetch === "number" && p.scrollPrefetch > 0);
     if (pf.length > 0) {
