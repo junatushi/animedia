@@ -31,6 +31,7 @@ import {
   type EmbedWork,
 } from "../lib/embed.ts";
 import { siteUrl } from "../lib/siteUrl.ts";
+import { withTimeout, INCIDENTAL_FETCH_TIMEOUT_MS } from "../lib/withTimeout.ts";
 import {
   isMalformedRoutePath,
   malformedRouteStatus,
@@ -6816,6 +6817,154 @@ let isrNg = 0;
     `${wfOk ? "✓" : "✗"}  ${"revalidate.yml が /api/revalidate を叩く".padEnd(48)} → ` +
       (wfOk ? "cronあり" : "これが無いと現在クールの鮮度が1週間まで緩む")
   );
+
+  // ── 消したあとに温める（2026-10-01導入・重大度高） ──
+  //
+  // `revalidatePath` / `revalidateTag` は Vercel では対象を**消す**（staleにして裏で
+  // 作り直すのではない）。アクセスが薄いサイトでは消えたまま数時間残り、
+  // **次に来た1人がその場生成の全額を払う**。2026-10-01の本番計測で今期の4面の初回が
+  // 33.8〜39.9秒になり、同じ計測の中で消去対象でない唯一の今期面（/service/…）だけが
+  // 0.77秒だった＝対照群が成立している。
+  //
+  // **温めを外しても画面は1ピクセルも変わらない。** 増えるのは訪問者の待ち時間だけで、
+  // しかも中央値には出ない（2・3回目は1回目が作ったキャッシュに当たる）。だから機械で見張る。
+  const warmPieces: [string, boolean][] = [
+    ["温め先を応答で返す（warm）", /warm:\s*\{/.test(revalidateRoute)],
+    // 温め先を別に並べると、消す対象と温める対象がズレる（消したのに温めない面ができる）。
+    ["消す対象と同じ変数から作る", revalidateRoute.includes("pages: seasonPaths")],
+    // 作品ページを温め先に入れると、作品数に比例して仕事が増える（クールが増えるたび悪化）。
+    ["作品ページは温め先に入れない", !/warm:[\s\S]{0,400}\/anime\//.test(revalidateRoute)],
+    // 共有のデータキャッシュのタグを2回目でも古くすると、1回目に温めたぶんが冷える。
+    ["共有タグを scope=next では古くしない", /if \(scope !== "next"\)/.test(revalidateRoute)],
+  ];
+  for (const [label, ok] of warmPieces) {
+    if (!ok) isrNg++;
+    console.log(
+      `${ok ? "✓" : "✗"}  ${`/api/revalidate が${label}`.padEnd(48)} → ` +
+        (ok ? "あり" : "消した面が温まらないまま残り、次の訪問者がその場生成を待つ")
+    );
+  }
+
+  // 温めの手順は**スクリプト側**が持つ（YAMLの run: に書くと子プロセスとして実行できず
+  // 回帰テストが書けない。シェルの検査は「NGを出さなくなる」方向に壊れると毎日緑のまま
+  // 無力化するので、テストできる形であることまでが要件）。
+  const warmShUrl = new URL("../scripts/warm-revalidated.sh", import.meta.url);
+  const warmSh = existsSync(warmShUrl) ? readFileSync(warmShUrl, "utf8") : "";
+  const warmTestUrl = new URL("../scripts/check-warm-revalidated.js", import.meta.url);
+  const wfCallsScript = wf.includes("scripts/warm-revalidated.sh");
+  if (!wfCallsScript) isrNg++;
+  console.log(
+    `${wfCallsScript ? "✓" : "✗"}  ${"revalidate.yml が温めのスクリプトを呼ぶ".padEnd(48)} → ` +
+      (wfCallsScript ? "あり" : "手順がYAMLに戻っている＝回帰テストが効かない形")
+  );
+
+  const warmShPieces: [string, boolean][] = [
+    ["ページを温める", warmSh.includes("warm-pages")],
+    ["データ層を先に温める", warmSh.includes("warm-data")],
+    // `/api/season` は s-maxage 付き＝CDNから返ると関数が走らずデータ層が温まらない。
+    // そのまま叩くと**成功と出るのに何もしていない**という最悪の形になる。
+    ["データ層の温めでCDNを避ける", warmSh.includes("_warm=")],
+    // 温めたつもりで効いていない状態を黙って通さないための確認。
+    ["温まったことを確認する", warmSh.includes("x-vercel-cache")],
+    // **順番に意味がある**（上の「共有タグを scope=next では古くしない」と対）。
+    // 逆順にすると2回目の古くしで1回目に温めたぶんが冷え、今期が冷えたまま終わる。
+    ["current → next の順に叩く", /for SCOPE in current next/.test(warmSh)],
+    // jq は Windows に無く「CIは緑なのに手元では必ず失敗する」状態を一度作っている
+    // （scripts/lib/json-pick.js の冒頭）。同じ轍を踏まない。
+    ["jq に依存しない", !/\bjq\b/.test(warmSh.replace(/^\s*#.*$/gm, ""))],
+    // このスクリプト自身の回帰テストがある（無いと壊れても緑のまま）。
+    ["自身の回帰テストがある", existsSync(warmTestUrl)],
+  ];
+  for (const [label, ok] of warmShPieces) {
+    if (!ok) isrNg++;
+    console.log(
+      `${ok ? "✓" : "✗"}  ${`warm-revalidated.sh が${label}`.padEnd(48)} → ` +
+        (ok ? "あり" : "これが無いと、消すだけ消して訪問者に待たせる状態に戻る")
+    );
+  }
+
+  // 温め先を書き写さない（クールが変わった日に古い面を温め続ける）。
+  // 【2026-08-05の基本ルールと同型】時刻をYAMLとコードの両方に書かないのと同じ理由。
+  // YAMLとスクリプトの**両方**を見る（どちらに書いても同じ事故になる）。
+  const warmHardcoded: string[] = [];
+  for (const [where, text] of [["revalidate.yml", wf], ["warm-revalidated.sh", warmSh]] as const) {
+    const body = text.replace(/^\s*#.*$/gm, "");
+    for (const [label, re] of [
+      ["クール単位の面のパス", /\/(season|rankings|exclusive)\//],
+      ["季節の名前", /\b(winter|spring|summer|autumn)\b/],
+    ] as const) {
+      if (re.test(body)) warmHardcoded.push(`${where}: ${label}`);
+    }
+  }
+  const warmNoHardcodeOk = warmHardcoded.length === 0;
+  if (!warmNoHardcodeOk) isrNg++;
+  console.log(
+    `${warmNoHardcodeOk ? "✓" : "✗"}  ${"温めに面もクール名も書いていない".padEnd(48)} → ` +
+      (warmNoHardcodeOk
+        ? "温め先は窓口の応答から取っている"
+        : `書かれている: ${warmHardcoded.join(" / ")}。クールが変わった日に古い面を温め続ける`)
+  );
+
+  // ── 作品ページはクール全体の取得を待たない（2026-10-01導入・重大度高） ──
+  //
+  // 作品ページは本文に要らない付随情報（声優リンクの可否判定・関連作品）のためだけに
+  // クール全体を取っていた。今期はライブ取得なので、**作品1枚の表示がクール全体の
+  // 取得を待つ**＝作品数が増えるほど悪化する形だった（2026-10-01実測で初回38.4秒）。
+  //
+  // **対象は走査して導出する**（手で「1箇所」と数えると、2つ目が足された日に素通りする。
+  // CLAUDE.mdの基本ルール「検査の対象を手で数えない」）。
+  const animeFiles = readdirSync(new URL("../app/anime/", import.meta.url), { recursive: true })
+    .map((n) => String(n))
+    .filter((n) => /\.tsx?$/.test(n));
+  let timeoutNg = 0;
+  let timeoutTargets = 0;
+  for (const rel of animeFiles) {
+    const text = readFileSync(new URL(`../app/anime/${rel}`, import.meta.url), "utf8")
+      // 行コメントを落としてから見る（「上限を外すな」と書いたコメントを実装と誤認しない。
+      // 2026-09-09に開示文の検査で実際にやった間違い）。
+      .replace(/^\s*\/\/.*$/gm, "");
+    // 型位置（`typeof getSeasonData`）は呼び出しではないので除く。
+    const calls = [...text.matchAll(/(?<!typeof\s)getSeasonData\s*\(/g)];
+    if (calls.length === 0) continue;
+    timeoutTargets++;
+    const bare = /await\s+getSeasonData\s*\(/.test(text);
+    const wrapped = text.includes("withTimeout(");
+    const ok = wrapped && !bare;
+    if (!ok) timeoutNg++;
+    console.log(
+      `${ok ? "✓" : "✗"}  ${`app/anime/${rel} がクール全体の取得に上限`.padEnd(48)} → ` +
+        (ok
+          ? "withTimeout を通している"
+          : bare
+            ? "素の await getSeasonData がある。キャッシュが冷えた回に作品1枚がクール全体を待つ"
+            : "withTimeout を通していない")
+    );
+  }
+  // 呼び出しが1つも見つからないのは「安全になった」ではなく「検査が空振りしている」
+  // 可能性が高いので、そのことを出す（黙って全部OKにしない）。
+  if (timeoutTargets === 0) {
+    console.log(`ℹ  ${"作品ページにクール全体の取得は無い".padEnd(48)} → 検査対象0件`);
+  }
+  isrNg += timeoutNg;
+
+  // 上限そのものの挙動（間に合わない／失敗／間に合う）。
+  // **実際に動かす**（源コードの文字列照合だけだと、上限が0msで常に諦める実装でも通る）。
+  {
+    const slow = new Promise<string>((resolve) => setTimeout(() => resolve("late"), 120));
+    const late = await withTimeout(slow, 10);
+    const fast = await withTimeout(Promise.resolve("value"), 1000);
+    const failed = await withTimeout(Promise.reject(new Error("boom")), 1000);
+    const cases: [string, boolean][] = [
+      ["間に合わなければ null", late === null],
+      ["間に合えば値を返す", fast === "value"],
+      ["失敗も null（例外を投げない）", failed === null],
+      ["上限は0msではない", INCIDENTAL_FETCH_TIMEOUT_MS > 0],
+    ];
+    for (const [label, ok] of cases) {
+      if (!ok) isrNg++;
+      console.log(`${ok ? "✓" : "✗"}  ${`withTimeout: ${label}`.padEnd(48)} → ${ok ? "OK" : "NG"}`);
+    }
+  }
 
   // OGP画像は force-dynamic＝毎リクエスト関数が起動する。明示のCache-Controlが唯一の歯止め。
   // **画像ルートも走査から導出する**（手で並べると、新しく足した画像ルートだけ

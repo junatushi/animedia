@@ -11,6 +11,25 @@ name: 現在クールのオンデマンド再検証
 # 訪問のたびに必ず期限切れ＝毎回書き込みになっていた。
 # 詳細は app/api/revalidate/route.ts の冒頭と docs/operations.md の㉝。
 #
+# 【2026-10-01変更・重大度高】**消したあとに必ず温める**。
+# revalidatePath / revalidateTag は Vercel では対象を**消す**（staleにして裏で作り直すのでは
+# ない）。アクセスが薄いサイトでは消えたまま数時間残り、**次に来た1人がその場生成の全額を
+# 払う**。2026-10-01の本番計測で今期の4面の初回が33.8〜39.9秒になり、同じ計測の中で
+# 消去対象でない唯一の今期面（/service/[key]/[年]/[季節]）だけが0.77秒だった＝対照群。
+# 温めるのは**クール単位の面だけ**（作品ページは件数に比例するので入れない。作品数が
+# 増えてもこのワークフローの仕事は増えない）。温める先は窓口の応答（`warm`）から取るので
+# **ここにパスもクール名も書かない**（ズレると「温めたつもり」になる）。
+#
+# **温まったことを確認する**: 温めたあともう1回だけ取り、`x-vercel-cache` が
+# HIT / STALE / PRERENDER のどれかであることを見る。MISS のままなら温めが効いていない
+# （＝訪問者が待つ状態が残っている）ので落とす。黙って成功しないこと。
+#
+# クールごとに**別のリクエスト**に分けてある。窓口は対象作品を数えるために今期のライブ取得を
+# 通るため1クールで数十秒かかりうる（サーバーレス関数の実行上限に当てない）。片方が失敗しても
+# もう片方は続ける（基本ルール: 1件の失敗で残りを巻き添えにしない）。
+# **current → next の順は変えないこと**（共有のデータキャッシュのタグを古くするのは
+# current のときだけ。逆順にすると2回目の古くしで1回目に温めたぶんが冷える）。
+#
 # 秘密は /api/notify/run と同じ NOTIFY_CRON_SECRET を使い回す（新設しない）。
 # 未設定なら本番側が401を返すだけで、サイトの表示には影響しない。
 #
@@ -28,15 +47,15 @@ jobs:
   revalidate:
     runs-on: ubuntu-latest
     steps:
-      - name: 現在クールのページを再検証対象にする
-        run: |
-          RESPONSE=$(curl -s -X POST \
-            -H "x-cron-secret: ${{ secrets.NOTIFY_CRON_SECRET }}" \
-            -w "\nHTTP_STATUS=%{http_code}" \
-            "https://animedia-khaki.vercel.app/api/revalidate")
-          echo "$RESPONSE"
-          STATUS=$(echo "$RESPONSE" | tr -d '\r' | sed -n 's/^HTTP_STATUS=//p')
-          if [ "$STATUS" != "200" ]; then
-            echo "::error::再検証に失敗しました（status=${STATUS}）"
-            exit 1
-          fi
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # 手順はスクリプト側（scripts/warm-revalidated.sh）。ここに書き写さない。
+      - name: 現在クールと次クールを再検証し、そのあと温める
+        env:
+          BASE: https://animedia-khaki.vercel.app
+          CRON_SECRET: ${{ secrets.NOTIFY_CRON_SECRET }}
+        run: bash scripts/warm-revalidated.sh

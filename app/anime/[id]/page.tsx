@@ -5,6 +5,7 @@ import DetailCss from "@/components/DetailCss";
 import { getWorkData, staticWorkIds } from "@/lib/getWorkData";
 import { canStateFetchDate } from "@/lib/dataFreshness";
 import { getSeasonData } from "@/lib/getSeasonData";
+import { withTimeout, INCIDENTAL_FETCH_TIMEOUT_MS } from "@/lib/withTimeout";
 import { splitRentalServices, getServiceKana, sortServicesForMetadata } from "@/lib/services";
 import { buildServiceLabel } from "@/content/services/aliases";
 import { DESCRIPTION_WIDTH_BUDGET } from "@/lib/pageMeta";
@@ -412,8 +413,21 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   // 取得しているシーズンデータを使い回すので、ここに追加のフェッチは発生しない。
   let seasonItems: Awaited<ReturnType<typeof getSeasonData>>["items"] = [];
   if (workSeason) {
-    try {
-      const seasonData = await getSeasonData(String(workSeason.year), workSeason.key);
+    // **必ず時間上限を通す**（2026-10-01追加・重大度高）。この取得は作品数に比例した
+    // 往復を含む（今期はライブ取得＝lib/getSeasonData.ts）ので、キャッシュが冷えている
+    // 回に素で await すると**作品1枚の表示がクール全体の取得を待つ**。
+    // 2026-10-01の本番計測では今期の作品ページの初回が38.4秒だった（TTFBは250msで正常。
+    // 待ちはHTML本文側に出るので画面を見ても計測のTTFBを見ても気づけない）。
+    // ここは「無くてもページが成立する付随情報」なので、間に合わなければ下の catch と
+    // 同じ劣化（声優名はプレーンテキスト・関連作品欄は空）で済ませる。
+    // 理由と外してはいけない理由の全文は lib/withTimeout.ts。
+    const seasonData = await withTimeout(
+      getSeasonData(String(workSeason.year), workSeason.key),
+      INCIDENTAL_FETCH_TIMEOUT_MS
+    );
+    // withTimeout は失敗も間に合わなかったのも null にする（呼び出し側はどちらでも
+    // 同じ劣化を選ぶので区別しない）。
+    if (seasonData) {
       seasonItems = seasonData.items;
       const counts = new Map<string, number>();
       for (const it of seasonData.items) {
@@ -422,8 +436,6 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
       for (const [castName, count] of counts) {
         if (count >= PERSON_PAGE_MIN_APPEARANCES) linkableCastNames.add(castName);
       }
-    } catch {
-      // 取得に失敗しても声優名をプレーンテキストで出すだけなので、ページ全体は壊さない。
     }
   }
 

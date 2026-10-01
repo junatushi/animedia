@@ -160,6 +160,14 @@ async function main() {
       // （2026-09-30実測。焼いていない面のほうが短かった。理由と経緯は
       // `scripts/speed-report.js` の「初回の値の読み方」）。
       htmlDlFirst: runs[0].htmlDl,
+      // **初回がキャッシュから出たのか、その場で作られたのかを残す**
+      // （2026-10-01追加・重大度高）。`miss` なら初回の遅さは**その場生成**で説明がつき、
+      // `hit`/`stale`/`prerender` なら生成以外（転送・描画）を見るべきだと分かる。
+      // この1列が無かったために「初回だけ遅い」の原因を3回続けて誤って名指しした
+      // （docs/operations.md の[60]）。本番以外では付かないので null になる。
+      cacheFirst: runs[0].cache ?? null,
+      // 2回目以降も残す（1回目が温めた結果が本当に効いているかの確認になる）。
+      cacheRuns: runs.map((r) => r.cache ?? null),
     };
     pages.push(row);
     console.log(

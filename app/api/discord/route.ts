@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSeasonData } from "@/lib/getSeasonData";
+// 時間上限は lib/withTimeout.ts が1箇所で持つ（2026-10-01に共通化。
+// 作品ページも同じ部品を通すので、片方だけ上限を外すことができない）。
+import { withTimeout } from "@/lib/withTimeout";
 import { splitRentalServices } from "@/lib/services";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import { currentYearSeason } from "@/lib/resolveSeasonParams";
@@ -31,12 +34,6 @@ export const dynamic = "force-dynamic";
 // 超えたらサイトへのリンクだけ返す（黙って落とさない）。
 const DATA_TIMEOUT_MS = 2000;
 
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
-  return Promise.race([
-    p.catch(() => null),
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
-  ]);
-}
 
 export async function POST(request: Request) {
   // 環境変数を優先し、無ければリポジトリ同梱の値を使う。

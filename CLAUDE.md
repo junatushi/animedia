@@ -67,6 +67,20 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   スタブの本番サーバーを立てて`verify-production.sh`を実際に動かし、**落ちるべきときに落ちる**
   ことを固定する。シェルは「NGを出さなくなる」方向に壊れると毎日緑のまま無力化するため。
   ネットワークには出ない。`verify-production.sh`を触ったら必ず実行する
+- `bash scripts/warm-revalidated.sh` … **消したISRキャッシュを温め直すバッチ**（2026-10-01導入）。
+  `/api/revalidate` を `scope=current` → `scope=next` の順に叩き、窓口が応答（`warm`）で
+  返した面を**データ層→ページ**の順に取り直し、**もう1回取って `x-vercel-cache` が
+  HIT/STALE/PRERENDER になったことを確認する**（MISSのままなら落ちる）。
+  毎日`.github/workflows/revalidate.yml`が1日2回回すので**手で実行する必要は無い**。
+  本番へ出られる環境でのみ動く。**温め先を書き写さないこと**（窓口の応答から取る）。
+  **jqを使わないこと**（Windowsに無い。`scripts/lib/json-pick.js`を通す）。
+  経緯は`docs/operations.md`の[61]
+- `node scripts/check-warm-revalidated.js` … 上の温めバッチ自身の回帰テスト（2026-10-01導入）。
+  スタブの本番サーバーを立てて`warm-revalidated.sh`を実際に動かし、**落ちるべきときに
+  落ちる**ことを固定する（温めても`miss`のまま／ヘッダーが無い／窓口が5xx／温め先が
+  返ってこない／データ層が温まらない）。このバッチは「温めが効いていない」ことを検知して
+  落ちる＝**検査でもある**ので、「NGを出さなくなる」方向に壊れると毎日緑のまま無力化する。
+  ネットワークには出ない。`warm-revalidated.sh`を触ったら必ず実行する
 - `node scripts/build-archive-index.ts` … 過去クール索引の再生成（2026-08-05導入）。
   `content/snapshots/*.json`を読み、sitemapに載せる過去クール（シーズンページ＋配信1件以上の
   作品ページ）の索引を`content/archive/index.json`に書く。ネットワーク不要。
@@ -311,8 +325,14 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   **そもそもこの計測は「その場生成」を踏めない**（長い裾の`revalidate`は1週間なので、
   毎日同じURLを測るとISRキャッシュは前日から生きている）。
   **事前生成の有無はビルド成果物の`.next/prerender-manifest.json`で確かめる。**
-  `speed-report.js`の警告は原因を名乗らない（`htmlDl`の列名も「生成」ではなく「受信」）。
-  経緯は`docs/operations.md`の[57]・[59]・[60]
+  **【2026-10-01追加】初回の `x-vercel-cache` を記録するようにした（`cacheFirst`）。**
+  上の3度の誤りはどれも「初回が遅い」から原因を**推測**したために起きた。この1列があれば
+  推測が要らない: `miss`／`bypass` なら**その場で作って待たせた**、
+  `hit`／`stale`／`prerender` なら**キャッシュから配った＝待ちは生成ではない**。
+  `speed-report.js` はこの列があるときだけ原因を名乗る（無い断面では「切り分けていない」と
+  言う＝黙って沈黙しない）。**付いていない（`null`）を「違う」に倒さないこと**
+  （本番以外では付かない）。
+  経緯は`docs/operations.md`の[57]・[59]・[60]・[61]
 - `node scripts/measure-pages.js <URL>` … **表示の速さの実測**（2026-09-03導入）。
   先に`npm run build && npx next start -p 3100`を動かしてからURLを渡す。スマホ相当の条件
   （CPU4倍スロットル・1.6Mbps・390×844）でFCP/LCP・TBT（操作をブロックする時間）・DOMノード数・
@@ -560,6 +580,24 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   認証は`/api/notify/run`と同じ`NOTIFY_CRON_SECRET`を使い回す（新設しない＝設定漏れで黙って
   止まるのを避ける）。**タグとパスの両方を古くすること**（ページだけ作り直しても、データ層の
   キャッシュが生きていると中身は古いまま出る）。
+  **【重要】消したら必ず温めること**（2026-10-01追加・重大度高）。
+  `revalidatePath`／`revalidateTag` は Vercel では対象を**消す**（staleにして裏で作り直すのでは
+  ない）。アクセスが薄いサイトでは消えたまま数時間残り、**次に来た1人がその場生成の全額を
+  払う**。2026-10-01の本番計測で今期の4面の初回が33.8〜39.9秒になり、同じ計測の中で
+  この窓口の消去対象に入っていない唯一の今期面（`/service/[key]/[年]/[季節]`）だけが
+  0.77秒だった＝**対照群が成立している**。いまはこの窓口が「温める先」を応答（`warm`）で返し、
+  `scripts/warm-revalidated.sh`（`.github/workflows/revalidate.yml` が呼ぶ）がデータ層→
+  ページの順に取り直してから
+  **`x-vercel-cache` が HIT/STALE/PRERENDER になったことを確認する**（MISSのままなら落とす）。
+  **手順はスクリプト側に置くこと**（YAMLの`run:`に書くと子プロセスとして実行できず
+  回帰テストが書けない。この温めは検知して落ちる＝検査でもある）。
+  温める先は**クール単位の面だけ**（作品ページを入れると作品数に比例して仕事が増える。
+  作品ページのコールドコストは `lib/withTimeout.ts` の上限で抑える）。
+  **温め先のパスもクール名も、YAMLにもスクリプトにも書かないこと**（窓口の応答から取る）。
+  **呼び出しは `?scope=current` → `?scope=next` の順**（共有のデータキャッシュのタグを
+  古くするのは `current` のときだけ。逆順にすると2回目の古くしで1回目に温めたぶんが冷える）。
+  温めを外しても**画面は1ピクセルも変わらず**、中央値にも出ない（2・3回目は1回目が作った
+  キャッシュに当たる）ので、`node scripts/check.ts`の「ISRの再生成頻度」節が機械的に見張る。
   **【重要】タグを一括で掛けないこと**（2026-09-03修正・重大度最高）。導入時は
   `revalidateTag("annict")`1回で済ませていたが、`lib/annict.ts`の`tags: ["annict"]`が
   `gql()`の中にあり**`fetchWorkById`を含む全クエリに付いていた**。しかも**`revalidateTag`は
@@ -574,6 +612,21 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   機械的に禁じている。次クールの求め方は`lib/resolveSeasonParams.ts`の`nextYearSeason`
   **だけ**が持つ（sitemapと対象クールをズラさないため）。検査は`node scripts/check.ts`の
   「ISRの再生成頻度」節。経緯は`docs/operations.md`の㉝
+- `lib/withTimeout.ts` … **「無くてもページが成立する取得」の時間上限**（2026-10-01導入・重大度高）。
+  作品ページ（`app/anime/[id]/page.tsx`）は、本文に要らない付随情報（声優リンクの可否判定と
+  関連作品）のためだけに**クール全体**を取っていた。今期はライブ取得なので、
+  **作品1枚の表示がクール全体の取得を待つ**＝作品数が増えるほど悪化する形だった
+  （2026-10-01の本番計測で初回38.4秒。TTFBは250msで正常なので、画面を見ても
+  計測のTTFBを見ても気づけない。待ちはHTML本文の側に出る）。
+  いまは必ずこの上限（`INCIDENTAL_FETCH_TIMEOUT_MS`）を通し、間に合わなければ
+  **取得に失敗したときと同じ劣化**（声優名はプレーンテキスト・関連作品欄は空）で描く。
+  `app/api/discord/route.ts` も同じ部品を通す（片方だけ上限を外せないようにするため）。
+  **本文に要る取得には使わないこと**（一覧ページの中身そのものは諦められない。
+  そちらは `/api/revalidate` の温めで守る）。
+  **上限を外しても画面は1ピクセルも変わらない**ので、`node scripts/check.ts`の
+  「ISRの再生成頻度」節が `app/anime/` を走査して、素の `await getSeasonData(` が
+  現れないことと上限そのものの挙動（間に合わない/失敗/間に合う）を機械的に検査する。
+  経緯は`docs/operations.md`の[61]
 - `lib/dataFreshness.ts` … **「このページは日付を名乗ってよいか」の一元判定**（2026-09-14導入・重大度高）。
   データ層（`getSeasonData`/`getWorkData`）が返す`fetchedAt`を見て、可視テキストの「〜時点」・
   JSON-LDの`dateModified`/`sdDatePublished`・meta descriptionを出すかどうかを決める。
