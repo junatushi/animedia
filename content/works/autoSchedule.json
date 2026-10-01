@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-30",
+  "updatedAt": "2026-10-01",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -171,6 +171,15 @@
       "matchedBy": "mal",
       "title": "魔法少女育成計画restart"
     },
+    "14967": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/185657",
+      "fetchedDate": "2026-10-01",
+      "matchedBy": "mal",
+      "title": "スキップとローファー 2nd season"
+    },
     "14970": {
       "date": "2027-01",
       "precision": "month",
@@ -327,6 +336,15 @@
       "matchedBy": "mal",
       "title": "わたしの幸せな結婚 特別篇"
     },
+    "15875": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/193296",
+      "fetchedDate": "2026-10-01",
+      "matchedBy": "mal",
+      "title": "テンカイチ 日本最強武芸者決定戦"
+    },
     "15941": {
       "date": "2026-10-04",
       "precision": "day",
@@ -406,6 +424,15 @@
       "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ブラッククローバー 2nd Season"
+    },
+    "16325": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/195787",
+      "fetchedDate": "2026-10-01",
+      "matchedBy": "mal",
+      "title": "運命の巻戻士"
     },
     "16335": {
       "date": "2026-10-02",
@@ -562,6 +589,15 @@
       "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "劇場版 薬屋のひとりごと 亡妃の秘宝"
+    },
+    "16663": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/200927",
+      "fetchedDate": "2026-10-01",
+      "matchedBy": "mal",
+      "title": "薬屋のひとりごと 第3期 第2クール"
     },
     "16703": {
       "date": "2026-10-04",
@@ -913,6 +949,15 @@
       "matchedBy": "mal",
       "title": "転生ゴブリンだけど質問ある？"
     },
+    "17294": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/141922",
+      "fetchedDate": "2026-10-01",
+      "matchedBy": "mal",
+      "title": "尚善"
+    },
     "17295": {
       "date": "2026-10-04",
       "precision": "day",
@@ -1057,6 +1102,24 @@
       "fetchedDate": "2026-09-19",
       "matchedBy": "title",
       "title": "アラフォー賢者の異世界生活日記"
+    },
+    "17515": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/211304",
+      "fetchedDate": "2026-10-01",
+      "matchedBy": "mal",
+      "title": "メガネ、時々、ヤンキーくん"
+    },
+    "17526": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/211496",
+      "fetchedDate": "2026-10-01",
+      "matchedBy": "mal",
+      "title": "カグラバチ"
     },
     "17539": {
       "date": "2026-10-07",
@@ -1272,6 +1335,24 @@
       "matchedBy": "mal",
       "title": "ごーすと・みーつ・ぎゃる！"
     },
+    "17961": {
+      "date": "2027-03-05",
+      "precision": "day",
+      "kind": "release",
+      "sourceUrl": "https://anilist.co/anime/216623",
+      "fetchedDate": "2026-10-01",
+      "matchedBy": "mal",
+      "title": "映画ドラえもん のび太の蒸気時間車"
+    },
+    "17999": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/187361",
+      "fetchedDate": "2026-10-01",
+      "matchedBy": "mal",
+      "title": "Free Fire Daybreak"
+    },
     "18000": {
       "date": "2026-10-05",
       "precision": "day",
@@ -1371,6 +1452,24 @@
       "fetchedDate": "2026-09-25",
       "matchedBy": "url",
       "title": "桃源暗鬼 第一期 特別編集版"
+    },
+    "18240": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/217330",
+      "fetchedDate": "2026-10-01",
+      "matchedBy": "mal",
+      "title": "転生したらスライムだった件 クレイマンREVENGE"
+    },
+    "18251": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/217457",
+      "fetchedDate": "2026-10-01",
+      "matchedBy": "mal",
+      "title": "放課後のアイドルには秘密がある"
     }
   }
 }
