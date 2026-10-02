@@ -184,6 +184,16 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   **firstSeenを上書きしない・消えたものを消さない・初回に`seeded`印を付ける・
   1情報源の失敗で残りを巻き添えにしない**ことを固定する。ネットワークには出ない。
   `track-season.js`を触ったら必ず実行する
+- `node scripts/coverage-gaps.js` … **配信先が未登録の作品の洗い出し**（2026-10-02導入）。
+  `content/coverage/first-seen.json` だけを読み、今期・次期で配信サービス0件の作品を
+  急ぐ順（始まっている → 30日以内 → 開始日不明）にIssue本文として出す（0件なら何も出さない）。
+  `track-season.yml` が毎日**1本のIssue（ラベル`coverage-gaps`）を書き換え**、0件になれば閉じる。
+  導入の経緯: 2026秋の開始直後、Netflix・Prime Video・Disney+・FODの**独占配信7作品**が
+  Annictに番組表が無いまま「配信情報なし」と表示され、利用者に指摘されるまで誰も気づけなかった
+  （補完の仕組み`extraServices.ts`はあったが、**何を補完すべきかを出す道具が無かった**）。
+  劇場作品（`media`が`MOVIE`、または`autoSchedule.json`の`kind: release`）と開始が30日より先の作品は
+  出さない。調べて「配信なし」「延期」と確認できた作品は`ACKNOWLEDGED`に**理由つきで**足す。
+  ネットワークには出ない。回帰テストは`node scripts/check-coverage-gaps.js`
 - `node scripts/fetch-upcoming.js` … 次クールの放送/公開予定日の取得（2026-08-17導入）。
   **AniListが既に持っている放送日をサイトへ運ぶ**。2026-08-17実測で、2026秋はAnnictに99作品が
   登録されているのに`programs`（番組表）を持つのは3件だけ（96件が「放送時期未定」）で、同じ日

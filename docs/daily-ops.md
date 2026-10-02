@@ -91,6 +91,14 @@ node scripts/usage-report.js
   その指標は判定から消えている（`scripts/lib/vercel-usage.js` の `BUDGET` に足す）
 - 判定は**1日あたり**で見る。ローリング30日の合計は対策前の分が混ざるので使わない
 
+### (f) 配信先が未登録の作品 ← **2026-10-02追加**
+ラベル `coverage-gaps` の Issue（`track-season.yml` が毎日1本だけ書き換える。手元では `node scripts/coverage-gaps.js`）を開き、
+上の群（放送/配信が始まっている → 30日以内 → 開始日不明）から順に、一次情報で配信先を確かめて
+`content/works/extraServices.ts` に足す。独占配信（Netflix・Prime Video・Disney+・FOD）は
+Annictの番組表に載らないまま配信日を迎えることが多い＝**放っておくと「配信情報なし」が出続ける**。
+「TV放送のみ」「放送延期」と一次情報で確認できた作品は `scripts/coverage-gaps.js` の `ACKNOWLEDGED` に理由つきで足す。
+推測で埋めないこと（制約(4)）。
+
 ### (a) シーズンページのHTML量
 - `node scripts/check.ts` を流し、末尾の**「シーズンページのHTML量」に`⚠`が出ていないか**を確認する。出ていたら**日報の「明日以降やること」の先頭に載せて指摘する**（見直しの選択肢は`docs/operations.md`の⑮）。`⚠`は落ちない設計なのでCIは緑のまま通る＝巡回が拾わないと誰も気づかない。
 - `check.ts`が見るのは過去クールだけなので、**現在クールは自分で見る**。通信が使える日は `curl -s "https://animedia-khaki.vercel.app/api/season?year=<今年>&season=<今期>" | head -c 200` の `count`。目安は **282作品 / gzip 100KB**。
