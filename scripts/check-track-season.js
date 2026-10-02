@@ -119,7 +119,7 @@ async function main() {
   try {
     console.log("\n── 初回観測（種まき）──");
     state.annict.items = [
-      { id: 1, title: "作品A", watchers: 100, broadcastStartDate: "2027-01-05", services: [{ key: "d_anime" }] },
+      { id: 1, title: "作品A", watchers: 100, broadcastStartDate: "2027-01-05", media: "TV", services: [{ key: "d_anime" }] },
       { id: 2, title: "作品B", watchers: 50, broadcastStartDate: null, services: [] },
     ];
     state.anilist.media = [
@@ -132,6 +132,10 @@ async function main() {
     assert.strictEqual(store.sources.annict["2027-winter"].works["1"].services.d_anime.seeded, true);
     assert.strictEqual(store.sources.anilist["2027-winter"].works["900"].seeded, true);
     ok("初回は seeded 印が付く", "作品もサービスも");
+    assert.strictEqual(store.sources.annict["2027-winter"].works["1"].media, "TV");
+    assert.strictEqual(store.sources.annict["2027-winter"].works["2"].media, null);
+    assert.strictEqual("media" in store.sources.anilist["2027-winter"].works["900"], false);
+    ok("Annict側だけ媒体を記録する", "coverage-gaps.js が劇場作品を見分けるため");
     assert.strictEqual(store.sources.annict["2027-winter"].works["1"].firstSeen, "2026-08-12");
     assert.strictEqual(store.sources.annict["2027-winter"].daily.length, 1);
     ok("初回の日次行が1本できる", "作品2件・配信あり1件");

@@ -22,7 +22,7 @@
 - [x] **生成AI検索（LLM）向け最適化**（2026-07-07完了・2026-07-07拡充）: ChatGPT・Perplexity・Google AI Overviews等に拾われることを狙った施策。方針の全体像は外部文書「生成AI時代のSEO対策（2026年7月版）」に準拠。
   (1) 作品ページの`TVSeries`/`Movie`構造化データで、あらすじ・声優・監督・製作会社・原作を機械可読に提供
   (2) `/llms.txt`（`app/llms.txt/route.ts`）でサイトの構造と主要URL・データ性質をMarkdownで明示
-  (3) `robots.txt`で主要AIクローラ（GPTBot・ClaudeBot・PerplexityBot・Google-Extended等）を明示的に許可
+  (3) `robots.txt`で主要AIクローラ（GPTBot・ClaudeBot・PerplexityBot・Google-Extended等）を明示的に許可（**2026-10-02に方針変更**: 学習用〈GPTBot・ClaudeBot・CCBot・Bytespider・Amazonbot・Meta-ExternalAgent・Google-Extended・Applebot-Extended〉は拒否、検索・回答用〈OAI-SearchBot・ChatGPT-User・PerplexityBot〉は許可のまま。`app/robots.ts`）
   (4) シーズンページの`ItemList`で「その年その季節のアニメ一覧」を機械可読化
   (5) **Organization＋sameAs**（Bluesky/Mastodon/X）でエンティティの実在性シグナルを付与（`app/layout.tsx`）
   (6) 作品ページに**BreadcrumbList**・**FAQPage**（「『作品名』はどこで配信されている？」をアンサーファーストで可視表示＋スキーマ同期）・**dateModified**（配信情報の確認日を鮮度シグナルとして可視表示）を追加。シーズンページにもBreadcrumbList＋dateModified

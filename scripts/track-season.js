@@ -142,6 +142,9 @@ async function fetchAnnict(seasonStr) {
     title: it.title,
     rank: it.watchers ?? 0,
     startDate: it.broadcastStartDate ?? null,
+    // 媒体（TV/MOVIE/WEB/OVA/OTHER）。scripts/coverage-gaps.js が「劇場作品は配信が
+    // 無いのが普通」を見分けるのに使う（2026-10-02追加）。
+    media: it.media ?? null,
     services: (it.services || []).map((s) => s.key),
   }));
 }
@@ -237,6 +240,8 @@ function applySeason(container, seasonStr, items, today) {
     w.title = it.title;
     w.rank = it.rank;
     w.startDate = it.startDate;
+    // media は Annict 側だけが持つ（AniList の行には無い＝キーごと付けない）
+    if (it.media !== undefined) w.media = it.media;
     for (const key of it.services) {
       if (!w.services[key]) {
         w.services[key] = seeding ? { firstSeen: today, seeded: true } : { firstSeen: today };
