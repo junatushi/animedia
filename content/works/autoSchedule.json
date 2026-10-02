@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-01",
+  "updatedAt": "2026-10-02",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -1405,9 +1405,11 @@
     "18205": {
       "date": "2026-10-02",
       "precision": "day",
+      "weekday": 5,
+      "time": "09:50",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/217577",
-      "fetchedDate": "2026-09-30",
+      "fetchedDate": "2026-10-02",
       "matchedBy": "mal",
       "title": "マゼンチュ"
     },
