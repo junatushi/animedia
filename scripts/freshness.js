@@ -219,8 +219,14 @@ function armsOf(series) {
   if (series.kind === "first-seen") {
     const json = JSON.parse(fs.readFileSync(abs, "utf8"));
     const arms = [];
+    const { targetSeasons } = require("./track-season.js");
+    const activeCours = new Set(targetSeasons(TODAY));
     for (const [source, cours] of Object.entries(json.sources || {})) {
       for (const [cour, rec] of Object.entries(cours || {})) {
+        // 追跡対象（現在クール＋先の2クール）から外れたクールは、収集が止まって
+        // 当然（クール替わりの翌日から毎日「止まっている」と誤報して赤くなる）。
+        // 対象の定義は track-season.js の targetSeasons **だけ**が持つ。
+        if (!activeCours.has(cour)) continue;
         const dates = (rec.daily || []).map((d) => d.date).filter((d) => DATE_RE.test(d));
         arms.push({ arm: `${source} ${cour}`, dates });
       }

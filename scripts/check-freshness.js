@@ -310,6 +310,21 @@ function main() {
     check("⑨' 1件も無いとき確認先を名指しする", r.code !== 0 && named, named ? "mainへの未マージを名指し" : "原因を示さない");
   }
 
+  // ⑩ 追跡対象から外れたクール（クール替わりで終えた腕）の「止まっている」で赤くしない。
+  //    これが無いと、クールが替わった翌日から毎日失敗し、本物の欠測まで読まれなくなる
+  //    （2026-10-03に 2026-summer が実際にそうなった）。
+  {
+    const r = run(
+      use({
+        gsc: gscHealthy,
+        site: siteHealthy,
+        firstSeen: { ...fsHealthy, "annict 2020-summer": streak(day(TODAY, -30), 10) },
+      }),
+      TODAY
+    );
+    check("⑩ 追跡を終えたクールで失敗にならない", r.code === 0 && !r.out.includes("2020-summer"), (r.out.match(/結果:.*/) || [""])[0]);
+  }
+
   for (const t of tmps) fs.rmSync(t, { recursive: true, force: true });
   console.log(`\n結果: ${ng === 0 ? "全件OK" : `${ng} 件NG`}`);
   process.exit(ng === 0 ? 0 : 1);
