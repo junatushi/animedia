@@ -3,7 +3,7 @@
 // app/season/[year]/[season]/page.tsx（SEO用のサーバーレンダリング）の
 // 両方から共有する。
 import { unstable_cache } from "next/cache";
-import { fetchSeasonWorks } from "./annict";
+import { fetchSeasonWorks, seasonCacheTag } from "./annict";
 import { toAnimeItem, overlayManualData } from "./services";
 import { EXTRA_SERVICES } from "@/content/works/extraServices";
 import { RELEASE_DATES } from "@/content/works/releaseDates";
@@ -11,7 +11,7 @@ import { RELEASE_DATES } from "@/content/works/releaseDates";
 // Annictの実データも人力補完も無い作品にだけ効く最下位の層（lib/autoSchedule.ts）。
 import AUTO_SCHEDULE_FILE from "@/content/works/autoSchedule.json";
 import { parseAutoSchedules } from "./autoSchedule";
-import { isSeasonYearInRange } from "./resolveSeasonParams";
+import { isSeasonYearInRange, isFinishedSeason } from "./resolveSeasonParams";
 import { jstToday } from "./workAvailability";
 import type { SeasonResponse } from "./types";
 
@@ -70,7 +70,10 @@ async function fetchAndBuild(year: string, season: string): Promise<SeasonRespon
 // 動くことはほぼ無いので、現在年と同じ10分でキャッシュを切らす必要はない。
 // 過去年は24時間キャッシュにして、1日のうちで同じ年に複数人が訪れても
 // 2人目以降はコールドを踏まないようにする（1人目の初回コールドだけは避けられない）。
-// 今期のTTL。温めCron（.github/workflows/warm-cache.yml、8分間隔）より長くしないと
+// 【2026-10-04】スナップショットの無い過去年も「終わったクール」として
+// 下の FINISHED_SEASON_REVALIDATE（1週間）に乗せた。
+// 今期のTTL（LIVE_SEASON_REVALIDATE。2026-10-04まで CURRENT_YEAR_REVALIDATE という名前で、
+// 今年の4クールすべてに効いていた）。温めCron（.github/workflows/warm-cache.yml、8分間隔）より長くしないと
 // 意味がないが、GitHub Actionsのscheduleは高負荷時に10〜15分遅延することがあり、
 // 600秒だと「Cronが遅れた窓」で実訪問者がキャッシュ切れの再構築（2026-07-21実測で
 // 5〜6秒。シーズン進行でprogramsが積み上がり悪化した）を踏んでいた。900秒にして
@@ -100,25 +103,61 @@ async function fetchAndBuild(year: string, season: string): Promise<SeasonRespon
 //   このサイトの存在理由（今どこで見られるか）を損なう。6時間なら cron が全滅しても
 //   最大6時間で自力復帰し、かつ描き直しは1日4回に収まる。
 //   鮮度の本線は従来どおり /api/revalidate（revalidate.yml が1日2回）の指名。
-const CURRENT_YEAR_REVALIDATE = 6 * 60 * 60;
-const PAST_YEAR_REVALIDATE = 60 * 60 * 24;
+const LIVE_SEASON_REVALIDATE = 6 * 60 * 60;
 
-// 【2026-08-25追加】タグ "season-current" を付ける。/api/revalidate が revalidateTag で
-// 明示的に古くするため。
+// 【2026-10-04追加】**終わったクール**（今期より前）のTTL。ページ側の
+// `export const revalidate = 604800` と同じ1週間にする＝時間では作り直さない。
 //
-// なお **CURRENT_YEAR_REVALIDATE は1週間へは延ばさない**（2026-09-14に3600→21600）。ここは
-// 一覧（トップ・シーズン・ランキング・独占配信）が読む現在クールのデータで、カードの
-// 配信バッジもここから出る。cronが止まったときに一覧まで1週間古くなるのは、このサイトの
-// 存在理由（今どこで見られるか）を損なう。対象は現在クールのぶんだけ＝約150ページ。
-// 長い裾（過去クールの作品・声優ページ）は下の PAST_YEAR_REVALIDATE とスナップショットの
-// 直読みに乗るので、この値の影響を受けない。
-const getCachedCurrentYearSeasonData = unstable_cache(fetchAndBuild, ["season-data-current"], {
-  revalidate: CURRENT_YEAR_REVALIDATE,
-  tags: ["season-current"],
-});
-const getCachedPastYearSeasonData = unstable_cache(fetchAndBuild, ["season-data-past"], {
-  revalidate: PAST_YEAR_REVALIDATE,
-});
+// それまでは「年」で分けており、今年の冬・春・夏が今期と同じ6時間TTL＋共有タグ
+// （"season-current"）だった。その結果、
+//   ①`/api/revalidate` が今期を古くするたびに（1日2回）、**終わった3クールのデータと
+//     それに依存する全ページが巻き添えで消え**、温め（scripts/warm-revalidated.sh）は
+//     今期と次クールしか戻さないので、次の訪問者がクール一括取得の全額を払っていた
+//     （2026-10-04の本番実測で /service/d_anime/2026/summer が33.2秒、
+//     /service/d_anime/2026/spring が15.8秒、2回目はどちらも0.17秒）。
+//   ②6時間TTLがページの実効revalidateを6時間に引き下げ、終わったクールの
+//     声優・サービス別・作品ページが1日4回書き直されていた（ISR Writesの上位3面と一致。
+//     docs/operations.md の㉝追記4）。
+// 終わったクールの配信情報も動くことはあるが、過去年のページ（1週間）と同じ扱いで足りる。
+// 人力補完（extraServices.ts / releaseDates.ts）は下の getCachedLiveSeasonData が
+// **キャッシュの外でも重ねる**ので、TTLを延ばしても次のデプロイで反映される。経緯は[63]。
+const FINISHED_SEASON_REVALIDATE = 7 * 24 * 60 * 60;
+
+// データキャッシュは**クールごとのタグ**で古くする（2026-10-04。以前は今年の4クール共通の
+// "season-current"）。/api/revalidate は対象クール（今期・次クール）のタグだけを名指しする。
+// タグは lib/annict.ts の seasonCacheTag が1箇所で持ち、生のGraphQL応答（fetchSeasonWorks）
+// にも同じものが付く＝1回の revalidateTag で両方の層がそろって古くなる。
+//
+// キャッシュのキー（"season-data-current" / "season-data-past"）は**変えていない**。
+// キーを変えるとデプロイ直後に全クールが冷え、ちょうど直したい「初回の全額」を
+// デプロイのたびに1回ずつ踏ませることになるため。キーの名前は歴史的なもので、
+// 今は「今年か、それ以外か」を表すだけ（鮮度の判定は isFinishedSeason が持つ）。
+//
+// なお **今期のTTLは1週間へは延ばさない**（2026-09-14に3600→21600）。一覧（トップ・
+// シーズン・ランキング・独占配信）が読む今期のデータで、カードの配信バッジもここから出る。
+// cronが止まったときに一覧まで1週間古くなるのは、このサイトの存在理由（今どこで
+// 見られるか）を損なう。
+async function getCachedLiveSeasonData(year: string, season: string): Promise<SeasonResponse> {
+  const isThisYear = Number(year) === new Date().getFullYear();
+  const finished = isFinishedSeason(year, season);
+  const data = await unstable_cache(
+    fetchAndBuild,
+    [isThisYear ? "season-data-current" : "season-data-past"],
+    {
+      revalidate: finished ? FINISHED_SEASON_REVALIDATE : LIVE_SEASON_REVALIDATE,
+      tags: [seasonCacheTag(`${year}-${season}`)],
+    }
+  )(year, season);
+  // 人力補完を**キャッシュの外でも**重ねる（2026-10-04）。fetchAndBuild の中でも
+  // toAnimeItem が同じものを入れているが、それはキャッシュした時点の内容で固まる。
+  // データキャッシュはデプロイをまたいで残るので、終わったクール（TTL 1週間）に
+  // あとから足した配信は、ここが無いと最大1週間出ない。overlayManualData は
+  // 既にあるサービスに触らない（＝2回重ねても結果は同じ）ので、二重には入らない。
+  return {
+    ...data,
+    items: data.items.map((it) => overlayManualData(it, EXTRA_SERVICES[it.id], RELEASE_DATES[it.id])),
+  };
+}
 
 // 過去年（放送終了済み）のシーズンは content/snapshots/{year}-{season}.json に確定値を
 // 固定しておき（scripts/snapshot-past-seasons.ts で生成）、それを即返す。
@@ -154,12 +193,12 @@ async function loadPastYearSnapshot(
 }
 
 export async function getSeasonData(year: string, season: string): Promise<SeasonResponse> {
-  const isCurrentYear = Number(year) === new Date().getFullYear();
-  if (isCurrentYear) {
-    return getCachedCurrentYearSeasonData(year, season);
+  // スナップショットを読むのは過去年だけ（今年のクールのスナップショットは作らない＝
+  // scripts/snapshot-past-seasons.ts が拒否する）。次クールが年をまたぐ場合（秋の時点の
+  // 翌年冬）もスナップショットは無いので、ライブ取得に落ちる。
+  if (Number(year) < new Date().getFullYear()) {
+    const snapshot = await loadPastYearSnapshot(year, season);
+    if (snapshot) return snapshot;
   }
-  const snapshot = await loadPastYearSnapshot(year, season);
-  if (snapshot) return snapshot;
-  // スナップショットが無い過去年はライブ取得（＋24時間キャッシュ）にフォールバック。
-  return getCachedPastYearSeasonData(year, season);
+  return getCachedLiveSeasonData(year, season);
 }

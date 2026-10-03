@@ -28,7 +28,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { currentYearSeason, nextYearSeason } from "@/lib/resolveSeasonParams";
 import { getSeasonData } from "@/lib/getSeasonData";
-import { workCacheTag } from "@/lib/annict";
+import { workCacheTag, seasonCacheTag } from "@/lib/annict";
 
 // 秘密の照合とrevalidatePathはリクエストごとに必ず走らせる（キャッシュさせない）。
 export const dynamic = "force-dynamic";
@@ -107,22 +107,25 @@ export async function POST(request: Request) {
 
   // データ層（fetch / unstable_cache）はページの再検証では古くならないので、タグで別に
   // 指名する。これが無いとページだけ作り直され、中身は古いキャッシュのまま出てしまう。
-  //   "annict"        … lib/annict.ts のクール一括・索引の応答（TTL 1週間）
-  //   "season-current"… lib/getSeasonData.ts の現在クール（TTL 1時間・安全網として据え置き）
-  //   annict-work-<id>… 対象クールの作品1件ぶん（lib/annict.ts の workCacheTag）
+  //   annict-season-<年>-<季節> … 対象クールの一括取得（生の応答＋lib/getSeasonData.ts の
+  //                              整形後の両方。lib/annict.ts の seasonCacheTag）
+  //   annict-work-<id>          … 対象クールの作品1件ぶん（lib/annict.ts の workCacheTag）
+  //   "annict"                  … 検索索引の応答だけ（lib/annict.ts の fetchWorksIndex）
   //
-  // 【2026-10-01】**共有のタグは scope=next では古くしない。**
-  // "annict" と "season-current" は**今期と次クールの両方**が同じ1枚を使う
-  // （lib/getSeasonData.ts の getCachedCurrentYearSeasonData は年で分けていない）。
-  // クールごとに分けて呼ぶとき、2回目でもう一度古くすると
-  // **1回目に温めたぶんが冷える**（温めた意味が消える）。
-  // 呼び出し側は current → next の順に叩くので、1回目の古くしでどちらのクールの
-  // データも対象になり、next 側は自分のぶんを温め直すだけでよい。
-  // `?scope=next` だけを単独で叩いた場合、共有データの鮮度は時間ベースのTTL
-  // （CURRENT_YEAR_REVALIDATE）に委ねる。
+  // 【2026-10-04】**クールのデータは対象クールのタグだけを古くする。**
+  // 以前は全クール共通の "annict" と今年の4クール共通の "season-current" を古くしており、
+  // **今年の終わったクール（冬・春・夏）まで1日2回巻き添えで消えていた**。温め
+  // （scripts/warm-revalidated.sh）は対象クールしか戻さないので、終わったクールの
+  // 初回が一括取得の全額を払っていた（本番実測で33.2秒・15.8秒・6.6秒）。
+  // 対象を名指しにしたので、2026-10-01に入れた「共有のタグは scope=next では
+  // 古くしない」という分岐も要らなくなった（今期と次クールが同じ1枚を共有しない）。
+  for (const t of targets) {
+    revalidateTag(seasonCacheTag(`${t.year}-${t.season}`));
+  }
+  // 検索索引は今期・次クールをまとめた1枚なので、今期の回だけ古くする
+  // （次クールの回でもう一度古くすると、1回目のあとに温まったぶんが無駄に冷える）。
   if (scope !== "next") {
     revalidateTag("annict");
-    revalidateTag("season-current");
   }
   // 作品1件ぶんのタグはクールごとに別物なので、どちらのscopeでも必ず古くする。
   for (const tag of workTags) {
