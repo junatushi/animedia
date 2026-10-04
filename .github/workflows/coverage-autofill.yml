@@ -1,0 +1,150 @@
+name: 配信先の自動補完を検証してマージ
+
+# 【なぜ要るか・2026-10-04】
+# 配信先0件の作品（scripts/coverage-gaps.js が毎日Issueに出す）は、毎日の定期実行の
+# Claude（docs/coverage-autofill.md）が一次情報を調べて content/works/extraServices.ts に足し、
+# `claude/coverage-autofill-<日付>` のブランチでPRを出す。**調べた本人はマージしない。**
+# このワークフローが出典ページを取り直して機械で裏取りし（scripts/verify-extra-services.ts）、
+# 全部合格して CI も緑のときだけマージする。1件でも外れたら**マージせず**、理由をPRに書いて人に回す。
+#
+# 「調べたClaudeの申告をそのまま本番に出さない」のが目的なので、検証はClaudeの作業環境ではなく
+# ここ（GitHubのランナー）で、PRの中身だけを入力にして独立にやり直す。
+#
+# 【Vercelの無料枠】
+# mainへのマージ＝本番デプロイ＝ISRキャッシュの全消去（docs/operations.md の㉝）。
+# 自動マージは**JSTの1日1本まで**にする（2本目以降は人の判断に回す）。確認済みの除外
+# （scripts/lib/coverage-acknowledged.js）だけのPRは vercel.json の ignoreCommand で
+# デプロイが起きない（scripts/ は除外済み）。
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  issues: write
+
+concurrency:
+  group: coverage-autofill
+  cancel-in-progress: false
+
+jobs:
+  verify-and-merge:
+    # 自動補完のブランチ・同じリポジトリ・下書きでないPRだけ（フォークのPRには書き込み権限を渡さない）
+    if: >-
+      startsWith(github.head_ref, 'claude/coverage-autofill-') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # 触ってよいファイルは2つだけ。他のファイルが混ざったPRは、中身が正しくても自動では通さない
+      # （検証スクリプト自体を書き換えて合格させる、という経路も塞ぐ）。
+      - name: 変更されたファイルを限定する
+        id: files
+        run: |
+          BASE=$(git merge-base origin/main HEAD)
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          CHANGED=$(git diff --name-only "$BASE" HEAD)
+          echo "$CHANGED"
+          BAD=$(echo "$CHANGED" | grep -v -x -e 'content/works/extraServices.ts' -e 'scripts/lib/coverage-acknowledged.js' || true)
+          if [ -n "$BAD" ]; then
+            { echo "### 配信先の自動補完の機械検証"; echo; echo "自動補完のPRが触ってよいのは \`content/works/extraServices.ts\` と \`scripts/lib/coverage-acknowledged.js\` だけです。次のファイルが含まれているので自動ではマージしません:"; echo; echo "$BAD" | sed 's/^/- /'; } > "$RUNNER_TEMP/report.md"
+            exit 1
+          fi
+
+      # 検証スクリプトは**mainの版**を使う（PRの中の版はPRが書き換えられる）。上で触れるファイルを
+      # 限定しているので同じ中身のはずだが、念のため main から取り出して実行する。
+      - name: 出典を取り直して裏取りする
+        id: verify
+        run: |
+          set +e
+          git show origin/main:scripts/verify-extra-services.ts > "$RUNNER_TEMP/verify.ts"
+          git show origin/main:scripts/lib/verify-extra-services.js > scripts/lib/verify-extra-services.js
+          cp "$RUNNER_TEMP/verify.ts" scripts/verify-extra-services.ts
+          node --no-warnings scripts/verify-extra-services.ts --base "${{ steps.files.outputs.base }}" > "$RUNNER_TEMP/report.md"
+          code=$?
+          git checkout -- scripts/verify-extra-services.ts scripts/lib/verify-extra-services.js
+          cat "$RUNNER_TEMP/report.md"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          [ "$code" = "0" ] || exit 1
+
+      - name: 自動マージは1日1本まで
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const jstToday = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+            const { data: closed } = await github.rest.pulls.list({ ...context.repo, state: "closed", sort: "updated", direction: "desc", per_page: 30 });
+            const mergedToday = closed.filter((p) =>
+              p.merged_at && p.head.ref.startsWith("claude/coverage-autofill-") &&
+              new Date(new Date(p.merged_at).getTime() + 9 * 3600e3).toISOString().slice(0, 10) === jstToday);
+            if (mergedToday.length > 0) {
+              require("fs").appendFileSync(`${process.env.RUNNER_TEMP}/report.md`,
+                `\n\n今日（${jstToday} JST）は既に自動補完を1本マージしています（#${mergedToday[0].number}）。デプロイの回数を抑えるため、このPRは自動ではマージしません。翌日以降に人がマージしてください。`);
+              core.setFailed("1日1本の上限");
+            }
+
+      # CI（型・検査・ビルド）が緑になるのを待つ。赤いまま・終わらないままならマージしない。
+      - name: CIが緑になるのを待つ
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.payload.pull_request.head.sha;
+            const deadline = Date.now() + 45 * 60e3;
+            while (true) {
+              const { data } = await github.rest.checks.listForRef({ ...context.repo, ref: sha, per_page: 100 });
+              const ci = data.check_runs.filter((r) => r.name.startsWith("checks"));
+              const pending = ci.filter((r) => r.status !== "completed");
+              const bad = ci.filter((r) => r.status === "completed" && r.conclusion !== "success" && r.conclusion !== "skipped");
+              if (bad.length > 0) {
+                require("fs").appendFileSync(`${process.env.RUNNER_TEMP}/report.md`, `\n\nCIが失敗しました（${bad.map((r) => r.name).join("、")}）。自動ではマージしません。`);
+                core.setFailed("CI failed");
+                return;
+              }
+              if (ci.length > 0 && pending.length === 0) return;
+              if (Date.now() > deadline) {
+                require("fs").appendFileSync(`${process.env.RUNNER_TEMP}/report.md`, "\n\nCIが45分以内に終わりませんでした。自動ではマージしません。");
+                core.setFailed("CI timeout");
+                return;
+              }
+              await new Promise((r) => setTimeout(r, 30e3));
+            }
+
+      - name: マージする
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const report = require("fs").readFileSync(`${process.env.RUNNER_TEMP}/report.md`, "utf8");
+            await github.rest.issues.createComment({ ...context.repo, issue_number: pr.number, body: report + "\n\n→ 全部合格・CIも緑なので自動でマージします。" });
+            // 検証したコミットと同じものだけをマージする（検証の後に積まれたコミットは通さない）
+            await github.rest.pulls.merge({ ...context.repo, pull_number: pr.number, sha: pr.head.sha, merge_method: "squash" });
+            await github.rest.git.deleteRef({ ...context.repo, ref: `heads/${pr.head.ref}` }).catch(() => {});
+
+      - name: 自動で通せなかったことをPRに書く
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const path = `${process.env.RUNNER_TEMP}/report.md`;
+            const report = fs.existsSync(path) ? fs.readFileSync(path, "utf8") : "検証の途中で失敗しました。";
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const pr = context.payload.pull_request;
+            await github.rest.issues.createComment({ ...context.repo, issue_number: pr.number,
+              body: `${report}\n\n**自動ではマージしませんでした。** 不合格の行を直してpushし直すか、人が出典を確かめてマージしてください（ログ: ${url}）。` });
+            await github.rest.issues.addLabels({ ...context.repo, issue_number: pr.number, labels: ["coverage-autofill-review"] });
