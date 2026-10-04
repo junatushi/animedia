@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-03",
+  "updatedAt": "2026-10-04",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -637,6 +637,15 @@
       "matchedBy": "mal",
       "title": "魔術を極めて旅に出た転生エルフ、持て余した寿命で生ける伝説となる"
     },
+    "16733": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/202564",
+      "fetchedDate": "2026-10-04",
+      "matchedBy": "mal",
+      "title": "描くなるうえは"
+    },
     "16767": {
       "date": "2027-01",
       "precision": "month",
@@ -902,6 +911,15 @@
       "matchedBy": "mal",
       "title": "どこよりも遠い場所にいる君へ"
     },
+    "17124": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/207782",
+      "fetchedDate": "2026-10-04",
+      "matchedBy": "mal",
+      "title": "おデブ悪女に転生したら、なぜかラスボス王子様に執着されています"
+    },
     "17132": {
       "date": "2026-10-05",
       "precision": "day",
@@ -1095,6 +1113,15 @@
       "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ペンと手錠と事実婚"
+    },
+    "17488": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/98476",
+      "fetchedDate": "2026-10-04",
+      "matchedBy": "mal",
+      "title": "ビブリア古書堂の事件手帖"
     },
     "17489": {
       "date": "2027-01",
@@ -1319,6 +1346,15 @@
       "matchedBy": "mal",
       "title": "MURCIÉLAGO-ムルシエラゴ-"
     },
+    "17933": {
+      "date": "2027-01-05",
+      "precision": "day",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/217433",
+      "fetchedDate": "2026-10-04",
+      "matchedBy": "title",
+      "title": "メラ×デス 死神と僕の異常な恋"
+    },
     "17936": {
       "date": "2027-01",
       "precision": "month",
@@ -1336,6 +1372,15 @@
       "fetchedDate": "2026-08-30",
       "matchedBy": "mal",
       "title": "ごーすと・みーつ・ぎゃる！"
+    },
+    "17959": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/214461",
+      "fetchedDate": "2026-10-04",
+      "matchedBy": "mal",
+      "title": "真の聖女である私は追放されました。だからこの国はもう終わりです"
     },
     "17961": {
       "date": "2027-03-05",
@@ -1445,6 +1490,15 @@
       "fetchedDate": "2026-09-25",
       "matchedBy": "url",
       "title": "魔法の姉妹ルルットリリィ 近くて遠いふたりの距離"
+    },
+    "18235": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/197620",
+      "fetchedDate": "2026-10-04",
+      "matchedBy": "url",
+      "title": "SEKIRO: NO DEFEAT（TV版）"
     },
     "18237": {
       "date": "2026-10-02",
