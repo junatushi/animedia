@@ -153,4 +153,40 @@ export const EXTRA_SERVICES: Record<number, ExtraServiceEntry[]> = {
     sourceUrl: "https://anime.cf-vanguard.com/vgd/onair/",
     confirmedDate: "2026-10-02",
   })),
+  // ───── 2026秋クール（2026-10-04追加・Issue #201） ─────
+  // 確認方法: 出典ページの原文を取得し、配信サービス名がその作品（Annictの同じ作品ID）の
+  // 告知として書かれていることを確かめた。**同じ公式サイトでも別の作品の告知と取り違えない**
+  // （例: ルルットリリィの公式サイトのOn Airは第2クールの配信先で、この作品＝総集編のものではない）。
+  // 魔法の姉妹ルルットリリィ 近くて遠いふたりの距離: 第1クールの総集編。公式ニュースで
+  // 「10月3日(土) 19:00～ YouTubeプレミア公開」。他の配信は「順次予定」とだけあり名前が無いので載せない。
+  18233: [
+    {
+      key: "youtube",
+      sourceUrl: "https://www.luluttolilly.com/news/detail.php?id=25717",
+      confirmedDate: "2026-10-04",
+      evidence: "配信情報 10月3日(土) 19:00～ YouTubeプレミア公開",
+    },
+  ],
+  // タヌキとキツネ: 公式サイトのオンエア欄に「見逃し無料配信 YouTube」と配信サービスが列挙されている
+  // （SERVICESにある10社だけを載せる。ネットもテレ東・TVer・J:COM STREAM・みるプラスは対象外）。
+  // 配信の曜日・時刻は書かれていないので schedule は付けない。
+  17352: (
+    ["youtube", "bandai", "d_anime", "telasa", "lemino", "unext", "anime_houdai", "dmm", "prime", "abema"] as const
+  ).map((key) => ({
+    key,
+    sourceUrl: "https://tanukitsu-anime.jp/",
+    confirmedDate: "2026-10-04",
+    evidence:
+      "見逃し無料配信 YouTube ネットもテレ東 TVer 配信サービス バンダイチャンネル ｄアニメストア J:COM STREAM みるプラス TELASA Lemino U-NEXT / アニメ放題 DMM TV Amazon Prime Video ABEMA",
+  })),
+  // ふんばるず: 発売元ドリームズのPR TIMES発表で「YouTube(ふんばるず公式チャンネル)：
+  // 2026年10月12日(月)～順次配信開始予定」。時刻が無いので schedule は付けない。
+  18128: [
+    {
+      key: "youtube",
+      sourceUrl: "https://prtimes.jp/main/html/rd/p/000000540.000026206.html",
+      confirmedDate: "2026-10-04",
+      evidence: "YouTube(ふんばるず公式チャンネル)：2026年10月12日(月)～順次配信開始予定。",
+    },
+  ],
 };
