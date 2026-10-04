@@ -111,6 +111,9 @@ import { parseWorkId } from "../lib/workId.ts";
 // 検査の対象を**手で数えず、app/ を走査して導出する**ための道具（2026-08-31導入）。
 // 名指しの列挙が漏れて OG画像ルートだけ検証を通っていなかった事故から入れた。
 import { appRoutes, dynamicRoutes } from "./lib/app-routes.js";
+// currentTrackedSeasonKey は "2026-autumn"（年込み）。lib/resolveSeasonParams.ts の
+// currentSeasonKey（クール名だけ）とは別物なので名前を分けてある（上の「誤用」節の事故と同じ形を避ける）。
+import { currentValues, currentTrackedSeasonKey, currentSampleUrls } from "./lib/route-samples.js";
 import { buildLayerModule } from "./build-inline-css.js";
 import {
   LAYERS as CSS_LAYER_NAMES,
@@ -7448,6 +7451,82 @@ let isrNg = 0;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// 表示速度の計測が「今期」を測っている（2026-10-04導入・重大度高）
+//
+// scripts/measure-production.js の `-current` 面は scripts/lib/route-samples.js の
+// currentValues() が選ぶ。以前は content/coverage/first-seen.json の**いちばん早いキー**を
+// 今期とみなしていたが、記録側は終わったクールのキーを消さない（check-track-season.js が
+// 固定している）ので、10月になっても `-current` の5面は**全部 2026-summer を測っていた**。
+// 計測は毎日成功し、数字も正しく出るので、**どのクールを測ったかを見ない限り気づけない**。
+// 今期の定義は scripts/track-season.js の targetSeasons だけが持つ。ここで固定するのは
+//   ①古いクールが記録に残っていても今期を選ぶ
+//   ②今期が記録に無ければ null（前のクールに黙って落ちない）
+//   ③年またぎ（12/31→秋・1/1→翌年の冬）
+//   ④作品IDは数値順（文字列順だと "10" が "5" より先に来て、日によって測るURLが変わりうる）
+//   ⑤実データでも、測るURLが今期のクールを指している
+// 経緯は docs/operations.md の[64]。
+console.log("\n── 表示速度の計測が今期を測っている ──");
+let curSampleNg = 0;
+{
+  const svc = { d_anime: { firstSeen: "2026-09-20" } };
+  const fixture = {
+    sources: {
+      annict: {
+        // 古いクールを**先に**置く（以前の実装はこのキーを今期と取り違えた）。
+        "2026-summer": { works: { "3": { services: svc } } },
+        "2026-autumn": {
+          works: {
+            "1": { services: {} }, // 配信0件は選ばない
+            "10": { services: svc },
+            "5": { services: svc },
+          },
+        },
+      },
+    },
+  };
+  const cases: Array<[string, boolean, string]> = [];
+  const v = currentValues({ today: "2026-10-04", fresh: fixture });
+  cases.push([
+    "古いクールが残っていても今期（秋）を選ぶ",
+    !!v && v.year === "2026" && v.season === "autumn",
+    v ? `${v.year}-${v.season}` : "null",
+  ]);
+  cases.push([
+    "配信0件を除き、作品IDは数値順で先頭",
+    !!v && v.workId === "5",
+    v ? v.workId : "null",
+  ]);
+  const onlyOld = { sources: { annict: { "2026-summer": fixture.sources.annict["2026-summer"] } } };
+  const miss = currentValues({ today: "2026-10-04", fresh: onlyOld });
+  cases.push(["今期が記録に無ければ null（前のクールに落ちない）", miss === null, String(miss && `${miss.year}-${miss.season}`)]);
+  cases.push(["12/31 は今年の秋", currentTrackedSeasonKey("2026-12-31") === "2026-autumn", currentTrackedSeasonKey("2026-12-31")]);
+  cases.push(["1/1 は翌年の冬", currentTrackedSeasonKey("2027-01-01") === "2027-winter", currentTrackedSeasonKey("2027-01-01")]);
+
+  // ⑤実データ。今期が記録に無い日（クール替わり直後など）は skipped に名指しで出ていればよい。
+  const key = currentTrackedSeasonKey();
+  const real = currentSampleUrls();
+  const [ky, ks] = key.split("-");
+  const seasonal = real.urls.filter((u: { routePath: string }) => u.routePath.includes("[season]"));
+  const realOk =
+    real.urls.length > 0
+      ? seasonal.length > 0 &&
+        seasonal.every((u: { path: string }) => u.path.includes(`/${ky}/${ks}`)) &&
+        real.urls.every((u: { face: string }) => u.face.endsWith("-current"))
+      : real.skipped.some((s: string) => s.includes(key));
+  cases.push([
+    "実データの -current 面が今期のクールを指す",
+    realOk,
+    real.urls.length > 0 ? `${key}（${real.urls.length}面）` : `今期の記録なし＝skipped に ${key} を名指し`,
+  ]);
+
+  for (const [label, ok, detail] of cases) {
+    if (!ok) curSampleNg++;
+    console.log(`${ok ? "✓" : "✗"}  ${label.padEnd(40)} → ${detail}`);
+  }
+  console.log(`結果（計測の今期）: ${curSampleNg === 0 ? "全てOK" : `${curSampleNg} 件NG`}`);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // リンクの先読み（2026-09-03導入・重大度高）
 //
 // App Router の <Link> は既定で「画面に入った（200px手前まで近づいた）リンクの
@@ -8308,6 +8387,7 @@ if (
   prefetchNg > 0 ||
   authJsNg > 0 ||
   isrNg > 0 ||
+  curSampleNg > 0 ||
   autoNg > 0 ||
   datasetNg > 0 ||
   llmsNg > 0 ||

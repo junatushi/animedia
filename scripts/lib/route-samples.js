@@ -86,31 +86,45 @@ function seasonOrder() {
  * 実利用者(RUM)の p75 LCP は person 3,332ms / anime 2,885ms だった。
  * **測っていない面が遅い**という、画面を見ても計測ログを見ても気づけない形の穴。
  *
- * 【クール名を書かない】今期の判定は `content/coverage/first-seen.json` から導出する。
- * `scripts/track-season.js` が毎日「現在クール＋先2クール」を書くので、
- * 季節の並び順でいちばん早いキーが今期になる。**日付の計算をここに書き写さない**
- * （書き写すとクールが変わった日に静かにズレ、また同じ穴が開く）。
+ * 【クール名を書かない】今期は `scripts/track-season.js` の `targetSeasons` **だけ**が
+ * 決める（記録側と同じ定義。`scripts/freshness.js` も同じものを使う）。
+ * **日付の計算をここに書き写さない**（書き写すとクールが変わった日に静かにズレる）。
+ *
+ * 【2026-10-04訂正・重大度高】以前は `first-seen.json` の**いちばん早いキー**を今期と
+ * みなしていた。だが記録側は**消えたクールを消さない**（`check-track-season.js` が
+ * 固定している）ので、クールが替わっても前のクールのキーが残り続ける。結果、10月に
+ * なっても `-current` の5面は**全部 2026-summer（もう終わったクール）を測っていた**。
+ * 本当の今期（秋）は1面も測られておらず、#198 の効果判定ができない状態だった。
+ * いまは今期のキーを `targetSeasons` で求め、**記録に無ければ null を返す**
+ * （古いクールに黙って落ちない＝呼び出し側が「測っていない」と出す）。
  *
  * 声優名だけは今期ぶんの一次情報がリポジトリに無い（people.json は過去クールのみ）ので
  * null を返す。呼び出し側が `skipped` として出すので、**黙って対象から外れない**。
  */
-function currentValues() {
+// 今期のキー（例: "2026-autumn"）。定義は track-season.js の targetSeasons だけが持つ。
+// today を渡せるのは回帰テストのため（差し替えるのは日付という値だけで、判断の分岐は
+// 本番と同じ経路を通る）。
+function currentTrackedSeasonKey(today) {
+  const { targetSeasons, jstToday } = require("../track-season.js");
+  return targetSeasons(today || jstToday())[0];
+}
+
+// fresh を渡せるのは回帰テストのため（既定は content/coverage/first-seen.json を読む）。
+function currentValues({ today, fresh: freshIn } = {}) {
   const order = seasonOrder();
-  let fresh;
-  try {
-    fresh = readJson("content/coverage/first-seen.json");
-  } catch {
-    return null;
+  let fresh = freshIn;
+  if (!fresh) {
+    try {
+      fresh = readJson("content/coverage/first-seen.json");
+    } catch {
+      return null;
+    }
   }
-  const keys = Object.keys(fresh?.sources?.annict ?? {});
-  if (keys.length === 0) return null;
-  const rank = (k) => {
-    const [y, s] = k.split("-");
-    return Number(y) * 4 + order.indexOf(s);
-  };
-  const currentKey = keys.slice().sort((a, b) => rank(a) - rank(b))[0];
+  const currentKey = currentTrackedSeasonKey(today);
+  // 今期が記録に無いときは null（**前のクールに落ちない**＝上の訂正の再発防止）。
+  const works = fresh?.sources?.annict?.[currentKey]?.works;
+  if (!works) return null;
   const [year, season] = currentKey.split("-");
-  const works = fresh.sources.annict[currentKey]?.works ?? {};
   // 配信サービスが1件以上ある作品を選ぶ（実際に人が開くページに近い形）。
   // 並べてから先頭を採るので、日が変わっても同じURLを測り続けられる＝前日比が意味を持つ。
   const workId = Object.entries(works)
@@ -203,10 +217,12 @@ function currentSampleUrls() {
   if (!v) {
     return {
       urls: [],
-      skipped: ["今期の全面（content/coverage/first-seen.json から今期の作品を導出できない）"],
+      skipped: [
+        `今期の全面（今期＝${currentTrackedSeasonKey()} の作品が content/coverage/first-seen.json から導出できない）`,
+      ],
     };
   }
   return buildUrls(v, { faceSuffix: "-current", onlySeasonal: true, label: "（今期）" });
 }
 
-module.exports = { realValues, realFor, currentValues, sampleUrls, currentSampleUrls };
+module.exports = { realValues, realFor, currentValues, currentTrackedSeasonKey, sampleUrls, currentSampleUrls };
