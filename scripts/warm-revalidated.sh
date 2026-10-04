@@ -39,6 +39,12 @@ PICK="node $(dirname "$0")/lib/json-pick.js"
 POST_MAX_TIME="${POST_MAX_TIME:-120}"
 WARM_MAX_TIME="${WARM_MAX_TIME:-180}"
 HEAD_MAX_TIME="${HEAD_MAX_TIME:-60}"
+# 温まったかの確認は**1回で判定しない**（2026-10-04・重大度高）。最大 VERIFY_TRIES 回、
+# 待ちを VERIFY_WAIT 秒から倍々に延ばして取り直す。理由は下の③のコメント。
+# 差し替えてよいのはこの2つの**数値だけ**（回帰テストは待ちを0にする）。判断の分岐は
+# テストと本番で同じ経路を通す（CLAUDE.md の基本ルール「スタブ用の抜け道を本番に残さない」）。
+VERIFY_TRIES="${VERIFY_TRIES:-4}"
+VERIFY_WAIT="${VERIFY_WAIT:-3}"
 
 FAILED=0
 fail() { echo "::error::$*"; echo "  NG   $*"; FAILED=1; }
@@ -94,24 +100,54 @@ for SCOPE in current next; do
     fi
   done
 
-  # ③ ページを温める → **もう1回取って温まったか確認する**。
+  # ③ ページを温める → **温まったか確認する**。
   #
-  # x-vercel-cache が答える:
-  #   hit / stale / prerender … キャッシュから配った＝訪問者は待っていない
-  #   miss / bypass           … キャッシュに無く、その場で作って待たせた
-  # ここを見ないと「温めたつもりで効いていない」を黙って通す。
+  # 確かめたいのは「**次に来た訪問者がキャッシュから受け取れるか**」。x-vercel-cache が
+  # hit / stale / prerender なら、その応答はキャッシュから出ている＝もう温まっている。
+  #
+  # 【2026-10-04・1回で判定しない】導入時は温めた直後に1回だけ取り直して判定していたが、
+  # #198 のマージ後に**4回続けて落ちた**。中身を分けると、
+  #   ・`/rankings/2027/winter`・`/exclusive/2027/winter`（次クール）が4回中3回 `miss`
+  #     ……ところがローカルの本番ビルドでは同じページが MISS → HIT → HIT と正しく
+  #     キャッシュされる（`s-maxage=21600`）。アプリ側は正しく、**作り直した直後の
+  #     取り直しが Vercel のエッジでまだ反映されていない**形。
+  #   ・`/` が `revalidated`（許可リストに無い値）……この値は、一度も消していない
+  #     完全静的なページ（/about・/privacy・/studio）の初回にも出る（2026-10-03/04の
+  #     速度計測の `cacheFirst`）。「その場生成した」とは言い切れない値。
+  # だから「温まるまで短く待って何回か取り直し、キャッシュから出るようになったか」で
+  # 判定する。**何度待っても miss / revalidated のままなら従来どおり落とす**
+  # （本当にキャッシュされないページを黙って通さない）。
   for p in $PAGE_PATHS; do
     S="$(curl -s -o /dev/null -w "%{http_code}" --max-time "$WARM_MAX_TIME" "${BASE}${p}")"
     if [ "$S" != "200" ]; then
       fail "温められませんでした（${p} status=${S}）"
       continue
     fi
-    CACHE="$(curl -s -o /dev/null -D - --max-time "$HEAD_MAX_TIME" "${BASE}${p}" \
-      | tr -d '\r' | awk 'tolower($1)=="x-vercel-cache:"{print tolower($2)}' | tail -1)"
+    CACHE=""
+    CC=""
+    TRIES=0
+    WAIT="$VERIFY_WAIT"
+    while :; do
+      TRIES=$((TRIES + 1))
+      HDRS="$(curl -s -o /dev/null -D - --max-time "$HEAD_MAX_TIME" "${BASE}${p}" | tr -d '\r')"
+      CACHE="$(printf '%s\n' "$HDRS" | awk 'tolower($1)=="x-vercel-cache:"{print tolower($2)}' | tail -1)"
+      CC="$(printf '%s\n' "$HDRS" | awk 'tolower($1)=="cache-control:"{sub(/^[^:]*:[ \t]*/, ""); print}' | tail -1)"
+      case "$CACHE" in hit|stale|prerender) break ;; esac
+      [ "$TRIES" -ge "$VERIFY_TRIES" ] && break
+      sleep "$WAIT"
+      WAIT=$((WAIT * 2))
+    done
     case "$CACHE" in
-      hit|stale|prerender) ok "温まった（${p} x-vercel-cache=${CACHE}）" ;;
+      hit|stale|prerender) ok "温まった（${p} x-vercel-cache=${CACHE}・確認${TRIES}回目）" ;;
       *)
-        fail "温めが効いていません（${p} x-vercel-cache=${CACHE:-なし}）。訪問者がその場生成を待つ状態が残っています"
+        # cache-control も出す。待っても温まらない理由が「エッジへの反映待ち」なのか
+        # 「ページが動的描画になっていて、そもそもキャッシュされない」なのかで直し方が
+        # まったく違い、後者は温めでは直らない（ページ側で動的になった原因を探す）。
+        HINT=""
+        case "$CC" in
+          *no-store*|*private*) HINT="応答がキャッシュ不可（動的描画）＝温めでは直らない。ページが動的になった原因を探すこと。" ;;
+        esac
+        fail "温めが効いていません（${p} x-vercel-cache=${CACHE:-なし}・cache-control=${CC:-なし}・${TRIES}回確認しても温まらない）。${HINT}訪問者がその場生成を待つ状態が残っています"
         ;;
     esac
   done

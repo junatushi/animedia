@@ -110,6 +110,11 @@ function main() {
     const target = new Date(new Date(latest.date).getTime() - 7 * 86400000).toISOString().slice(0, 10);
     const weekAgo = usable.filter((s) => s.date <= target).at(-1) ?? usable[0];
     const byFace = (snap, face) => snap?.json.pages.find((p) => p.face === face) ?? null;
+    // 【2026-10-04追加】面の名前が同じでも**測ったURLが違えば比べない**。
+    // `-current` の面はクールが替わるとURLが替わる（2026-10-04に夏→秋へ直した日がまさにそれ）。
+    // 別のページの値を「前回比」として並べると、秋のほうが遅い／速いと読ませてしまう。
+    // path を持たない古い断面は、従来どおり比べる（持っていないことを違いとみなさない）。
+    const samePath = (q, p) => (q && q.path && p.path && q.path !== p.path ? null : q);
 
     const c = latest.json.conditions ?? {};
     console.log(`① 合成計測（${latest.date}・${latest.json.base ?? "?"}）`);
@@ -132,8 +137,8 @@ function main() {
         "   " + String(p.face).padEnd(16) +
           `${p.lcp}ms`.padStart(9) +
           (p.lcpFirst == null ? "—" : `${p.lcpFirst}ms`).padStart(9) +
-          fmtDelta(p.lcp, byFace(prev, p.face)?.lcp).padStart(9) +
-          fmtDelta(p.lcp, byFace(weekAgo, p.face)?.lcp).padStart(10) +
+          fmtDelta(p.lcp, samePath(byFace(prev, p.face), p)?.lcp).padStart(9) +
+          fmtDelta(p.lcp, samePath(byFace(weekAgo, p.face), p)?.lcp).padStart(10) +
           `${p.fcp}ms`.padStart(8) + `${p.ttfb}ms`.padStart(8) +
           // 「受信」＝ responseEnd − responseStart。RUMの `HTML_DL` と同じ定義なので
           // ②の表と直に比べられる。**この列が無かったせいで、RUMが問題だと言っている
@@ -202,11 +207,21 @@ function main() {
     const WARM_CACHE = new Set(["hit", "stale", "prerender"]);
     const isColdGen = (p) => typeof p.cacheFirst === "string" && COLD_CACHE.has(p.cacheFirst);
     const isWarmGen = (p) => typeof p.cacheFirst === "string" && WARM_CACHE.has(p.cacheFirst);
+    // 【2026-10-04追加】**記録はあるが、どちらとも言えない値**（`revalidated` ほか未知の値）。
+    // `revalidated` は「キャッシュが消されていて、この要求が作り直した」と読めそうだが、
+    // 2026-10-03/04の実測で**一度も消していない完全静的なページ**（/about・/privacy・
+    // /studio・/director）の初回にも出た。つまり「その場生成した」とは言い切れない。
+    // **生成のせいにも、生成ではないとも書かない**（[60]の3度の誤りと同じ轍を踏まない）。
+    // 以前はこの値を黙って説明から落とし、しかも「記録していない」と事実と逆のことを
+    // 出していた（10-04の断面で 37秒の service-current の状態が説明から消えていた）。
+    const isAmbiguousGen = (p) =>
+      typeof p.cacheFirst === "string" && !COLD_CACHE.has(p.cacheFirst) && !WARM_CACHE.has(p.cacheFirst);
     // 原因を1行で付け足す。`list` に入っている面だけを見て判断する
     // （断面全体で判断すると、速い面のHITで遅い面のMISSを打ち消してしまう）。
     const explainFirst = (list) => {
       const cold = list.filter(isColdGen);
       const warm = list.filter(isWarmGen);
+      const ambiguous = list.filter(isAmbiguousGen);
       const lines = [];
       if (cold.length > 0) {
         lines.push(
@@ -228,7 +243,18 @@ function main() {
             "）は**その場生成ではない**ので、転送量と描画の側を見る。"
         );
       }
-      if (cold.length === 0 && warm.length === 0) {
+      if (ambiguous.length > 0) {
+        lines.push(
+          `     → 初回の x-vercel-cache が判別できない値の面（` +
+            ambiguous.map((p) => `${p.face}=${p.cacheFirst}`).join(" ") +
+            "）は**その場生成かどうか言えない**。"
+        );
+        lines.push(
+          "       `revalidated` は一度も消していない完全静的なページの初回にも出る（2026-10-03/04実測）。"
+        );
+      }
+      // 「記録していない」と言ってよいのは、本当に値が無い面だけのとき。
+      if (list.length > 0 && list.every((p) => typeof p.cacheFirst !== "string")) {
         lines.push("     **原因はこの計測では特定できない**（この断面は初回の x-vercel-cache を記録していない）。");
         lines.push("     事前生成の有無はビルド成果物の .next/prerender-manifest.json で確かめる。");
       }
@@ -265,9 +291,12 @@ function main() {
     // 初回は1回しか測らない＝n=1なので、何日続いたかを添える。
     const streakOf = (face) => {
       let n = 0;
+      const latestPath = byFace(usable[usable.length - 1], face)?.path;
       for (let i = usable.length - 1; i >= 0; i--) {
         const q = byFace(usable[i], face);
         if (!q || typeof q.lcpFirst !== "number") break;
+        // URLが替わった日をまたいで数えない（別のページの「連続」は実体の証拠にならない）。
+        if (latestPath && q.path && q.path !== latestPath) break;
         if (q.lcpFirst < GOALS.lcp) break;
         n++;
       }

@@ -334,6 +334,66 @@ console.log("── 表示速度レポートの回帰テスト ──");
   check("目標内でも初回がMISSなら記録に残す", /初回がキャッシュに無かった面/.test(out),
     out.match(/ℹ[^\n]*/)?.[0] ?? "(出ていない)");
 }
+// ④-4 `revalidated` は「判別できない」と書く（2026-10-04追加）。
+//
+// この値は「キャッシュが消され、この要求が作り直した」と読めそうだが、2026-10-03/04の
+// 実測で**一度も消していない完全静的なページ**（/about・/privacy）の初回にも出た。
+// 生成のせいにも「生成ではない」とも書かない。以前は黙って説明から落とし、しかも
+// 「この断面は記録していない」と事実と逆のことを出していた（10-04の37秒の面で起きた）。
+{
+  const out = run(
+    {
+      "2026-09-08.json": snap(PROD, [
+        { ...page("service", false), lcpFirst: 9000, htmlDl: 200, htmlDlFirst: 8800, cacheFirst: "revalidated" },
+      ]),
+    },
+    {}
+  );
+  check("revalidated の面を判別できないと名指しする", /判別できない値の面[^\n]*service=revalidated/.test(out),
+    out.match(/→[^\n]*/g)?.join(" / ") ?? "(出ていない)");
+  check("revalidated を「記録していない」と書かない", !/記録していない/.test(out),
+    out.match(/[^\n]*記録していない[^\n]*/)?.[0] ?? "");
+  check("revalidated をその場生成のせいにしない", !/その場生成を待っている/.test(out));
+  check("revalidated を「その場生成ではない」とも書かない", !/その場生成ではない/.test(out));
+}
+{
+  // 本当に値が無いときは、従来どおり「記録していない」と言う（黙らない）。
+  const out = run(
+    { "2026-09-08.json": snap(PROD, [{ ...page("anime", false), lcpFirst: 9000, htmlDl: 120, htmlDlFirst: 8800 }]) },
+    {}
+  );
+  check("値が無い断面では「記録していない」と言う", /記録していない/.test(out));
+}
+// ④-5 面の名前が同じでもURLが替わったら比べない（2026-10-04追加）。
+// `-current` の面はクールが替わるとURLが替わる。別のページの値を前回比や「N日連続」に
+// 混ぜると、秋のほうが遅い（速い）・実体として続いている、と誤って読ませる。
+{
+  const before = { ...page("season-current", false), path: "/season/2026/summer", lcp: 600, lcpFirst: 2500 };
+  const after = { ...page("season-current", false), path: "/season/2026/autumn", lcp: 900, lcpFirst: 2600 };
+  const out = run(
+    {
+      "2026-09-07.json": snap(PROD, [before]),
+      "2026-09-08.json": snap(PROD, [after]),
+    },
+    {}
+  );
+  const row = out.split("\n").find((l) => /^\s+season-current\s/.test(l)) ?? "";
+  check("URLが替わった面の前回比を出さない", !/\+300ms/.test(row), row);
+  check("URLが替わった日をまたいで連続日数を数えない", /season-current\(初回2600ms[^)]*1日連続/.test(out),
+    out.match(/season-current\(初回[^)]*\)/)?.[0] ?? "(出ていない)");
+}
+{
+  // 同じURLなら従来どおり前回比を出す（比べない方向に壊れたら気づけるように対で固定）。
+  const out = run(
+    {
+      "2026-09-07.json": snap(PROD, [{ ...page("season-current", false), path: "/season/2026/autumn", lcp: 600 }]),
+      "2026-09-08.json": snap(PROD, [{ ...page("season-current", false), path: "/season/2026/autumn", lcp: 900 }]),
+    },
+    {}
+  );
+  const row = out.split("\n").find((l) => /^\s+season-current\s/.test(l)) ?? "";
+  check("同じURLなら前回比を出す", /\+300ms/.test(row), row);
+}
 {
   // **列を持たない断面で黙らない。** 黙って沈黙するのが最悪の壊れ方。
   const out = run(

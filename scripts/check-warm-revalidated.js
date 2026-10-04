@@ -95,10 +95,19 @@ function makeStub(opts = {}) {
       res.end("boom");
       return;
     }
-    // opts.cache で2回目の値を差し替えられる（温まらない本番を模す）。
-    const cache = n === 1 ? "MISS" : (opts.cache ?? "HIT");
+    // 1回目は温め（MISS）。2回目以降は確認の取り直し。
+    //   opts.seq   … 取り直しごとの値の並び（尽きたら最後の値を繰り返す）。
+    //                「何回か待てば温まる」本番のエッジを模す（2026-10-04）
+    //   opts.cache … 取り直しが毎回同じ値（温まらない本番を模す）
+    let cache;
+    if (n === 1) cache = "MISS";
+    else if (Array.isArray(opts.seq)) cache = opts.seq[Math.min(n - 2, opts.seq.length - 1)];
+    else cache = opts.cache ?? "HIT";
     const headers = { "content-type": "text/html" };
     if (cache !== "(none)") headers["x-vercel-cache"] = cache;
+    // 既定は本物のISRページと同じキャッシュ可能な応答。opts.cacheControl で
+    // 動的描画（no-store）を模す。
+    headers["cache-control"] = opts.cacheControl ?? "s-maxage=21600, stale-while-revalidate";
     res.writeHead(200, headers);
     res.end("<html></html>");
   });
@@ -109,6 +118,9 @@ function listen(server) {
   return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server.address().port)));
 }
 
+// 確認の取り直しの回数（本番の既定と同じ値。テストは待ち時間だけを0にする）。
+const VERIFY_TRIES = 4;
+
 function runScript(port) {
   return new Promise((resolve) => {
     const child = spawn(BASH, [SCRIPT], {
@@ -117,6 +129,9 @@ function runScript(port) {
         ...process.env,
         BASE: `http://127.0.0.1:${port}`,
         CRON_SECRET: SECRET,
+        // 差し替えるのは**待ち時間という数値だけ**（判断の分岐は本番と同じ経路）。
+        VERIFY_WAIT: "0",
+        VERIFY_TRIES: String(VERIFY_TRIES),
         // プロキシ配下でも 127.0.0.1 を素通りさせる。
         NO_PROXY: "127.0.0.1,localhost",
         no_proxy: "127.0.0.1,localhost",
@@ -195,6 +210,54 @@ function check(label, ok, detail = "") {
     check("温めが効いていないと名指しする", /温めが効いていません/.test(r.out), r.out);
     check("x-vercel-cache の実測値を出す", /x-vercel-cache=miss/.test(r.out), r.out);
   });
+
+  // ②-2 **何回か待てば温まる**なら成功（2026-10-04・#198 後の4回連続の失敗の再発防止）。
+  //   本番では作り直した直後の取り直しがエッジにまだ反映されず miss になり、
+  //   `/` は revalidated を返した。ローカルの本番ビルドでは同じページが正しく
+  //   キャッシュされる＝アプリは正しい。1回で判定すると毎日赤くなり、読まれなくなる。
+  await withStub({ seq: ["MISS", "REVALIDATED", "HIT"] }, (r, calls) => {
+    check("取り直して温まれば成功する", r.code === 0, `exit=${r.code}\n${r.out}`);
+    check("何回目で温まったかを出す", /確認3回目/.test(r.out), r.out);
+    // 温め1回＋確認3回＝4回（それ以上は叩かない）。
+    check(
+      "温まった時点で取り直しをやめる",
+      calls.pages.filter((p) => p === "/").length === 4,
+      JSON.stringify(calls.pages.filter((p) => p === "/"))
+    );
+  });
+  await withStub({ seq: ["REVALIDATED", "HIT"] }, (r) => {
+    check("revalidated のあとに温まれば成功する（/ の誤報の再発防止）", r.code === 0, `exit=${r.code}\n${r.out}`);
+  });
+
+  // ②-3 **何度待っても温まらない**なら落ちる。取り直しは上限回数で必ず止まる
+  //   （止まらないと cron が実行上限まで走り続け、失敗の原因が見えなくなる）。
+  await withStub({ cache: "MISS" }, (r, calls) => {
+    check(
+      `取り直しは上限（${VERIFY_TRIES}回）で止まる`,
+      calls.pages.filter((p) => p === "/").length === 1 + VERIFY_TRIES,
+      JSON.stringify(calls.pages.filter((p) => p === "/"))
+    );
+    check("何回確認したかを出す", new RegExp(`${VERIFY_TRIES}回確認しても温まらない`).test(r.out), r.out);
+  });
+  await withStub({ cache: "REVALIDATED" }, (r) => {
+    check("revalidated のままなら落ちる", r.code === 1, `exit=${r.code}`);
+  });
+
+  // ②-4 落ちたときは cache-control も出し、**動的描画なら「温めでは直らない」と名指しする**。
+  //   待っても温まらない理由が「エッジへの反映待ち」か「そもそもキャッシュされない」かで
+  //   直し方がまったく違う（前者は待ち方、後者はページ側）。後者を温めの問題として
+  //   追いかけ続けないように、1回の失敗で切り分けられる情報を残す。
+  await withStub({ cache: "MISS" }, (r) => {
+    check("cache-control の実測値を出す", /cache-control=s-maxage=21600/.test(r.out), r.out);
+    check("キャッシュ可能な応答なら動的描画と言わない", !/動的描画/.test(r.out), r.out);
+  });
+  await withStub(
+    { cache: "MISS", cacheControl: "private, no-cache, no-store, max-age=0, must-revalidate" },
+    (r) => {
+      check("動的描画でも落ちる", r.code === 1, `exit=${r.code}`);
+      check("動的描画なら温めでは直らないと名指しする", /動的描画）＝温めでは直らない/.test(r.out), r.out);
+    }
+  );
 
   // ③ BYPASS（動的扱い）も「待たせた」側として落とす。
   await withStub({ cache: "BYPASS" }, (r) => {
