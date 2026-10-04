@@ -57,6 +57,26 @@ export function nextYearSeason(year: number, season: string): { year: number; se
     : { year, season: SEASON_ORDER[i + 1] };
 }
 
+/**
+ * そのクールが**今期より前に終わっている**か（2026-10-04追加）。
+ *
+ * データの鮮度を「年」ではなく「クール」で分けるために使う（lib/getSeasonData.ts）。
+ * 年で分けていた時期は、今年の冬・春・夏が今期と同じ扱い（短いTTL＋共有タグ）で、
+ * `/api/revalidate` が今期を古くするたびに**終わったクールまで巻き添えで消え**、
+ * 誰も温めないまま次の訪問者が一括取得の全額（実測6〜33秒）を払っていた。
+ * 経緯は docs/operations.md の[63]。
+ * 未知のクール名は false（＝鮮度が要る側に倒す。推測で「終わった」にしない）。
+ */
+export function isFinishedSeason(year: string, season: string, now: Date = new Date()): boolean {
+  const i = SEASON_ORDER.indexOf(season);
+  if (i < 0) return false;
+  const y = Number(year);
+  if (!Number.isInteger(y)) return false;
+  const thisYear = now.getFullYear();
+  const cur = SEASON_ORDER.indexOf(seasonKeyForMonth(now.getMonth() + 1));
+  return y < thisYear || (y === thisYear && i < cur);
+}
+
 // 任意の月（1〜12）からクールキーを求める。作品の放送開始月から「どのクールの
 // 作品か」を逆算する用途（例: app/anime/[id]/page.tsx のシーズンページへの内部リンク）。
 export function seasonKeyForMonth(month: number): string {

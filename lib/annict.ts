@@ -308,11 +308,29 @@ export function workCacheTag(id: number): string {
   return `annict-work-${id}`;
 }
 
+/**
+ * クール1つぶんのキャッシュタグ（2026-10-04追加）。引数は "2026-summer" の形。
+ *
+ * クール一括の取得（fetchSeasonWorks）の生の応答と、それを整形した
+ * lib/getSeasonData.ts のデータキャッシュの**両方**に付ける。
+ * 以前は前者が全クール共通の "annict"、後者が今年の4クール共通の "season-current" で、
+ * `/api/revalidate` が今期を古くするたびに**終わったクールまで巻き添えで消えていた**
+ * （温めは今期と次クールしか戻さないので、次の訪問者が一括取得の全額＝実測6〜33秒を払う）。
+ * 作品1件を workCacheTag で分けたのと同じ理由で、クールも名指しできる単位に分ける。
+ * "annict" は検索索引（fetchWorksIndex）だけに残る。
+ * 逆戻りは `node scripts/check.ts` の「クールごとのキャッシュタグ」節が禁じている。
+ * 経緯は docs/operations.md の[63]。
+ */
+export function seasonCacheTag(season: string): string {
+  return `annict-season-${season}`;
+}
+
 async function gql<T>(
   body: { query: string; variables: Record<string, unknown> },
   token: string,
-  // このクエリの応答に付けるキャッシュタグ。既定はクール一括・索引などの
-  // 「作品に紐づかない」問い合わせ用。作品1件の取得は workCacheTag(id) を渡す。
+  // このクエリの応答に付けるキャッシュタグ。既定は検索索引など「作品にもクールにも
+  // 紐づかない」問い合わせ用。作品1件の取得は workCacheTag(id)、クール一括の取得は
+  // seasonCacheTag(season) を渡す（2026-10-04。それまでクール一括も既定の "annict" だった）。
   tags: string[] = ["annict"]
 ): Promise<T> {
   const MAX_RETRIES = 3;
@@ -461,7 +479,11 @@ export function mergeEpisodeInfo(base: ProgramNodes, withEpisode: ProgramNodes):
 // 作品ごとの EpisodeTail を取る。失敗したバッチの作品は Map に入らない
 // （＝呼び出し側で従来の推定に戻る）。**ここで例外を投げないこと**: この取得は
 // 「完結」の印のためのもので、失敗してシーズン一覧ごと落ちるのは割に合わない。
-async function fetchEpisodeTails(ids: number[], token: string): Promise<Map<number, EpisodeTail>> {
+async function fetchEpisodeTails(
+  ids: number[],
+  token: string,
+  tags: string[]
+): Promise<Map<number, EpisodeTail>> {
   type Raw = {
     annictId: number;
     episodes: { nodes: ({ number: number | null } | null)[] } | null;
@@ -476,7 +498,8 @@ async function fetchEpisodeTails(ids: number[], token: string): Promise<Map<numb
     try {
       const data = await gql<{ searchWorks: { nodes: (Raw | null)[] } }>(
         { query: EPISODE_TAIL_QUERY, variables: { ids: batch } },
-        token
+        token,
+        tags
       );
       for (const w of data.searchWorks?.nodes ?? []) {
         if (!w || !w.programs) continue;
@@ -508,12 +531,16 @@ export async function fetchSeasonWorks(
 ): Promise<AnnictWork[]> {
   const raws: RawWork[] = [];
   let after: string | null = null;
+  // このクールの取得はすべて同じタグにそろえる（1ページ目・追い取得・完結の推定）。
+  // 一部だけ違うタグが付くと、片方だけが古くなって中途半端な状態がキャッシュに残る。
+  const tags = [seasonCacheTag(season)];
 
   // hasNextPage が false になるまで endCursor で辿り、1シーズンを漏れなく取得する。
   for (let page = 0; page < MAX_PAGES; page++) {
     const data: { searchWorks: SearchWorksPage } = await gql<{ searchWorks: SearchWorksPage }>(
       { query: SEASON_QUERY, variables: { season, after } },
-      token
+      token,
+      tags
     );
     const conn = data.searchWorks;
     if (!conn) break;
@@ -551,10 +578,8 @@ export async function fetchSeasonWorks(
   await mapWithConcurrency(deduped, PROGRAMS_FETCH_CONCURRENCY, async (w) => {
     const pi = w.programs?.pageInfo;
     if (w.programs && pi?.hasNextPage && pi.endCursor) {
-      // クール一括の取得なので、1ページ目（SEASON_QUERY）と同じ "annict" を付ける。
-      const extra = await fetchProgramsPaged(w.annictId, token, PROGRAMS_QUERY_LIST, pi.endCursor, [
-        "annict",
-      ]);
+      // クール一括の取得なので、1ページ目（SEASON_QUERY）と同じクールのタグを付ける。
+      const extra = await fetchProgramsPaged(w.annictId, token, PROGRAMS_QUERY_LIST, pi.endCursor, tags);
       w.programs!.nodes.push(...extra);
     }
   });
@@ -562,7 +587,8 @@ export async function fetchSeasonWorks(
   // 「完結」の推定用に、番組表を持つ作品だけ話数付きの最終配信を取る（fetchEpisodeTails）。
   const tails = await fetchEpisodeTails(
     deduped.filter((w) => (w.programs?.nodes.length ?? 0) > 0).map((w) => w.annictId),
-    token
+    token,
+    tags
   );
 
   // API 窓口（route.ts）が使う AnnictWork 形へ整形（programs は nodes だけ渡す）。

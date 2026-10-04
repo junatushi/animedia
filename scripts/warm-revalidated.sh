@@ -47,9 +47,10 @@ ok()   { echo "  OK   $*"; }
 echo "再検証と温め: $BASE"
 
 # **current → next の順は変えないこと。**
-# 共有のデータキャッシュのタグ（"annict" / "season-current"）は今期と次クールが同じ1枚を
-# 使うため、窓口は scope=current のときだけそれを古くする（app/api/revalidate/route.ts）。
+# 共有のキャッシュタグ（検索索引の "annict"）は今期と次クールが同じ1枚を使うため、
+# 窓口は scope=current のときだけそれを古くする（app/api/revalidate/route.ts）。
 # 逆順にすると2回目の古くしで1回目に温めたぶんが冷える。
+# （クールのデータは2026-10-04からクールごとのタグ＝対象クールしか消さない。docs/operations.md の[63]）
 for SCOPE in current next; do
   echo "── ${SCOPE} ──"
 

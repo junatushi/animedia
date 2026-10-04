@@ -103,6 +103,7 @@ import {
   currentSeasonKey,
   currentYearSeason,
   isSeasonYearInRange,
+  isFinishedSeason,
   MIN_SEASON_YEAR,
 } from "../lib/resolveSeasonParams.ts";
 import { shouldIndexSeasonScopedPage, robotsFor } from "../lib/indexPolicy.ts";
@@ -6797,7 +6798,10 @@ let isrNg = 0;
   // 鮮度はタグで明示的に取りに行く方式なので、その窓口とcronが両方要る。
   const revalidateRouteUrl = new URL("../app/api/revalidate/route.ts", import.meta.url);
   const revalidateRoute = existsSync(revalidateRouteUrl) ? readFileSync(revalidateRouteUrl, "utf8") : "";
-  const hasTag = revalidateRoute.includes('revalidateTag("annict")');
+  // 【2026-10-04】クールのデータは対象クールのタグ（seasonCacheTag）で古くする。
+  // 以前は revalidateTag("annict") の有無を見ていたが、それは全クール共通のタグで、
+  // 終わったクールまで巻き添えで消していた（下の「クールごとのキャッシュタグ」節）。
+  const hasTag = revalidateRoute.includes("revalidateTag(seasonCacheTag(");
   const hasPath = revalidateRoute.includes("revalidatePath(");
   const hasAuth = revalidateRoute.includes("x-cron-secret");
   const routeOk = hasTag && hasPath && hasAuth;
@@ -6806,7 +6810,7 @@ let isrNg = 0;
     `${routeOk ? "✓" : "✗"}  ${"/api/revalidate がタグとパスの両方を古くする".padEnd(48)} → ` +
       (routeOk
         ? "revalidateTag + revalidatePath + 認証あり"
-        : `不足: ${[!hasTag && "revalidateTag(\"annict\")", !hasPath && "revalidatePath", !hasAuth && "x-cron-secret"].filter(Boolean).join(" / ")}。ページだけ作り直しても中身が古いままになる`)
+        : `不足: ${[!hasTag && "revalidateTag(seasonCacheTag(...))", !hasPath && "revalidatePath", !hasAuth && "x-cron-secret"].filter(Boolean).join(" / ")}。ページだけ作り直しても中身が古いままになる`)
   );
 
   const wfUrl = new URL("../.github/workflows/revalidate.yml", import.meta.url);
@@ -7325,6 +7329,118 @@ let isrNg = 0;
         (sharedNext
           ? "lib/resolveSeasonParams.ts の nextYearSeason"
           : "sitemapと/api/revalidateで対象クールがズレる")
+    );
+  }
+
+  // ── クールごとのキャッシュタグ（2026-10-04導入・重大度高） ──
+  //
+  // クール一括の取得に全クール共通の "annict"、整形後のデータに今年の4クール共通の
+  // "season-current" を付けていたため、/api/revalidate が今期を古くするたびに（1日2回）
+  // **今年の終わったクール（冬・春・夏）のデータと、それに依存する全ページが巻き添えで
+  // 消えていた**。温めは今期と次クールしか戻さないので、次の訪問者が一括取得の全額を
+  // 払う（2026-10-04の本番実測で /service/d_anime/2026/summer 33.2秒・
+  // /service/d_anime/2026/spring 15.8秒。2回目はどちらも0.17秒）。
+  // さらに終わったクールでもTTLが6時間で、そのクールの声優・サービス別・作品ページが
+  // 1日4回書き直されていた（ISR Writesの上位3面）。経緯は docs/operations.md の[63]。
+  //
+  // **画面からは気づけない**（2回目以降は速いので、自分で開くと速く見える）ので機械で見張る。
+  {
+    const annictSrc = readFileSync(new URL("../lib/annict.ts", import.meta.url), "utf8");
+    const gsdSrc = readFileSync(new URL("../lib/getSeasonData.ts", import.meta.url), "utf8");
+    const revSrc = readFileSync(new URL("../app/api/revalidate/route.ts", import.meta.url), "utf8");
+    // コメントを落としてから見る（説明文に旧タグ名を書けるようにするため）。
+    // 改行はCRLFのことがあるので先にLFへそろえる（関数の終わり "\n}\n" を探すため）。
+    const code = (src: string) =>
+      src.replace(/\r\n/g, "\n").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    const fnBody = (src: string, head: string) => {
+      const lf = src.replace(/\r\n/g, "\n");
+      const i = lf.indexOf(head);
+      if (i < 0) return "";
+      const rest = lf.slice(i);
+      const end = rest.indexOf("\n}\n");
+      return rest.slice(0, end > 0 ? end : rest.length);
+    };
+    // 空白の違いに左右されないよう、比べる前に空白を全部落とす。
+    const squash = (s: string) => s.replace(/\s+/g, "");
+
+    // ① 「終わったクール」の判定（実際に関数を呼ぶ）。秋の日付と冬の日付の両方で、
+    //    年をまたぐ境界（秋の時点の翌年冬・冬の時点の前年秋）を確かめる。
+    const autumn = new Date(2026, 9, 4); // 2026-10-04（今期＝秋）
+    const winter = new Date(2027, 0, 15); // 2027-01-15（今期＝冬）
+    const finCases: [string, string, Date, boolean, string][] = [
+      ["2026", "summer", autumn, true, "秋の時点の夏"],
+      ["2026", "winter", autumn, true, "秋の時点の同年冬"],
+      ["2026", "autumn", autumn, false, "今期"],
+      ["2027", "winter", autumn, false, "次クール（年をまたぐ）"],
+      ["2025", "autumn", autumn, true, "前年"],
+      ["2026", "autumn", winter, true, "冬の時点の前年秋"],
+      ["2027", "winter", winter, false, "冬の時点の今期"],
+      ["2026", "fall", autumn, false, "未知のクール名は鮮度が要る側に倒す"],
+    ];
+    let finNg = 0;
+    for (const [y, se, now, want, label] of finCases) {
+      if (isFinishedSeason(y, se, now) !== want) {
+        finNg++;
+        console.log(`✗  終わったクールの判定: ${label} → ${!want}（${want}のはず）`);
+      }
+    }
+    if (finNg > 0) isrNg++;
+    console.log(
+      `${finNg === 0 ? "✓" : "✗"}  ${"終わったクールを年ではなくクールで判定する".padEnd(48)} → ` +
+        (finNg === 0 ? `${finCases.length}件の境界を確認` : `${finNg} 件が期待と違う`)
+    );
+
+    // ② クール一括の取得が、クールごとのタグだけを使うこと（"annict" の混入禁止）。
+    const sw = code(fnBody(annictSrc, "export async function fetchSeasonWorks"));
+    const tails = code(fnBody(annictSrc, "async function fetchEpisodeTails"));
+    const swOk =
+      squash(sw).includes("consttags=[seasonCacheTag(season)]") &&
+      !/["']annict["']/.test(sw) &&
+      // 追い取得・完結の推定も同じタグで取る。既定値に落ちると "annict" が付く。
+      squash(sw).includes("pi.endCursor,tags)") &&
+      squash(sw).includes("token,tags);") &&
+      squash(tails).includes("token,tags);");
+    if (!swOk) isrNg++;
+    console.log(
+      `${swOk ? "✓" : "✗"}  ${"クール一括の取得はクールごとのタグを使う".padEnd(48)} → ` +
+        (swOk
+          ? "seasonCacheTag(season)（追い取得・完結の推定も同じ）"
+          : '共通の "annict" に戻すと、今期の更新で全クールの生データが消える')
+    );
+
+    // ③ 整形後のデータキャッシュも同じタグ。今年の4クール共通のタグを復活させない。
+    //    TTLは「終わったクールか」で分ける（年で分けると今年の冬・春・夏が6時間に戻る）。
+    const gsdCode = code(gsdSrc);
+    const gsdOk =
+      squash(gsdCode).includes("tags:[seasonCacheTag(`${year}-${season}`)]") &&
+      !gsdCode.includes("season-current") &&
+      squash(gsdCode).includes("constfinished=isFinishedSeason(year,season);") &&
+      squash(gsdCode).includes("revalidate:finished?FINISHED_SEASON_REVALIDATE:LIVE_SEASON_REVALIDATE");
+    if (!gsdOk) isrNg++;
+    console.log(
+      `${gsdOk ? "✓" : "✗"}  ${"整形後のデータもクールごとのタグ＋終わったクールは長いTTL".padEnd(48)} → ` +
+        (gsdOk
+          ? "seasonCacheTag + isFinishedSeason"
+          : "共有タグか年単位のTTLに戻っている（終わったクールが今期と一緒に消える）")
+    );
+
+    // ④ /api/revalidate は対象クールのタグだけを古くする。
+    //    共有タグ（"season-current"）の復活と、"annict" を scope=next でも古くすることを禁じる
+    //    （"annict" は検索索引だけ。今期の回だけで足りる）。
+    const revCode = code(revSrc);
+    const revSq = squash(revCode);
+    const annictCalls = revSq.split('revalidateTag("annict")').length - 1;
+    const revOk =
+      revSq.includes("for(consttoftargets){revalidateTag(seasonCacheTag(`${t.year}-${t.season}`));}") &&
+      !revCode.includes("season-current") &&
+      annictCalls === 1 &&
+      revSq.includes('if(scope!=="next"){revalidateTag("annict");}');
+    if (!revOk) isrNg++;
+    console.log(
+      `${revOk ? "✓" : "✗"}  ${"cronが古くするのは対象クールのタグだけ".padEnd(48)} → ` +
+        (revOk
+          ? "targets ごとに seasonCacheTag／\"annict\" は今期の回だけ"
+          : "共有タグを古くすると、温めない終わったクールまで消える")
     );
   }
 
