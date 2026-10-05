@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import SeasonExplorer from "./SeasonExplorer";
 import type { SeasonResponse } from "@/lib/types";
 
@@ -18,17 +19,24 @@ import type { SeasonResponse } from "@/lib/types";
 //   Script Evaluation 469ms・HTMLパース 50ms。つまり「HTMLを読む」より
 //   「JSで組み立て直す」ほうが桁違いに高い。観測FCPも 2813ms 対 2519ms でトップが遅い。
 //
-// 【代わりの方法】クエリはこのファイルの読み込み時（＝hydrationより前）に一度だけ
+// 【代わりの方法】クエリは描画時（＝hydrationの effect より前）に一度だけ
 //   window.location.search から拾い、SeasonExplorer には props として渡す。
 //   SeasonExplorer 側は**初期描画では使わず**マウント後の useEffect で反映するので、
 //   サーバーHTMLとクライアント初回描画が一致し hydration が壊れない。
 //   モジュール読み込み時に取るのは、SeasonExplorer の「既定表示ならURLからクエリを消す」
 //   同期 useEffect より先に確定させるため（effectの中で読むと消された後になる）。
-const INITIAL_SEARCH =
-  typeof window === "undefined" ? "" : window.location.search.replace(/^\?/, "");
+// 【2026-10-05変更】モジュール読み込み時ではなく**このコンポーネントが描画されるたびの
+//   最初の1回**（useState の初期化）で読む。モジュール変数だとページを開いた最初の1回しか
+//   評価されず、作品ページから「戻る」でトップに戻ってきたとき（ソフト遷移＝モジュールは
+//   読み直されない）に、**最初に開いた時点の古いクエリ**が使われてしまう。
+//   描画中に読むので effect（＝クエリを消す同期）より前であることは変わらない。
+function readSearch() {
+  return typeof window === "undefined" ? "" : window.location.search.replace(/^\?/, "");
+}
 
 export default function TopPageExplorer({ initialData }: { initialData?: SeasonResponse }) {
   // サーバー描画では ""（window が無い）、クライアントでは実際のクエリになる。
   // SeasonExplorer はこれを**描画には使わない**ので、値が違ってもHTMLは一致する。
-  return <SeasonExplorer initialData={initialData} urlQuery={INITIAL_SEARCH} />;
+  const [urlQuery] = useState(readSearch);
+  return <SeasonExplorer initialData={initialData} urlQuery={urlQuery} />;
 }

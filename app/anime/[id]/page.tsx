@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import IntentLink from "@/components/IntentLink";
+import BackLink from "@/components/BackLink";
 import DetailCss from "@/components/DetailCss";
 import { getWorkData, staticWorkIds } from "@/lib/getWorkData";
 import { canStateFetchDate } from "@/lib/dataFreshness";
@@ -578,13 +579,14 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
           </p>
         )}
         <div className="meta">
-          <IntentLink href="/" className="official">
+          {/* 直前に見ていた一覧へは「戻る」として戻す（components/BackLink.tsx）。 */}
+          <BackLink href="/">
             ← アニメ視聴ガイドのトップに戻る
-          </IntentLink>
+          </BackLink>
           {workSeason && (
-            <IntentLink href={`/season/${workSeason.year}/${workSeason.key}`} className="official">
+            <BackLink href={`/season/${workSeason.year}/${workSeason.key}`}>
               {workSeason.year}年{workSeason.label}アニメ一覧を見る
-            </IntentLink>
+            </BackLink>
           )}
         </div>
       </header>
