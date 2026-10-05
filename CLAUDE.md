@@ -530,6 +530,16 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   いまは**hover/touchstartの素振りがあったときだけ**先読みする。
   **作品ページの`loading.tsx`を置かない方針（ソフト404回避）の代替が先読みなので、
   素振りの先読みまで消さないこと**。検査は`node scripts/check.ts`の「リンクの先読み」節
+- `components/screenMemory.ts` + `components/BackLink.tsx` … **一覧に「戻る」とさっきまでの画面に戻す**
+  （2026-10-05導入）。一覧（`/`・`/season/**`）を離れる瞬間に年・シーズン・絞り込み・
+  スクロール位置を`sessionStorage`へ、取得済みクールのデータをモジュール変数へ置き、戻ったら
+  そこから描き直す。作品ページの「トップに戻る」「◯期アニメ一覧を見る」は、直前の履歴が
+  その一覧なら`router.back()`として動く。**全部ブラウザ内で完結し、Vercelへの要求は増えない**
+  （むしろクールの行き来で`/api/season`を叩き直さなくなった）。
+  **`history.replaceState`/`pushState`の第1引数を`null`にしないこと**（重大度高）。
+  初回マウント時はNext.jsが差し替える前の素の`replaceState`が走り、App Routerの印（`__NA`）が
+  消えて、**戻るを押してもURLだけ変わって画面が切り替わらない**（実際に起きた。作品ページの
+  最下部に飛ぶ症状として報告された）。検査は`node scripts/check.ts`の「履歴の書き換え」節
 - `app/inlineCss<層>.ts` + `scripts/build-inline-css.js` +
   `scripts/lib/css-layers.js` + `components/<層>Css.tsx` +
   `scripts/lib/minify-css.js` …

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import IntentLink from "./IntentLink";
 import { logEvent } from "@/lib/logEvent";
@@ -13,6 +13,14 @@ import { useAuth } from "./AuthProvider";
 import { useLoginGatedWorkSet } from "./useLoginGatedWorkSet";
 import FollowLinks from "@/components/FollowLinks";
 import ScrollTopButton from "./ScrollTopButton";
+import {
+  getCachedSeason,
+  loadScreen,
+  markLeftExplorer,
+  putCachedSeason,
+  saveScreen,
+  type ScreenSnapshot,
+} from "./screenMemory";
 import ServiceMarks from "./ServiceMarks";
 import { hasAnyActiveAffiliate } from "@/lib/affiliate";
 import type { AnimeItem, SeasonResponse, ServiceTag, SearchIndexEntry } from "@/lib/types";
@@ -300,6 +308,9 @@ export interface SeasonExplorerProps {
 // URLクエリ（?year=2026&season=summer）と年・シーズンの選択状態を同期する。
 // これにより「Xで共有」ボタンが常に「今見ている内容」への正しいディープリンクを
 // 共有でき、共有された側もリンクを開くだけで同じ年・シーズンを見られる。
+// サーバー描画では useLayoutEffect が警告を出すので、ブラウザでだけ使う。
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
 export default function SeasonExplorer({
   initialYear: fixedYear,
   initialSeason: fixedSeason,
@@ -413,6 +424,138 @@ export default function SeasonExplorer({
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
   const [favoritesOnly, setFavoritesOnly] = useState(false);
 
+  // ── さっきまで見ていた画面に戻す（2026-10-05導入。仕組みと無料枠への配慮は
+  //    components/screenMemory.ts の冒頭）──────────────────────────────
+  // 復元待ちのスナップショット。セットされている間は、クール切替時の「絞り込みを消す」を
+  // 止める（下の取得 useEffect）。スクロールを当て終えたら null に戻す。
+  const pendingRestore = useRef<ScreenSnapshot | null>(null);
+  // 復元した state が描画に反映された「後」でスクロールするための合図。
+  const [restoreArmed, setRestoreArmed] = useState(false);
+
+  // 離れる瞬間に保存する値。毎回の描画で最新に差し替えておき、片付けの時に読む。
+  const snapshotRef = useRef<Omit<ScreenSnapshot, "search" | "scrollY" | "savedAt"> | null>(null);
+  // この一覧が最後に自分のURLに書いたクエリ。保存時に window.location を読まないのは、
+  // 保存する瞬間（遷移の途中）にはURLがもう遷移先（/anime/..）に替わっているため。
+  const lastSearchRef = useRef("");
+  snapshotRef.current = {
+    year,
+    season,
+    query,
+    active: [...active],
+    activeCast: [...activeCast],
+    sortKey,
+    viewMode,
+    calendarDay,
+    rankingOpen,
+    andMode,
+    favoritesOnly,
+  };
+
+  function persistScreen() {
+    const s = snapshotRef.current;
+    if (!s) return;
+    saveScreen(pathname, {
+      ...s,
+      search: lastSearchRef.current,
+      scrollY: Math.round(window.scrollY),
+      savedAt: Date.now(),
+    });
+  }
+
+  // 保存: 一覧を離れる（作品ページへ遷移する）瞬間と、タブを閉じる・再読み込みする瞬間。
+  // useLayoutEffect の片付けで取るのは、この時点ではまだ一覧のDOMが残っていて
+  // window.scrollY が「一覧で見ていた位置」のままだから（通常の useEffect の片付けは
+  // 遷移先の描画と先頭へのスクロールが済んだ後に走り、位置が0に潰れている）。
+  useIsomorphicLayoutEffect(() => {
+    const onPageHide = () => persistScreen();
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      persistScreen();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  // ブラウザ自身のスクロール復元を、この一覧の履歴エントリでだけ止める。
+  // 止めないと「戻る」の瞬間にブラウザが一覧の位置を**まだ表示中の作品ページ**に
+  // 当てはめ、短い作品ページの最下部へ一瞬飛ぶ。scrollRestoration は**履歴エントリごと**の
+  // 設定なので、離れるとき（遷移先のエントリが積まれた後）に auto へ戻し、
+  // 作品ページ同士の行き来ではブラウザ標準の復元をそのまま使う。
+  useEffect(() => {
+    try {
+      window.history.scrollRestoration = "manual";
+    } catch {
+      // 古いブラウザでは無視（従来どおりの挙動）
+    }
+    return () => {
+      markLeftExplorer(pathname + window.location.search);
+      try {
+        window.history.scrollRestoration = "auto";
+      } catch {
+        // 同上
+      }
+    };
+  }, [pathname]);
+
+  // 復元: マウント時に1回だけ。直前の「URLクエリの反映」より後に宣言してあるので、
+  // スナップショットのほうが優先される（クエリが一致するときしか使わないので矛盾しない）。
+  useEffect(() => {
+    if (initialMatches && initialData) {
+      putCachedSeason(initialYear, initialSeasonKey, initialData);
+    }
+    const snap = loadScreen(pathname, window.location.search);
+    if (!snap) return;
+    pendingRestore.current = snap;
+    if (!isFixed && (snap.year !== year || snap.season !== season)) {
+      setYear(snap.year);
+      setSeason(snap.season);
+    }
+    setQuery(snap.query);
+    setActive(new Set(snap.active));
+    setActiveCast(new Set(snap.activeCast));
+    setSortKey(snap.sortKey);
+    setViewMode(snap.viewMode);
+    setCalendarDay(snap.calendarDay);
+    setRankingOpen(snap.rankingOpen);
+    setAndMode(snap.andMode);
+    setFavoritesOnly(snap.favoritesOnly);
+    setRestoreArmed(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 復元したクールのデータが揃い、絞り込みが描画に反映されてからスクロールを当てる。
+  useEffect(() => {
+    const snap = pendingRestore.current;
+    if (!restoreArmed || !snap) return;
+    if (error) {
+      pendingRestore.current = null;
+      return;
+    }
+    if (loading || !data) return;
+    const wantSeason = isFixed ? data.season : `${snap.year}-${snap.season}`;
+    if (data.season !== wantSeason) return;
+    // restoreArmed は戻さない（戻すと再描画でこの effect の片付けが走り、
+    // 待機中の requestAnimationFrame を取り消してしまう）。二度目は pendingRestore が止める。
+    pendingRestore.current = null;
+    const target = snap.scrollY;
+    if (target <= 0) return;
+    // 画像や遅れて入る要素でページがまだ短いことがあるので、届く高さになるまで
+    // 数フレーム待つ（最大でおよそ0.5秒。それでも届かなければ届く所まで）。
+    let tries = 0;
+    let raf = 0;
+    const step = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      if (max >= target || tries++ >= 30) {
+        window.scrollTo(0, Math.min(target, Math.max(0, max)));
+        return;
+      }
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restoreArmed, data, loading, error]);
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem(FAVORITES_KEY);
@@ -505,14 +648,27 @@ export default function SeasonExplorer({
     if (isFixed) return;
     const isDefaultView =
       year === new Date().getFullYear() && season === currentSeasonKey();
-    if (isDefaultView) {
-      window.history.replaceState(null, "", pathname);
-      return;
+    let target = pathname;
+    if (!isDefaultView) {
+      const params = new URLSearchParams();
+      params.set("year", String(year));
+      params.set("season", season);
+      target = `${pathname}?${params.toString()}`;
     }
-    const params = new URLSearchParams();
-    params.set("year", String(year));
-    params.set("season", season);
-    window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
+    // 【2026-10-05修正・重大度高】第1引数は必ず**いまの history.state を引き継ぐ**。
+    // 以前は null を渡していたため、作品ページへ行ってブラウザの「戻る」を押すと
+    // URLだけ "/" に戻って**画面は作品ページのまま**になり、さらにブラウザが
+    // トップのスクロール位置を作品ページに当てはめて**作品ページの最下部へ飛んでいた**。
+    // 仕組み: Next.js は戻る/進むのとき history.state の __NA（App Router が積んだ印）を
+    // 見て画面を描き直す。state が null だと「Next.js の外で積まれた履歴」として
+    // **何もしない**（next/dist/client/components/app-router.js の onPopState）。
+    // そしてこの effect は初回マウント時、Next.js が replaceState を自前の版に
+    // 差し替える**より前**に走る（子の effect は親より先）ので、素の replaceState が
+    // Next.js の印を消していた。子が先に走る順序はReactの仕様なので、順番では直せない。
+    // また URL が変わらないなら書き換えない（初回の今期表示では何もしない＝余計な手を出さない）。
+    lastSearchRef.current = target.slice(pathname.length);
+    if (window.location.pathname + window.location.search === target) return;
+    window.history.replaceState({ ...(window.history.state ?? {}) }, "", target);
   }, [year, season, pathname, isFixed]);
 
   useEffect(() => {
@@ -520,17 +676,31 @@ export default function SeasonExplorer({
       skipNextFetch.current = false;
       return;
     }
+    // 画面の復元中（作品ページから戻ってきた直後）は、復元した絞り込みを消さない。
+    const restoring = pendingRestore.current !== null;
+    // 一度取ったクールは取り直さない（行き来や「戻る」で /api/season を叩き直さない）。
+    const cached = getCachedSeason(year, season);
+    if (cached) {
+      setError(null);
+      if (!restoring) setActive(new Set());
+      setData(cached);
+      setLoading(false);
+      return;
+    }
     let abort = false;
     setLoading(true);
     setError(null);
-    setActive(new Set());
+    if (!restoring) setActive(new Set());
     fetch(`/api/season?year=${year}&season=${season}`)
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || `エラー（${r.status}）`);
         return j as SeasonResponse;
       })
-      .then((d) => !abort && setData(d))
+      .then((d) => {
+        putCachedSeason(year, season, d);
+        if (!abort) setData(d);
+      })
       .catch((e) => {
         if (!abort) {
           setError(e.message);

@@ -3111,6 +3111,57 @@ let ssrNg = 0;
 console.log(`結果（SSRの中身）: ${ssrNg === 0 ? 2 : 0} 件OK / ${ssrNg} 件NG`);
 
 // ─────────────────────────────────────────────
+// 履歴を書き換えるとき Next.js の印を消さない（2026-10-05追加・重大度高）
+//
+// SeasonExplorer が `window.history.replaceState(null, ...)` でURLを整えていたため、
+// トップ "/" → 作品ページ → ブラウザの「戻る」で**URLだけ "/" に戻って画面は作品ページの
+// まま**になり、ブラウザがトップのスクロール位置を作品ページに当てはめて最下部へ飛んでいた。
+// Next.js は戻る/進むで history.state の __NA を見て描き直し、state が null だと何もしない。
+// 初回マウント時の子の effect は Next.js が replaceState を差し替えるより先に走るので、
+// 素の replaceState が印を消す。**画面は普段どおり見えるので、戻るを押すまで気づけない。**
+// 対象は走査して導出する（components/ と app/ の全 .ts/.tsx。コメント行は除く）。
+// ─────────────────────────────────────────────
+console.log("\n── 履歴の書き換え（Next.jsの印を消さない）──");
+let historyNg = 0;
+{
+  const offenders: string[] = [];
+  const walk = (dirUrl: URL, rel: string) => {
+    for (const e of readdirSync(dirUrl, { withFileTypes: true })) {
+      if (e.isDirectory()) {
+        walk(new URL(`${e.name}/`, dirUrl), `${rel}${e.name}/`);
+      } else if (/\.(ts|tsx)$/.test(e.name)) {
+        const src = readFileSync(new URL(e.name, dirUrl), "utf8")
+          .split("\n")
+          .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+          .join("\n");
+        if (/history\.(replaceState|pushState)\(\s*(null|undefined|\{\s*\})\s*,/.test(src)) {
+          offenders.push(`${rel}${e.name}`);
+        }
+      }
+    }
+  };
+  walk(new URL("../components/", import.meta.url), "components/");
+  walk(new URL("../app/", import.meta.url), "app/");
+  if (offenders.length) historyNg++;
+  console.log(
+    `${offenders.length ? "✗" : "✓"}  ${"replaceState/pushStateの第1引数を空にしない".padEnd(40)} → ` +
+      (offenders.length
+        ? `${offenders.join("・")}（戻るボタンで画面が切り替わらなくなります。{ ...window.history.state } を渡す）`
+        : "OK")
+  );
+  // 一覧の「さっきまで見ていた画面」の復元が、通信を増やす形に逆戻りしていないか。
+  // 取得済みクールはモジュール変数から返す（戻るたびに /api/season を叩き直さない）。
+  const explorer = readFileSync(new URL("../components/SeasonExplorer.tsx", import.meta.url), "utf8");
+  const usesCache = /getCachedSeason\(/.test(explorer) && /putCachedSeason\(/.test(explorer);
+  if (!usesCache) historyNg++;
+  console.log(
+    `${usesCache ? "✓" : "✗"}  ${"取得済みクールを取り直さない".padEnd(40)} → ` +
+      (usesCache ? "OK" : "SeasonExplorer が screenMemory のキャッシュを使っていない（戻るたびに/api/seasonを叩く）")
+  );
+}
+console.log(`結果（履歴の書き換え）: ${historyNg === 0 ? 2 : 0} 件OK / ${historyNg} 件NG`);
+
+// ─────────────────────────────────────────────
 // 配信先ウィジェット（他サイトへの埋め込み）の不変条件（2026-08-06追加）
 //
 // 埋め込みは**他人のサイトの中で表示される**ため、事故の影響が自サイトに閉じない。
@@ -8439,7 +8490,8 @@ if (
   trackNg > 0 ||
   dataNg > 0 ||
   aliasNg > 0 ||
-  svcAliasNg > 0
+  svcAliasNg > 0 ||
+  historyNg > 0
 )
   // process.exit() ではなく exitCode。Windows では stdout がパイプされていると
   // process.exit() が書き込み途中のバッファを巻き込んでプロセスを異常終了させ、
