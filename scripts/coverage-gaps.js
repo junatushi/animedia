@@ -15,16 +15,15 @@ const { readFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { findGaps, renderIssue } = require("./lib/coverage-gaps.js");
 
-// 一次情報で「配信なし」「放送延期」などを確認し、調べ直す必要が無いと分かった作品。
-// **理由と確認日を必ず書く**（理由の無い除外は、本物の欠損を黙って隠す道具になる）。
-// 状況が変わったら（延期作の新しい放送日が出た等）この行を消す。
-const ACKNOWLEDGED = [
-  {
-    id: "17228",
-    title: "ジャンケットバンク",
-    reason: "2026-09-09に放送延期が発表され、新しい時期は未定（2026-10-02確認）",
-  },
-];
+// 確認済みの除外は scripts/lib/coverage-acknowledged.js が持つ（自動補完の検証も同じ一覧を読む）。
+// 期日の無い除外・形の壊れた除外は、黙って効かせずに起動時に落とす。
+const { ACKNOWLEDGED, validateAcknowledged } = require("./lib/coverage-acknowledged.js");
+try {
+  validateAcknowledged(ACKNOWLEDGED);
+} catch (e) {
+  console.error(e.message);
+  process.exit(2);
+}
 
 function jstToday() {
   if (process.env.COVERAGE_GAPS_TODAY) return process.env.COVERAGE_GAPS_TODAY;

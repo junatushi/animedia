@@ -197,8 +197,20 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   Annictに番組表が無いまま「配信情報なし」と表示され、利用者に指摘されるまで誰も気づけなかった
   （補完の仕組み`extraServices.ts`はあったが、**何を補完すべきかを出す道具が無かった**）。
   劇場作品（`media`が`MOVIE`、または`autoSchedule.json`の`kind: release`）と開始が30日より先の作品は
-  出さない。調べて「配信なし」「延期」と確認できた作品は`ACKNOWLEDGED`に**理由つきで**足す。
-  ネットワークには出ない。回帰テストは`node scripts/check-coverage-gaps.js`
+  出さない。調べて「配信なし」「延期」と確認できた作品は`scripts/lib/coverage-acknowledged.js`の
+  `ACKNOWLEDGED`に**理由と再確認の期日（`recheckOn`）つきで**足す（2026-10-04〜。期日が無いと落ちる。
+  期日が来ると前回の理由つきでIssueに戻る＝「冬に始まる」「TVerだけ」のような**いずれ変わる事実**で
+  永久に隠さない）。ネットワークには出ない。回帰テストは`node scripts/check-coverage-gaps.js`
+- **配信先の自動補完**（2026-10-04導入・重大度高）。上のIssueの作品を、毎日の定期実行の
+  Claudeが`docs/coverage-autofill.md`（手順の正本）に従って調べ、抜き書き（`evidence`）つきで
+  `extraServices.ts`に足して`claude/coverage-autofill-<日付>`のPRを出す。**調べた側はマージしない**。
+  `.github/workflows/coverage-autofill.yml`が出典を**取り直して**
+  `node scripts/verify-extra-services.ts`で機械検証し、全部合格・CI緑のときだけ**JSTの1日1本まで**
+  マージする（デプロイ回数を抑える）。外れたらマージせずラベル`coverage-autofill-review`を付ける。
+  検証の肝は「出典ページに**作品名の全文**が、抜き書きの近くにある」こと。2026-10-04の手作業の調査で
+  **公式サイトの配信欄が別の作品（第2クール・最終章）のもの**だった例に2回当たり、どちらも
+  サービス名はページにあるが作品名の全文が無かった。**この検証を緩めないこと**（緩めても画面には何も
+  出ず、誤った配信先が人の目を通らずに本番へ出る）。回帰テストは`node scripts/check-verify-extra-services.js`
 - `node scripts/fetch-upcoming.js` … 次クールの放送/公開予定日の取得（2026-08-17導入）。
   **AniListが既に持っている放送日をサイトへ運ぶ**。2026-08-17実測で、2026秋はAnnictに99作品が
   登録されているのに`programs`（番組表）を持つのは3件だけ（96件が「放送時期未定」）で、同じ日

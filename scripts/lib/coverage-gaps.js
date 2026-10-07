@@ -23,8 +23,11 @@
 // 【出さないもの】
 //   - 劇場作品（media === "MOVIE"、または autoSchedule の kind === "release"）。公開中に配信が無いのは普通で、毎日並べると
 //     本物の欠損が埋もれる（毎日赤い報告は数日で読まれなくなる＝㉔）。件数だけ出す。
-//   - scripts/coverage-gaps.js の ACKNOWLEDGED に理由つきで記録した作品
+//   - scripts/lib/coverage-acknowledged.js の ACKNOWLEDGED に理由つきで記録した作品
 //     （放送延期・TV放送のみと一次情報で確認できた作品など）。件数と理由だけ出す。
+//     **除外には必ず期日（recheckOn）を付ける**（2026-10-04追加）。期日が来たら除外は効かなくなり、
+//     作品は前回の理由つきで一覧に戻る。「冬に始まる」「NHK ONEでしか配信していない」は
+//     その時点の事実で、いずれ変わる。期日の無い除外は本物の欠損を永久に隠す道具になる。
 //
 // 【やらないこと】
 // 配信サービス名を推測で埋めない（CLAUDE.md）。この道具は「調べる候補」を出すだけで、
@@ -67,6 +70,8 @@ function findGaps(store, today, ack = [], autoSchedule = null) {
   const annict = store?.sources?.annict;
   if (!annict) throw new Error("first-seen.json に sources.annict がありません");
   const ackById = new Map(ack.map((a) => [String(a.id), a]));
+  // 期日（recheckOn）が今日以前の除外は効かせない＝一覧に戻して前回の理由を添える
+  const isActiveAck = (a) => !a.recheckOn || toDay(a.recheckOn) > toDay(today);
   const autoById = autoSchedule?.works || {};
   const seasons = currentAndNextSeason(today);
 
@@ -90,8 +95,8 @@ function findGaps(store, today, ack = [], autoSchedule = null) {
         continue;
       }
       const a = ackById.get(id);
-      if (a) {
-        acknowledged.push({ id, title: w.title, reason: a.reason });
+      if (a && isActiveAck(a)) {
+        acknowledged.push({ id, title: w.title, reason: a.reason, recheckOn: a.recheckOn ?? null });
         continue;
       }
       // 開始日: Annict > 機械補完（月精度は月初とみなす） > クールの初日
@@ -118,6 +123,8 @@ function findGaps(store, today, ack = [], autoSchedule = null) {
         startSource,
         media: w.media ?? null,
         rank: typeof w.rank === "number" ? w.rank : 0,
+        // 期日が来て一覧に戻った除外の、前回の理由（調べ直す手がかり）
+        previousAck: a ? { reason: a.reason, recheckOn: a.recheckOn } : null,
         // 1: 始まっている（開始日が分かっている） 2: これから始まる 3: 開始日が不明（クールは始まっている）
         urgency: startSource === "season" ? 3 : daysUntil <= 0 ? 1 : 2,
       });
@@ -161,16 +168,24 @@ function renderIssue(result) {
       lines.push(
         `- [ ] **${g.title}**（${meta.join("・")}） [検索](${searchUrl(g.title)}) / [Annict](https://annict.com/works/${g.id})`
       );
+      if (g.previousAck) {
+        lines.push(`  - 再確認の期日（${g.previousAck.recheckOn}）が来ました。前回の確認: ${g.previousAck.reason}`);
+      }
     }
     lines.push("");
   }
   lines.push("### 直し方");
+  lines.push("毎日の定期実行（`docs/coverage-autofill.md`）が上から調べて `claude/coverage-autofill-<日付>` のPRを出し、");
+  lines.push("`.github/workflows/coverage-autofill.yml` が出典を取り直して機械検証し、合格したものだけ自動でマージします。");
+  lines.push("自動で通らなかったPRにはラベル `coverage-autofill-review` が付くので、それを人が見てください。手で直すときは:");
+  lines.push("");
   lines.push("1. 配信サービス自身の発表・作品公式サイト・公式発表を報じた大手ニュースで配信先を確認する");
   lines.push("   （まとめブログ・X・Wikipedia・AniListは出典にしない。推測で埋めない）");
   lines.push("2. `content/works/extraServices.ts` に `{ key, sourceUrl, confirmedDate }` を足す");
   lines.push("   （曜日・時刻が一次情報に明記されていれば `schedule` も）。次のデプロイで一覧・作品ページの両方に出る");
   lines.push("3. 一次情報で「配信なし（TV放送のみ）」「放送延期」と確認できたら、");
-  lines.push("   `scripts/coverage-gaps.js` の `ACKNOWLEDGED` に**理由つきで**足す（このIssueから消える）");
+  lines.push("   `scripts/lib/coverage-acknowledged.js` の `ACKNOWLEDGED` に**理由と再確認の期日（`recheckOn`）つきで**足す");
+  lines.push("   （このIssueから消え、期日が来たら前回の理由つきで一覧に戻る）");
   lines.push("");
   const notes = [];
   if (movies > 0) notes.push(`劇場作品 ${movies}件（公開中に配信が無いのは普通なので除外）`);

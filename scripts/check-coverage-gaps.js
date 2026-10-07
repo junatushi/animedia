@@ -11,7 +11,7 @@ const { spawnSync } = require("node:child_process");
 const { mkdtempSync, writeFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { tmpdir } = require("node:os");
-const { findGaps, currentAndNextSeason } = require("./lib/coverage-gaps.js");
+const { findGaps, renderIssue, currentAndNextSeason } = require("./lib/coverage-gaps.js");
 
 const ok = (name, note) => console.log(`  ✓ ${name}${note ? `（${note}）` : ""}`);
 
@@ -56,7 +56,7 @@ const store = {
           15: work("開始日不明の配信オリジナル", { media: "WEB", rank: 50 }),
           16: work("延期", { media: "TV" }),
           17: work("予定日だけ分かる", { media: null, rank: 1 }),
-          // scripts/coverage-gaps.js 本体の ACKNOWLEDGED に載っている実在の作品ID
+          // scripts/lib/coverage-acknowledged.js の ACKNOWLEDGED に載っている実在の作品ID
           17228: work("本体で確認済みの作品", { media: "TV" }),
         },
       },
@@ -102,6 +102,20 @@ assert.strictEqual(g17.urgency, 2);
 ok("Annictに開始日が無ければ機械補完の予定日を使う");
 assert.strictEqual(r.gaps.find((g) => g.id === "15").urgency, 3);
 ok("開始日が全く分からない作品も落とさない", "独占配信の本命");
+
+console.log("\n── 除外の期日（recheckOn） ──");
+const ackDated = [
+  { id: "16", reason: "冬に始まる", recheckOn: "2026-10-02" }, // 今日が期日＝もう効かない
+  { id: "17228", reason: "延期", recheckOn: "2026-10-03" }, // 明日が期日＝まだ効く
+];
+const rd = findGaps(store, "2026-10-02", ackDated, auto);
+const back = rd.gaps.find((g) => g.id === "16");
+assert.ok(back, "期日が来た除外の作品が一覧に戻ること");
+assert.deepStrictEqual(back.previousAck, { reason: "冬に始まる", recheckOn: "2026-10-02" });
+assert.deepStrictEqual(rd.acknowledged.map((a) => a.id), ["17228"]);
+ok("期日の当日から除外は効かず、前回の理由つきで一覧に戻る");
+assert.match(renderIssue(rd), /再確認の期日（2026-10-02）が来ました。前回の確認: 冬に始まる/);
+ok("Issue本文に前回の理由を添える", "調べ直す手がかり");
 
 console.log("\n── 12月: 次期の開始日不明が30日以内に入る ──");
 const dec = findGaps(store, "2026-12-15", ack, auto);

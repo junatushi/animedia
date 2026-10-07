@@ -96,8 +96,12 @@ node scripts/usage-report.js
 上の群（放送/配信が始まっている → 30日以内 → 開始日不明）から順に、一次情報で配信先を確かめて
 `content/works/extraServices.ts` に足す。独占配信（Netflix・Prime Video・Disney+・FOD）は
 Annictの番組表に載らないまま配信日を迎えることが多い＝**放っておくと「配信情報なし」が出続ける**。
-「TV放送のみ」「放送延期」と一次情報で確認できた作品は `scripts/coverage-gaps.js` の `ACKNOWLEDGED` に理由つきで足す。
+「TV放送のみ」「放送延期」と一次情報で確認できた作品は `scripts/lib/coverage-acknowledged.js` の `ACKNOWLEDGED` に理由つきで足す。
 推測で埋めないこと（制約(4)）。
+**2026-10-04から一次対応は自動**（`docs/coverage-autofill.md`）。定期実行が調べてPRを出し、
+`coverage-autofill.yml` が出典を取り直して機械検証・自動マージする。巡回でやるのは
+**ラベル `coverage-autofill-review` の付いたPR（自動で通らなかったもの）を見ること**と、
+Issueに何日も残っている作品を手で調べること。自動補完のPRに手で行を足すときも `evidence`（抜き書き）を付ける。
 
 ### (a) シーズンページのHTML量
 - `node scripts/check.ts` を流し、末尾の**「シーズンページのHTML量」に`⚠`が出ていないか**を確認する。出ていたら**日報の「明日以降やること」の先頭に載せて指摘する**（見直しの選択肢は`docs/operations.md`の⑮）。`⚠`は落ちない設計なのでCIは緑のまま通る＝巡回が拾わないと誰も気づかない。

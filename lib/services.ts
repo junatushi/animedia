@@ -312,6 +312,10 @@ export interface ExtraServiceEntry {
   // 1件でもあればそちらを優先し、これは「Annictに配信の実データが1件も無い」ときの
   // フォールバックとしてのみ使う（deriveBroadcastSlotと同じJST基準）。
   schedule?: { weekday: number; time: string; startDate: string };
+  // 任意: 出典ページからの抜き書き（そのまま写す。2026-10-04導入）。画面には出さない。
+  // 自動補完（docs/coverage-autofill.md）では必須で、scripts/verify-extra-services.ts が
+  // 出典を取り直して「この文が実在し、サービス名を含み、近くに作品名の全文がある」ことを確かめる。
+  evidence?: string;
 }
 
 // AnnictWork（生データ）→ AnimeItem（画面/APIが使う整形済みデータ）への変換。
