@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-04",
+  "updatedAt": "2026-10-08",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -315,6 +315,15 @@
       "fetchedDate": "2026-09-06",
       "matchedBy": "mal",
       "title": "アオのハコ Season2"
+    },
+    "15799": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/187918",
+      "fetchedDate": "2026-10-08",
+      "matchedBy": "mal",
+      "title": "放課後帰宅びより"
     },
     "15804": {
       "date": "2027-01-10",
