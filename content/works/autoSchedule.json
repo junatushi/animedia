@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-08",
+  "updatedAt": "2026-10-09",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -160,6 +160,15 @@
       "matchedBy": "mal",
       "title": "サイバーパンク: エッジランナーズ2"
     },
+    "14513": {
+      "date": "2027-01-15",
+      "precision": "day",
+      "kind": "release",
+      "sourceUrl": "https://anilist.co/anime/183692",
+      "fetchedDate": "2026-10-09",
+      "matchedBy": "mal",
+      "title": "機動戦士ガンダムSEED FREEDOM ZERO"
+    },
     "14903": {
       "date": "2026-10-06",
       "precision": "day",
@@ -230,11 +239,13 @@
       "title": "姫騎士様のヒモ"
     },
     "15461": {
-      "date": "2027-01",
-      "precision": "month",
+      "date": "2027-01-08",
+      "precision": "day",
+      "weekday": 5,
+      "time": "23:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/186822",
-      "fetchedDate": "2026-09-19",
+      "fetchedDate": "2026-10-09",
       "matchedBy": "mal",
       "title": "気になってる人が男じゃなかった"
     },
@@ -837,6 +848,15 @@
       "fetchedDate": "2026-09-19",
       "matchedBy": "title",
       "title": "機動警察パトレイバー EZY File 3"
+    },
+    "17064": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/206798",
+      "fetchedDate": "2026-10-09",
+      "matchedBy": "mal",
+      "title": "同居している剣聖の女師匠が可愛すぎて毎日幸せです"
     },
     "17068": {
       "date": "2026-10-11",
