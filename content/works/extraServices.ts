@@ -189,4 +189,20 @@ export const EXTRA_SERVICES: Record<number, ExtraServiceEntry[]> = {
       evidence: "YouTube(ふんばるず公式チャンネル)：2026年10月12日(月)～順次配信開始予定。",
     },
   ],
+  // マゼンチュ: 公式サイト（カンテレ）の配信欄に「無料配信 … YouTube」「有料配信 DMM TV」とある。
+  // TVer・カンテレドーガはSERVICES外。曜日・時刻は書かれていないので schedule は付けない。
+  18205: [
+    {
+      key: "youtube",
+      sourceUrl: "https://www.ktv.jp/mazenchu/",
+      confirmedDate: "2026-10-09",
+      evidence: "無料配信 TVer カンテレドーガ YouTube",
+    },
+    {
+      key: "dmm",
+      sourceUrl: "https://www.ktv.jp/mazenchu/",
+      confirmedDate: "2026-10-09",
+      evidence: "有料配信 DMM TV ※最新話を順次配信",
+    },
+  ],
 };
