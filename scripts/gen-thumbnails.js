@@ -1,8 +1,15 @@
 // AI独断解釈サムネの事前生成スクリプト。
-// Pollinations（無料・APIキー不要）で、作品タイトルから連想した「本編とは無関係な
-// 創作イラスト」を生成し、public/works/{annictId}.webp として保存する。
+// AI Horde（無料・登録不要。ボランティアのGPUで動く非営利の生成サービス）で、作品タイトルから
+// 連想した「本編とは無関係な創作イラスト」を生成し、public/works/{annictId}.webp として保存する。
 // 実行時に都度生成するのではなく、ここで一度だけ生成して静的ファイルとしてコミットするため、
 // サイトの表示コスト・APIキー・レート制限はゼロ（生成物はリポジトリの資産になる）。
+//
+// 【2026-10-10】生成元をPollinationsからAI Hordeへ移した。Pollinationsのキー無しの窓口
+// （image.pollinations.ai）が有料化され、402 Payment Required（1枚0.01 USDCの支払い要求）を
+// 返すようになった。通った1枚も nologo=true を無視して右下にロゴが入っていた。
+// AI Hordeは匿名キーでも使えるが優先度が最低で、実測1枚12分。共有のボランティア資源なので
+// 同時に投げるのは CONCURRENCY 件までにする（全件を一度に投げて列を占有しない）。
+// モデルは FLUX.1 schnell（Apache 2.0＝生成物をサイトに載せてよい）。
 //
 // 重要:
 //  - プロンプトは実在キャラの再現を避け、タイトルの字面から連想した抽象的な情景にする
@@ -10,8 +17,12 @@
 //  - 作品ごとに絵柄トーン（画風）を変える。
 //  - 生成後は必ず人の目で確認してからコミットすること。
 //
-// 使い方: node scripts/gen-thumbnails.js
-const https = require("https");
+// 使い方:
+//   node scripts/gen-thumbnails.js            … 画像がまだ無い作品だけ生成する
+//   node scripts/gen-thumbnails.js 17089 ...  … 指定した作品だけ作り直す（目視で弾いたとき）
+// 既にある画像は作り直さない（2026-10-10）。以前は毎回全件を生成し直していたため、
+// 1クール足すたびに目視確認済みの過去の画像まで差し替わる恐れがあった
+// （同じseedでも生成モデル側の更新で絵が変わる）。
 const fs = require("fs");
 const path = require("path");
 
@@ -131,9 +142,146 @@ const PROMPTS = [
   { id: 17900, seed: 318, prompt: "a fluffy white cloud-shaped pastry on a pastel blue plate with a tiny bell charm, cute kawaii illustration, soft pastel colors, absolutely no people, no text" },
   { id: 17901, seed: 947, prompt: "a sparkling ribbon-wrapped wand resting on a bouquet of glowing flowers, shiny magical-girl poster art, pastel sparkles, absolutely no people, no text" },
   { id: 17902, seed: 563, prompt: "an ancient rune-carved stone tablet glowing faintly in an overgrown fantasy ruin, epic rpg concept art, mystical mist, absolutely no people, no text" },
+  // ── 2026年秋（10月期）2026-10-10追加 ──
+  { id: 16290, seed: 731, prompt: "an apothecary's wooden cabinet of tiny drawers with dried herbs and a porcelain mortar in a lantern-lit palace room, detailed botanical ink illustration, absolutely no people, no text" },
+  { id: 15941, seed: 214, prompt: "a meeting room table with a wooden gavel and a single ring donut with a big hole, playful pop cartoon illustration, bright colors, absolutely no people, no text" },
+  { id: 17053, seed: 588, prompt: "glowing green and red candlestick chart bars rising like skyscrapers over a night city, dramatic synthwave illustration, absolutely no people, no numbers, no text" },
+  { id: 16586, seed: 342, prompt: "a small pink ceramic piggy bank sitting on a seaside train station bench at dusk, soft cinematic anime background art, absolutely no people, no text" },
+  { id: 10404, seed: 907, prompt: "a vast spiraling abyss descending into glowing mist with ancient ruins clinging to the cliffs, epic fantasy matte painting, absolutely no people, no text" },
+  { id: 15795, seed: 163, prompt: "a white badminton shuttlecock resting on a blue wooden box in an empty sunlit school gym, fresh airy watercolor, absolutely no people, no text" },
+  { id: 9753, seed: 479, prompt: "a detective's deerstalker hat and magnifying glass beside a white lily on an airplane window seat, moody film-noir illustration, absolutely no people, no text" },
+  { id: 15391, seed: 822, prompt: "crackling blue electric sparks dancing on wet pavement in a dark abandoned city alley, gritty urban sci-fi illustration, absolutely no people, no text" },
+  { id: 16662, seed: 256, prompt: "an ornate jeweled hairpin inside an open lacquered treasure box in a moonlit chinese palace hall, lavish cinematic oil painting, absolutely no people, no text" },
+  { id: 9236, seed: 618, prompt: "a lonely western-style mansion on a hill under a huge full moon with a faint magic circle in the night sky, 1980s retro anime cel style, absolutely no people, no text" },
+  { id: 17864, seed: 612, prompt: "a close-up of a sparkling translucent ice brick wall with spring flowers growing at its base, macro pastel watercolor, absolutely no people, no figures, no text, no letters" },
+  { id: 17097, seed: 704, prompt: "a glowing enchanted sword surrounded by floating sparkling upgrade runes on a quiet countryside road, bright rpg game illustration, absolutely no people, no text" },
+  { id: 10258, seed: 133, prompt: "a legendary sword lying on a forest floor scattered with little paw prints, glowing soft blue light, fantasy anime background art, absolutely no people, no animals, no text" },
+  { id: 17077, seed: 541, prompt: "a fragile lace parasol and a cracked iron war gauntlet resting side by side on a palace balcony, rococo meets martial arts ink illustration, absolutely no people, no text" },
+  { id: 17298, seed: 289, prompt: "a salt shaker and a sugar cube sitting side by side on a cafe counter beside a heart-shaped latte, cute flat illustration, absolutely no people, no text" },
+  { id: 14998, seed: 866, prompt: "a glowing magical monocle lens examining a jeweled noble crest on a velvet desk, luxurious fantasy illustration, absolutely no people, no text" },
+  { id: 14903, seed: 427, prompt: "a cracked sparkly magic wand lying on a dark chessboard beside a softly glowing smartphone, dark pastel magical-girl illustration, absolutely no people, no text" },
+  { id: 16284, seed: 950, prompt: "a fiery bee-shaped brooch resting on a long crimson stone stairway, bold minimalist graphic art with flat colors, absolutely no people, no text" },
+  { id: 12849, seed: 377, prompt: "an empty ornate birdcage on a tidy office desk next to a faintly glowing magic circle, quirky slice-of-life fantasy illustration, absolutely no people, no text" },
+  { id: 16563, seed: 612, prompt: "a dropped glowing smartphone lying on a wet empty city street in dense fog with an abandoned skateboard nearby, eerie comedic illustration, absolutely no people, no figures, no text, no letters" },
+  { id: 17359, seed: 238, prompt: "a dusty cowboy hat and a spinning steel ball resting on a rock in a vast empty american desert at sunset, bold dramatic comic art with saturated colors, no animals, absolutely no people, no figures, no text, no letters" },
+  { id: 13592, seed: 784, prompt: "three glowing gemstones of red, blue and green floating above a mystical floating island in the sky, 90s shoujo fantasy illustration, absolutely no people, no text" },
+  { id: 15600, seed: 451, prompt: "a holy glowing staff leaning against a wooden weapon rack beside a neatly folded plain wool cloak on a bench, soft fantasy watercolor, absolutely no people, no figures, no text, no letters" },
+  { id: 16602, seed: 196, prompt: "a cozy wooden dormitory beside a rural train station with a red local train passing, cheerful pastel illustration, absolutely no people, no text" },
+  { id: 17089, seed: 533, prompt: "a pink love potion bottle glowing on a witch's cluttered herb table, romantic storybook illustration, absolutely no people, no text" },
+  { id: 17367, seed: 668, prompt: "a plain clear glass soda bottle with a blue glass marble inside, standing on a sunny school rooftop railing under a blue summer sky, crisp anime background art, no label, absolutely no people, no figures, no text, no letters" },
+  { id: 17539, seed: 302, prompt: "a pointed witch hat and a broom resting on a beginner's spellbook with a golden aura, bright fantasy illustration, absolutely no people, no text" },
+  { id: 12473, seed: 841, prompt: "a sleek orbital space station above a desert earth with glowing data streams, cel-shaded 3d sci-fi illustration, absolutely no people, no text" },
+  { id: 14032, seed: 159, prompt: "a glowing chrome cybernetic arm lying on a metal workbench in a dark garage lit by magenta and cyan lights, vivid cyberpunk comic illustration, no signs, absolutely no people, no figures, no text, no letters" },
+  { id: 11196, seed: 497, prompt: "an old treasure map and a magic compass on a desk in a magic academy library, colorful game art, absolutely no people, no text" },
+  { id: 17108, seed: 725, prompt: "a lone lighthouse on a distant island seen across a calm turquoise sea at dawn, nostalgic watercolor, absolutely no people, no text" },
+  { id: 16852, seed: 384, prompt: "a ringing vintage rotary telephone resting on cracked ground in a desolate ruined wasteland under a strange swirling sky, gritty dystopian illustration, absolutely no people, no figures, no text, no letters" },
+  { id: 13286, seed: 916, prompt: "three customized motorcycles parked under a tokyo highway at night, gritty manga-style ink illustration, empty scene, absolutely no riders, no people, no text" },
+  { id: 17314, seed: 271, prompt: "a giant mecha robot standing on a futuristic launch pad at sunset, retro mecha poster art, absolutely no people, no text" },
+  { id: 17026, seed: 281, prompt: "fireflies glowing over a dark calm river with a single small paper lantern floating on the water, taisho-era romantic painting, absolutely no people, no figures, no text, no letters" },
+  { id: 16708, seed: 143, prompt: "gold coins and glowing crystals spilling from an open wizard's ledger with blank pages, comedic fantasy illustration, absolutely no people, no figures, no text, no letters" },
+  { id: 15285, seed: 579, prompt: "a sleek mercenary spaceship docked at a space station overlooking a cozy planet dotted with small houses, space-opera illustration, absolutely no people, no text" },
+  { id: 16716, seed: 806, prompt: "a vintage tank parked in a snowy field with a teacup resting on its hatch, detailed military diorama illustration, absolutely no people, no text" },
+  { id: 17365, seed: 322, prompt: "a steam locomotive racing through a snowy hokkaido forest with a golden glint in the smoke, dramatic japanese woodblock print, absolutely no people, no text" },
+  { id: 17586, seed: 467, prompt: "a sword made of shimmering ice crystals floating above a frozen academy courtyard, cold blue fantasy digital painting, absolutely no people, no text" },
+  { id: 13957, seed: 698, prompt: "a battle standard flag and a jeweled tiara on a medieval war table map, classical oil painting, absolutely no people, no text" },
+  { id: 16635, seed: 251, prompt: "a shiny bicycle bell and a police whistle on an empty sidewalk with dramatic manga speed lines, comedic manga style, no signs, absolutely no people, no figures, no text, no letters" },
+  { id: 15978, seed: 934, prompt: "a soccer ball on a pristine green pitch under stadium lights with a blue goal net, dynamic sports illustration, absolutely no people, no text" },
+  { id: 16906, seed: 186, prompt: "an ominous dark throne in a ruined fantasy castle glowing with violet wings of light, epic jrpg boss arena concept art, absolutely no people, no text" },
+  { id: 17813, seed: 543, prompt: "two matching sparkly magic compacts shaped like a heart and a star on a pastel vanity, cute magical girl illustration, absolutely no people, no text" },
+  { id: 15574, seed: 772, prompt: "a lakeside fortress castle under a night sky filled with countless star-shaped lanterns, classic jrpg painted illustration, absolutely no people, no text" },
+  { id: 17229, seed: 315, prompt: "a tiny green wooden club and a glowing question mark lantern in a dungeon cave, humorous fantasy illustration, absolutely no people, no creatures, no text" },
+  { id: 17344, seed: 609, prompt: "a steaming kettle and a splash of cold water in a chinese martial arts dojo courtyard, retro 80s anime background art, absolutely no people, no animals, no text" },
+  { id: 16454, seed: 488, prompt: "a grand pipe organ in an empty gothic theater with black roses lying on the organ bench, dawn light, no audience, dark elegant illustration, absolutely no people, no figures, no text, no letters" },
+  { id: 16294, seed: 861, prompt: "a surreal melting carnival mask on a checkered floor, unsettling art-nouveau grotesque illustration, absolutely no people, no text" },
+  { id: 17850, seed: 227, prompt: "a cherry blossom tree at night over a traditional japanese mansion with hidden spy gadgets on the porch, stylish action illustration, absolutely no people, no text" },
+  { id: 17025, seed: 694, prompt: "a tiny empty shrine altar holding a single offering coin in a vast fantasy temple, humorous light fantasy illustration, absolutely no people, no text" },
+  { id: 15872, seed: 408, prompt: "a pair of ornate lacquered hair combs and a cherry blossom resting on taisho-era kimono fabric, delicate romantic watercolor, absolutely no people, no text" },
+  { id: 16942, seed: 975, prompt: "the towering kegon waterfall in nikko under a blood-red moon, dark japanese sumi ink painting with red accents, absolutely no people, no text" },
+  { id: 16912, seed: 136, prompt: "a small toy spaceship and a military star badge on a low table in a tatami room, playful retro cartoon, absolutely no people, no creatures, no text" },
+  { id: 16796, seed: 527, prompt: "a glowing demonic crest emblem etched onto a futuristic VR headset on a dark desk, tech-horror illustration, absolutely no people, no text" },
+  { id: 16646, seed: 362, prompt: "a pair of dice and an engagement ring on a velvet card table in an aristocratic salon, elegant romantic illustration, absolutely no people, no text" },
+  { id: 17818, seed: 748, prompt: "a glowing tree sprouting from cracked stone in a dim street under a perpetually dark sky, melancholic dark fantasy painting, absolutely no people, no text" },
+  { id: 16301, seed: 205, prompt: "a black five-leaf clover glowing above a stone castle on a stormy evening, bold shonen fantasy illustration, absolutely no people, no text" },
+  { id: 17295, seed: 691, prompt: "an armored wheelchair with tank treads standing on an industrial city street, gritty action comic illustration, absolutely no people, no text" },
+  { id: 17851, seed: 434, prompt: "a cute toy tank decorated with heart stickers on a pastel school desk, chibi cartoon illustration, absolutely no people, no text" },
+  { id: 12204, seed: 853, prompt: "a glowing portal tower piercing the clouds above a magic academy, sleek fantasy digital art, absolutely no people, no text" },
+  { id: 17132, seed: 298, prompt: "a purple summoning circle glowing on the floor of a cozy dorm room with a romance novel on the bed, comedic dark fantasy illustration, absolutely no people, no text" },
+  { id: 17636, seed: 617, prompt: "a giant golden beast-shaped super robot head on a launch platform, 70s super robot anime poster style, absolutely no people, no text" },
+  { id: 17635, seed: 166, prompt: "a heavy blacksmith hammer resting on an anvil beside a glowing hot sword blade in an empty forge with floating sparks, vivid korean webtoon style, no hands, absolutely no people, no figures, no text, no letters" },
+  { id: 17547, seed: 583, prompt: "a pair of wired earphones and an old music player lying on an empty park bench covered with autumn leaves, close-up, quiet romantic slice-of-life illustration, absolutely no people, no figures, no text, no letters" },
+  { id: 17068, seed: 534, prompt: "a plain glass dish of caramel pudding on a purple velvet cushion under swirling cosmic galaxies, colorful illustration, no creatures, absolutely no people, no figures, no text, no letters" },
+  { id: 17600, seed: 352, prompt: "a frost-covered silver ring on the snowy windowsill of a quiet japanese house, gentle winter watercolor, absolutely no people, no text" },
+  { id: 17627, seed: 786, prompt: "seven different knightly shields leaning against a horse-chestnut tree in a sunny kingdom, storybook illustration, absolutely no people, no text" },
+  { id: 16593, seed: 247, prompt: "an elegant hotel reception bell and brass room keys on a marble counter beside a hidden pistol, stylish noir illustration, absolutely no people, no text" },
+  { id: 16703, seed: 636, prompt: "a cute fluffy plush toy peeking out of a leather business briefcase on an office desk, warm comedic illustration, absolutely no people, no text" },
+  { id: 17071, seed: 172, prompt: "a giant white computer mouse cursor arrow floating over a sunny town street, playful flat vector illustration, absolutely no people, no text" },
+  { id: 17297, seed: 509, prompt: "a glowing portal opening above an otherworldly forest with a dropped schoolbag on the grass, 90s shoujo fantasy watercolor, absolutely no people, no text" },
+  { id: 16806, seed: 882, prompt: "a dusty glass display case of creepy curiosities in a dark antique shop, eerie gothic illustration, absolutely no people, no text" },
+  { id: 17039, seed: 318, prompt: "a battered grey armored mech standing in the haze of a desert battlefield, gritty 80s real-robot anime art, absolutely no people, no text" },
+  { id: 13731, seed: 659, prompt: "a sinister black biomechanical engine glowing red in a dark factory, dark sci-fi concept art, absolutely no people, no text" },
+  { id: 16295, seed: 438, prompt: "a vermilion lacquered mask resting on a dark stage floor under a single spotlight, dramatic theatrical illustration, absolutely no people, no text" },
+  { id: 17589, seed: 767, prompt: "a pink hair clip left on an empty school desk at sunset, bittersweet soft illustration, warm orange light, absolutely no people, no text" },
+  { id: 16570, seed: 225, prompt: "a tennis racket and ball on a world cup stadium court with colorful flags, dynamic sports manga illustration, absolutely no people, no text" },
+  { id: 17316, seed: 594, prompt: "a witch's broom leaning against a small flower shop in a cozy japanese provincial town, bright idol pop illustration, absolutely no people, no text" },
+  { id: 17556, seed: 381, prompt: "a cracked holy chalice with dripping crimson candle wax on a cathedral altar, dark gothic illustration, absolutely no people, no text" },
+  { id: 18218, seed: 846, prompt: "a pair of blue legendary daggers crossed over a blank weathered parchment, epic fantasy illustration, absolutely no people, no figures, no text, no letters" },
+  { id: 17853, seed: 153, prompt: "a baseball resting on the pitcher's mound of a diamond-shaped field at golden hour, dramatic sports illustration, absolutely no people, no text" },
+  { id: 16335, seed: 672, prompt: "a basket of freshly baked bread loaves with one loaf missing, cozy children's picture-book illustration, absolutely no people, no animals, no text" },
+  { id: 18106, seed: 419, prompt: "a lucky golden horseshoe resting on a soft pastel racetrack lawn with tiny flags, soft cute chibi illustration, no animals, absolutely no people, no figures, no text, no letters" },
+  { id: 17935, seed: 958, prompt: "a tiny cushioned pet bed under a red palace pavilion in a quiet empty courtyard, chinese gongbi painting, no signs, no animals, absolutely no people, no figures, no text, no letters" },
+  { id: 15716, seed: 287, prompt: "glowing trading cards swirling in a storm above a floating sky island, vivid card-game fantasy art, absolutely no people, no text" },
+  { id: 17942, seed: 646, prompt: "a floating dreamlike amusement park among pastel clouds at twilight, surreal dreamy illustration, absolutely no people, no text" },
+  { id: 17352, seed: 132, prompt: "a single green leaf and an acorn on a mossy forest stump with two tiny trails of footprints, cute picture-book illustration, absolutely no people, no animals, no text" },
+  { id: 14745, seed: 503, prompt: "a brass lion-head door knocker on an old wooden academy door glowing in golden savannah sunset light, close-up, rich fantasy painting, absolutely no people, no figures, no text, no letters" },
+  { id: 17136, seed: 761, prompt: "an ancient chinese capital rooftop skyline at night with paper lanterns floating in the sky, empty streets, chinese ink painting, absolutely no people, no figures, no text, no letters" },
+  { id: 17329, seed: 344, prompt: "a fluffy white cushion with a blue sailor ribbon on a seaside wooden deck, soft kawaii illustration, absolutely no people, no animals, no text" },
+  { id: 18233, seed: 896, prompt: "two star-shaped hair pins resting on opposite ends of a pastel bridge, cute magical illustration, absolutely no people, no text" },
+  { id: 17356, seed: 221, prompt: "a large plain paper kite with no markings flying in strong wind over kyoto rooftops at dawn, dynamic historical illustration, absolutely no people, no figures, no text, no letters" },
+  { id: 18102, seed: 627, prompt: "a single cracked trading card and a gavel in a dark courtroom with dramatic light, dark card-game illustration, absolutely no people, no text" },
+  { id: 12433, seed: 456, prompt: "an old brass naval compass and anchor drifting in deep space among stars and nebulae, classic 70s space-opera painting, absolutely no people, no text" },
+  { id: 18059, seed: 192, prompt: "a tiny knitted red vest hanging on a wooden peg, simple children's picture-book illustration, absolutely no people, no animals, no text" },
+  { id: 18237, seed: 813, prompt: "a peach blossom branch with crimson petals falling under a dark sky, dramatic japanese ink illustration, absolutely no people, no text" },
+  { id: 18152, seed: 364, prompt: "a tiny glowing purple circle of stars drawn on a notebook page next to a pencil, cute mini sketch style, absolutely no people, no figures, no text, no letters" },
+  { id: 18208, seed: 739, prompt: "a bamboo steamer full of dumplings and a red paper lantern on a wooden table, close-up, cozy flat illustration, plain background, absolutely no people, no figures, no text, no letters" },
+  { id: 18281, seed: 268, prompt: "a small herbal medicine pouch and a cup of tea on a palace windowsill, cute chibi gouache, absolutely no people, no animals, no text" },
+  { id: 17803, seed: 584, prompt: "a soft illustrated encyclopedia opened to doodles of round cute shapes, gentle crayon illustration, absolutely no people, no text" },
+  { id: 17997, seed: 911, prompt: "an adventurer's backpack, compass and treasure map on a hilltop at sunrise, bright adventure poster art, absolutely no people, no text" },
+  { id: 18000, seed: 247, prompt: "a cozy japanese family living room with scattered toys and a kotatsu table, warm flat illustration, absolutely no people, no text" },
+  { id: 17180, seed: 655, prompt: "a spooky glowing jack-o-lantern in a moonlit pumpkin patch beside a farm fence, claymation style, absolutely no people, no animals, no text" },
+  { id: 17698, seed: 398, prompt: "a vintage red sports car parked on an empty moonlit cobblestone bridge with banknotes fluttering in the air, stylish 70s heist illustration, no signs, absolutely no people, no figures, no text, no letters" },
+  { id: 18277, seed: 726, prompt: "a tiny chibi coffee cup with a little heart doodle, cute mini sketch style, pastel background, absolutely no people, no text" },
+  { id: 17168, seed: 117, prompt: "colorful soap bubbles popping over a tiny toy town with confetti, playful 3d cartoon, absolutely no people, no creatures, no text" },
+  { id: 17785, seed: 539, prompt: "a small wooden magic wand glowing on an open storybook in an attic bedroom, whimsical european animation style, absolutely no people, no text" },
+  { id: 18217, seed: 873, prompt: "a small glowing toy robot on a windowsill under a starry night sky, gentle soft illustration, absolutely no people, no text" },
+  { id: 18160, seed: 336, prompt: "a tiny chaotic toy city of crooked buildings with chocolate-colored roofs seen from above, empty streets, quirky doodle illustration, absolutely no people, no figures, no text, no letters" },
+  { id: 17983, seed: 482, prompt: "a hawaiian beach at sunset with a ukulele and a scratched surfboard, tropical illustration, absolutely no people, no creatures, no text" },
+  { id: 18197, seed: 695, prompt: "a single rose and a chess knight piece resting on a sealed velvet letter, elegant still life painting, absolutely no people, no text" },
+  { id: 17433, seed: 254, prompt: "a glowing card deck beneath a starry constellation of fate, dynamic card-game fantasy art, absolutely no people, no text" },
+  { id: 18128, seed: 617, prompt: "a little green sprout pushing through cracked asphalt under bright sunshine, cheerful encouraging cartoon, absolutely no people, no text" },
+  { id: 18207, seed: 348, prompt: "a miniature dollhouse with colorful rainbow furniture in a sunny garden, soft toy-photography illustration, absolutely no people, no animals, no text" },
+  { id: 18263, seed: 783, prompt: "a witch's hat overflowing with candy and confetti instead of spells, zany comedic illustration, absolutely no people, no text" },
+  { id: 18192, seed: 165, prompt: "a tiny leather biker jacket and a sunflower seed beside a hamster wheel, comedic cute illustration, absolutely no people, no animals, no text" },
+  { id: 18221, seed: 477, prompt: "sparkling jewels spilling from an open steel safe onto dark velvet in moonlight, close-up, stylish heist illustration, absolutely no people, no figures, no text, no letters" },
+  { id: 18267, seed: 431, prompt: "tiny sparkling heart charms and ribbons floating on a pastel cloud, cute kawaii illustration, absolutely no people, no creatures, no text" },
+  { id: 17862, seed: 568, prompt: "a giant shiny metal fishing lure shaped like a fish with robotic joints glowing under a calm lake surface, energetic illustration, no robots, absolutely no people, no figures, no text, no letters" },
+  { id: 18058, seed: 214, prompt: "a vintage typewriter on a round cafe table with a lavender sprig in a sunlit empty provence courtyard, close-up, french watercolor, absolutely no people, no figures, no text, no letters" },
+  { id: 18270, seed: 657, prompt: "a sparkling crown floating among pink nebulae and planets, vibrant retro space pop art, absolutely no people, no text" },
+  { id: 18283, seed: 389, prompt: "a glowing teardrop gemstone hovering over a twilight city skyline with stars, magical fantasy illustration, absolutely no people, no text" },
+  { id: 17358, seed: 742, prompt: "squishy colorful jelly blobs bouncing on a toy table, cute 3d cartoon, absolutely no people, no faces, no text" },
+  { id: 18278, seed: 296, prompt: "a tiny chibi battle flag planted on a sandcastle, cute mini comic style, absolutely no people, no text" },
+  { id: 17363, seed: 851, prompt: "a glass slipper and a red apple on a tiny storybook stage, chibi fairy-tale illustration, absolutely no people, no text" },
+  { id: 18223, seed: 437, prompt: "a glowing moss-covered coffee shop interior lit by warm lamps, cozy fantasy illustration, absolutely no people, no text" },
+  { id: 18205, seed: 168, prompt: "a whirlpool of magenta flower petals swirling over a calm garden pond, decorative pop illustration, absolutely no people, no text" },
+  { id: 16282, seed: 603, prompt: "a tall red and white striped top hat resting on a cozy armchair on a rainy day, whimsical storybook illustration, absolutely no people, no animals, no text" },
+  { id: 18222, seed: 924, prompt: "an elegant parisian salon with an antique globe and perfume bottles, refined art deco illustration, absolutely no people, no text" },
+  { id: 18210, seed: 376, prompt: "a glowing pumpkin carriage lantern in front of a fairy-tale castle at midnight, dreamy storybook illustration, absolutely no people, no text" },
+  { id: 18290, seed: 512, prompt: "a feather duster leaning beside a half-open palace door with light spilling through the keyhole, comedic cartoon, absolutely no people, no text" },
+  { id: 18196, seed: 785, prompt: "a colorful toy rescue vehicle on a cinema stage with confetti, bright kids 3d animation style, absolutely no people, no faces, no text" },
+  { id: 18292, seed: 664, prompt: "a generic metal spinning top whirling with bright sparks in a round toy battle arena, dynamic toy-battle illustration, absolutely no people, no figures, no text, no letters" },
+  { id: 18291, seed: 243, prompt: "a pile of peaches with tiny horns on a cute picnic blanket, kawaii chibi illustration, absolutely no people, no faces, no text" },
 ];
 
-// Pollinationsが返すのはJPEG。そのまま置くと1枚40KB前後になり、スマホの初期表示で
+// 生成元が返すのはPNG/JPEG。そのまま置くと1枚40KB以上になり、スマホの初期表示で
 // 数枚ぶんの帯域（実測: トップページで152KB）を装飾画像に取られる。同じ寸法のまま
 // WebPに変換すると実測で39%小さくなり、**見た目は変わらない**（2026-09-04）。
 // sharpはこのリポジトリの依存に入れていない（Vercelのビルドに載せたくない）ので、
@@ -150,52 +298,111 @@ function loadSharp() {
   }
 }
 
-function genOne(sharp, { id, prompt, seed }) {
-  const encoded = encodeURIComponent(prompt);
-  const url = `https://image.pollinations.ai/prompt/${encoded}?width=640&height=360&nologo=true&seed=${seed}`;
-  const file = path.join(OUT_DIR, `${id}.webp`);
-  return new Promise((resolve) => {
-    const req = https.get(url, (res) => {
-      if (res.statusCode !== 200) {
-        console.log(`  ✗ ${id}: status ${res.statusCode}`);
-        res.resume();
-        return resolve(false);
-      }
-      const chunks = [];
-      res.on("data", (c) => chunks.push(c));
-      res.on("end", async () => {
-        try {
-          const buf = await sharp(Buffer.concat(chunks))
-            .webp({ quality: 78, effort: 6 })
-            .toBuffer();
-          fs.writeFileSync(file, buf);
-          console.log(`  ✓ ${id}: ${(buf.length / 1024).toFixed(0)}KB`);
-          resolve(buf.length > 1000);
-        } catch (e) {
-          console.log(`  ✗ ${id}: ${e.message}`);
-          resolve(false);
-        }
+const HORDE = "https://aihorde.net/api/v2";
+const HORDE_HEADERS = {
+  "Content-Type": "application/json",
+  apikey: "0000000000", // 匿名キー（AI Hordeが公開している共通キー。秘密ではない）
+  "Client-Agent": "animedia-thumbnails:2.0:https://animedia-khaki.vercel.app",
+};
+const MODEL = "Flux.1-Schnell fp8 (Compact)";
+// 共有のボランティア資源なので控えめにする（実測: 匿名で1枚12分）。
+const CONCURRENCY = 3;
+// これを過ぎても終わらない依頼は取り消して失敗扱いにする（次回の実行で再挑戦される）。
+const JOB_TIMEOUT_MS = 60 * 60 * 1000;
+const POLL_MS = 20 * 1000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function hordeJson(method, url, body) {
+  // 一時的な失敗（429・5xx・通信断）だけ指数バックオフで再試行する。
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: HORDE_HEADERS,
+        body: body ? JSON.stringify(body) : undefined,
       });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) return json;
+      const transient = res.status === 429 || res.status >= 500;
+      if (!transient || attempt >= 5) throw new Error(`${res.status} ${json.message ?? ""}`);
+    } catch (e) {
+      if (attempt >= 5 || /^\d{3} /.test(e.message)) throw e;
+    }
+    await sleep(Math.min(5000 * 2 ** attempt, 120000));
+  }
+}
+
+async function genOne(sharp, { id, prompt, seed }) {
+  const file = path.join(OUT_DIR, `${id}.webp`);
+  const t0 = Date.now();
+  let jobId;
+  try {
+    // FLUXは64の倍数を要求するので 640×384 で作り、上下を12pxずつ切って 640×360 にする。
+    const sub = await hordeJson("POST", `${HORDE}/generate/async`, {
+      prompt,
+      models: [MODEL],
+      nsfw: false,
+      censor_nsfw: true,
+      params: { width: 640, height: 384, steps: 4, cfg_scale: 1, sampler_name: "k_euler", seed: String(seed), n: 1 },
     });
-    req.setTimeout(60000, () => {
-      req.destroy();
-      console.log(`  ✗ ${id}: timeout`);
-      resolve(false);
-    });
-    req.on("error", (e) => {
-      console.log(`  ✗ ${id}: ${e.message}`);
-      resolve(false);
-    });
-  });
+    jobId = sub.id;
+    if (!jobId) throw new Error(`依頼IDが返らない: ${JSON.stringify(sub)}`);
+    for (;;) {
+      await sleep(POLL_MS);
+      const c = await hordeJson("GET", `${HORDE}/generate/check/${jobId}`);
+      // is_possible:false は「いまこのモデルを動かしているワーカーが居ない」だけで、依頼は列に残り
+      // ワーカーが戻れば処理される。即失敗にすると、ワーカーが数十分抜けただけで残り全部を
+      // 取りこぼす（2026-10-10の初回実行で135件中42件がこれで落ちた）。時間切れまで待つ。
+      if (c.faulted) throw new Error("生成側で失敗（faulted）");
+      if (c.done) break;
+      if (Date.now() - t0 > JOB_TIMEOUT_MS) throw new Error("時間切れ");
+    }
+    const st = await hordeJson("GET", `${HORDE}/generate/status/${jobId}`);
+    jobId = undefined; // 取り出したら取り消し不要
+    const g = st.generations?.[0];
+    if (!g?.img) throw new Error("画像が返らない");
+    // 検閲に掛かった画像は警告画像に差し替えられて返る＝使えない。
+    if (g.censored) throw new Error("検閲で差し替えられた");
+    const res = await fetch(g.img);
+    if (!res.ok) throw new Error(`画像の取得 ${res.status}`);
+    const buf = await sharp(Buffer.from(await res.arrayBuffer()))
+      .resize(640, 360, { fit: "cover" })
+      .webp({ quality: 78, effort: 6 })
+      .toBuffer();
+    if (buf.length < 1000) throw new Error("画像が小さすぎる");
+    fs.writeFileSync(file, buf);
+    console.log(`  ✓ ${id}: ${(buf.length / 1024).toFixed(0)}KB（${Math.round((Date.now() - t0) / 60000)}分）`);
+    return true;
+  } catch (e) {
+    console.log(`  ✗ ${id}: ${e.message}`);
+    if (jobId) await hordeJson("DELETE", `${HORDE}/generate/status/${jobId}`).catch(() => {});
+    return false;
+  }
 }
 
 async function main() {
   const sharp = loadSharp();
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  console.log(`生成開始（${PROMPTS.length}件）…`);
-  for (const p of PROMPTS) {
-    await genOne(sharp, p);
+  const only = process.argv.slice(2).map(Number).filter((n) => Number.isInteger(n));
+  const unknown = only.filter((id) => !PROMPTS.some((p) => p.id === id));
+  if (unknown.length) {
+    console.error(`PROMPTS に無い作品ID: ${unknown.join(", ")}`);
+    process.exit(1);
   }
+  const targets = only.length
+    ? PROMPTS.filter((p) => only.includes(p.id))
+    : PROMPTS.filter((p) => !fs.existsSync(path.join(OUT_DIR, `${p.id}.webp`)));
+  console.log(`生成開始（${targets.length}件 / 定義${PROMPTS.length}件）…`);
+  let failed = 0;
+  const queue = [...targets];
+  await Promise.all(
+    Array.from({ length: CONCURRENCY }, async () => {
+      for (let p; (p = queue.shift()); ) {
+        if (!(await genOne(sharp, p))) failed++;
+      }
+    })
+  );
+  if (failed) console.log(`失敗 ${failed}件（もう一度実行すると失敗分だけ生成する）`);
   // public/works にある画像IDを走査して manifest を更新する。
   const ids = fs
     .readdirSync(OUT_DIR)
