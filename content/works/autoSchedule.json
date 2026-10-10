@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-09",
+  "updatedAt": "2026-10-10",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -1037,11 +1037,11 @@
       "title": "塩対応の佐藤さんが俺にだけ甘い"
     },
     "17313": {
-      "date": "2027-01",
-      "precision": "month",
+      "date": "2027-01-04",
+      "precision": "day",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/209661",
-      "fetchedDate": "2026-09-19",
+      "fetchedDate": "2026-10-10",
       "matchedBy": "mal",
       "title": "雑用付与術師が自分の最強に気付くまで"
     },
