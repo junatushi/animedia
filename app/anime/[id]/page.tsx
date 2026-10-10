@@ -658,7 +658,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                 以前はバッジだけを置き、回答文はJSON-LD（FAQPage）の中にしか無かったが、
                 検索結果のスニペットに使われるのは可視テキストのため、同じ文をここにも出す。
                 サービス名の正式名称はバッジ内にも .sr-only で保持している。
-                レンタル/都度課金扱いのサービスはここには含めず、下の「レンタル作品」欄に分ける。 */}
+                レンタル/都度課金扱いのサービスはここには含めず、下の「都度課金・レンタル」欄に分ける。 */}
             <p style={{ margin: "0 0 12px", fontSize: 14, lineHeight: 1.7, color: "var(--ink)" }}>
               {watchAnswer}
             </p>
@@ -708,10 +708,10 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
           <article className="card">
             <div className="card-body">
               <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
-                レンタル作品
+                都度課金・レンタルで視聴できるサービス
               </h2>
               <p className="detail-text" style={{ margin: "0 0 10px" }}>
-                以下のサービスでは「見放題」ではなく、レンタル（都度課金）での視聴となります。
+                以下のサービスでは「見放題」ではなく、1話ごとの購入・レンタル（都度課金）での視聴となります（作品公式サイトの配信情報より）。
               </p>
               <ServiceMarks services={rentalServices} otherServices={[]} hideDisclosure />
             </div>

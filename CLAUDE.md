@@ -201,6 +201,17 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   `ACKNOWLEDGED`に**理由と再確認の期日（`recheckOn`）つきで**足す（2026-10-04〜。期日が無いと落ちる。
   期日が来ると前回の理由つきでIssueに戻る＝「冬に始まる」「TVerだけ」のような**いずれ変わる事実**で
   永久に隠さない）。ネットワークには出ない。回帰テストは`node scripts/check-coverage-gaps.js`
+- `node scripts/rental-gaps.ts` … **課金だけの配信先の洗い出し**（2026-10-10導入）。今期・次期の作品の
+  公式サイトの配信情報を読み、「都度課金・個別課金・レンタル」の区画にだけ載っているのに
+  `content/works/rentalServices.ts`に未記録のサービスをIssue本文として出す（0件なら何も出さない）。
+  `.github/workflows/rental-gaps.yml`が毎日**1本のIssue（ラベル`rental-gaps`）を書き換え**、0件になれば閉じる。
+  導入の経緯: 2026秋「転生したら剣でしたII」で、公式が「ABEMA独占配信／他は個別課金」と分けているのに
+  作品ページが7社を見放題と同じ枠に並べていた（利用者の指摘で発覚）。分ける仕組みは2026-07からあったが
+  記録は2026夏で止まっていた＝**何を足すべきかを出す道具が無かった**。同じ日にほか12作品で同じ状態だった。
+  **自動では直さない**（誤ると「レンタルでの視聴となります」という事実でない案内になる。公式を開いて確かめて足す）。
+  課金扱いにしないと確認した作品は`scripts/lib/rental-acknowledged.js`に理由と`recheckOn`つきで足す。
+  Vercelの関数は起動しない（`/api/season`をクールごとに1回＝エッジキャッシュ。コミットしない）。
+  要Node 22・シークレット不要。回帰テストは`node scripts/check-rental-gaps.js`
 - **配信先の自動補完**（2026-10-04導入・重大度高）。上のIssueの作品を、毎日の定期実行の
   Claudeが`docs/coverage-autofill.md`（手順の正本）に従って調べ、抜き書き（`evidence`）つきで
   `extraServices.ts`に足して`claude/coverage-autofill-<日付>`のPRを出す。**調べた側はマージしない**。

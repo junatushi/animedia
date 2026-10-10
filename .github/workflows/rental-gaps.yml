@@ -1,0 +1,97 @@
+name: 課金だけの配信先の洗い出し
+
+# 【なぜ要るか・2026-10-10】
+# 「転生したら剣でしたII」の公式サイトは「ABEMA（独占配信）」と「＜個別課金サービス＞
+# dアニメストア・Hulu・Prime Video ほか」を分けて書いているのに、作品ページは7社を
+# 見放題と同じ枠に並べていた（利用者の指摘で発覚）。分ける仕組み
+# （content/works/rentalServices.ts）は2026-07からあったが、**新しいクールの作品を
+# 調べる道具が無く**、記録は2026夏の作品で止まっていた。
+# 今期・次期の作品の公式サイトを読み、課金の区画にだけ載っているのに未記録のサービスを
+# 1本のIssue（ラベル rental-gaps）に出す。0件になれば閉じる。判定は
+# scripts/lib/rental-scan.js だけが持ち、ここには書かない。
+#
+# 【自動では直さない】課金扱いを誤ると「レンタルでの視聴となります」という事実でない案内を
+# 出すことになる。Issueの抜き書きを見て公式サイトで確かめた人（または日次巡回のセッション）が
+# rentalServices.ts に足す。
+#
+# 【Vercelの無料枠に触れない】作品一覧は公開API /api/season をクールごとに1回
+# （エッジキャッシュに乗る）。公式サイトはGitHub Actions上で読む。コミットしない＝
+# デプロイもISRの書き込みも起きない。
+
+on:
+  schedule:
+    # 1日1回。02:40 UTC = 11:40 JST（track-season.yml の後。scheduleは数時間遅れても
+    # JSTの日付をまたがない位置）。配信先の課金区分は配信開始の1〜3週間前に出るので毎日見る。
+    - cron: "40 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: rental-gaps
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # .ts を直接実行する（型ストリッピング）ので Node 22 が要る。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 公式サイトの配信情報を読む
+        run: node scripts/rental-gaps.ts > "$RUNNER_TEMP/rental-gaps.md"
+
+      - name: Issueを書き換える／0件なら閉じる
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const path = `${process.env.RUNNER_TEMP}/rental-gaps.md`;
+            const body = fs.existsSync(path) ? fs.readFileSync(path, "utf8").trim() : "";
+            const label = "rental-gaps";
+            const title = "課金（都度課金・レンタル）だけの配信先が見放題と同じ枠に並んでいます";
+            const { data: open } = await github.rest.issues.listForRepo({
+              ...context.repo, state: "open", labels: label, per_page: 10,
+            });
+            if (!body) {
+              for (const issue of open) {
+                await github.rest.issues.createComment({ ...context.repo, issue_number: issue.number, body: "要対応の作品が無くなったので閉じます。" });
+                await github.rest.issues.update({ ...context.repo, issue_number: issue.number, state: "closed", state_reason: "completed" });
+              }
+              return;
+            }
+            if (open.length > 0) {
+              await github.rest.issues.update({ ...context.repo, issue_number: open[0].number, title, body });
+            } else {
+              await github.rest.issues.create({ ...context.repo, title, body, labels: [label] });
+            }
+
+      # 一覧が取れずに落ちた日を「0件」と読み違えない（上のステップは失敗時には走らない）。
+      - name: 失敗したらIssueに出す
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const label = "rental-gaps";
+            const { data: open } = await github.rest.issues.listForRepo({
+              ...context.repo, state: "open", labels: label, per_page: 10,
+            });
+            const body = [
+              `課金だけの配信先の洗い出しが失敗しました（ログ: ${url}）。`,
+              ``,
+              `よくある原因: 本番サイトの \`/api/season\` が落ちている（Annict障害・Vercelの停止）。`,
+              `手で回すときは \`node scripts/rental-gaps.ts\`（シークレット不要・Node 22）。`,
+            ].join("\n");
+            if (open.length > 0) {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: open[0].number, body });
+            } else {
+              await github.rest.issues.create({ ...context.repo, title: "課金だけの配信先の洗い出しが失敗しました", body, labels: [label] });
+            }

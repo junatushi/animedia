@@ -3,7 +3,7 @@
 // 作品ページで確認できたサービスのみ追加する（推測で埋めない。CLAUDE.mdの方針に準拠）。
 //
 // ここに載ったサービスは、カード一覧・作品ページ本体の配信チップからは除外され、
-// 作品ページの「レンタル作品」欄に別枠で表示される。
+// 作品ページの「都度課金・レンタルで視聴できるサービス」欄に別枠で表示される。
 //
 // key: Annict の annictId（作品ID）
 // value: lib/services.ts の SERVICES と対応する service key（例: "d_anime", "prime"）の配列
@@ -36,7 +36,58 @@
 //  反例があり不成立と判明（2026-07-10）。ヒューリスティックは使わず、作品ごとに公式サイトの
 //  配信情報表で「ニコニコ」関連表記が「見放題」グループに一切現れず「都度課金/レンタル」
 //  グループにのみ排他的に載っている場合だけレンタル扱いにする（全56作品を個別に確認済み）。
+//
+// 【2026-10-10・新しいクールの作品を足し忘れないために】
+// この一覧は2026夏の作品で記録が止まっており、2026秋「転生したら剣でしたII」で
+// 「ABEMA以外は個別課金」なのに7社が見放題と同じ枠に並ぶ事故になった（利用者の指摘で発覚）。
+// いまは scripts/rental-gaps.ts（.github/workflows/rental-gaps.yml が毎日）が今期・次期の
+// 公式サイトを読み、課金の区画にだけあるのに未記録のサービスをIssue（ラベル rental-gaps）に出す。
+// **Issueの抜き書きは候補であって確認ではない**。公式サイトを開いて確かめてから足すこと。
+// 足すときは、その作品の行に**公式の配信情報ページのURLと確認日**をコメントで書く。
 export const RENTAL_SERVICES: Record<number, string[]> = {
+  // ───── 2026秋（2026-10-10確認。scripts/rental-gaps.ts の候補を公式サイトで1件ずつ確認） ─────
+  // 転生したら剣でしたII: 公式 https://tenken-anime.com/onair.html で「ABEMA（地上波1週間先行・
+  // 独占配信）」と「＜個別課金サービス＞ ｄアニメストア・Hulu・Lemino・Prime Video・DMM TV・
+  // ビデオマーケット・music.jp・カンテレドーガ・FOD・バンダイチャンネル・J:COM STREAM・TELASA・
+  // milplus・HAPPY!動画」が分かれている。見放題はABEMAだけ。
+  10258: ["d_anime", "hulu", "prime", "dmm", "fod", "bandai", "lemino", "telasa"],
+  // 東京リベンジャーズ 三天戦争編: 公式 https://tokyo-revengers-anime.com/onair/ の「三天戦争編」
+  // 配信情報で「ディズニープラスにて世界定額制動画配信（SVOD）独占配信」、それ以外
+  // （バンダイチャンネル・dアニメストア・DMM TV・FOD・Hulu・Lemino・ニコニコチャンネル・
+  // Prime Video・TELASA・U-NEXT ほか）は「都度課金サービス」。同ページの旧作（8・3抗争編など）の
+  // 表では同じ社が見放題に載っているので、**編ごとの表を取り違えないこと**。
+  13286: ["bandai", "d_anime", "dmm", "fod", "hulu", "lemino", "niconico", "prime", "telasa", "unext"],
+  // とある暗部の少女共棲: 公式 https://toaru-project.com/item/onair/index.html で
+  // 「都度課金サービス」にのみバンダイチャンネル・Prime Video（見放題サービスにniconicoあり）。
+  15391: ["bandai", "prime"],
+  // 転生貴族、鑑定スキルで成り上がる 第3期: 公式 https://kanteiskill.com/onair/ で
+  // FODは「都度課金配信」のみ（Prime Video・バンダイチャンネルは見放題にも載る）。
+  14998: ["fod"],
+  // 転生ゴブリンだけど質問ある？: 公式 https://tengobu-anime.com/onair/index.html で
+  // FODは《都度課金サービス》のみ（Prime Videoは先行配信、バンダイ・ニコニコ生放送は見放題にも載る）。
+  17229: ["fod"],
+  // 信者ゼロの女神サマと始める異世界攻略: 公式 https://zero-believers-anime.com/ のSTREAMINGで
+  // FODは《都度課金サービス》のみ。
+  17025: ["fod"],
+  // ケロロ軍曹☆: 公式 https://www.bn-pictures.co.jp/keroro-anime/tv/streaming で
+  // Prime Videoは「都度課金配信」のみ（見放題の「milplus 見放題パック プライム」は milplus）。
+  16912: ["prime"],
+  // ドラゴンボール超 ビルス: 公式 https://dragonball-super.com/ のON AIRで、バンダイチャンネル
+  // （b-ch.com/titles/9982）は「レンタル配信」の見出しの下にだけある（配信表はロゴ画像のみ）。
+  17068: ["bandai"],
+  // 以下はニコニコ（ニコニコチャンネル）が都度課金/レンタルの区画にだけ載り、見放題・無料の
+  // 区画にはニコニコ生放送もニコニコの表記も無い作品（見放題側の「dアニメストア ニコニコ支店」は dアニメ）。
+  // 転生した大聖女は、聖女であることをひた隠す: https://daiseijo-anime.com/onair/index.html
+  15600: ["niconico"],
+  // わたしの幸せな結婚 特別篇: https://watakon-anime.com/onair/ の「特別篇」タブ
+  // （第一期・第二期のタブではニコニコ生放送が見放題に載る。タブを取り違えないこと）
+  15872: ["niconico"],
+  // 桃源暗鬼 ～日光・華厳の滝編～: https://tougenanki-anime.com/ のSTREAMING（レンタル配信）
+  16942: ["niconico"],
+  // Battle Spirits [Re] 絶界の空: https://www.bn-pictures.co.jp/battlespirits/ のSTREAMING（都度課金配信）
+  15716: ["niconico"],
+  // 百妖譜 第3期京師篇: https://b8station.tv/hyakuyoufu/ のSTREAMING（レンタル配信）
+  17136: ["niconico"],
   // LV999の村人: 公式サイト配信情報で「見放題」＝ABEMA・DMM TVのみ、それ以外
   // （dアニメストア・Amazonプライムビデオ・Hulu・バンダイチャンネル・FOD等）は
   // 「各話購入」のみ。dアニメストアの作品ページにも「1080p レンタル」と明記。
