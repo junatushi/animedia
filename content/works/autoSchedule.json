@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-10",
+  "updatedAt": "2026-10-11",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -772,6 +772,15 @@
       "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "桃源暗鬼 ～日光・華厳の滝編～"
+    },
+    "16956": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/204747",
+      "fetchedDate": "2026-10-11",
+      "matchedBy": "mal",
+      "title": "ワンパンマン 第3期第2クール"
     },
     "16983": {
       "date": "2027-01",
