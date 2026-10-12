@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-11",
+  "updatedAt": "2026-10-12",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -1133,6 +1133,15 @@
       "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ザ・ファブル 第2期"
+    },
+    "17401": {
+      "date": "2027-03-26",
+      "precision": "day",
+      "kind": "release",
+      "sourceUrl": "https://anilist.co/anime/190244",
+      "fetchedDate": "2026-10-12",
+      "matchedBy": "mal",
+      "title": "デート・ア・ライブF Last Date"
     },
     "17433": {
       "date": "2026-11-07",
