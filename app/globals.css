@@ -73,6 +73,19 @@ html, body {
   font-feature-settings: "palt";
 }
 
+/* リンクの既定色（2026-10-14追加）。それまで素の <a> に色の指定が1つも無く、
+   class を持たないリンク（独占配信・サービス別ページの作品一覧、.follow-links など）は
+   ブラウザ既定の青（#0000ee）／訪問済みの紫で描かれていた。ダークの紺地では
+   ほぼ読めない（利用者のスクリーンショットで指摘）。要素セレクタ1つ＝詳細度が
+   最も低いので、色を持つ class 付きのリンク（.official・.svc-chip-link 等）には
+   一切影響しない。:hover の色はここに書かないこと（a:hover は .official 等の
+   class 1つより詳細度が高く、color: inherit のリンクまで塗り替えてしまう）。 */
+a {
+  color: var(--accent-ink);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
 /* 浮遊都市の空のような、淡い光が差し込む夜空グラデーション */
 body {
   min-height: 100vh;
@@ -1456,6 +1469,18 @@ body {
 }
 .detail-body { gap: 22px; display: flex; flex-direction: column; padding: 18px 20px; }
 .detail-section { display: flex; flex-direction: column; gap: 8px; }
+/* 見出しの前に置くサービスの色の目印（2026-10-14追加）。サービスの色を12pxの
+   見出しの「文字色」に使うと、Disney+（#2a6df5）やYouTube（#ff0000）が紺地で
+   AA(4.5:1)を割る。色は目印の塗りにだけ使い、文字はテーマの色のまま出す。 */
+.detail-heading-mark {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 8px;
+  border-radius: 2px;
+  vertical-align: 0.05em;
+}
+.detail-heading a { color: inherit; }
 .detail-heading {
   font-family: var(--mono);
   font-size: 12px;

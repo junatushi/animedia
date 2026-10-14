@@ -221,7 +221,8 @@ export default async function ExclusivePage({ params }: { params: Params }) {
             {!fetchError &&
               groups.map((g) => (
                 <section className="detail-section" key={g.tag.key}>
-                  <h2 className="detail-heading" style={{ color: g.tag.color }}>
+                  <h2 className="detail-heading">
+                    <span className="detail-heading-mark" style={{ background: g.tag.color }} aria-hidden="true" />
                     <IntentLink href={`/service/${g.tag.key}/${year}/${season}`}>{g.tag.name}</IntentLink>独占（{g.items.length}作品）
                   </h2>
                   <ul className="detail-list">
