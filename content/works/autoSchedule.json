@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-12",
+  "updatedAt": "2026-10-14",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -1458,6 +1458,15 @@
       "matchedBy": "title",
       "title": "ゆうさんち！from 遊ハち"
     },
+    "18054": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/214969",
+      "fetchedDate": "2026-10-14",
+      "matchedBy": "mal",
+      "title": "赤ずきん、旅の途中で死体と出会う。"
+    },
     "18059": {
       "date": "2026-10-03",
       "precision": "day",
@@ -1575,6 +1584,15 @@
       "fetchedDate": "2026-10-01",
       "matchedBy": "mal",
       "title": "放課後のアイドルには秘密がある"
+    },
+    "18311": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/217129",
+      "fetchedDate": "2026-10-14",
+      "matchedBy": "url",
+      "title": "あはれ！名作くん (完全新作アニメ 2)"
     }
   }
 }
