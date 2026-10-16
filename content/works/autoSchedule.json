@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-14",
+  "updatedAt": "2026-10-16",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -153,10 +153,10 @@
       "date": "2026-10-20",
       "precision": "day",
       "weekday": 2,
-      "time": "16:00",
+      "time": "16:05",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/195539",
-      "fetchedDate": "2026-09-26",
+      "fetchedDate": "2026-10-16",
       "matchedBy": "mal",
       "title": "サイバーパンク: エッジランナーズ2"
     },
@@ -756,11 +756,13 @@
       "title": "魔法のプリンセス ミンキーモモ 憧れの夢へ まごころの二重奏"
     },
     "16930": {
-      "date": "2027-01",
-      "precision": "month",
+      "date": "2027-01-08",
+      "precision": "day",
+      "weekday": 5,
+      "time": "00:26",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/204579",
-      "fetchedDate": "2026-09-19",
+      "fetchedDate": "2026-10-16",
       "matchedBy": "mal",
       "title": "地雷なんですか？地原さん"
     },
@@ -790,6 +792,15 @@
       "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "ヒストリエ"
+    },
+    "16990": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/205430",
+      "fetchedDate": "2026-10-16",
+      "matchedBy": "mal",
+      "title": "冒険者ライセンスを剥奪されたおっさんだけど、 愛娘ができたのでのんびり人生を謳歌する"
     },
     "17021": {
       "date": "2027-01",
@@ -1403,11 +1414,13 @@
       "title": "メラ×デス 死神と僕の異常な恋"
     },
     "17936": {
-      "date": "2027-01",
-      "precision": "month",
+      "date": "2027-01-10",
+      "precision": "day",
+      "weekday": 0,
+      "time": "02:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/214049",
-      "fetchedDate": "2026-09-19",
+      "fetchedDate": "2026-10-16",
       "matchedBy": "mal",
       "title": "傷口と包帯"
     },
