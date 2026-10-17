@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-16",
+  "updatedAt": "2026-10-17",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -1137,11 +1137,13 @@
       "title": "千歳くんはラムネ瓶のなか 第2クール"
     },
     "17373": {
-      "date": "2027-01",
-      "precision": "month",
+      "date": "2027-01-10",
+      "precision": "day",
+      "weekday": 0,
+      "time": "00:56",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/210199",
-      "fetchedDate": "2026-09-19",
+      "fetchedDate": "2026-10-17",
       "matchedBy": "mal",
       "title": "ザ・ファブル 第2期"
     },
@@ -1606,6 +1608,15 @@
       "fetchedDate": "2026-10-14",
       "matchedBy": "url",
       "title": "あはれ！名作くん (完全新作アニメ 2)"
+    },
+    "18316": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/218439",
+      "fetchedDate": "2026-10-17",
+      "matchedBy": "mal",
+      "title": "幸せカナコの殺し屋生活"
     }
   }
 }
