@@ -286,6 +286,41 @@ export function lastEpisodeStreamAt(tail: import("./types").EpisodeTail): string
   return new Date(picked).toISOString();
 }
 
+// 「完結」と言ってよいだけの根拠があるか（2026-10-18導入・重大度高）。
+// Annictは総話数を持たず、放送枠は「放送が済んだ分＋せいぜい数週先」しか登録されない。
+// 最終話の時刻だけで判定すると、12話の作品が第4話の放送後に「完結」と出る
+// （実例: 生徒会にも穴はある！・テムパル・ルルットリリィ。2026-10-18の本番で
+// 開始3〜4週目の7作品が完結扱いだった）。そこで次のどれかを満たすときだけ根拠ありとする:
+//  ①話数付きの配信で第 MIN_EPISODES_FOR_CONCLUSION 話以上が出ている（1クール作品の下限）
+//  ②話数が取れていないときは、最初から最後の記録までが 7週間以上ある（毎週放送で8話分）
+//  ③最後の記録から STALE_DAYS_FOR_CONCLUSION 日以上、次の枠が増えていない
+//    （短編・特別編集版など話数が少ない作品が永久に完結しない側へ倒れないための出口）
+// どれも満たさないときは「完結」を出さない（完結と言いにくい側＝従来の方針）。
+// 日時に依存するので now を引数にする（テストが固定できるように）。
+// export はテスト用（scripts/check.ts）。
+export const MIN_EPISODES_FOR_CONCLUSION = 8;
+export const STALE_DAYS_FOR_CONCLUSION = 21;
+export const MIN_SPAN_DAYS_FOR_CONCLUSION = 49;
+
+export function hasConclusionEvidence(
+  tail: import("./types").EpisodeTail | undefined,
+  firstMs: number,
+  lastMs: number,
+  nowMs: number
+): boolean {
+  const dayMs = 24 * 60 * 60 * 1000;
+  if (nowMs - lastMs > STALE_DAYS_FOR_CONCLUSION * dayMs) return true;
+  let aired: number | null = null;
+  if (tail) {
+    for (const p of tail.programs) {
+      if (classifyChannel(p.channel).kind === "tv") continue;
+      if (p.episodeNumber !== null && (aired === null || p.episodeNumber > aired)) aired = p.episodeNumber;
+    }
+    if (aired !== null) return aired >= MIN_EPISODES_FOR_CONCLUSION;
+  }
+  return lastMs - firstMs >= MIN_SPAN_DAYS_FOR_CONCLUSION * dayMs;
+}
+
 function jstDateStr(ms: number): string {
   const jst = new Date(ms + 9 * 60 * 60 * 1000);
   const yyyy = jst.getUTCFullYear();
@@ -326,7 +361,8 @@ export function toAnimeItem(
   w: import("./types").AnnictWork,
   extra: ExtraServiceEntry[] = [],
   release?: import("./types").ReleaseDateEntry,
-  auto?: import("./types").AutoScheduleEntry
+  auto?: import("./types").AutoScheduleEntry,
+  nowMs: number = Date.now()
 ): import("./types").AnimeItem {
   const serviceMap = new Map<string, ServiceDef>();
   const others = new Set<string>();
@@ -386,9 +422,16 @@ export function toAnimeItem(
   // 完結の推定に使う日時。最終話が最初に配信された日時が分かればそれを、
   // 分からなければ全件の最終日時を使う（lastEpisodeStreamAt のコメント参照）。
   // 人力の schedule（manualSlot）には配信履歴が無いので null のまま＝「まだ配信中」側。
-  const lastKnownAt = annictSlot
+  // 根拠が足りないとき（まだ序盤で枠が数話ぶんしか登録されていない等）は null にして
+  // 「完結」も「SNSの今日の一覧から外す」も起こさない（hasConclusionEvidence 参照）。
+  const lastKnownCandidate = annictSlot
     ? (w.episodeTail ? lastEpisodeStreamAt(w.episodeTail) : null) ?? annictSlot.lastKnownAt ?? null
     : null;
+  const lastKnownAt =
+    annictSlot && lastKnownCandidate &&
+    hasConclusionEvidence(w.episodeTail, Date.parse(`${annictSlot.date}T00:00:00+09:00`), Date.parse(lastKnownCandidate), nowMs)
+      ? lastKnownCandidate
+      : null;
 
   // 機械補完（AniList由来。content/works/autoSchedule.json）は最下位の層。
   // Annictの実データ・人力補完のどちらかがあれば**使わない**（二次情報が確定情報を

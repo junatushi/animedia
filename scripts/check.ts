@@ -355,8 +355,11 @@ console.log(`結果（配信スケジュール）: ${scheduleOk} 件OK / ${sched
 console.log("\n── 放送終了の推定（SNS投稿の「今日のアニメ一覧」） ──");
 let lastKnownOk = 0;
 let lastKnownNg = 0;
-function checkLastKnown(name: string, w: AnnictWork, expect: string | null) {
-  const got = toAnimeItem(w).broadcastLastKnownDate;
+// 既定の now は十分先に固定する（実行日で結果が変わらないように。「完結」の根拠判定は
+  // 日時に依存する＝hasConclusionEvidence）。
+const CHECK_NOW_MS = Date.parse("2027-06-01T00:00:00Z");
+function checkLastKnown(name: string, w: AnnictWork, expect: string | null, nowMs: number = CHECK_NOW_MS) {
+  const got = toAnimeItem(w, [], undefined, undefined, nowMs).broadcastLastKnownDate;
   const pass = got === expect;
   if (pass) lastKnownOk++; else lastKnownNg++;
   console.log(
@@ -399,12 +402,42 @@ checkLastKnown("programsなし → null", work([]), null);
   };
   checkLastKnown("話数付きの最終配信がある → そちら", { ...work(lv999Programs), episodeTail: tail }, "2026-09-24");
   // episodeTail を取れなかった（取得失敗）ときは従来どおり全件の最終日＝完結と言いにくい側。
+  // （この3週間の枠は根拠不足ではなく、now が十分先なので「停滞」の根拠で通る）
   checkLastKnown("episodeTailなし → 全件の最終日", work(lv999Programs), "2026-10-08");
   // 画面の「完結」は時刻で出すので、日時もそのまま通ること。
-  const at = toAnimeItem({ ...work(lv999Programs), episodeTail: tail }).broadcastLastKnownAt;
+  const at = toAnimeItem({ ...work(lv999Programs), episodeTail: tail }, [], undefined, undefined, CHECK_NOW_MS).broadcastLastKnownAt;
   const atOk = at === "2026-09-23T15:30:00.000Z";
   if (atOk) lastKnownOk++; else lastKnownNg++;
   console.log(`${atOk ? "✓" : "✗"}  ${"最終配信の日時も通す".padEnd(34)} → ${at}`);
+
+  // ── 序盤の作品に「完結」を出さない（2026-10-18・利用者の指摘） ──
+  // 放送枠は「済んだ分＋数週先」しか登録されないので、12話の作品が第4話の放送後に
+  // 「完結」と出ていた（生徒会にも穴はある！ほか、開始3〜4週目の7作品）。
+  // 根拠（第8話以上／最初から7週間以上／最後の記録から21日停滞）が無ければ出さない。
+  {
+    const weekly = (n: number, from = "2026-10-03T15:30:00Z") =>
+      Array.from({ length: n }, (_, i) => ({
+        channel: "dアニメストア",
+        startedAt: new Date(Date.parse(from) + i * 7 * 86400000).toISOString(),
+      }));
+    const tailOf = (n: number) => ({
+      lastRegisteredEpisode: n,
+      programs: weekly(n).map((p, i) => ({ ...p, episodeNumber: i + 1 })),
+    });
+    const lastDayMs = Date.parse("2026-10-24T15:30:00Z"); // 第4話
+    const justAfter = lastDayMs + 3600_000;
+    checkLastKnown("第4話まで（枠4つ）→ 完結にしない", { ...work(weekly(4)), episodeTail: tailOf(4) }, null, justAfter);
+    checkLastKnown("episodeTailなし・3週間分 → 完結にしない", work(weekly(4)), null, justAfter);
+    checkLastKnown("第12話まで → 完結にしてよい", { ...work(weekly(12)), episodeTail: tailOf(12) }, "2026-12-20",
+      Date.parse("2026-12-20T16:00:00Z"));
+    checkLastKnown("episodeTailなし・8話分の期間 → 完結にしてよい", work(weekly(8)), "2026-11-22",
+      Date.parse("2026-11-22T16:00:00Z"));
+    // 短い作品（特別編集版など）は、次の枠が増えないまま3週間たてば出す。
+    checkLastKnown("短い作品・停滞3週間未満 → 出さない", { ...work(weekly(1)), episodeTail: tailOf(1) }, null,
+      Date.parse("2026-10-20T00:00:00Z"));
+    checkLastKnown("短い作品・停滞3週間超 → 出す", { ...work(weekly(1)), episodeTail: tailOf(1) }, "2026-10-04",
+      Date.parse("2026-10-30T00:00:00Z"));
+  }
 
   function checkTail(name: string, t: Parameters<typeof lastEpisodeStreamAt>[0], expect: string | null) {
     const got = lastEpisodeStreamAt(t);

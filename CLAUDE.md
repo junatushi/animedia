@@ -735,6 +735,13 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   素の`.ts`に置く。検査は`node scripts/check.ts`の「行動ログの付随データ」節。
   **この検証を外さないこと**（外しても画面には何も出ず、気づくのは
   リポジトリに変な文字列が載った後）。経緯は`docs/operations.md`の㊶-2
+- **【基本ルール】「完結」は根拠があるときだけ出す（2026-10-18導入・重大度高）**: Annictは総話数を持たず、
+  放送枠は「済んだ分＋数週先」しか登録されない。最終話の時刻だけで判定すると12話の作品が第4話の後に
+  「完結」と出る（生徒会にも穴はある！ほか開始3〜4週目の7作品）。`lib/services.ts`の
+  `hasConclusionEvidence`が①第8話以上 ②話数不明なら最初から7週間以上 ③最後の記録から21日停滞、
+  のどれかを要求し、満たさなければ`broadcastLastKnown*`を`null`にする（SNSの「今日の一覧」から
+  外す判定も同じ値なので、序盤作品が一覧から消える不具合も同時に防ぐ）。`MIN_EPISODES_FOR_CONCLUSION`
+  を下げる前に`node scripts/check.ts`の回帰テストを読むこと。
 - `lib/services.ts` … 配信サービスの正準リスト `SERVICES` と判定 `classifyChannel`、`AnnictWork`→`AnimeItem`変換 `toAnimeItem`、`AnnictWork`→`AnimeDetail`変換 `toAnimeDetail`（声優・監督・製作会社・原作者を導出）。`AnimeItem.hasBroadcastData`はAnnictにprograms（TV含む）が1件でもあるかのフラグで、配信サービス0件のときUI（`ServiceMarks`）が「配信情報なし」（データ自体なし）と「TV放送のみ（配信情報は未登録の可能性）」を出し分けるのに使う
 - `lib/annict.ts` … Annict GraphQL クエリ（サーバー側専用）。シーズン一括取得 `fetchSeasonWorks` と単一作品取得 `fetchWorkById`。どちらも programs（放送/配信）と casts/staffs（声優・スタッフ）を取得する。**【重要】どのクエリでも `episode` を要求しないこと**（2026-08-16修正・重大度高）。Annictの`Program.episode`はnon-nullなのに話数未紐付けのprogramが実在し、要求するとGraphQLのnull伝播で**programノードが丸ごとnullになりchannel＝配信サービスごと消える**。2026-07-12に「300件超の追い取得」だけを直したが、1ページ目を取る`WORK_QUERY`が要求したままで、**一覧（/api/season）には出るのに作品ページだけ「配信情報なし」**という食い違いが残っていた（実例: 17359 スティール・ボール・ランはprograms11件が11件ともnull）。programsのフィールドは用途別の3定数（`PROGRAM_FIELDS_LIST`／`PROGRAM_FIELDS_DETAIL`＝＋rebroadcast／`PROGRAM_FIELDS_EPISODE`＝＋episode）にまとめてあり、episodeを含むのは配信開始通知メールの話数表示専用の`PROGRAMS_QUERY_EPISODE`と、**完結の推定専用**の`EPISODE_TAIL_QUERY`（2026-09-24追加。話数の無い「先の枠」を除いて最終話の配信日時を求める。応答は`episodeTail`にだけ入れ、**配信サービスの一覧には決して使わない**）の2本**だけ**。通知は`fetchWorkById(id, token, { withEpisode: true })`で2本目を投げ、`mergeEpisodeInfo`がchannel名＋startedAtを鍵に話数だけを重ねる（baseのノードは絶対に減らさない）。`node scripts/check.ts`が「episodeを書いてよいのは1箇所だけ」「withEpisodeを使うのは通知バッチだけ」「完結の推定用の応答を配信一覧に使わない」を機械的に検査するので消さないこと。経緯は`docs/operations.md`の㉙
 - `scripts/audit-coverage.ts` … 配信データ網羅率の点検スクリプト（`node scripts/audit-coverage.ts [year] [season]`）。season-updater/service-mapperエージェントが使う
