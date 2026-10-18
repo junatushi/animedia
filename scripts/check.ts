@@ -64,6 +64,7 @@ import {
   dueSlots,
   jstParts,
   bodyIncludesUrl,
+  X_BODY_URL_EXPERIMENT_DATES,
   pickDailyXPost,
   buildTodayAiring,
   hasLikelyEnded,
@@ -3055,7 +3056,29 @@ let xPolicyNg = 0;
     `${p6 ? "✓" : "✗"}  ${"週次キットは判定を日次と共有する".padEnd(40)} → bodyIncludesUrlを使う=${sharesPolicy} 死んだリプ下書き無し=${noDeadReplies}`
   );
 }
-console.log(`結果（Xの投稿方針）: ${6 - xPolicyNg} 件OK / ${xPolicyNg} 件NG`);
+// (7) 本文URLの実験（2026-10-18・docs/x-analytics.md）。例外は「日付で閉じた airing だけ」。
+  //     日付を外した呼び出し・別種別・実験日以外では従来どおりXの本文にURLを載せない。
+  {
+    const dates: string[] = X_BODY_URL_EXPERIMENT_DATES;
+    const allWednesday = dates.every((d) => new Date(`${d}T00:00:00Z`).getUTCDay() === 3);
+    const d0 = dates[0] ?? "2000-01-05";
+    const onlyAiringOnDate =
+      dates.length === 0 ||
+      (bodyIncludesUrl("x", d0, "airing") === true &&
+        bodyIncludesUrl("x", d0, "top5") === false &&
+        bodyIncludesUrl("x", d0, "spotlight") === false &&
+        bodyIncludesUrl("x", d0) === false &&
+        bodyIncludesUrl("x", "2000-01-05", "airing") === false);
+    // 終わった実験が残り続けると恒久化する。最後の日から14日を過ぎたら配列を空にさせる。
+    const last = dates.length ? dates[dates.length - 1] : null;
+    const stale = last !== null && Date.now() - Date.parse(`${last}T00:00:00Z`) > 14 * 86400000;
+    const p7 = allWednesday && onlyAiringOnDate && !stale;
+    if (!p7) xPolicyNg++;
+    console.log(
+      `${p7 ? "✓" : "✗"}  ${"本文URL実験は日付つきairingだけ・期限切れなし".padEnd(40)} → 全て水曜=${allWednesday} 範囲限定=${onlyAiringOnDate} 期限切れ=${stale}`
+    );
+  }
+console.log(`結果（Xの投稿方針）: ${7 - xPolicyNg} 件OK / ${xPolicyNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // SSRの中身が空にならないことの検査（2026-08-05追加・重大度高）
