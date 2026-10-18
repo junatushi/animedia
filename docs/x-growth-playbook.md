@@ -72,6 +72,7 @@ GitHub Issueとして起票する（本文は `scripts/print-growth-kit.js` →
 
 - どの投稿・作品・サービスが響いたかは `/admin/analytics`（`share_work`等）と、X側の
   インプレッション/プロフィールアクセスで見る。伸びたネタの切り口をキットの定番に育てる。
+- **Xアナリティクスのスクリーンショットの記録と方針は `docs/x-analytics.md`**（2026-10-17〜）。
 - 生成AI検索での引用は別途 週次モニタリング（`docs/operations.md`「⑨」）。
 
 ---
