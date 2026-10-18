@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-17",
+  "updatedAt": "2026-10-18",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -1396,6 +1396,15 @@
       "fetchedDate": "2026-09-14",
       "matchedBy": "mal",
       "title": "氷の城壁 第2期"
+    },
+    "17869": {
+      "date": "2027-01-22",
+      "precision": "day",
+      "kind": "release",
+      "sourceUrl": "https://anilist.co/anime/213814",
+      "fetchedDate": "2026-10-18",
+      "matchedBy": "mal",
+      "title": "アイカツスターズ！ ～星々のProgress～"
     },
     "17898": {
       "date": "2027-01",
