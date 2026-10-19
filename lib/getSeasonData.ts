@@ -4,19 +4,24 @@
 // 両方から共有する。
 import { unstable_cache } from "next/cache";
 import { fetchSeasonWorks, seasonCacheTag } from "./annict";
-import { toAnimeItem, overlayManualData } from "./services";
+import { toAnimeItemForCache, overlayManualData } from "./services";
 import { EXTRA_SERVICES } from "@/content/works/extraServices";
 import { RELEASE_DATES } from "@/content/works/releaseDates";
 // 機械補完した放送/公開の予定日（AniList由来。scripts/fetch-upcoming.js が1日2回更新する）。
 // Annictの実データも人力補完も無い作品にだけ効く最下位の層（lib/autoSchedule.ts）。
 import AUTO_SCHEDULE_FILE from "@/content/works/autoSchedule.json";
 import { parseAutoSchedules } from "./autoSchedule";
+// 「完結」の明示的な印（dアニメの「（全N話）」・しょぼいカレンダーの「終」）。
+// scripts/fetch-completion.js が GitHub Actions で取ってコミットする（lib/completion.ts）。
+import COMPLETION_FILE from "@/content/works/completion.json";
+import { parseCompletions, resolveCompletionFrom, type CompletionInput } from "./completion";
 import { isSeasonYearInRange, isFinishedSeason } from "./resolveSeasonParams";
 import { jstToday } from "./workAvailability";
 import type { SeasonResponse } from "./types";
 
 // モジュール読み込み時に1回だけ検証する（リクエストごとに全件検証しない）。
 const AUTO_SCHEDULES = parseAutoSchedules(AUTO_SCHEDULE_FILE);
+const COMPLETIONS = parseCompletions(COMPLETION_FILE);
 
 export const VALID_SEASONS = new Set(["winter", "spring", "summer", "autumn"]);
 
@@ -47,9 +52,11 @@ async function fetchAndBuild(year: string, season: string): Promise<SeasonRespon
 
   const seasonStr = `${year}-${season}`;
   const works = await fetchSeasonWorks(seasonStr, token);
+  // 「完結」はここ（キャッシュの中）では決めない。照合の材料（_completion）だけを入れておき、
+  // getCachedLiveSeasonData がキャッシュの外で completion.json と照合する（lib/completion.ts）。
   const items = works
     .map((w) =>
-      toAnimeItem(w, EXTRA_SERVICES[w.annictId], RELEASE_DATES[w.annictId], AUTO_SCHEDULES[w.annictId])
+      toAnimeItemForCache(w, EXTRA_SERVICES[w.annictId], RELEASE_DATES[w.annictId], AUTO_SCHEDULES[w.annictId])
     )
     .sort((a, b) => b.watchers - a.watchers);
 
@@ -153,9 +160,20 @@ async function getCachedLiveSeasonData(year: string, season: string): Promise<Se
   // データキャッシュはデプロイをまたいで残るので、終わったクール（TTL 1週間）に
   // あとから足した配信は、ここが無いと最大1週間出ない。overlayManualData は
   // 既にあるサービスに触らない（＝2回重ねても結果は同じ）ので、二重には入らない。
+  // 「完結」も**キャッシュの外で**決める（2026-10-19）。completion.json は1日1回の取得で
+  // 変わるが、キャッシュは今期6時間・終わったクール1週間なので、中で決めると更新が届かない
+  // （誤った印を取り下げても最大1週間残る）。材料（_completion）はここで外す＝APIには出さない。
   return {
     ...data,
-    items: data.items.map((it) => overlayManualData(it, EXTRA_SERVICES[it.id], RELEASE_DATES[it.id])),
+    items: data.items.map((raw) => {
+      const { _completion, ...it } = raw as typeof raw & { _completion?: CompletionInput };
+      const done = _completion ? resolveCompletionFrom(COMPLETIONS[it.id], _completion) : null;
+      return overlayManualData(
+        { ...it, completedAt: done?.at ?? null, completedBy: done?.by ?? null },
+        EXTRA_SERVICES[it.id],
+        RELEASE_DATES[it.id]
+      );
+    }),
   };
 }
 

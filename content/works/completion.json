@@ -1,0 +1,3250 @@
+{
+  "updatedAt": "2026-10-19",
+  "source": "しょぼいカレンダー（https://cal.syoboi.jp）の最終回の「終」フラグ・dアニメストアの「（全N話）」 — scripts/fetch-completion.js が生成。手で編集しない",
+  "works": {
+    "6187": {
+      "title": "二十世紀電氣目録-ユーレカ・エヴリカ-",
+      "syoboi": {
+        "tid": 7913,
+        "finalCount": 13,
+        "finalAt": "2026-09-27T14:00:00.000Z",
+        "prevAt": "2026-09-20T14:00:00.000Z"
+      },
+      "season": "2026-summer"
+    },
+    "6528": {
+      "title": "メビウス・ダスト",
+      "syoboi": {
+        "tid": 7928,
+        "finalCount": 12,
+        "finalAt": "2026-09-24T14:30:00.000Z",
+        "prevAt": "2026-09-17T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29118"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "7915": {
+      "title": "対ありでした。 ～お嬢さまは格闘ゲームなんてしない～",
+      "syoboi": {
+        "tid": 7945,
+        "finalCount": 12,
+        "finalAt": "2026-09-22T11:30:00.000Z",
+        "prevAt": "2026-09-15T11:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29089"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "8632": {
+      "title": "幼女戦記Ⅱ",
+      "syoboi": {
+        "tid": 7890,
+        "finalCount": 12,
+        "finalAt": "2026-09-23T12:30:00.000Z",
+        "prevAt": "2026-09-16T12:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29084"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "9521": {
+      "title": "とんがり帽子のアトリエ",
+      "syoboi": {
+        "tid": 7741,
+        "finalCount": 13,
+        "finalAt": "2026-06-22T14:00:00.000Z",
+        "prevAt": "2026-06-15T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28882"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "10352": {
+      "title": "乙女ゲー世界はモブに厳しい世界です2",
+      "syoboi": {
+        "tid": 7884,
+        "finalCount": 12,
+        "finalAt": "2026-09-23T14:30:00.000Z",
+        "prevAt": "2026-09-16T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29085"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "10635": {
+      "title": "TRIGUN STARGAZE",
+      "syoboi": {
+        "tid": 7693,
+        "finalCount": 12,
+        "finalAt": "2026-03-28T14:00:00.000Z",
+        "prevAt": "2026-03-21T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28580"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "10971": {
+      "title": "ゴールデンカムイ 最終章",
+      "syoboi": {
+        "tid": 7656,
+        "finalCount": 62,
+        "finalAt": "2026-03-30T14:00:00.000Z",
+        "prevAt": "2026-03-23T14:00:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "10982": {
+      "title": "地獄楽 第二期",
+      "syoboi": {
+        "tid": 7684,
+        "finalCount": 25,
+        "finalAt": "2026-03-29T14:45:00.000Z",
+        "prevAt": "2026-03-22T16:35:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "10985": {
+      "title": "Fate/strange Fake",
+      "syoboi": {
+        "tid": 7663,
+        "finalCount": 13,
+        "finalAt": "2026-03-28T14:30:00.000Z",
+        "prevAt": "2026-03-21T14:30:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "11036": {
+      "title": "勇者刑に処す 懲罰勇者9004隊刑務記録",
+      "syoboi": {
+        "tid": 7677,
+        "finalCount": 12,
+        "finalAt": "2026-03-26T13:30:00.000Z",
+        "prevAt": "2026-03-19T13:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28565"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "11119": {
+      "title": "アズールレーン びそくぜんしんっ！にっ！！",
+      "syoboi": {
+        "tid": 7944,
+        "finalCount": 12,
+        "finalAt": "2026-09-20T16:00:00.000Z",
+        "prevAt": "2026-09-13T16:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29097"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "11123": {
+      "title": "北斗の拳 -FIST OF THE NORTH STAR-",
+      "syoboi": {
+        "tid": 7841,
+        "finalCount": 14,
+        "finalAt": "2026-06-26T16:00:00.000Z",
+        "prevAt": "2026-06-19T16:00:00.000Z"
+      },
+      "season": "2026-spring"
+    },
+    "11193": {
+      "title": "転校先の清楚可憐な美少女が、昔男子と思って一緒に遊んだ幼馴染だった件",
+      "syoboi": {
+        "tid": 7934,
+        "finalCount": 12,
+        "finalAt": "2026-09-21T14:30:00.000Z",
+        "prevAt": "2026-09-14T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29064"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "11194": {
+      "title": "クラスで2番目に可愛い女の子と友だちになった",
+      "syoboi": {
+        "tid": 7761,
+        "finalCount": 12,
+        "finalAt": "2026-06-23T14:30:00.000Z",
+        "prevAt": "2026-06-16T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28724"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "11195": {
+      "title": "最強出涸らし皇子の暗躍帝位争い",
+      "syoboi": {
+        "tid": 7938,
+        "finalCount": 12,
+        "finalAt": "2026-09-21T11:57:00.000Z",
+        "prevAt": "2026-09-14T11:57:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29055"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "11269": {
+      "title": "お隣の天使様にいつの間にか駄目人間にされていた件2",
+      "syoboi": {
+        "tid": 7745,
+        "finalCount": 12,
+        "finalAt": "2026-06-19T13:30:00.000Z",
+        "prevAt": "2026-06-12T13:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28791"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "11864": {
+      "title": "本好きの下剋上 司書になるためには手段を選んでいられません 領主の養女",
+      "syoboi": {
+        "tid": 7794,
+        "finalCount": 24,
+        "finalAt": "2026-10-03T08:30:00.000Z",
+        "prevAt": "2026-09-26T08:30:00.000Z"
+      },
+      "season": "2026-spring"
+    },
+    "12323": {
+      "title": "呪術廻戦 死滅回游 前編",
+      "syoboi": {
+        "tid": 7685,
+        "finalCount": 59,
+        "finalAt": "2026-03-26T15:26:00.000Z",
+        "prevAt": "2026-03-19T15:26:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "12395": {
+      "title": "ドロヘドロ Season2",
+      "syoboi": {
+        "tid": 7820,
+        "finalCount": 23,
+        "finalAt": "2026-05-27T14:00:00.000Z",
+        "prevAt": "2026-05-20T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28789"
+        ],
+        "episodes": 11,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "12836": {
+      "title": "魔都精兵のスレイブ2",
+      "syoboi": {
+        "tid": 7657,
+        "finalCount": 12,
+        "finalAt": "2026-03-26T14:00:00.000Z",
+        "prevAt": "2026-03-19T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28602"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "12851": {
+      "title": "姫様“拷問”の時間です 第2期",
+      "syoboi": {
+        "tid": 7658,
+        "finalCount": 24,
+        "finalAt": "2026-03-30T14:30:00.000Z",
+        "prevAt": "2026-03-23T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28621"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "12923": {
+      "title": "違国日記",
+      "syoboi": {
+        "tid": 7668,
+        "finalCount": 13,
+        "finalAt": "2026-03-29T14:00:00.000Z",
+        "prevAt": "2026-03-22T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28598"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "12933": {
+      "title": "淡島百景",
+      "syoboi": {
+        "tid": 7760,
+        "finalCount": 12,
+        "finalAt": "2026-06-25T16:55:00.000Z",
+        "prevAt": "2026-06-18T16:55:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28802"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "12974": {
+      "title": "花ざかりの君たちへ",
+      "syoboi": {
+        "tid": 7674,
+        "finalCount": 12,
+        "finalAt": "2026-03-22T12:30:00.000Z",
+        "prevAt": "2026-03-15T12:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28632"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "12997": {
+      "title": "ダイヤのA actⅡ -Second Season-",
+      "syoboi": {
+        "tid": 7754,
+        "finalCount": 13,
+        "finalAt": "2026-06-28T08:30:00.000Z",
+        "prevAt": "2026-06-21T08:30:00.000Z"
+      },
+      "season": "2026-spring"
+    },
+    "13010": {
+      "title": "さよならララ",
+      "syoboi": {
+        "tid": 7917,
+        "finalCount": 12,
+        "finalAt": "2026-09-20T15:30:00.000Z",
+        "prevAt": "2026-09-13T15:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29090"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "13028": {
+      "title": "ダーウィン事変",
+      "syoboi": {
+        "tid": 7695,
+        "finalCount": 13,
+        "finalAt": "2026-03-31T15:00:00.000Z",
+        "prevAt": "2026-03-24T15:30:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "13052": {
+      "title": "攻殻機動隊 THE GHOST IN THE SHELL",
+      "syoboi": {
+        "tid": 7936,
+        "finalCount": 10,
+        "finalAt": "2026-09-08T14:20:00.000Z",
+        "prevAt": "2026-09-01T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29115"
+        ],
+        "episodes": 10,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "13208": {
+      "title": "多聞くん今どっち！？",
+      "syoboi": {
+        "tid": 7708,
+        "finalCount": 13,
+        "finalAt": "2026-03-28T16:00:00.000Z",
+        "prevAt": "2026-03-21T16:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28522"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "13537": {
+      "title": "魔法の姉妹ルルットリリィ",
+      "syoboi": {
+        "tid": 7786,
+        "finalCount": 12,
+        "finalAt": "2026-06-21T13:30:00.000Z",
+        "prevAt": "2026-06-14T13:30:00.000Z"
+      },
+      "season": "2026-spring"
+    },
+    "13582": {
+      "title": "無職転生Ⅲ ～異世界行ったら本気だす～",
+      "syoboi": {
+        "tid": 7891,
+        "finalCount": 14,
+        "finalAt": "2026-09-27T15:00:00.000Z",
+        "prevAt": "2026-09-20T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29056"
+        ],
+        "episodes": 14,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "13617": {
+      "title": "炎炎ノ消防隊 参ノ章 第2クール",
+      "syoboi": {
+        "tid": 7686,
+        "finalCount": 25,
+        "finalAt": "2026-04-03T16:53:00.000Z",
+        "prevAt": "2026-03-27T16:53:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "13722": {
+      "title": "ニワトリ・ファイター",
+      "syoboi": {
+        "tid": 7762,
+        "finalCount": 12,
+        "finalAt": "2026-06-21T15:00:00.000Z",
+        "prevAt": "2026-06-14T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28846"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "13737": {
+      "title": "リィンカーネーションの花弁",
+      "syoboi": {
+        "tid": 7812,
+        "finalCount": 13,
+        "finalAt": "2026-06-25T15:30:00.000Z",
+        "prevAt": "2026-06-18T15:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28779"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "13783": {
+      "title": "ガンバレ！中村くん！！",
+      "syoboi": {
+        "tid": 7769,
+        "finalCount": 13,
+        "finalAt": "2026-06-24T15:30:00.000Z",
+        "prevAt": "2026-06-17T15:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28775"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "13846": {
+      "title": "ようこそ実力至上主義の教室へ 4th Season 2年生編1学期",
+      "syoboi": {
+        "tid": 7753,
+        "finalCount": 16,
+        "finalAt": "2026-06-24T12:30:00.000Z",
+        "prevAt": "2026-06-17T12:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28815"
+        ],
+        "episodes": 16,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "13850": {
+      "title": "死亡遊戯で飯を食う。",
+      "danime": {
+        "workIds": [
+          "28566"
+        ],
+        "episodes": 11,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "14000": {
+      "title": "霧尾ファンクラブ",
+      "syoboi": {
+        "tid": 7751,
+        "finalCount": 12,
+        "finalAt": "2026-06-18T15:26:00.000Z",
+        "prevAt": "2026-06-11T15:26:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28807"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "14007": {
+      "title": "DARK MOON　-黒の月: 月の祭壇- Original By DARK MOON : THE BLOOD ALTAR WITH ENHYPEN",
+      "syoboi": {
+        "tid": 7725,
+        "finalCount": 12,
+        "finalAt": "2026-03-27T15:00:00.000Z",
+        "prevAt": "2026-03-20T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28620"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "14066": {
+      "title": "転生したらスライムだった件 第4期",
+      "syoboi": {
+        "tid": 7787,
+        "finalCount": 96,
+        "finalAt": "2026-09-25T14:00:00.000Z",
+        "prevAt": "2026-09-18T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28823"
+        ],
+        "episodes": 24,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "14068": {
+      "title": "葬送のフリーレン 第2期",
+      "syoboi": {
+        "tid": 7629,
+        "finalCount": 38,
+        "finalAt": "2026-03-27T14:00:00.000Z",
+        "prevAt": "2026-03-20T14:20:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28608"
+        ],
+        "episodes": 10,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "14074": {
+      "title": "杖と剣のウィストリア Season2",
+      "syoboi": {
+        "tid": 7781,
+        "finalCount": 24,
+        "finalAt": "2026-06-28T07:30:00.000Z",
+        "prevAt": "2026-06-21T07:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28838"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "14109": {
+      "title": "姫騎士は蛮族の嫁",
+      "syoboi": {
+        "tid": 7744,
+        "finalCount": 12,
+        "finalAt": "2026-06-25T12:30:00.000Z",
+        "prevAt": "2026-06-18T12:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28816"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "14129": {
+      "title": "夜桜さんちの大作戦 第2期",
+      "syoboi": {
+        "tid": 7783,
+        "finalCount": 39,
+        "finalAt": "2026-06-28T08:00:00.000Z",
+        "prevAt": "2026-06-21T08:00:00.000Z"
+      },
+      "season": "2026-spring"
+    },
+    "14130": {
+      "title": "【推しの子】第3期",
+      "syoboi": {
+        "tid": 7689,
+        "finalCount": 35,
+        "finalAt": "2026-03-25T14:00:00.000Z",
+        "prevAt": "2026-03-18T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28564"
+        ],
+        "episodes": 11,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "14132": {
+      "title": "逃げ上手の若君 第二期",
+      "syoboi": {
+        "tid": 7953,
+        "finalCount": 24,
+        "finalAt": "2026-10-02T14:30:00.000Z",
+        "prevAt": "2026-09-25T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29131"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "14141": {
+      "title": "穏やか貴族の休暇のすすめ。",
+      "syoboi": {
+        "tid": 7711,
+        "finalCount": 12,
+        "finalAt": "2026-03-25T15:30:00.000Z",
+        "prevAt": "2026-03-18T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28585"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "14309": {
+      "title": "エリスの聖杯",
+      "syoboi": {
+        "tid": 7680,
+        "finalCount": 12,
+        "finalAt": "2026-03-26T14:56:00.000Z",
+        "prevAt": "2026-03-19T14:56:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28619"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "14511": {
+      "title": "カヤちゃんはコワくない",
+      "syoboi": {
+        "tid": 7701,
+        "finalCount": 12,
+        "finalAt": "2026-03-29T08:30:00.000Z",
+        "prevAt": "2026-03-22T08:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28535"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "14516": {
+      "title": "異世界の沙汰は社畜次第",
+      "syoboi": {
+        "tid": 7696,
+        "finalCount": 12,
+        "finalAt": "2026-03-24T14:00:00.000Z",
+        "prevAt": "2026-03-17T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28570"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "14562": {
+      "title": "アルネの事件簿",
+      "syoboi": {
+        "tid": 7664,
+        "finalCount": 12,
+        "finalAt": "2026-03-24T16:41:00.000Z",
+        "prevAt": "2026-03-17T17:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28636"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "14667": {
+      "title": "天穂のサクナヒメ ココロワ稲作日誌",
+      "danime": {
+        "workIds": [
+          "28678"
+        ],
+        "episodes": 2,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "14719": {
+      "title": "魔入りました！入間くん 第4シリーズ",
+      "syoboi": {
+        "tid": 7770,
+        "finalCount": 24,
+        "finalAt": "2026-09-26T09:25:00.000Z",
+        "prevAt": "2026-09-19T09:25:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28780"
+        ],
+        "episodes": 24,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "14769": {
+      "title": "正反対な君と僕",
+      "syoboi": {
+        "tid": 7691,
+        "finalCount": 12,
+        "finalAt": "2026-03-29T08:00:00.000Z",
+        "prevAt": "2026-03-22T08:00:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "14784": {
+      "title": "透明男と人間女～そのうち夫婦になるふたり～",
+      "syoboi": {
+        "tid": 7697,
+        "finalCount": 12,
+        "finalAt": "2026-03-26T14:30:00.000Z",
+        "prevAt": "2026-03-19T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28600"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "14852": {
+      "title": "よわよわ先生",
+      "syoboi": {
+        "tid": 7771,
+        "finalCount": 12,
+        "finalAt": "2026-06-27T12:30:00.000Z",
+        "prevAt": "2026-06-20T12:30:00.000Z"
+      },
+      "season": "2026-spring"
+    },
+    "14863": {
+      "title": "ヘルモード ～やり込み好きのゲーマーは廃設定の異世界で無双する～",
+      "syoboi": {
+        "tid": 7669,
+        "finalCount": 12,
+        "finalAt": "2026-03-27T16:05:00.000Z",
+        "prevAt": "2026-03-20T16:05:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "14901": {
+      "title": "シャンピニオンの魔女",
+      "syoboi": {
+        "tid": 7706,
+        "finalCount": 12,
+        "finalAt": "2026-03-19T16:58:00.000Z",
+        "prevAt": "2026-03-12T16:58:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28555"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "14929": {
+      "title": "骸骨騎士様、只今異世界へお出掛け中Ⅱ",
+      "syoboi": {
+        "tid": 7877,
+        "finalCount": 12,
+        "finalAt": "2026-09-21T13:00:00.000Z",
+        "prevAt": "2026-09-14T13:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29050"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "14969": {
+      "title": "株式会社マジルミエ 第2期",
+      "syoboi": {
+        "tid": 7892,
+        "finalCount": 12,
+        "finalAt": "2026-09-26T15:55:00.000Z",
+        "prevAt": "2026-09-19T15:55:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29110"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "15002": {
+      "title": "MFゴースト 3rd Season",
+      "syoboi": {
+        "tid": 7687,
+        "finalCount": 37,
+        "finalAt": "2026-03-29T14:30:00.000Z",
+        "prevAt": "2026-03-22T14:30:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "15035": {
+      "title": "BLEACH 千年血戦篇-禍進譚-",
+      "syoboi": {
+        "tid": 7941,
+        "finalCount": 50,
+        "finalAt": "2026-10-26T15:00:00.000Z",
+        "prevAt": "2026-09-19T14:00:00.000Z"
+      },
+      "season": "2026-summer"
+    },
+    "15036": {
+      "title": "魔法少女リリカルなのは EXCEEDS Gun Blaze Vengeance",
+      "syoboi": {
+        "tid": 7823,
+        "finalCount": 12,
+        "finalAt": "2026-09-19T16:00:00.000Z",
+        "prevAt": "2026-09-12T16:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29058"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "15059": {
+      "title": "貴族転生 ～恵まれた生まれから最強の力を得る～",
+      "syoboi": {
+        "tid": 7702,
+        "finalCount": 12,
+        "finalAt": "2026-03-22T15:00:00.000Z",
+        "prevAt": "2026-03-15T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28623"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "15168": {
+      "title": "魔術師クノンは見えている",
+      "syoboi": {
+        "tid": 7673,
+        "finalCount": 13,
+        "finalAt": "2026-03-22T13:00:00.000Z",
+        "prevAt": "2026-03-15T13:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28626"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "15216": {
+      "title": "氷の城壁",
+      "syoboi": {
+        "tid": 7739,
+        "finalCount": 14,
+        "finalAt": "2026-07-02T14:56:00.000Z",
+        "prevAt": "2026-06-25T14:56:00.000Z"
+      },
+      "season": "2026-spring"
+    },
+    "15393": {
+      "title": "レプリカだって、恋をする。",
+      "syoboi": {
+        "tid": 7749,
+        "finalCount": 13,
+        "finalAt": "2026-06-30T14:30:00.000Z",
+        "prevAt": "2026-06-23T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28818"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "15481": {
+      "title": "猫と竜",
+      "syoboi": {
+        "tid": 7887,
+        "finalCount": 12,
+        "finalAt": "2026-09-12T12:30:00.000Z",
+        "prevAt": "2026-09-05T12:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29051"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "15516": {
+      "title": "火喰鳥 羽州ぼろ鳶組",
+      "syoboi": {
+        "tid": 7672,
+        "finalCount": 12,
+        "finalAt": "2026-04-05T14:30:00.000Z",
+        "prevAt": "2026-03-29T15:10:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28594"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "15557": {
+      "title": "きみが死ぬまで恋をしたい",
+      "syoboi": {
+        "tid": 7910,
+        "finalCount": 13,
+        "finalAt": "2026-09-29T12:30:00.000Z",
+        "prevAt": "2026-09-22T12:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29088"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "15558": {
+      "title": "勇者パーティを追い出された器用貧乏",
+      "syoboi": {
+        "tid": 7655,
+        "finalCount": 12,
+        "finalAt": "2026-03-18T15:00:00.000Z",
+        "prevAt": "2026-03-11T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28540"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "15623": {
+      "title": "BLACK TORCH",
+      "syoboi": {
+        "tid": 7923,
+        "finalCount": 12,
+        "finalAt": "2026-09-19T13:00:00.000Z",
+        "prevAt": "2026-09-12T13:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29116"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "15658": {
+      "title": "上伊那ぼたん、酔へる姿は百合の花",
+      "syoboi": {
+        "tid": 7747,
+        "finalCount": 12,
+        "finalAt": "2026-06-26T15:00:00.000Z",
+        "prevAt": "2026-06-19T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28790"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "15703": {
+      "title": "デッドアカウント",
+      "syoboi": {
+        "tid": 7676,
+        "finalCount": 12,
+        "finalAt": "2026-03-28T14:30:00.000Z",
+        "prevAt": "2026-03-21T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28536"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "15709": {
+      "title": "真夜中ハートチューン",
+      "syoboi": {
+        "tid": 7662,
+        "finalCount": 12,
+        "finalAt": "2026-03-24T14:00:00.000Z",
+        "prevAt": "2026-03-17T14:00:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "15710": {
+      "title": "転生したらドラゴンの卵だった",
+      "syoboi": {
+        "tid": 7698,
+        "finalCount": 12,
+        "finalAt": "2026-03-28T12:30:00.000Z",
+        "prevAt": "2026-03-21T12:30:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "15712": {
+      "title": "勇者のクズ",
+      "syoboi": {
+        "tid": 7703,
+        "finalCount": 24,
+        "finalAt": "2026-06-27T16:15:00.000Z",
+        "prevAt": "2026-06-20T16:15:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28567"
+        ],
+        "episodes": 24,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "15724": {
+      "title": "ふつつかな悪女ではございますが ～雛宮蝶鼠とりかえ伝～",
+      "syoboi": {
+        "tid": 7914,
+        "finalCount": 11,
+        "finalAt": "2026-09-20T15:15:00.000Z",
+        "prevAt": "2026-09-13T14:45:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29128"
+        ],
+        "episodes": 11,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "15751": {
+      "title": "これ描いて死ね",
+      "syoboi": {
+        "tid": 7889,
+        "finalCount": 12,
+        "finalAt": "2026-09-25T14:30:00.000Z",
+        "prevAt": "2026-09-18T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29124"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "15796": {
+      "title": "どうせ、恋してしまうんだ。 Season2",
+      "syoboi": {
+        "tid": 7659,
+        "finalCount": 24,
+        "finalAt": "2026-03-26T16:28:00.000Z",
+        "prevAt": "2026-03-19T16:28:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "15800": {
+      "title": "有栖川煉ってホントは女なんだよね。",
+      "syoboi": {
+        "tid": 7714,
+        "finalCount": 8,
+        "finalAt": "2026-03-08T16:00:00.000Z",
+        "prevAt": "2026-03-01T16:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28528"
+        ],
+        "episodes": 8,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "15801": {
+      "title": "青のミブロ -芹沢暗殺編-",
+      "syoboi": {
+        "tid": 7671,
+        "finalCount": 14,
+        "finalAt": "2026-03-28T08:30:00.000Z",
+        "prevAt": "2026-03-21T08:30:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "15802": {
+      "title": "メダリスト 第2期",
+      "syoboi": {
+        "tid": 7645,
+        "finalCount": 22,
+        "finalAt": "2026-03-21T16:30:00.000Z",
+        "prevAt": "2026-03-14T16:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28656"
+        ],
+        "episodes": 9,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "15816": {
+      "title": "幼馴染とはラブコメにならない",
+      "syoboi": {
+        "tid": 7666,
+        "finalCount": 12,
+        "finalAt": "2026-03-23T15:30:00.000Z",
+        "prevAt": "2026-03-16T15:00:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "15865": {
+      "title": "ポンコツ風紀委員とスカート丈が不適切なJKの話",
+      "syoboi": {
+        "tid": 7763,
+        "finalCount": 12,
+        "finalAt": "2026-06-22T14:24:00.000Z",
+        "prevAt": "2026-06-15T14:24:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28825"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "15872": {
+      "title": "わたしの幸せな結婚 特別篇",
+      "syoboi": {
+        "tid": 8088,
+        "finalCount": 29,
+        "finalAt": "2026-10-25T11:00:00.000Z",
+        "prevAt": "2026-10-25T10:30:00.000Z"
+      },
+      "season": "2026-autumn"
+    },
+    "15873": {
+      "title": "春夏秋冬代行者 春の舞",
+      "syoboi": {
+        "tid": 7768,
+        "finalCount": 14,
+        "finalAt": "2026-06-27T15:00:00.000Z",
+        "prevAt": "2026-06-20T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28834"
+        ],
+        "episodes": 14,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "15881": {
+      "title": "天幕のジャードゥーガル",
+      "syoboi": {
+        "tid": 7907,
+        "finalCount": 12,
+        "finalAt": "2026-09-12T14:30:00.000Z",
+        "prevAt": "2026-09-05T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29060"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "15885": {
+      "title": "カナン様はあくまでチョロい",
+      "syoboi": {
+        "tid": 7742,
+        "finalCount": 12,
+        "finalAt": "2026-06-20T16:00:00.000Z",
+        "prevAt": "2026-06-13T16:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28773"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "15912": {
+      "title": "お気楽領主の楽しい領地防衛～生産系魔術で名もなき村を最強の城塞都市に～",
+      "syoboi": {
+        "tid": 7692,
+        "finalCount": 12,
+        "finalAt": "2026-03-28T13:00:00.000Z",
+        "prevAt": "2026-03-21T13:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28601"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "15946": {
+      "title": "「お前ごときが魔王に勝てると思うな」と勇者パーティを追放されたので、王都で気ままに暮らしたい",
+      "syoboi": {
+        "tid": 7707,
+        "finalCount": 12,
+        "finalAt": "2026-03-26T15:30:00.000Z",
+        "prevAt": "2026-03-19T15:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28559"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16007": {
+      "title": "29歳独身中堅冒険者の日常",
+      "syoboi": {
+        "tid": 7670,
+        "finalCount": 12,
+        "finalAt": "2026-03-25T12:30:00.000Z",
+        "prevAt": "2026-03-18T12:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28568"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16022": {
+      "title": "うるわしの宵の月",
+      "syoboi": {
+        "tid": 7704,
+        "finalCount": 12,
+        "finalAt": "2026-03-29T07:30:00.000Z",
+        "prevAt": "2026-03-22T07:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28561"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16023": {
+      "title": "ヒロイン？聖女？いいえ、オールワークスメイドです（誇）！",
+      "syoboi": {
+        "tid": 7886,
+        "finalCount": 12,
+        "finalAt": "2026-09-09T13:30:00.000Z",
+        "prevAt": "2026-09-02T13:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29038"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16024": {
+      "title": "自称悪役令嬢な婚約者の観察記録。",
+      "syoboi": {
+        "tid": 7746,
+        "finalCount": 12,
+        "finalAt": "2026-06-22T13:00:00.000Z",
+        "prevAt": "2026-06-15T13:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28836"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16026": {
+      "title": "アンドロイドは経験人数に入りますか？？",
+      "syoboi": {
+        "tid": 7719,
+        "finalCount": 8,
+        "finalAt": "2026-02-27T16:00:00.000Z",
+        "prevAt": "2026-02-20T16:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28609"
+        ],
+        "episodes": 8,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16123": {
+      "title": "綺麗にしてもらえますか。",
+      "syoboi": {
+        "tid": 7660,
+        "finalCount": 12,
+        "finalAt": "2026-03-23T13:00:00.000Z",
+        "prevAt": "2026-03-16T13:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28523"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16132": {
+      "title": "鬼の花嫁",
+      "syoboi": {
+        "tid": 7946,
+        "finalCount": 12,
+        "finalAt": "2026-09-19T15:30:00.000Z",
+        "prevAt": "2026-09-12T15:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29072"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16143": {
+      "title": "鎧真伝サムライトルーパー",
+      "syoboi": {
+        "tid": 7654,
+        "finalCount": 12,
+        "finalAt": "2026-03-24T14:30:00.000Z",
+        "prevAt": "2026-03-17T14:30:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "16160": {
+      "title": "愛してるゲームを終わらせたい",
+      "syoboi": {
+        "tid": 7793,
+        "finalCount": 12,
+        "finalAt": "2026-06-30T14:00:00.000Z",
+        "prevAt": "2026-06-23T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28806"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16206": {
+      "title": "地獄先生ぬ〜べ〜 第2クール",
+      "syoboi": {
+        "tid": 7681,
+        "finalCount": 26,
+        "finalAt": "2026-03-25T17:00:00.000Z",
+        "prevAt": "2026-03-25T16:00:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "16239": {
+      "title": "魔王の娘は優しすぎる!!",
+      "syoboi": {
+        "tid": 7661,
+        "finalCount": 12,
+        "finalAt": "2026-03-25T13:00:00.000Z",
+        "prevAt": "2026-03-18T13:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28562"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16240": {
+      "title": "拷問バイトくんの日常",
+      "syoboi": {
+        "tid": 7678,
+        "finalCount": 12,
+        "finalAt": "2026-03-22T15:30:00.000Z",
+        "prevAt": "2026-03-15T15:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28571"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16248": {
+      "title": "片田舎のおっさん、剣聖になるⅡ",
+      "syoboi": {
+        "tid": 7883,
+        "finalCount": 12,
+        "finalAt": "2026-09-23T14:45:00.000Z",
+        "prevAt": "2026-09-16T14:57:00.000Z"
+      },
+      "season": "2026-summer"
+    },
+    "16264": {
+      "title": "悲劇の元凶となる最強外道ラスボス女王は民の為に尽くします。Season２",
+      "syoboi": {
+        "tid": 7748,
+        "finalCount": 12,
+        "finalAt": "2026-06-23T13:00:00.000Z",
+        "prevAt": "2026-06-16T13:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28805"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16266": {
+      "title": "ヴィジランテ -僕のヒーローアカデミア ILLEGALS- 第2期",
+      "syoboi": {
+        "tid": 7683,
+        "finalCount": 26,
+        "finalAt": "2026-03-30T13:00:00.000Z",
+        "prevAt": "2026-03-23T13:00:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "16271": {
+      "title": "灰原くんの強くて青春ニューゲーム",
+      "syoboi": {
+        "tid": 7798,
+        "finalCount": 12,
+        "finalAt": "2026-06-18T16:28:00.000Z",
+        "prevAt": "2026-06-11T16:28:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28842"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16285": {
+      "title": "最推しの義兄を愛でるため、長生きします！",
+      "syoboi": {
+        "tid": 7723,
+        "finalCount": 12,
+        "finalAt": "2026-03-24T12:55:00.000Z",
+        "prevAt": "2026-03-17T12:55:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28622"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16292": {
+      "title": "勇者パーティーにかわいい子がいたので、告白してみた。",
+      "syoboi": {
+        "tid": 7667,
+        "finalCount": 13,
+        "finalAt": "2026-03-31T14:00:00.000Z",
+        "prevAt": "2026-03-24T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28524"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16296": {
+      "title": "悪役令嬢は隣国の王太子に溺愛される",
+      "syoboi": {
+        "tid": 7679,
+        "finalCount": 12,
+        "finalAt": "2026-03-29T14:00:00.000Z",
+        "prevAt": "2026-03-22T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28533"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16299": {
+      "title": "黄泉のツガイ",
+      "syoboi": {
+        "tid": 7800,
+        "finalCount": 24,
+        "finalAt": "2026-09-19T14:30:00.000Z",
+        "prevAt": "2026-09-12T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28841"
+        ],
+        "episodes": 24,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16311": {
+      "title": "一畳間まんきつ暮らし！",
+      "syoboi": {
+        "tid": 7784,
+        "finalCount": 11,
+        "finalAt": "2026-06-20T17:00:00.000Z",
+        "prevAt": "2026-06-13T17:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28880"
+        ],
+        "episodes": 11,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16328": {
+      "title": "炎の闘球女 ドッジ弾子",
+      "syoboi": {
+        "tid": 7876,
+        "finalCount": 12,
+        "finalAt": "2026-09-21T14:00:00.000Z",
+        "prevAt": "2026-09-14T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29066"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16337": {
+      "title": "MAO",
+      "syoboi": {
+        "tid": 7772,
+        "finalCount": 26,
+        "finalAt": "2026-09-26T14:45:00.000Z",
+        "prevAt": "2026-09-19T14:45:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28840"
+        ],
+        "episodes": 26,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16339": {
+      "title": "グロウアップショウ ～ひまわりのサーカス団～",
+      "syoboi": {
+        "tid": 7925,
+        "finalCount": 13,
+        "finalAt": "2026-09-26T15:00:00.000Z",
+        "prevAt": "2026-09-19T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29093"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16340": {
+      "title": "神の庭付き楠木邸",
+      "syoboi": {
+        "tid": 7764,
+        "finalCount": 12,
+        "finalAt": "2026-06-20T16:30:00.000Z",
+        "prevAt": "2026-06-13T16:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28817"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16344": {
+      "title": "スノウボールアース",
+      "syoboi": {
+        "tid": 7796,
+        "finalCount": 13,
+        "finalAt": "2026-06-26T14:40:00.000Z",
+        "prevAt": "2026-06-19T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28814"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16391": {
+      "title": "スーパーの裏でヤニ吸うふたり",
+      "syoboi": {
+        "tid": 7850,
+        "finalCount": 12,
+        "finalAt": "2026-09-24T15:56:00.000Z",
+        "prevAt": "2026-09-17T15:06:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29057"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16393": {
+      "title": "サイボーグ009 ネメシス",
+      "danime": {
+        "workIds": [
+          "29120"
+        ],
+        "episodes": 3,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16395": {
+      "title": "領民０人スタートの辺境領主様",
+      "syoboi": {
+        "tid": 7880,
+        "finalCount": 12,
+        "finalAt": "2026-09-25T13:30:00.000Z",
+        "prevAt": "2026-09-18T13:30:00.000Z"
+      },
+      "season": "2026-summer"
+    },
+    "16396": {
+      "title": "無自覚聖女は今日も無意識に力を垂れ流す",
+      "syoboi": {
+        "tid": 7901,
+        "finalCount": 12,
+        "finalAt": "2026-09-15T13:00:00.000Z",
+        "prevAt": "2026-09-08T13:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29092"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16405": {
+      "title": "いびってこない義母と義姉",
+      "syoboi": {
+        "tid": 7930,
+        "finalCount": 12,
+        "finalAt": "2026-09-25T17:23:00.000Z",
+        "prevAt": "2026-09-16T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29070"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16422": {
+      "title": "嫌な顔されながらおパンツ見せてもらいたいR",
+      "syoboi": {
+        "tid": 7851,
+        "finalCount": 6,
+        "finalAt": "2026-06-10T18:10:00.000Z",
+        "prevAt": "2026-06-03T18:10:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28918"
+        ],
+        "episodes": 6,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16424": {
+      "title": "あかね噺",
+      "syoboi": {
+        "tid": 7750,
+        "finalCount": 12,
+        "finalAt": "2026-06-20T14:30:00.000Z",
+        "prevAt": "2026-06-13T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28732"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16426": {
+      "title": "黒猫と魔女の教室",
+      "syoboi": {
+        "tid": 7785,
+        "finalCount": 24,
+        "finalAt": "2026-09-20T14:30:00.000Z",
+        "prevAt": "2026-09-13T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28819"
+        ],
+        "episodes": 24,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16427": {
+      "title": "ほっぺちゃん ～サン王国と黒ほっぺ団の秘密～",
+      "syoboi": {
+        "tid": 7716,
+        "finalCount": 12,
+        "finalAt": "2026-03-27T23:30:00.000Z",
+        "prevAt": "2026-03-20T23:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28558"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16440": {
+      "title": "ONE PIECE HEROINES",
+      "danime": {
+        "workIds": [
+          "29019"
+        ],
+        "episodes": 1,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16468": {
+      "title": "ブチ切れ令嬢は報復を誓いました。～魔導書の力で祖国を叩き潰します～",
+      "syoboi": {
+        "tid": 7894,
+        "finalCount": 12,
+        "finalAt": "2026-09-21T13:30:00.000Z",
+        "prevAt": "2026-09-14T13:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29098"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16478": {
+      "title": "LV999の村人",
+      "syoboi": {
+        "tid": 7899,
+        "finalCount": 12,
+        "finalAt": "2026-09-16T15:12:00.000Z",
+        "prevAt": "2026-09-09T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29103"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16485": {
+      "title": "LIAR GAME -ライアーゲーム-",
+      "syoboi": {
+        "tid": 7810,
+        "finalCount": 26,
+        "finalAt": "2026-09-28T15:00:00.000Z",
+        "prevAt": "2026-09-21T15:00:00.000Z"
+      },
+      "season": "2026-spring"
+    },
+    "16486": {
+      "title": "異世界のんびり農家2",
+      "syoboi": {
+        "tid": 7803,
+        "finalCount": 12,
+        "finalAt": "2026-06-22T13:30:00.000Z",
+        "prevAt": "2026-06-15T13:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28871"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16487": {
+      "title": "メイドさんは食べるだけ",
+      "syoboi": {
+        "tid": 7792,
+        "finalCount": 12,
+        "finalAt": "2026-06-14T13:00:00.000Z",
+        "prevAt": "2026-06-07T13:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28778"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16507": {
+      "title": "キルアオ",
+      "syoboi": {
+        "tid": 7779,
+        "finalCount": 12,
+        "finalAt": "2026-06-27T14:00:00.000Z",
+        "prevAt": "2026-06-20T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28881"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16519": {
+      "title": "バンドリ！ ゆめ∞みた",
+      "syoboi": {
+        "tid": 7919,
+        "finalCount": 13,
+        "finalAt": "2026-09-10T14:00:00.000Z",
+        "prevAt": "2026-09-03T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29021"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16520": {
+      "title": "人外教室の人間嫌い教師",
+      "syoboi": {
+        "tid": 7682,
+        "finalCount": 13,
+        "finalAt": "2026-04-04T15:00:00.000Z",
+        "prevAt": "2026-03-28T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28569"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16521": {
+      "title": "イチゴ哀歌 〜雑で生イキな妹と割り切れない兄〜",
+      "syoboi": {
+        "tid": 7718,
+        "finalCount": 12,
+        "finalAt": "2026-03-22T16:05:00.000Z",
+        "prevAt": "2026-03-15T16:05:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "16524": {
+      "title": "世界最強の後衛 ～迷宮国の新人探索者～",
+      "syoboi": {
+        "tid": 7902,
+        "finalCount": 12,
+        "finalAt": "2026-09-20T13:00:00.000Z",
+        "prevAt": "2026-09-13T13:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29063"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16529": {
+      "title": "ねずみくんのチョッキ",
+      "syoboi": {
+        "tid": 7819,
+        "finalCount": 13,
+        "finalAt": "2026-06-27T00:30:00.000Z",
+        "prevAt": "2026-06-20T00:30:00.000Z"
+      },
+      "season": "2026-spring"
+    },
+    "16538": {
+      "title": "手札が多めのビクトリア",
+      "syoboi": {
+        "tid": 7896,
+        "finalCount": 9,
+        "finalAt": "2026-09-01T15:00:00.000Z",
+        "prevAt": "2026-08-25T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29079"
+        ],
+        "episodes": 9,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16539": {
+      "title": "北斗の拳 拳王軍ザコたちの挽歌",
+      "syoboi": {
+        "tid": 7721,
+        "finalCount": 12,
+        "finalAt": "2026-03-23T11:00:00.000Z",
+        "prevAt": "2026-03-16T11:00:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "16541": {
+      "title": "時光代理人 -LINK CLICK- 英都篇",
+      "syoboi": {
+        "tid": 7735,
+        "finalCount": 8,
+        "finalAt": "2026-03-25T16:35:00.000Z",
+        "prevAt": "2026-03-18T16:35:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28629"
+        ],
+        "episodes": 8,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16554": {
+      "title": "自動販売機に生まれ変わった俺は迷宮を彷徨う 3rd season",
+      "syoboi": {
+        "tid": 7797,
+        "finalCount": 12,
+        "finalAt": "2026-06-24T13:00:00.000Z",
+        "prevAt": "2026-06-17T13:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28738"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16555": {
+      "title": "クレバテスⅡ-魔獣の王と偽りの勇者伝承-",
+      "syoboi": {
+        "tid": 7942,
+        "finalCount": 13,
+        "finalAt": "2026-09-30T12:00:00.000Z",
+        "prevAt": "2026-09-23T12:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29086"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16566": {
+      "title": "彼女、お借りします 第5期",
+      "syoboi": {
+        "tid": 7799,
+        "finalCount": 60,
+        "finalAt": "2026-06-26T17:25:00.000Z",
+        "prevAt": "2026-06-19T16:53:00.000Z"
+      },
+      "season": "2026-spring"
+    },
+    "16569": {
+      "title": "花織さんは転生しても喧嘩がしたい",
+      "syoboi": {
+        "tid": 7908,
+        "finalCount": 12,
+        "finalAt": "2026-09-26T17:00:00.000Z",
+        "prevAt": "2026-09-19T17:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29117"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16571": {
+      "title": "ぐらんぶる Season 3",
+      "syoboi": {
+        "tid": 7916,
+        "finalCount": 12,
+        "finalAt": "2026-09-21T15:00:00.000Z",
+        "prevAt": "2026-09-14T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29069"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16581": {
+      "title": "Dr.STONE SCIENCE FUTURE 第3クール",
+      "syoboi": {
+        "tid": 7774,
+        "finalCount": 37,
+        "finalAt": "2026-06-25T13:00:00.000Z",
+        "prevAt": "2026-06-18T13:00:00.000Z"
+      },
+      "season": "2026-spring"
+    },
+    "16583": {
+      "title": "こめかみっ！ Girls",
+      "syoboi": {
+        "tid": 7828,
+        "finalCount": 12,
+        "finalAt": "2026-06-18T17:30:00.000Z",
+        "prevAt": "2026-06-11T17:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28743"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16596": {
+      "title": "マリッジトキシン",
+      "syoboi": {
+        "tid": 7773,
+        "finalCount": 13,
+        "finalAt": "2026-06-30T14:00:00.000Z",
+        "prevAt": "2026-06-23T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28839"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16598": {
+      "title": "オタクに優しいギャルはいない!?",
+      "syoboi": {
+        "tid": 7743,
+        "finalCount": 12,
+        "finalAt": "2026-06-24T14:45:00.000Z",
+        "prevAt": "2026-06-17T14:45:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28808"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16606": {
+      "title": "ここは俺に任せて先に行けと言ってから10年がたったら伝説になっていた。",
+      "syoboi": {
+        "tid": 7935,
+        "finalCount": 12,
+        "finalAt": "2026-09-21T13:30:00.000Z",
+        "prevAt": "2026-09-14T13:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29061"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16624": {
+      "title": "カードファイト!! ヴァンガード Divinez 幻真星戦編",
+      "syoboi": {
+        "tid": 7688,
+        "finalCount": 12,
+        "finalAt": "2026-04-10T23:00:00.000Z",
+        "prevAt": "2026-04-03T23:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28534"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16632": {
+      "title": "レッツゴー怪奇組",
+      "syoboi": {
+        "tid": 7932,
+        "finalCount": 12,
+        "finalAt": "2026-09-27T07:30:00.000Z",
+        "prevAt": "2026-09-13T07:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29091"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16651": {
+      "title": "ハイスクール！奇面組 (2026)",
+      "syoboi": {
+        "tid": 7665,
+        "finalCount": 12,
+        "finalAt": "2026-03-27T14:30:00.000Z",
+        "prevAt": "2026-03-20T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28607"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16658": {
+      "title": "君のことが大大大大大好きな100人の彼女 第3期",
+      "syoboi": {
+        "tid": 7893,
+        "finalCount": 36,
+        "finalAt": "2026-09-20T13:30:00.000Z",
+        "prevAt": "2026-09-13T13:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29114"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16660": {
+      "title": "最強の職業は勇者でも賢者でもなく鑑定士（仮）らしいですよ？",
+      "syoboi": {
+        "tid": 7766,
+        "finalCount": 12,
+        "finalAt": "2026-06-13T13:30:00.000Z",
+        "prevAt": "2026-06-06T13:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28777"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16666": {
+      "title": "ゴーストコンサート : missing Songs",
+      "syoboi": {
+        "tid": 7755,
+        "finalCount": 12,
+        "finalAt": "2026-06-21T15:30:00.000Z",
+        "prevAt": "2026-06-14T15:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28803"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16675": {
+      "title": "お前はまだグンマを知らない～令和版～",
+      "danime": {
+        "workIds": [
+          "28531"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16677": {
+      "title": "才女のお世話 高嶺の花だらけな名門校で、学院一のお嬢様(生活能力皆無)を陰ながらお世話することになりました",
+      "syoboi": {
+        "tid": 7879,
+        "finalCount": 12,
+        "finalAt": "2026-09-19T17:38:00.000Z",
+        "prevAt": "2026-09-12T17:38:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29081"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16681": {
+      "title": "文豪ストレイドッグス わん！２",
+      "syoboi": {
+        "tid": 7922,
+        "finalCount": 12,
+        "finalAt": "2026-09-17T12:40:00.000Z",
+        "prevAt": "2026-09-10T12:40:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29087"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16682": {
+      "title": "逃がした魚は大きかったが釣りあげた魚が大きすぎた件",
+      "syoboi": {
+        "tid": 7789,
+        "finalCount": 12,
+        "finalAt": "2026-06-17T15:00:00.000Z",
+        "prevAt": "2026-06-10T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28837"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16697": {
+      "title": "クジマ歌えば家ほろろ",
+      "syoboi": {
+        "tid": 7790,
+        "finalCount": 12,
+        "finalAt": "2026-06-25T13:30:00.000Z",
+        "prevAt": "2026-06-18T13:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28873"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16706": {
+      "title": "NEEDY GIRL OVERDOSE",
+      "syoboi": {
+        "tid": 7795,
+        "finalCount": 13,
+        "finalAt": "2026-06-27T15:30:00.000Z",
+        "prevAt": "2026-06-20T15:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28792"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16710": {
+      "title": "左ききのエレン",
+      "syoboi": {
+        "tid": 7775,
+        "finalCount": 13,
+        "finalAt": "2026-06-30T15:00:00.000Z",
+        "prevAt": "2026-06-23T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28765"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16714": {
+      "title": "透明な夜に駆ける君と、目に見えない恋をした。",
+      "syoboi": {
+        "tid": 7885,
+        "finalCount": 12,
+        "finalAt": "2026-09-21T12:00:00.000Z",
+        "prevAt": "2026-09-14T12:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29036"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16715": {
+      "title": "学園アイドルマスター Story of Re;IRIS",
+      "danime": {
+        "workIds": [
+          "28612"
+        ],
+        "episodes": 11,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16725": {
+      "title": "また殺されてしまったのですね、探偵様",
+      "syoboi": {
+        "tid": 7811,
+        "finalCount": 12,
+        "finalAt": "2026-06-18T16:58:00.000Z",
+        "prevAt": "2026-06-11T16:58:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28811"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16729": {
+      "title": "神の雫",
+      "syoboi": {
+        "tid": 7776,
+        "finalCount": 24,
+        "finalAt": "2026-09-18T14:30:00.000Z",
+        "prevAt": "2026-09-11T14:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28782"
+        ],
+        "episodes": 24,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16730": {
+      "title": "茉莉花ちゃんの好感度はぶっ壊れている",
+      "syoboi": {
+        "tid": 7815,
+        "finalCount": 8,
+        "finalAt": "2026-06-07T16:00:00.000Z",
+        "prevAt": "2026-05-31T16:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28772"
+        ],
+        "episodes": 8,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16737": {
+      "title": "ただいま、おじゃまされます！",
+      "syoboi": {
+        "tid": 7752,
+        "finalCount": 12,
+        "finalAt": "2026-06-23T16:49:00.000Z",
+        "prevAt": "2026-06-16T16:49:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28878"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16739": {
+      "title": "ラブル＆クルー",
+      "syoboi": {
+        "tid": 7705,
+        "finalCount": 12,
+        "finalAt": "2026-03-28T00:45:00.000Z",
+        "prevAt": "2026-03-21T00:45:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "16792": {
+      "title": "鎧真伝サムライトルーパー 第2クール",
+      "syoboi": {
+        "tid": 7881,
+        "finalCount": 24,
+        "finalAt": "2026-09-22T14:30:00.000Z",
+        "prevAt": "2026-09-15T14:30:00.000Z"
+      },
+      "season": "2026-summer"
+    },
+    "16806": {
+      "title": "恐怖コレクター",
+      "syoboi": {
+        "tid": 8049,
+        "finalCount": 12,
+        "finalAt": "2026-12-26T14:45:00.000Z",
+        "prevAt": "2026-12-19T14:45:00.000Z"
+      },
+      "season": "2026-autumn"
+    },
+    "16822": {
+      "title": "令和のダラさん",
+      "syoboi": {
+        "tid": 7900,
+        "finalCount": 13,
+        "finalAt": "2026-09-24T12:30:00.000Z",
+        "prevAt": "2026-09-17T12:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29080"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16835": {
+      "title": "闇芝居 十六期",
+      "syoboi": {
+        "tid": 7715,
+        "finalCount": 13,
+        "finalAt": "2026-04-05T19:20:00.000Z",
+        "prevAt": "2026-03-29T18:20:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28574"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16836": {
+      "title": "Duel Masters LOST ～忘却の太陽～",
+      "danime": {
+        "workIds": [
+          "28584"
+        ],
+        "episodes": 4,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16856": {
+      "title": "鉄鍋のジャン！",
+      "syoboi": {
+        "tid": 7920,
+        "finalCount": 12,
+        "finalAt": "2026-09-20T08:30:00.000Z",
+        "prevAt": "2026-09-13T08:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29071"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16887": {
+      "title": "大きい女の子は好きですか？",
+      "syoboi": {
+        "tid": 7826,
+        "finalCount": 12,
+        "finalAt": "2026-06-21T16:05:00.000Z",
+        "prevAt": "2026-06-14T16:05:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28770"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "16896": {
+      "title": "チャギントン（シーズン4）",
+      "danime": {
+        "workIds": [
+          "28616"
+        ],
+        "episodes": 10,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-winter"
+    },
+    "16904": {
+      "title": "鳴海の平日",
+      "syoboi": {
+        "tid": 7991,
+        "finalCount": 4,
+        "finalAt": "2026-09-26T12:00:00.000Z",
+        "prevAt": "2026-09-19T12:00:00.000Z"
+      },
+      "season": "2026-summer"
+    },
+    "16910": {
+      "title": "乙女怪獣キャラメリゼ",
+      "syoboi": {
+        "tid": 7903,
+        "finalCount": 12,
+        "finalAt": "2026-09-17T16:38:00.000Z",
+        "prevAt": "2026-09-10T16:38:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29113"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "16982": {
+      "title": "あはれ！名作くん (完全新作アニメ)",
+      "syoboi": {
+        "tid": 7951,
+        "finalCount": 12,
+        "finalAt": "2026-09-20T16:15:00.000Z",
+        "prevAt": "2026-09-13T15:45:00.000Z"
+      },
+      "season": "2026-summer"
+    },
+    "17004": {
+      "title": "聖女なのに国を追い出されたので、崩壊寸前の隣国へ来ました～力を解放したので国が平和になってきましたが元の国まで加護は届きませんよ～ シーズン2",
+      "syoboi": {
+        "tid": 7729,
+        "finalCount": 24,
+        "finalAt": "2026-03-27T16:43:00.000Z",
+        "prevAt": "2026-03-20T16:13:00.000Z"
+      },
+      "season": "2026-winter"
+    },
+    "17013": {
+      "title": "キャンディーカリエス",
+      "danime": {
+        "workIds": [
+          "28769"
+        ],
+        "episodes": 24,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "17033": {
+      "title": "魔物喰らいの冒険者～俺だけ魔物を喰らって強くなる～",
+      "syoboi": {
+        "tid": 7827,
+        "finalCount": 12,
+        "finalAt": "2026-06-18T16:00:00.000Z",
+        "prevAt": "2026-06-11T16:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28795"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "17040": {
+      "title": "インゴクダンチ",
+      "syoboi": {
+        "tid": 7777,
+        "finalCount": 12,
+        "finalAt": "2026-06-21T16:10:00.000Z",
+        "prevAt": "2026-06-14T16:10:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28771"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "17042": {
+      "title": "盗掘王",
+      "syoboi": {
+        "tid": 7926,
+        "finalCount": 12,
+        "finalAt": "2026-09-29T15:40:00.000Z",
+        "prevAt": "2026-09-16T16:35:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29139"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17043": {
+      "title": "岩元先輩ノ推薦",
+      "syoboi": {
+        "tid": 7924,
+        "finalCount": 12,
+        "finalAt": "2026-09-19T13:30:00.000Z",
+        "prevAt": "2026-09-12T13:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29083"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17057": {
+      "title": "ワールド イズ ダンシング",
+      "syoboi": {
+        "tid": 7918,
+        "finalCount": 13,
+        "finalAt": "2026-09-24T13:00:00.000Z",
+        "prevAt": "2026-09-17T13:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29073"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17074": {
+      "title": "日本三國",
+      "syoboi": {
+        "tid": 7756,
+        "finalCount": 12,
+        "finalAt": "2026-06-22T15:00:00.000Z",
+        "prevAt": "2026-06-15T15:00:00.000Z"
+      },
+      "season": "2026-spring"
+    },
+    "17075": {
+      "title": "女神「異世界転生何になりたいですか」俺「勇者の肋骨で」",
+      "syoboi": {
+        "tid": 7806,
+        "finalCount": 12,
+        "finalAt": "2026-06-23T17:30:00.000Z",
+        "prevAt": "2026-06-16T17:30:00.000Z"
+      },
+      "season": "2026-spring"
+    },
+    "17088": {
+      "title": "ヤニねこ",
+      "syoboi": {
+        "tid": 7888,
+        "finalCount": 12,
+        "finalAt": "2026-09-24T15:30:00.000Z",
+        "prevAt": "2026-09-17T15:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29040"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17092": {
+      "title": "サンダー３",
+      "syoboi": {
+        "tid": 7927,
+        "finalCount": 12,
+        "finalAt": "2026-09-30T15:45:00.000Z",
+        "prevAt": "2026-09-16T16:05:00.000Z"
+      },
+      "season": "2026-summer"
+    },
+    "17099": {
+      "title": "大賢者リドルの時間逆行",
+      "danime": {
+        "workIds": [
+          "28796"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "17114": {
+      "title": "うしろの正面カムイさん",
+      "syoboi": {
+        "tid": 7949,
+        "finalCount": 12,
+        "finalAt": "2026-09-18T16:30:00.000Z",
+        "prevAt": "2026-09-11T16:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29099",
+          "29101"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17116": {
+      "title": "百鬼夜行抄",
+      "syoboi": {
+        "tid": 7840,
+        "finalCount": 12,
+        "finalAt": "2026-06-24T18:05:00.000Z",
+        "prevAt": "2026-06-17T18:05:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28799"
+        ],
+        "episodes": 6,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "17131": {
+      "title": "落第賢者の学院無双 ～二度目の転生、Sランクチート魔術師冒険録～",
+      "syoboi": {
+        "tid": 7897,
+        "finalCount": 12,
+        "finalAt": "2026-09-10T15:00:00.000Z",
+        "prevAt": "2026-09-03T15:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29039"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17134": {
+      "title": "パーフェクトアディクション",
+      "syoboi": {
+        "tid": 7964,
+        "finalCount": 12,
+        "finalAt": "2026-10-23T11:23:00.000Z",
+        "prevAt": "2026-10-16T11:23:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29076"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17147": {
+      "title": "「きみを愛する気はない」と言った次期公爵様がなぜか溺愛してきます",
+      "syoboi": {
+        "tid": 7898,
+        "finalCount": 12,
+        "finalAt": "2026-09-19T16:30:00.000Z",
+        "prevAt": "2026-09-12T16:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29067"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17192": {
+      "title": "同じゼミの染谷さんがセクシー女優だった話。",
+      "syoboi": {
+        "tid": 7947,
+        "finalCount": 8,
+        "finalAt": "2026-09-06T16:00:00.000Z",
+        "prevAt": "2026-08-23T16:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29062"
+        ],
+        "episodes": 8,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17196": {
+      "title": "プラノサウルス ガチコセイブツ部",
+      "danime": {
+        "workIds": [
+          "29125"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17296": {
+      "title": "捨てられ聖女の異世界ごはん旅 隠れスキルでキャンピングカーを召喚しました",
+      "syoboi": {
+        "tid": 7915,
+        "finalCount": 12,
+        "finalAt": "2026-09-21T14:00:00.000Z",
+        "prevAt": "2026-09-14T14:00:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29054"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17307": {
+      "title": "ぷちきゅあ～Precure Fairies～ シーズン3",
+      "syoboi": {
+        "tid": 7817,
+        "finalCount": 77,
+        "finalAt": "2026-09-24T09:30:00.000Z",
+        "prevAt": "2026-09-17T09:30:00.000Z"
+      },
+      "season": "2026-spring"
+    },
+    "17323": {
+      "title": "花ざかりの君たちへ 第2期",
+      "syoboi": {
+        "tid": 7931,
+        "finalCount": 13,
+        "finalAt": "2026-09-23T15:30:00.000Z",
+        "prevAt": "2026-09-16T15:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28633"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17333": {
+      "title": "北斗の拳 拳王軍ザコたちの挽歌 第2クール",
+      "syoboi": {
+        "tid": 7911,
+        "finalCount": 24,
+        "finalAt": "2026-09-21T11:00:00.000Z",
+        "prevAt": "2026-09-14T11:00:00.000Z"
+      },
+      "season": "2026-summer"
+    },
+    "17353": {
+      "title": "ヘルモード ～やり込み好きのゲーマーは廃設定の異世界で無双する～ 2nd Season",
+      "syoboi": {
+        "tid": 7895,
+        "finalCount": 25,
+        "finalAt": "2026-09-25T16:00:00.000Z",
+        "prevAt": "2026-09-18T16:00:00.000Z"
+      },
+      "season": "2026-summer"
+    },
+    "17361": {
+      "title": "正反対な君と僕 第2期",
+      "syoboi": {
+        "tid": 7825,
+        "finalCount": 25,
+        "finalAt": "2026-10-04T08:00:00.000Z",
+        "prevAt": "2026-09-27T08:00:00.000Z"
+      },
+      "season": "2026-summer"
+    },
+    "17371": {
+      "title": "身代わり令嬢を救ったのは冷酷無慈悲な氷の王子の愛でした",
+      "danime": {
+        "workIds": [
+          "29077"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17372": {
+      "title": "おねがい！ポコタ村長",
+      "danime": {
+        "workIds": [
+          "28804"
+        ],
+        "episodes": 26,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "17433": {
+      "title": "カードファイト!! ヴァンガード Divinez 運命星戦編",
+      "syoboi": {
+        "tid": 7987,
+        "finalCount": 3,
+        "finalAt": "2026-11-20T23:00:00.000Z",
+        "prevAt": "2026-11-13T23:00:00.000Z"
+      },
+      "season": "2026-autumn"
+    },
+    "17522": {
+      "title": "あんた私のことを好きだったの？",
+      "danime": {
+        "workIds": [
+          "28913"
+        ],
+        "episodes": 30,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "17523": {
+      "title": "これは二度目で最後の初恋",
+      "danime": {
+        "workIds": [
+          "28914"
+        ],
+        "episodes": 30,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-spring"
+    },
+    "17729": {
+      "title": "うしろの正面カムイさん ミニアニメ劇場",
+      "danime": {
+        "workIds": [
+          "29100"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17812": {
+      "title": "闇芝居 十七期",
+      "syoboi": {
+        "tid": 7948,
+        "finalCount": 13,
+        "finalAt": "2026-10-11T19:40:00.000Z",
+        "prevAt": "2026-10-04T18:20:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "29127"
+        ],
+        "episodes": 13,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17820": {
+      "title": "不死身な僕の日常 シーズン4",
+      "syoboi": {
+        "tid": 7952,
+        "finalCount": 12,
+        "finalAt": "2026-09-16T18:30:00.000Z",
+        "prevAt": "2026-09-09T18:30:00.000Z"
+      },
+      "danime": {
+        "workIds": [
+          "28641"
+        ],
+        "episodes": 12,
+        "seenAt": "2026-10-19T00:02:19.551Z"
+      },
+      "season": "2026-summer"
+    },
+    "17851": {
+      "title": "ガールズ＆パンツァー もっとらぶらぶ作戦です！",
+      "syoboi": {
+        "tid": 7738,
+        "finalCount": 12,
+        "finalAt": "2026-12-24T14:30:00.000Z",
+        "prevAt": "2026-12-17T14:30:00.000Z"
+      },
+      "season": "2026-autumn"
+    }
+  }
+}

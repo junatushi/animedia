@@ -239,6 +239,15 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   **MAL IDでの突き合わせが最優先・食い違いは採用しない・月精度に曜日を付けない・
   過去の予定日を出さない・取れなかった作品を消さない・1情報源の失敗で残りを巻き添えに
   しない**ことを固定する。ネットワークには出ない。`fetch-upcoming.js`を触ったら必ず実行する
+- `node scripts/fetch-completion.js` … **「完結」の明示的な印の取得**（2026-10-19導入）。
+  しょぼいカレンダーの最終回の「終」フラグ（作品の対応は Annict の`syobocalTid`＝`/api/season`が返す）と
+  dアニメストアの「（全N話）」（そのクールの一覧で題名が完全一致する作品だけ）を集めて
+  `content/works/completion.json`に書く。**推定はしない**（印が無い作品は書かない）。
+  毎日`.github/workflows/fetch-upcoming.yml`が1日2回（15時台・早朝）回すので手で実行する必要は無い。
+  中身が変わった日だけ書く。dアニメの「（全N話）」は最終話の配信と同時に付く（利用者の確認）ので、
+  「直近24時間に更新された作品」の一覧から最終話の配信時刻（`finalAt`）も記録する。
+  シークレット不要。回帰テストは`node scripts/check-fetch-completion.js`（`fetch-completion.js`か
+  `scripts/lib/completion-signals.js`を触ったら必ず実行する）。経緯は`docs/operations.md`の[65]
 - `node scripts/fetch-site-analytics.js` … **サイト自身の行動ログ集計の取得**（2026-08-19導入）。
   自前計測（Supabaseの`analytics_events`）は`/admin/analytics?token=...`の**画面にしか無く、
   ブラウザで開く以外に読む方法が無かった**。そのためセッションは実測値を一度も読めず、
@@ -735,6 +744,25 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   素の`.ts`に置く。検査は`node scripts/check.ts`の「行動ログの付随データ」節。
   **この検証を外さないこと**（外しても画面には何も出ず、気づくのは
   リポジトリに変な文字列が載った後）。経緯は`docs/operations.md`の㊶-2
+- **【基本ルール】「完結」は明示的な印があるときだけ出す。推定しない（2026-10-19導入・重大度高）**:
+  画面の「完結」とX投稿・SNS画像の「今日の配信」からの除外は、`AnimeItem.completedAt`
+  **だけ**で決める。入るのは**完結したら表記が変わる情報源**の印があるときだけ:
+  ①dアニメストアの作品ページの「（全N話）」 ②しょぼいカレンダーの最終回の「終」フラグ。
+  取得は`scripts/fetch-completion.js`（`fetch-upcoming.yml`の中で1日2回＝15時台は予定日と同じコミット、
+  早朝は完結の印だけ。印が変わった日だけコミット＝デプロイは1日最大2回）→`content/works/completion.json`、照合は`lib/completion.ts`の
+  `resolveCompletionFrom`（Annictの話数付き配信があれば最終話の最初の配信に合わせ、矛盾すれば捨てる）。
+  **照合はクール一覧のキャッシュの外で行うこと**（`lib/getSeasonData.ts`。中で行うと印の更新が
+  最大1週間届かない）。
+  経緯: 「Annictの最後の放送枠が過ぎたら完結」と推定しており、Annictは枠を数週先までしか登録しない
+  ため12話の作品が第4話の後に完結扱いになった（生徒会にも穴はある！ほか7作品・2026-10-18）。
+  **話数の下限（1〜2話完結がある）・期間・停滞日数（X投稿の一覧から外すには遅すぎる）で縛る案は
+  利用者に却下済み。再提案しないこと。** 印が無い作品は「分からない」＝完結を出さない。
+  dアニメは**そのクールの一覧で題名が完全一致**したものだけ（部分一致は別作品の全N話を拾う）、
+  しょぼいカレンダーは Annict の`syobocalTid`だけで対応付ける（推測しない）。
+  3箇所の判定（`components/SeasonExplorer.tsx`・`scripts/lib/build-digest.js`・
+  `app/api/sns-image/route.tsx`）が同じ`completedAt`を見て推定に戻っていないことは
+  `node scripts/check.ts`の「完結の判定」節、取得側は`node scripts/check-fetch-completion.js`が見張る。
+  経緯は`docs/operations.md`の[65]
 - `lib/services.ts` … 配信サービスの正準リスト `SERVICES` と判定 `classifyChannel`、`AnnictWork`→`AnimeItem`変換 `toAnimeItem`、`AnnictWork`→`AnimeDetail`変換 `toAnimeDetail`（声優・監督・製作会社・原作者を導出）。`AnimeItem.hasBroadcastData`はAnnictにprograms（TV含む）が1件でもあるかのフラグで、配信サービス0件のときUI（`ServiceMarks`）が「配信情報なし」（データ自体なし）と「TV放送のみ（配信情報は未登録の可能性）」を出し分けるのに使う
 - `lib/annict.ts` … Annict GraphQL クエリ（サーバー側専用）。シーズン一括取得 `fetchSeasonWorks` と単一作品取得 `fetchWorkById`。どちらも programs（放送/配信）と casts/staffs（声優・スタッフ）を取得する。**【重要】どのクエリでも `episode` を要求しないこと**（2026-08-16修正・重大度高）。Annictの`Program.episode`はnon-nullなのに話数未紐付けのprogramが実在し、要求するとGraphQLのnull伝播で**programノードが丸ごとnullになりchannel＝配信サービスごと消える**。2026-07-12に「300件超の追い取得」だけを直したが、1ページ目を取る`WORK_QUERY`が要求したままで、**一覧（/api/season）には出るのに作品ページだけ「配信情報なし」**という食い違いが残っていた（実例: 17359 スティール・ボール・ランはprograms11件が11件ともnull）。programsのフィールドは用途別の3定数（`PROGRAM_FIELDS_LIST`／`PROGRAM_FIELDS_DETAIL`＝＋rebroadcast／`PROGRAM_FIELDS_EPISODE`＝＋episode）にまとめてあり、episodeを含むのは配信開始通知メールの話数表示専用の`PROGRAMS_QUERY_EPISODE`と、**完結の推定専用**の`EPISODE_TAIL_QUERY`（2026-09-24追加。話数の無い「先の枠」を除いて最終話の配信日時を求める。応答は`episodeTail`にだけ入れ、**配信サービスの一覧には決して使わない**）の2本**だけ**。通知は`fetchWorkById(id, token, { withEpisode: true })`で2本目を投げ、`mergeEpisodeInfo`がchannel名＋startedAtを鍵に話数だけを重ねる（baseのノードは絶対に減らさない）。`node scripts/check.ts`が「episodeを書いてよいのは1箇所だけ」「withEpisodeを使うのは通知バッチだけ」「完結の推定用の応答を配信一覧に使わない」を機械的に検査するので消さないこと。経緯は`docs/operations.md`の㉙
 - `scripts/audit-coverage.ts` … 配信データ網羅率の点検スクリプト（`node scripts/audit-coverage.ts [year] [season]`）。season-updater/service-mapperエージェントが使う

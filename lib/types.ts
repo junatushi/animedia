@@ -15,12 +15,14 @@ export interface RawStaffNode {
 
 // 「話数が付いた最後の配信」を求めるための材料（lib/annict.ts の fetchEpisodeTails）。
 // programs と違い **配信サービスの一覧には使わない**（episode を要求した応答なので
-// 話数未紐付けの枠がノードごと欠けている）。完結の推定（broadcastLastKnownDate）専用。
+// 話数未紐付けの枠がノードごと欠けている）。「完結」の印と配信時刻の照合（lib/completion.ts）専用。
 export interface EpisodeTail {
   // Annictに登録済みの最新話（sortNumberの最大）の番号。番号の無い話なら null。
   lastRegisteredEpisode: number | null;
   // 話数が付いていて再放送でない枠だけを新しい順に（取得窓の中のもの）。
   programs: { channel: string; startedAt: string; episodeNumber: number | null }[];
+  // 取得に失敗した（＝「話数付きの配信が無い」とは違う）。「完結」の照合を保留する。
+  unavailable?: true;
 }
 
 export interface AnnictWork {
@@ -32,6 +34,10 @@ export interface AnnictWork {
   // 推測なしで特定するための共通キー（scripts/fetch-upcoming.js が使う）。
   // 2026-08-17実測で2026秋の99作品中86件が保有。持たない作品は null。
   malAnimeId: number | null;
+  // しょぼいカレンダーの作品ID（Annictが人の手で紐付けたもの）。「完結」の印（最終回の
+  // 「終」フラグ）を推測なしで引くための共通キー（scripts/fetch-completion.js が使う）。
+  // シーズン一覧（fetchSeasonWorks）でだけ取る。持たない作品は null。
+  syobocalTid?: number | null;
   image: { recommendedImageUrl: string | null } | null;
   // Annict の Media enum（TV / MOVIE / OVA / WEB / OTHER 等）。構造化データ（JSON-LD）で
   // 作品種別（TVSeries / Movie）を出し分けるために使う。
@@ -51,7 +57,7 @@ export interface AnnictWork {
     } | null)[];
   } | null;
   // シーズン一覧（fetchSeasonWorks）でだけ入る。undefined＝取っていない／取れなかった
-  // （そのときは従来どおり全件の最終日で推定する＝完結と言いにくい側に倒れる）。
+  // （そのときは「完結」の印をAnnictと照合せずにそのまま使う。lib/completion.ts）。
   episodeTail?: EpisodeTail;
   // 声優・スタッフ名での検索用に、シーズン一覧でも取得する（casts先頭5件・staffs先頭40件）。
   casts: RawCastNode[];
@@ -150,21 +156,22 @@ export interface AnimeItem {
   // 放送開始の1週間より前は「今週の曜日」のように見せず日付表示に切り替え、
   // カレンダー（曜日別グリッド）にも出さない基本ルールの判定に使う（SeasonExplorer側）。
   broadcastStartDate: string | null;
-  // 直近に配信記録があった日（"YYYY-MM-DD", JST）。streamingStarts（配信サービス＋
-  // その他配信。TV除く）のうち最も新しい startedAt から求める（2026-09-19導入）。
-  // Annictは総話数を持たないため「最終話が既に放送されたか」は直接判定できないが、
-  // 「直近の記録から何日経ったか」なら分かる。最終話の放送後もSNS投稿の「今日の
-  // アニメ一覧」に載り続けていた問題（毎週その曜日に一致するかしか見ておらず、終わりを
-  // 一度も見ていなかった）の修正に使う。scripts/lib/build-digest.js・
-  // app/api/sns-image/route.tsx・components/SeasonExplorer.tsx がそれぞれ同じ考え方の
-  // hasLikelyEnded を持つ（値が食い違わないことを scripts/check.ts が検査する）。
-  // 人力補完（extraServices.ts の schedule）しか無い作品は実際の配信履歴が無いため
-  // null のまま（broadcastStartDate と違いフォールバックが無い＝「まだ配信中」の
-  // 既定側に倒す）。
-  broadcastLastKnownDate: string | null;
-  // 上と同じ記録の日時（ISO）。画面の「完結」は日付ではなくこの時刻で出す
-  // （最終話を配信し終えた時点で出すため。SNSの「今日の一覧」は日付単位のまま）。
-  broadcastLastKnownAt: string | null;
+  // 「完結」した時刻（ISO）。**明示的な印があるときだけ**入る（2026-10-19導入）:
+  // dアニメストアの「（全N話）」か、しょぼいカレンダーの最終回の「終」フラグ。
+  // 推定はしない（Annictの最後の放送枠から推すと、12話の作品が第4話の後に完結扱いに
+  // なった＝2026-10-18）。印が無い作品は null＝「分からない」で、完結とは出さない。
+  // 時刻は Annict の話数付き配信があればその話の最初の配信に合わせる（lib/completion.ts）。
+  // 未来の時刻のこともある（最終回の枠が事前に登録されている）。使う側が「いま」と比べる:
+  // 画面の「完結」は時刻で（components/SeasonExplorer.tsx）、SNSの「今日の一覧」は
+  // JSTの日付で（最終話の当日は載せ、翌日から外す。scripts/lib/build-digest.js と
+  // app/api/sns-image/route.tsx）。スナップショット（過去年）の作品には無い。
+  completedAt?: string | null;
+  // どの印で決まったか（画面の「完結」の説明に出す）。
+  completedBy?: "syoboi" | "danime" | null;
+  // しょぼいカレンダーの作品ID（AnnictWork.syobocalTid をそのまま通す）。
+  // scripts/fetch-completion.js が**トークン無しで**（公開APIの /api/season だけで）
+  // 最終回の印を引けるようにするために公開している（malAnimeId と同じ理由）。
+  syobocalTid?: number | null;
   // 声優・スタッフ名での検索用。casts(先頭5件)の人物名 + staffs(先頭40件)の
   // 人物/組織名をまとめたもの（重複除去済み）。UIには出さず検索マッチにのみ使う。
   creditNames: string[];

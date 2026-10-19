@@ -61,6 +61,8 @@ interface RawWork {
   officialSiteUrl: string | null;
   // AniListとの突き合わせキー（lib/types.ts の AnnictWork.malAnimeId 参照）。
   malAnimeId: number | null;
+  // しょぼいカレンダーの作品ID（lib/types.ts の AnnictWork.syobocalTid 参照）。シーズン一覧でだけ取る。
+  syobocalTid?: number | null;
   image: { recommendedImageUrl: string | null } | null;
   media: string | null;
   programs: ProgramConn | null;
@@ -159,6 +161,7 @@ query ($season: String!, $after: String) {
       watchersCount
       officialSiteUrl
       malAnimeId
+      syobocalTid
       media
       image { recommendedImageUrl }
       programs(first: ${PROGRAMS_PER_WORK_LIST}) {
@@ -202,7 +205,7 @@ query ($id: Int!, $after: String) {
 }`;
 
 // 「話数が付いた最後の配信」を求める専用（2026-09-24導入。docs/operations.md の[53]）。
-// **完結の推定（broadcastLastKnownDate）にだけ使い、配信サービスの一覧には決して使わない。**
+// **「完結」の印と配信時刻の照合（lib/completion.ts）にだけ使い、配信サービスの一覧には決して使わない。**
 // Annictは放送枠を実際の話数より先の週まで登録することがあり（実測: 2026夏の配信記録が
 // ある91作品中82作品。LV999の村人は第12話＝9/24が最終なのに、話数の無い枠が10/8まで
 // 並んでいた）、全件の最終日で推定すると最終話の後も「まだ先の配信予定がある」と
@@ -476,8 +479,8 @@ export function mergeEpisodeInfo(base: ProgramNodes, withEpisode: ProgramNodes):
   }
 }
 
-// 作品ごとの EpisodeTail を取る。失敗したバッチの作品は Map に入らない
-// （＝呼び出し側で従来の推定に戻る）。**ここで例外を投げないこと**: この取得は
+// 作品ごとの EpisodeTail を取る。失敗したバッチの作品は unavailable の印を付ける
+// （＝「完結」の照合を保留する。lib/completion.ts）。**ここで例外を投げないこと**: この取得は
 // 「完結」の印のためのもので、失敗してシーズン一覧ごと落ちるのは割に合わない。
 async function fetchEpisodeTails(
   ids: number[],
@@ -519,7 +522,10 @@ async function fetchEpisodeTails(
         });
       }
     } catch (e) {
-      console.warn("話数付きの最終配信を取得できませんでした（従来の推定で続行）:", String(e).slice(0, 200));
+      // 取れなかった作品は「話数付きの配信が無い」と区別する（照合できないまま印を使うと、
+      // TVの時刻で配信より最大1週間早く完結になる。lib/completion.ts）。
+      for (const id of batch) tails.set(id, { lastRegisteredEpisode: null, programs: [], unavailable: true });
+      console.warn("話数付きの配信を取得できませんでした（完結の照合を保留）:", String(e).slice(0, 200));
     }
   });
   return tails;
@@ -598,6 +604,7 @@ export async function fetchSeasonWorks(
     watchersCount: w.watchersCount,
     officialSiteUrl: w.officialSiteUrl,
     malAnimeId: w.malAnimeId ?? null,
+    syobocalTid: w.syobocalTid ?? null,
     media: w.media,
     image: w.image,
     programs: w.programs ? { nodes: w.programs.nodes } : null,

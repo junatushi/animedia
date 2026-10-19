@@ -6,6 +6,9 @@ import { RELEASE_DATES } from "@/content/works/releaseDates";
 // 機械補完した放送/公開の予定日（AniList由来。scripts/fetch-upcoming.js が1日2回更新）。
 import AUTO_SCHEDULE_FILE from "@/content/works/autoSchedule.json";
 import { parseAutoSchedules } from "./autoSchedule";
+// 「完結」の明示的な印（lib/completion.ts。lib/getSeasonData.ts と同じもの）。
+import COMPLETION_FILE from "@/content/works/completion.json";
+import { parseCompletions } from "./completion";
 import ARCHIVE_INDEX from "@/content/archive/index.json";
 import type { AnimeDetail, SeasonResponse, WorkCastCredit, WorkCredits } from "./types";
 import type { RoleCredits } from "./studioIndex";
@@ -13,6 +16,7 @@ import { jstToday } from "./workAvailability";
 
 // 読み込み時に1回だけ検証する（lib/getSeasonData.ts と同じ）。
 const AUTO_SCHEDULES = parseAutoSchedules(AUTO_SCHEDULE_FILE);
+const COMPLETIONS = parseCompletions(COMPLETION_FILE);
 
 // content/archive/index.json から、作品ID→スナップショットファイル名（"{year}-{season}"）
 // の逆引きマップを1回だけ作る（モジュールスコープでキャッシュ。サーバーが温まっている
@@ -175,7 +179,7 @@ export async function getWorkData(id: number): Promise<AnimeDetail | null> {
       const w = await fetchWorkById(id, token);
       if (w) {
         return {
-          ...toAnimeDetail(w, EXTRA_SERVICES[id], RELEASE_DATES[id], AUTO_SCHEDULES[id]),
+          ...toAnimeDetail(w, EXTRA_SERVICES[id], RELEASE_DATES[id], AUTO_SCHEDULES[id], COMPLETIONS[id]),
           // ライブ取得したので「取得日」を名乗ってよい。粒度は日（時刻にすると
           // 再検証のたびに出力が変わり、中身が同じでもISR Writeが課金される）。
           fetchedAt: jstToday(),
