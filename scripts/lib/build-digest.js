@@ -73,8 +73,18 @@ function maxLenFor(platform) {
 // 他の3つ（Bluesky/Mastodon/Threads）はシャドウバンの対象ではなく、本文リンクで
 // 問題なく届いているので**触らない**。ここを true/false で切り替えるだけにしてあるのは、
 // 解除・再開の判断で戻す可能性があるため（戻すときはこの1関数だけを直す）。
-function bodyIncludesUrl(platform) {
-  return platform !== "x";
+//
+// 【2026-10-18・実験】Ban解除（08-16確認済み）後の計測で、返信に貼ったURLは本体258表示に対し
+// 4表示・リンククリック0だった（docs/x-analytics.md）。本文URLなしでは流入経路が実質無いので、
+// **X_BODY_URL_EXPERIMENT_DATES の日の airing 投稿だけ**本文にURLを入れて比べる。
+// 日付で閉じてあるのは、実験の終了を忘れても勝手に恒久化しないため（終わったら配列を空にする。
+// check.ts が「日付が水曜か」「過去の日付が残っていないか」を検査する）。
+// 引数を省いた呼び出し（週次キットなど）は従来どおり x=false。
+const X_BODY_URL_EXPERIMENT_DATES = ["2026-10-21", "2026-10-28"];
+const X_BODY_URL_EXPERIMENT_KIND = "airing";
+function bodyIncludesUrl(platform, todayStr, kind) {
+  if (platform !== "x") return true;
+  return kind === X_BODY_URL_EXPERIMENT_KIND && X_BODY_URL_EXPERIMENT_DATES.includes(todayStr);
 }
 
 // 1970-01-01からの経過日数。buildSpotlightの日替わりローテーションと同じ考え方。
@@ -521,7 +531,7 @@ function buildTodayAiring(data, weekday, year, label, url, todayStr, platform = 
   const max = maxLenFor(platform);
   // Xは本文にURLを載せない（リプライに退避する。bodyIncludesUrl のコメント参照）。
   // 字数計算にもそのまま効かせたいので、行を組み立てる全ての箇所でこの配列を展開する。
-  const urlLines = bodyIncludesUrl(platform) ? [url] : [];
+  const urlLines = bodyIncludesUrl(platform, todayStr, "airing") ? [url] : [];
 
   // タイトルを1本ずつ足していき、上限を超えない範囲で最大数を載せる。
   const picks = [];
@@ -701,7 +711,7 @@ async function buildDigest(now = new Date(), rawPlatform) {
         text: airingText,
         // buildTodayAiring は文字列を返すので、リプライ用URLはここで対にする
         // （本文へURLを入れるかの判定は buildTodayAiring 側と同じ bodyIncludesUrl を使う）。
-        replyUrl: bodyIncludesUrl(platform) ? null : shareUrl,
+        replyUrl: bodyIncludesUrl(platform, todayStr, "airing") ? null : shareUrl,
         screenshot: calendarScreenshot(shotUrl, WEEKDAY_LABEL[weekday]),
         image: airingImage(WEEKDAY_LABEL[weekday]),
       }
@@ -864,6 +874,8 @@ module.exports = {
   maxLenFor,
   // X運用の組み直し（2026-08-16導入）。scripts/check.ts が直接検査する。
   bodyIncludesUrl,
+  X_BODY_URL_EXPERIMENT_DATES,
+  buildTodayAiring,
   pickDailyXPost,
   X_DAILY_KIND,
   weekIndex,

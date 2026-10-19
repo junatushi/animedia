@@ -72,6 +72,7 @@ GitHub Issueとして起票する（本文は `scripts/print-growth-kit.js` →
 
 - どの投稿・作品・サービスが響いたかは `/admin/analytics`（`share_work`等）と、X側の
   インプレッション/プロフィールアクセスで見る。伸びたネタの切り口をキットの定番に育てる。
+- **Xアナリティクスのスクリーンショットの記録と方針は `docs/x-analytics.md`**（2026-10-17〜）。
 - 生成AI検索での引用は別途 週次モニタリング（`docs/operations.md`「⑨」）。
 
 ---
@@ -95,3 +96,6 @@ Bluesky / Mastodon / Threads は**対象外**（シャドウバンの対象で�
 逆戻りは `node scripts/check.ts` の「Xの投稿方針」節が6項目で検査する。
 **日次（`build-digest.js`）と週次（`build-growth-kit.js`）の両方**を見ているので、
 片方だけ直して片方が取り残される形（2026-08-05に実際に起きた）は防げている。
+
+> **2026-10-18 追記（実験）**: 上の「本文のURL: 入れない」には、10/21・10/28の水曜の airing 投稿だけ例外がある
+> （返信のURLが4表示・クリック0だったため。`docs/x-analytics.md` の実験の節）。期間外は変わらない。
