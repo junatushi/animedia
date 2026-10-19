@@ -146,14 +146,17 @@ const gaps = results
   .map((r) => (ackFor(r.work.id) ? { ...r, ackReason: ackFor(r.work.id)!.reason } : r));
 const unread = results.filter((r) => r.kind === "unread");
 // --json … 全作品の判定をそのまま出す（Issueに出ない「問題なし」の中身を人が点検するため）。
+// process.exit() で抜けないこと。Windows では stdout がパイプされていると、書き込み途中の
+// バッファを巻き込んで異常終了し、終了コードが 0 ではなく 3221226505 (0xC0000409) になる
+// （scripts/check.ts の末尾と同じ。CI の ubuntu では起きない）。分岐して自然に終わらせる。
 if (process.argv.includes("--json")) {
   process.stdout.write(JSON.stringify(results, null, 1) + "\n");
-  process.exit(0);
+} else {
+  const body = S.renderIssue({ gaps, unread, scanned: works.length, seasons, today });
+  if (body) process.stdout.write(body + "\n");
+  console.error(
+    `確認 ${works.length}作品（${seasons.join("／")}）: 要対応 ${gaps.length}・課金の区画あり問題なし ${
+      results.filter((r) => r.kind === "ok-pay").length
+    }・読めず ${unread.length}`
+  );
 }
-const body = S.renderIssue({ gaps, unread, scanned: works.length, seasons, today });
-if (body) process.stdout.write(body + "\n");
-console.error(
-  `確認 ${works.length}作品（${seasons.join("／")}）: 要対応 ${gaps.length}・課金の区画あり問題なし ${
-    results.filter((r) => r.kind === "ok-pay").length
-  }・読めず ${unread.length}`
-);
