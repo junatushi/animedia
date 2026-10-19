@@ -61,6 +61,8 @@ interface RawWork {
   officialSiteUrl: string | null;
   // AniListとの突き合わせキー（lib/types.ts の AnnictWork.malAnimeId 参照）。
   malAnimeId: number | null;
+  // しょぼいカレンダーの作品ID（lib/types.ts の AnnictWork.syobocalTid 参照）。シーズン一覧でだけ取る。
+  syobocalTid?: number | null;
   image: { recommendedImageUrl: string | null } | null;
   media: string | null;
   programs: ProgramConn | null;
@@ -159,6 +161,7 @@ query ($season: String!, $after: String) {
       watchersCount
       officialSiteUrl
       malAnimeId
+      syobocalTid
       media
       image { recommendedImageUrl }
       programs(first: ${PROGRAMS_PER_WORK_LIST}) {
@@ -202,7 +205,7 @@ query ($id: Int!, $after: String) {
 }`;
 
 // 「話数が付いた最後の配信」を求める専用（2026-09-24導入。docs/operations.md の[53]）。
-// **完結の推定（broadcastLastKnownDate）にだけ使い、配信サービスの一覧には決して使わない。**
+// **「完結」の印と配信時刻の照合（lib/completion.ts）にだけ使い、配信サービスの一覧には決して使わない。**
 // Annictは放送枠を実際の話数より先の週まで登録することがあり（実測: 2026夏の配信記録が
 // ある91作品中82作品。LV999の村人は第12話＝9/24が最終なのに、話数の無い枠が10/8まで
 // 並んでいた）、全件の最終日で推定すると最終話の後も「まだ先の配信予定がある」と
@@ -598,6 +601,7 @@ export async function fetchSeasonWorks(
     watchersCount: w.watchersCount,
     officialSiteUrl: w.officialSiteUrl,
     malAnimeId: w.malAnimeId ?? null,
+    syobocalTid: w.syobocalTid ?? null,
     media: w.media,
     image: w.image,
     programs: w.programs ? { nodes: w.programs.nodes } : null,

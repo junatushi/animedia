@@ -11,12 +11,17 @@ import { RELEASE_DATES } from "@/content/works/releaseDates";
 // Annictの実データも人力補完も無い作品にだけ効く最下位の層（lib/autoSchedule.ts）。
 import AUTO_SCHEDULE_FILE from "@/content/works/autoSchedule.json";
 import { parseAutoSchedules } from "./autoSchedule";
+// 「完結」の明示的な印（dアニメの「（全N話）」・しょぼいカレンダーの「終」）。
+// scripts/fetch-completion.js が GitHub Actions で取ってコミットする（lib/completion.ts）。
+import COMPLETION_FILE from "@/content/works/completion.json";
+import { parseCompletions } from "./completion";
 import { isSeasonYearInRange, isFinishedSeason } from "./resolveSeasonParams";
 import { jstToday } from "./workAvailability";
 import type { SeasonResponse } from "./types";
 
 // モジュール読み込み時に1回だけ検証する（リクエストごとに全件検証しない）。
 const AUTO_SCHEDULES = parseAutoSchedules(AUTO_SCHEDULE_FILE);
+const COMPLETIONS = parseCompletions(COMPLETION_FILE);
 
 export const VALID_SEASONS = new Set(["winter", "spring", "summer", "autumn"]);
 
@@ -49,7 +54,13 @@ async function fetchAndBuild(year: string, season: string): Promise<SeasonRespon
   const works = await fetchSeasonWorks(seasonStr, token);
   const items = works
     .map((w) =>
-      toAnimeItem(w, EXTRA_SERVICES[w.annictId], RELEASE_DATES[w.annictId], AUTO_SCHEDULES[w.annictId])
+      toAnimeItem(
+        w,
+        EXTRA_SERVICES[w.annictId],
+        RELEASE_DATES[w.annictId],
+        AUTO_SCHEDULES[w.annictId],
+        COMPLETIONS[w.annictId]
+      )
     )
     .sort((a, b) => b.watchers - a.watchers);
 

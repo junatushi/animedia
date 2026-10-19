@@ -467,34 +467,25 @@ function buildTop5(data, year, label, url, shotUrl = url, todayStr, platform = "
   };
 }
 
-// 「最終話が既に放送された可能性が高い」と見なすまでの猶予日数。
-// 【2026-09-24】9 → 0。最後の配信記録の翌日から完結扱いにする。
-// 9日の猶予があった間は、最終話から9日間「今日のアニメ一覧」に載り続けた
-// （実例: レッツロール！シナモロール シーズン2。最終話9/17の翌週木曜9/24の投稿に載った）。
-// 【同日訂正】下の「先まで一括で登録」は話数の無い先の枠を配信予定と取り違えていた
-// （docs/operations.md の[53]追記2）。完結の推定は話数付きの最終配信で行う。
-// 0にしてよい根拠は2026-09-24の実測で、Annictは配信予定を**先まで一括で登録している**:
-// 開始30日以上の2026夏85作品のうち、放送中の79作品は全て3日以上先まで記録があり
-// （最短+3日）、最後の記録が昨日以前だった6作品は6作品とも実際に終わっていた。
-// 登録が遅れた作品は一覧から外れる（載せ損ねる）側に倒れるが、終わった作品を
-// 「今日放送」と載せるより害が小さい（利用者の指定: 完結した作品はSNSに出さない）。
-// **同じ値を app/api/sns-image/route.tsx と components/SeasonExplorer.tsx も持つ**
-// （scripts/*.js は root の lib/*.ts を require しない設計のため。3つが食い違わない
-// ことを scripts/check.ts が検査する）。
-const LIKELY_ENDED_GAP_DAYS = 0;
-
-// 直近の配信記録から LIKELY_ENDED_GAP_DAYS を超えて間が空いたか。
-// Annictは総話数を持たないので「最終話が放送された」ことは**断定できない**。
-// ここで返すのはあくまで推定で、用途は「今日のアニメ一覧から外す」ことだけに留める
-// （「完結しました」のような断定はしない。CLAUDE.md の一次情報のみの方針）。
-// 記録が1件も無い作品（人力補完のscheduleだけの作品など）は false＝これまで通り載せる。
-function hasLikelyEnded(it, todayStr) {
-  if (!it.broadcastLastKnownDate) return false;
-  const lastMs = Date.parse(`${it.broadcastLastKnownDate}T00:00:00+09:00`);
-  const todayMs = Date.parse(`${todayStr}T00:00:00+09:00`);
-  if (Number.isNaN(lastMs) || Number.isNaN(todayMs)) return false;
-  const gapDays = Math.floor((todayMs - lastMs) / (24 * 60 * 60 * 1000));
-  return gapDays > LIKELY_ENDED_GAP_DAYS;
+// 完結した作品か（2026-10-19。旧 hasLikelyEnded＝推定は廃止）。
+// **明示的な印があるときだけ**完結とする: dアニメストアの「（全N話）」か、しょぼいカレンダーの
+// 最終回の「終」フラグ（サイト側 lib/completion.ts が completedAt に入れて /api/season で返す）。
+// 以前は「Annictの最後の放送枠が過ぎたら」と推定しており、Annictは枠を数週先までしか
+// 登録しないため、12話の作品が第4話の翌日から一覧から消えていた（2026-10-18）。
+// 印が無い作品は載せ続ける（「分からない」を「終わった」にしない）。
+// 日付単位で判定する: 最終話の当日（JST）はその日の放送として載せ、翌日から外す。
+// 画面の「完結」（components/SeasonExplorer.tsx）は時刻で、SNS画像
+// （app/api/sns-image/route.tsx）はここと同じ日付で判定する。3つが同じ completedAt を
+// 見ていることを scripts/check.ts が検査する。
+function completedDateJst(at) {
+  if (!at) return null;
+  const ms = Date.parse(at);
+  if (Number.isNaN(ms)) return null;
+  return new Date(ms + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+function hasCompleted(it, todayStr) {
+  const done = completedDateJst(it.completedAt);
+  return done !== null && done < todayStr;
 }
 
 // 月〜土: その曜日に放送/配信のある今期アニメ。注目度順に、字数上限まで詰める。
@@ -504,12 +495,12 @@ function hasLikelyEnded(it, todayStr) {
 // 8月開始前の水曜に「今日放送」と誤案内しかける）。実際に放送開始日を迎えている
 // 作品（broadcastStartDate <= 今日）だけに絞る。
 // 2026-09-19追記: 上と同じ理由で**終わりも見ていなかった**ため、最終話の放送後も
-// 毎週この一覧に載り続けていた。直近の配信記録から間が空いた作品も外す（hasLikelyEnded）。
+// 毎週この一覧に載り続けていた。完結した作品も外す（hasCompleted。2026-10-19から明示的な印だけ）。
 function buildTodayAiring(data, weekday, year, label, url, todayStr, platform = "x") {
   const today = data.items
     .filter((it) => it.broadcastWeekday === weekday)
     .filter((it) => !it.broadcastStartDate || it.broadcastStartDate <= todayStr)
-    .filter((it) => !hasLikelyEnded(it, todayStr))
+    .filter((it) => !hasCompleted(it, todayStr))
     .sort((a, b) => b.watchers - a.watchers);
   if (today.length === 0) return null;
 
@@ -881,8 +872,7 @@ module.exports = {
   buildSpotlight,
   // 放送終了の推定（2026-09-19導入）。scripts/check.ts が直接検査し、
   // 他2ファイルの複製と値が一致しているかも突き合わせる。
-  hasLikelyEnded,
-  LIKELY_ENDED_GAP_DAYS,
+  hasCompleted,
   // 週次X成長キット（build-growth-kit.js）から再利用する小ヘルパー。
   jstParts,
   currentSeasonByMonth,

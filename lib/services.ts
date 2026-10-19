@@ -8,6 +8,8 @@
 //   サービスを増やしたいときは SERVICES に1行足すだけ。
 // ───────────────────────────────────────────────────────────────
 
+import { resolveCompletion, type CompletionSignal } from "./completion.ts";
+
 export type ServiceKey =
   | "d_anime" | "abema" | "netflix" | "prime" | "unext"
   | "disney" | "hulu" | "lemino" | "dmm" | "bandai"
@@ -200,33 +202,28 @@ export function textOn(hex: string): string {
 // date（YYYY-MM-DD、JST）も併せて返す。まだ放送開始前の作品を「今週の曜日」のように
 // 見せてしまうミスリードを防ぐため、UI側（SeasonExplorer）で放送開始日までの残日数を
 // 判定する基準値として使う（基本ルール。2026-07-11 導入）。
-// lastKnownDate（最も新しい記録の日付）も併せて返す。曜日・時刻・date が「いつ始まったか」
-// なのに対し、こちらは「いつまで記録があるか」。Annictは総話数を持たないので「最終話が
-// 既に放送されたか」は直接には判定できないが、「直近の記録から何日経ったか」なら分かる。
-// 最終話の放送後もSNS投稿の「今日のアニメ一覧」に作品が載り続けていた不具合
-// （毎週その曜日に一致するかしか見ておらず、終わりを一度も見ていなかった）の修正に使う。
-// lastKnownAt は同じ記録の日時（ISO）。画面の「完結」を最終話の配信時刻から出すのに使う。
+// earliestMs（最初の記録の時刻）も返す。「完結」の印が別の作品のものを拾っていないかの
+// 照合に使う（lib/completion.ts）。「最後の記録」から完結を推定することは**しない**
+// （Annictは枠を数週先までしか登録しないので、12話の作品が第4話の後に完結扱いになった。
+// 2026-10-18。docs/operations.md の[65]）。
 type BroadcastSlot = {
   weekday: number;
   time: string;
   date: string;
-  lastKnownDate?: string;
-  lastKnownAt?: string;
+  earliestMs?: number;
 };
 
 function deriveBroadcastSlot(
   nodes: ({ startedAt: string | null } | null)[]
 ): BroadcastSlot | null {
   let earliest: number | null = null;
-  let latest: number | null = null;
   for (const p of nodes) {
     if (!p || !p.startedAt) continue;
     const ms = Date.parse(p.startedAt);
     if (Number.isNaN(ms)) continue;
     if (earliest === null || ms < earliest) earliest = ms;
-    if (latest === null || ms > latest) latest = ms;
   }
-  if (earliest === null || latest === null) return null;
+  if (earliest === null) return null;
 
   const jst = new Date(earliest + 9 * 60 * 60 * 1000);
   const weekday = jst.getUTCDay();
@@ -236,89 +233,8 @@ function deriveBroadcastSlot(
     weekday,
     time: `${hh}:${mm}`,
     date: jstDateStr(earliest),
-    lastKnownDate: jstDateStr(latest),
-    lastKnownAt: new Date(latest).toISOString(),
+    earliestMs: earliest,
   };
-}
-
-// 最終話が**最初に**配信された日時（ISO）。見つからなければ null（＝呼び出し側は従来の
-// 全件の最終日で推定する）。2026-09-24導入・2026-09-26に「最初」へ変更。docs/operations.md の[53]。
-// Annictは放送枠を実際の話数より先の週まで登録することがあり、全件の最終日だと
-// 最終話の後も「まだ先の配信予定がある」と読めてしまう（LV999の村人: 第12話＝9/24が
-// 最終なのに、話数の無い枠が10/8まで並んでいた）。
-// 「最初」を採る理由: 導入時は話数付きの配信の**最後**を採っていたため、数日〜12日遅れで
-// 配信するサービスがあると、最終話が出たあともそこまで「完結」が出なかった（2026-09-25
-// 実測で未完結扱い51作品中19作品。領民０人スタートの辺境領主様＝9/18に最終話が出たのに
-// 9/30まで出ない）。「完結」は「放送・配信が一巡した」の意味で出す。
-// 安全弁: 登録済みの最新話より、配信枠に紐付いた最新話の番号が小さい作品は null を返す。
-// 次の話が登録されているのに枠との紐付けが追いついていないだけ（＝まだ続いている）
-// かもしれないので、完結と言いにくい従来の推定に戻す（実例: 同じゼミの染谷さん＝
-// 第9話まで登録・第8話までしか枠に紐付いていない）。
-// 数える対象は配信（国内サービス＋その他配信）だけで、TV局は曜日・時刻と同じく除く
-// （TVの日付を使うと、SNS投稿の曜日＝配信の曜日とずれ、最終話の当日に一覧から落ちる）。
-// export はテスト用（scripts/check.ts）。
-export function lastEpisodeStreamAt(tail: import("./types").EpisodeTail): string | null {
-  const streams: { ms: number; episode: number | null }[] = [];
-  for (const p of tail.programs) {
-    if (classifyChannel(p.channel).kind === "tv") continue;
-    const ms = Date.parse(p.startedAt);
-    if (Number.isNaN(ms)) continue;
-    streams.push({ ms, episode: p.episodeNumber });
-  }
-  if (streams.length === 0) return null;
-  let latestEpisode: number | null = null;
-  for (const s of streams) {
-    if (s.episode !== null && (latestEpisode === null || s.episode > latestEpisode)) latestEpisode = s.episode;
-  }
-  if (
-    tail.lastRegisteredEpisode !== null &&
-    latestEpisode !== null &&
-    tail.lastRegisteredEpisode > latestEpisode
-  ) {
-    return null;
-  }
-  // 話数の番号がどれにも無い（numberText だけ等）ときは、最終話を特定できないので
-  // 導入時と同じく最後の配信を採る。
-  const picked =
-    latestEpisode === null
-      ? Math.max(...streams.map((s) => s.ms))
-      : Math.min(...streams.filter((s) => s.episode === latestEpisode).map((s) => s.ms));
-  return new Date(picked).toISOString();
-}
-
-// 「完結」と言ってよいだけの根拠があるか（2026-10-18導入・重大度高）。
-// Annictは総話数を持たず、放送枠は「放送が済んだ分＋せいぜい数週先」しか登録されない。
-// 最終話の時刻だけで判定すると、12話の作品が第4話の放送後に「完結」と出る
-// （実例: 生徒会にも穴はある！・テムパル・ルルットリリィ。2026-10-18の本番で
-// 開始3〜4週目の7作品が完結扱いだった）。そこで次のどれかを満たすときだけ根拠ありとする:
-//  ①話数付きの配信で第 MIN_EPISODES_FOR_CONCLUSION 話以上が出ている（1クール作品の下限）
-//  ②話数が取れていないときは、最初から最後の記録までが 7週間以上ある（毎週放送で8話分）
-//  ③最後の記録から STALE_DAYS_FOR_CONCLUSION 日以上、次の枠が増えていない
-//    （短編・特別編集版など話数が少ない作品が永久に完結しない側へ倒れないための出口）
-// どれも満たさないときは「完結」を出さない（完結と言いにくい側＝従来の方針）。
-// 日時に依存するので now を引数にする（テストが固定できるように）。
-// export はテスト用（scripts/check.ts）。
-export const MIN_EPISODES_FOR_CONCLUSION = 8;
-export const STALE_DAYS_FOR_CONCLUSION = 21;
-export const MIN_SPAN_DAYS_FOR_CONCLUSION = 49;
-
-export function hasConclusionEvidence(
-  tail: import("./types").EpisodeTail | undefined,
-  firstMs: number,
-  lastMs: number,
-  nowMs: number
-): boolean {
-  const dayMs = 24 * 60 * 60 * 1000;
-  if (nowMs - lastMs > STALE_DAYS_FOR_CONCLUSION * dayMs) return true;
-  let aired: number | null = null;
-  if (tail) {
-    for (const p of tail.programs) {
-      if (classifyChannel(p.channel).kind === "tv") continue;
-      if (p.episodeNumber !== null && (aired === null || p.episodeNumber > aired)) aired = p.episodeNumber;
-    }
-    if (aired !== null) return aired >= MIN_EPISODES_FOR_CONCLUSION;
-  }
-  return lastMs - firstMs >= MIN_SPAN_DAYS_FOR_CONCLUSION * dayMs;
 }
 
 function jstDateStr(ms: number): string {
@@ -362,7 +278,7 @@ export function toAnimeItem(
   extra: ExtraServiceEntry[] = [],
   release?: import("./types").ReleaseDateEntry,
   auto?: import("./types").AutoScheduleEntry,
-  nowMs: number = Date.now()
+  completion?: CompletionSignal
 ): import("./types").AnimeItem {
   const serviceMap = new Map<string, ServiceDef>();
   const others = new Set<string>();
@@ -401,8 +317,6 @@ export function toAnimeItem(
   // 無いため、streamingStarts（曜日・時刻の算出元）には加えない（誤った時刻を創作
   // しないため）。ただしextra側で一次情報の schedule が指定されていれば、Annictの
   // 実データが無いときだけフォールバックとして使う（下のmanualSlot参照）。
-  // 人力の schedule は「毎週この曜日」という一次情報なので lastKnownDate は持たない
-  // （＝実際の配信履歴が無い作品は「まだ配信中」の既定側に倒す）。
   let manualSlot: BroadcastSlot | null = null;
   for (const e of extra) {
     const def = SERVICES.find((s) => s.key === e.key);
@@ -419,19 +333,10 @@ export function toAnimeItem(
   const annictSlot = deriveBroadcastSlot(streamingStarts);
   const slot = annictSlot ?? manualSlot;
 
-  // 完結の推定に使う日時。最終話が最初に配信された日時が分かればそれを、
-  // 分からなければ全件の最終日時を使う（lastEpisodeStreamAt のコメント参照）。
-  // 人力の schedule（manualSlot）には配信履歴が無いので null のまま＝「まだ配信中」側。
-  // 根拠が足りないとき（まだ序盤で枠が数話ぶんしか登録されていない等）は null にして
-  // 「完結」も「SNSの今日の一覧から外す」も起こさない（hasConclusionEvidence 参照）。
-  const lastKnownCandidate = annictSlot
-    ? (w.episodeTail ? lastEpisodeStreamAt(w.episodeTail) : null) ?? annictSlot.lastKnownAt ?? null
-    : null;
-  const lastKnownAt =
-    annictSlot && lastKnownCandidate &&
-    hasConclusionEvidence(w.episodeTail, Date.parse(`${annictSlot.date}T00:00:00+09:00`), Date.parse(lastKnownCandidate), nowMs)
-      ? lastKnownCandidate
-      : null;
+  // 「完結」は明示的な印（dアニメの「（全N話）」・しょぼいカレンダーの「終」）があるときだけ。
+  // 推定はしない（lib/completion.ts の冒頭）。時刻は Annict の話数付き配信に合わせ、
+  // 矛盾すれば捨てる。人力の schedule しか無い作品にも印があれば効く（印そのものが根拠）。
+  const completed = resolveCompletion(completion, w.episodeTail, annictSlot?.earliestMs ?? null);
 
   // 機械補完（AniList由来。content/works/autoSchedule.json）は最下位の層。
   // Annictの実データ・人力補完のどちらかがあれば**使わない**（二次情報が確定情報を
@@ -469,8 +374,9 @@ export function toAnimeItem(
     broadcastStartDate: slot?.date ?? null,
     broadcastWeekday: slot?.weekday ?? null,
     broadcastTime: slot?.time ?? null,
-    broadcastLastKnownDate: lastKnownAt ? jstDateStr(Date.parse(lastKnownAt)) : null,
-    broadcastLastKnownAt: lastKnownAt,
+    completedAt: completed?.at ?? null,
+    completedBy: completed?.by ?? null,
+    syobocalTid: w.syobocalTid ?? null,
     creditNames,
     castNames,
     media: w.media ?? null,
@@ -573,8 +479,9 @@ export function toAnimeDetail(
   w: import("./types").AnnictWork,
   extra: ExtraServiceEntry[] = [],
   release?: import("./types").ReleaseDateEntry,
-  auto?: import("./types").AutoScheduleEntry
+  auto?: import("./types").AutoScheduleEntry,
+  completion?: CompletionSignal
 ): import("./types").AnimeDetail {
-  const item = toAnimeItem(w, extra, release, auto);
+  const item = toAnimeItem(w, extra, release, auto, completion);
   return { ...item, credits: deriveCredits(w.casts, w.staffs) };
 }

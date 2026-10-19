@@ -68,20 +68,19 @@ function currentSeasonByMonth(m: number): { key: string; label: string } {
   return { key: "autumn", label: "秋" };
 }
 
-// scripts/lib/build-digest.js の LIKELY_ENDED_GAP_DAYS / hasLikelyEnded と同じもの。
+// scripts/lib/build-digest.js の completedDateJst / hasCompleted と同じもの（2026-10-19）。
+// 完結は**明示的な印があるときだけ**（dアニメの「（全N話）」・しょぼいカレンダーの「終」。
+// lib/completion.ts が completedAt に入れる）。最終話の当日（JST）は載せ、翌日から外す。
 // この route は edge runtime で fs も root の lib/*.ts も使えないため、上の jstParts・
-// currentSeasonByMonth と同じ流儀で複製してある（値が食い違わないことを
+// currentSeasonByMonth と同じ流儀で複製してある（3箇所が同じ completedAt を見ていることを
 // scripts/check.ts が検査する）。本文（buildTodayAiring）から外した作品が画像にだけ
 // 残ると、投稿の文と添付画像で内容が食い違うので必ず両方に入れる。
-const LIKELY_ENDED_GAP_DAYS = 0;
-
-function hasLikelyEnded(it: { broadcastLastKnownDate: string | null }, todayStr: string): boolean {
-  if (!it.broadcastLastKnownDate) return false;
-  const lastMs = Date.parse(`${it.broadcastLastKnownDate}T00:00:00+09:00`);
-  const todayMs = Date.parse(`${todayStr}T00:00:00+09:00`);
-  if (Number.isNaN(lastMs) || Number.isNaN(todayMs)) return false;
-  const gapDays = Math.floor((todayMs - lastMs) / (24 * 60 * 60 * 1000));
-  return gapDays > LIKELY_ENDED_GAP_DAYS;
+function hasCompleted(it: { completedAt?: string | null }, todayStr: string): boolean {
+  if (!it.completedAt) return false;
+  const ms = Date.parse(it.completedAt);
+  if (Number.isNaN(ms)) return false;
+  const done = new Date(ms + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return done < todayStr;
 }
 
 // _h（JSTの日付＋時）はCDNのキャッシュキーを1時間ごとに変えるためだけの値で、
@@ -191,7 +190,7 @@ async function renderAiring(
   const items = data.items
     .filter((it) => it.broadcastWeekday === weekdayIdx)
     .filter((it) => !it.broadcastStartDate || it.broadcastStartDate <= todayStr)
-    .filter((it) => !hasLikelyEnded(it, todayStr))
+    .filter((it) => !hasCompleted(it, todayStr))
     .sort((a, b) => b.watchers - a.watchers);
 
   const MAX_ROWS = 6;

@@ -75,26 +75,24 @@ function isFarBeforePremiere(it: AnimeItem): boolean {
   return daysUntilStart(it.broadcastStartDate) > PREMIERE_LOOKAHEAD_DAYS;
 }
 
-// 「最終話が既に放送された可能性が高い」と見なすまでの猶予日数。
-// **同じ値を scripts/lib/build-digest.js と app/api/sns-image/route.tsx も持つ**
-// （scripts/*.js は root の lib/*.ts を require しない設計のため。3つが食い違わない
-// ことを scripts/check.ts が検査する）。
-const LIKELY_ENDED_GAP_DAYS = 0;
+// 「完結」の印を出すか（2026-10-19）。**明示的な印があるときだけ**（dアニメストアの
+// 「（全N話）」か、しょぼいカレンダーの最終回の「終」フラグ。lib/completion.ts）。
+// 推定はしない（Annictの最後の放送枠から推すと、12話の作品が第4話の後に完結扱いに
+// なった＝2026-10-18）。completedAt は最終回の枠が事前に登録されていると未来の時刻の
+// ことがあるので、いまと比べる（最終話の配信時刻を過ぎたら出す）。
+// **SNSの「今日の一覧」も同じ completedAt を使う**（日付単位。scripts/lib/build-digest.js と
+// app/api/sns-image/route.tsx）。3つが別の値を見ないことを scripts/check.ts が検査する。
+function isCompleted(it: AnimeItem): boolean {
+  if (!it.completedAt) return false;
+  const atMs = Date.parse(it.completedAt);
+  return !Number.isNaN(atMs) && Date.now() >= atMs;
+}
 
-// 直近の配信記録から間が空いたか（true＝最終話まで放送/配信された可能性が高い）。
-// Annictは総話数を持たないので**断定はできない**。カレンダーからは外さず（過去の
-// 放送枠を見るのに使えるため）、タイトル横に「完結」の印を出すだけに留める。
-// 画面では**最終話の配信時刻**を過ぎたら出す（2026-09-24）。SNSの「今日の一覧」は
-// 日付単位（最終話の日はその日の放送として載せ、翌日から外す）だが、画面の印は
-// 「もう最後まで配信された」を表すので時刻で見る。時刻の無い古いデータは日付で見る。
-function hasLikelyEnded(it: AnimeItem): boolean {
-  const dayMs = 24 * 60 * 60 * 1000;
-  const atMs = it.broadcastLastKnownAt ? Date.parse(it.broadcastLastKnownAt) : NaN;
-  if (!Number.isNaN(atMs)) return Date.now() > atMs + LIKELY_ENDED_GAP_DAYS * dayMs;
-  if (!it.broadcastLastKnownDate) return false;
-  const lastMs = new Date(`${it.broadcastLastKnownDate}T00:00:00+09:00`).getTime();
-  const gapDays = Math.floor((Date.now() - lastMs) / dayMs);
-  return gapDays > LIKELY_ENDED_GAP_DAYS;
+// 「完結」の説明（title属性）。どの印で決まったかをそのまま書く。
+function completedTitle(it: AnimeItem): string {
+  return it.completedBy === "danime"
+    ? "最終話まで配信済み（dアニメストアの作品ページに「全◯話」の表記が付いています）"
+    : "最終話まで放送/配信済み（しょぼいカレンダーの最終回の記録より）";
 }
 
 // "YYYY-MM-DD" → "M/D"（JST日付文字列をそのまま分解するだけなのでタイムゾーン変換不要）。
@@ -1475,11 +1473,8 @@ export default function SeasonExplorer({
                         <IntentLink href={`/anime/${it.id}`} className="calendar-title">
                           {it.title}
                         </IntentLink>
-                        {hasLikelyEnded(it) && (
-                          <span
-                            className="calendar-finished-tag"
-                            title="最終話まで放送/配信された可能性があります（直近の配信記録からの推定）"
-                          >
+                        {isCompleted(it) && (
+                          <span className="calendar-finished-tag" title={completedTitle(it)}>
                             完結
                           </span>
                         )}
@@ -1551,11 +1546,8 @@ export default function SeasonExplorer({
                 <h3 className="card-title">
                   <IntentLink href={`/anime/${it.id}`}>{it.title}</IntentLink>
                 </h3>
-                {hasLikelyEnded(it) && (
-                  <span
-                    className="card-finished-tag"
-                    title="最終話まで放送/配信された可能性があります（直近の配信記録からの推定）"
-                  >
+                {isCompleted(it) && (
+                  <span className="card-finished-tag" title={completedTitle(it)}>
                     完結
                   </span>
                 )}

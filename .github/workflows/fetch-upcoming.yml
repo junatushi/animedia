@@ -62,20 +62,31 @@ jobs:
         id: fetch
         run: node scripts/fetch-upcoming.js
 
+      # 「完結」の明示的な印（しょぼいカレンダーの最終回の「終」・dアニメの「（全N話）」）。
+      # 2026-10-19導入。ロジックと理由は scripts/fetch-completion.js の冒頭。
+      # **別のワークフローにしない**: content/works/ は画面に出るので、書き換えると本番デプロイが
+      # 起きる。予定日と同じコミットに載せればデプロイは1日最大1回のまま（Vercelの無料枠）。
+      # 最終回の枠は放送前に入ることが多く、サイトは最終話の時刻ちょうどに自分で切り替わるので、
+      # 1日1回で「迅速さ」は落ちない。予定日の取得が落ちても完結の取得は回す（逆も同じ）。
+      - name: 完結の印を取得する
+        id: completion
+        if: always()
+        run: node scripts/fetch-completion.js
+
       # 部分失敗（一部クールだけ取れた）でも、取れた分は残したい（fetch-upcoming.js は
       # 部分成功でも書き出したうえで終了コード1を返す）ので always() で回す。
       # 全クール失敗時はファイル自体が書き換わらないので、この後の判定で差分なしになる。
       - name: 取得結果をコミットする
         if: always()
         run: |
-          if [ -z "$(git status --porcelain content/works/autoSchedule.json)" ]; then
+          if [ -z "$(git status --porcelain content/works/autoSchedule.json content/works/completion.json)" ]; then
             echo "差分なし。コミットしません。"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add content/works/autoSchedule.json
-          git commit -m "次クールの放送予定日を取得（$(date -u +%Y-%m-%d)）"
+          git add content/works/autoSchedule.json content/works/completion.json
+          git commit -m "次クールの放送予定日・完結の印を取得（$(date -u +%Y-%m-%d)）"
           # 毎日コミットするワークフローが他にもあり（track-season.yml・gsc-snapshot.yml）、
           # scheduleの遅延で実行が重なるとpushが弾かれる。触るファイルは互いに違うので
           # rebaseして1回だけ再試行する（衝突しうる変更ではない）。
@@ -97,14 +108,15 @@ jobs:
               `定期取得が失敗しました。`,
               ``,
               `- ログ: ${url}`,
-              `- 取得内容: \`scripts/fetch-upcoming.js\``,
+              `- 取得内容: \`scripts/fetch-upcoming.js\` と \`scripts/fetch-completion.js\`（ログでどちらが落ちたか確認）`,
               ``,
               `よくある原因:`,
               `- 本番サイトの \`/api/season\` が落ちている（Annict障害・Vercelのデプロイ失敗）`,
               `- AniList側のレート制限（90req/分）や仕様変更`,
+              `- しょぼいカレンダー（db.php）・dアニメストアの一覧や作品ページの形が変わった（完結の印）`,
               ``,
               `一時的なエラー（429・5xx）は指数バックオフで再試行済みなので、ここまで来た失敗は恒久的なものの可能性が高いです。`,
-              `手で回すときは \`node scripts/fetch-upcoming.js\`（シークレット不要）。`,
+              `手で回すときは \`node scripts/fetch-upcoming.js\` / \`node scripts/fetch-completion.js\`（シークレット不要）。`,
             ].join("\n");
             if (open.length > 0) {
               await github.rest.issues.createComment({ ...context.repo, issue_number: open[0].number, body });
