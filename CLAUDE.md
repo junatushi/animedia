@@ -243,7 +243,9 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   しょぼいカレンダーの最終回の「終」フラグ（作品の対応は Annict の`syobocalTid`＝`/api/season`が返す）と
   dアニメストアの「（全N話）」（そのクールの一覧で題名が完全一致する作品だけ）を集めて
   `content/works/completion.json`に書く。**推定はしない**（印が無い作品は書かない）。
-  毎日`.github/workflows/fetch-upcoming.yml`が回すので手で実行する必要は無い。中身が変わった日だけ書く。
+  毎日`.github/workflows/fetch-upcoming.yml`が1日2回（15時台・早朝）回すので手で実行する必要は無い。
+  中身が変わった日だけ書く。dアニメの「（全N話）」は最終話の配信と同時に付く（利用者の確認）ので、
+  「直近24時間に更新された作品」の一覧から最終話の配信時刻（`finalAt`）も記録する。
   シークレット不要。回帰テストは`node scripts/check-fetch-completion.js`（`fetch-completion.js`か
   `scripts/lib/completion-signals.js`を触ったら必ず実行する）。経緯は`docs/operations.md`の[65]
 - `node scripts/fetch-site-analytics.js` … **サイト自身の行動ログ集計の取得**（2026-08-19導入）。
@@ -746,8 +748,8 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   画面の「完結」とX投稿・SNS画像の「今日の配信」からの除外は、`AnimeItem.completedAt`
   **だけ**で決める。入るのは**完結したら表記が変わる情報源**の印があるときだけ:
   ①dアニメストアの作品ページの「（全N話）」 ②しょぼいカレンダーの最終回の「終」フラグ。
-  取得は`scripts/fetch-completion.js`（`fetch-upcoming.yml`の中で1日1回・予定日と同じコミット＝
-  デプロイは1日最大1回）→`content/works/completion.json`、照合は`lib/completion.ts`の
+  取得は`scripts/fetch-completion.js`（`fetch-upcoming.yml`の中で1日2回＝15時台は予定日と同じコミット、
+  早朝は完結の印だけ。印が変わった日だけコミット＝デプロイは1日最大2回）→`content/works/completion.json`、照合は`lib/completion.ts`の
   `resolveCompletionFrom`（Annictの話数付き配信があれば最終話の最初の配信に合わせ、矛盾すれば捨てる）。
   **照合はクール一覧のキャッシュの外で行うこと**（`lib/getSeasonData.ts`。中で行うと印の更新が
   最大1週間届かない）。

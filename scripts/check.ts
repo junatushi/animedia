@@ -484,6 +484,13 @@ function checkDone(name: string, got: string | null | undefined, expect: string 
   checkDone("全12話＋Annict第12話 → その配信", resolveCompletion(dan(12), lvTail, null)?.at ?? null, at("2026-09-10T15:00:00Z"));
   checkDone("全24話（通算）・Annictは第12話まで → 初めて見た時刻", resolveCompletion(dan(24, "2026-09-24T15:00:00Z"), lvTail, null)?.at ?? null, at("2026-09-24T15:00:00Z"));
   checkDone("Annictなし → 初めて見た時刻", resolveCompletion(dan(3), undefined, null)?.at ?? null, at("2026-10-19T00:00:00Z"));
+  // dアニメ自身の最終話の時刻（直近24時間の更新一覧から）があればそちら。初めて見た時刻より後なら使わない。
+  const danAt = (episodes: number, finalAt: string, seenAt = "2026-10-19T00:00:00Z") => ({
+    danime: { workIds: ["1"], episodes, finalAt, seenAt },
+  });
+  checkDone("dアニメの最終話の時刻 → そちら", resolveCompletion(danAt(3, "2026-10-18T15:30:00Z"), undefined, null)?.at ?? null, at("2026-10-18T15:30:00Z"));
+  checkDone("最終話の時刻が初めて見た時刻より後 → 初めて見た時刻", resolveCompletion(danAt(3, "2026-10-25T15:30:00Z"), undefined, null)?.at ?? null, at("2026-10-19T00:00:00Z"));
+  checkDone("壊れた最終話の時刻は捨てる", parseCompletionEntry({ danime: { workIds: ["1"], episodes: 3, finalAt: "x", seenAt: "2026-10-19T00:00:00Z" } }) === null ? null : "kept", null);
   checkDone("全N話より先の話が配信済み → 捨てる", resolveCompletion(dan(4, "2026-12-01T00:00:00Z"), tailOf(weekly(6)), null)?.at ?? null, null);
   checkDone("全1話と同時に第2話 → 捨てる", resolveCompletion(dan(1, "2026-10-03T15:30:00Z"), dbl, null)?.at ?? null, null);
   // dアニメ側の照合（別作品の印を拾った場合の守り）: 初回配信より前／その後に初出の話あり → 捨てる。

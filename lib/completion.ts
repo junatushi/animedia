@@ -48,9 +48,10 @@ export interface SyoboiCompletion {
 export interface DanimeCompletion {
   workIds: string[];
   episodes: number;
-  // 「（全N話）」を初めて見た時刻。dアニメの一覧は最終話の時刻を返さない
-  // （latestPartPublicDate が全作品 null。2026-10-19実測）ので、番号がAnnictとそろわない作品は
-  // この時刻（＝実際の最終話より必ず遅い＝安全側）で完結にする。
+  // dアニメで最終話が配信された時刻（「直近24時間に更新された作品」の一覧から。「（全N話）」は
+  // 最終話の配信と同時に付く＝2026-10-19・利用者の確認）。一覧に載る前に取れなかったときは無い。
+  finalAt?: string | null;
+  // 「（全N話）」を初めて見た時刻。finalAt が無いときの代わり（実際の最終話より必ず遅い＝安全側）。
   seenAt: string;
 }
 // キャッシュに入れておく照合の材料（lib/getSeasonData.ts）。JSONにできる形だけ。
@@ -105,9 +106,15 @@ export function parseCompletionEntry(raw: unknown): CompletionSignal | null {
     d.workIds.length > 0 &&
     d.workIds.every((x) => typeof x === "string" && /^\d+$/.test(x)) &&
     isPosInt(d.episodes) &&
-    isIso(d.seenAt)
+    isIso(d.seenAt) &&
+    (d.finalAt === undefined || d.finalAt === null || isIso(d.finalAt))
   ) {
-    out.danime = { workIds: d.workIds as string[], episodes: d.episodes, seenAt: d.seenAt };
+    out.danime = {
+      workIds: d.workIds as string[],
+      episodes: d.episodes,
+      seenAt: d.seenAt,
+      ...(isIso(d.finalAt) ? { finalAt: d.finalAt } : {}),
+    };
   }
   return out.syoboi || out.danime ? out : null;
 }
@@ -206,7 +213,11 @@ export function resolveCompletionFrom(
 
   if (signal.danime && !(maxEpisode !== null && maxEpisode > signal.danime.episodes)) {
     const n = signal.danime.episodes;
-    const seenMs = Date.parse(signal.danime.seenAt);
+    // dアニメ自身の最終話の時刻があればそれ、無ければ初めて見た時刻（どちらか早いほう）。
+    const seenMs = Math.min(
+      Date.parse(signal.danime.seenAt),
+      signal.danime.finalAt ? Date.parse(signal.danime.finalAt) : Infinity
+    );
     // 番号がそろっていれば（Annictの最新話＝全N話の最終話）その話の最初の配信に合わせる。
     // 「（全N話）」は完結後にしか付かないので、ここで早めても「まだ続いている作品」にはならない。
     const streamed = maxEpisode === n ? earliest.get(n) : undefined;

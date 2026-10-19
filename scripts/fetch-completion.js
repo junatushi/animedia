@@ -16,8 +16,8 @@
 //      （サイトの公開API /api/season が返す）。放送前に付くことが多いので、
 //      最終話の時刻ちょうどにサイトの表示が切り替わる（デプロイを待たない）。
 //   ② dアニメストアの作品ページの「（全N話）」。dアニメが完結と判断した作品にだけ付く。
-//      時刻は「初めて見た時刻」（一覧が最終話の時刻を返さないため。サイト側でAnnictの
-//      最終話の配信にそろえられる作品はそちらに合わせる）。
+//      「（全N話）」は最終話の配信と同時に付く（2026-10-19・利用者の確認）。時刻は「直近24時間に
+//      更新された作品」の一覧にある最終話の配信時刻（finalAt）。載っていなければ「初めて見た時刻」。
 //      作品の対応は**そのクールのdアニメの一覧の中で、題名が完全一致するものだけ**。
 //      一度見えたら記録を消さない（続編が同じ作品IDで始まると表記が消えるため）。
 //   どちらも無い作品は書かない＝サイトは完結を出さない（「分からない」を「終わった」にしない）。
@@ -26,8 +26,8 @@
 // 【Vercelの無料枠】Vercelの関数は外へ出ない。ここ（GitHub Actions）が取って
 // content/works/completion.json にコミットする。**中身が変わった日だけ**コミットする
 // （＝デプロイが起きる）。最終回の枠は事前に入ることが多いので、完結の瞬間にデプロイは要らない。
-// 呼ぶのは fetch-upcoming.yml（1日1回）で、予定日と同じコミットに載せる＝デプロイは1日最大1回
-// （ただし予定日が変わらず印だけが変わった日は、その1回が新たに増える）。
+// 呼ぶのは fetch-upcoming.yml（1日2回: 15時台は予定日と同じコミット、早朝は完結の印だけ）。
+// 印が変わった日だけコミット＝デプロイは1日最大2回（深夜の最終話を翌朝に反映するため。2026-10-19）。
 //
 // 【相手への配慮】
 //   しょぼいカレンダー: https://docs.cal.syoboi.jp/spec/rate_limit/ ・ /rule/bot/
@@ -191,6 +191,26 @@ async function fetchDanimeList(seasonStr) {
     .map((w) => ({ workId: String(w.workId), title: w.workInfo.workTitle }));
 }
 
+// 直近およそ24時間に話が追加された作品の一覧（WS000118?onlyUpdatedFlag=1）。この一覧だけは
+// 最終話の配信時刻（latestPartPublicDate）を持つ。「（全N話）」は最終話の配信と同時に付く
+// （2026-10-19・利用者の確認）ので、初めて表記を見た作品がここに載っていれば、その時刻が
+// 最終話の配信時刻になる。workId → ISO。1日2回の取得なら最終話から24時間以内に必ず1回は当たる。
+async function fetchDanimeUpdated() {
+  const label = "danime/updated";
+  const text = await withRetry(label, () =>
+    request(label, `${DANIME_URL}/rest/WS000118?onlyUpdatedFlag=1&needScene=1&tvProgramFlag=1&vodTypeList=svod_tvod`)
+  );
+  const body = JSON.parse(text);
+  const list = body?.data?.workList;
+  if (body?.resultCd !== "00" || !Array.isArray(list)) throw new Error(`${label}: 一覧が返りませんでした（resultCd=${body?.resultCd}）`);
+  const out = new Map();
+  for (const w of list) {
+    const ms = Date.parse(String(w?.workInfo?.latestPartPublicDate || ""));
+    if (w && /^\d+$/.test(String(w.workId)) && !Number.isNaN(ms)) out.set(String(w.workId), new Date(ms).toISOString());
+  }
+  return out;
+}
+
 function loadStore() {
   if (!existsSync(OUT_PATH)) return { works: {} };
   try {
@@ -294,6 +314,15 @@ async function main() {
     }
     await sleep(PACE_MS);
   }
+  let updated = new Map();
+  try {
+    updated = await fetchDanimeUpdated();
+  } catch (e) {
+    // 取れなくても「全N話」の判定はできる（時刻が「初めて見た時刻」になるだけ）。黙らずに失敗にする。
+    failures++;
+    console.error(`  ${e.message}（最終話の時刻は「初めて見た時刻」で記録します）`);
+  }
+  await sleep(PACE_MS);
   const pageCache = new Map(); // workId → 話数 | null
   let pagesRead = 0;
   let pagesRecognized = 0; // <h1>題名</h1> の形が読めたページ（「全N話」の有無は問わない）
@@ -332,11 +361,14 @@ async function main() {
     }
     // 候補（【規制解除版】【TV放送版】など）が**全部**「（全N話）」を持つときだけ。
     if (episodes.length !== cands.length || !episodes.every((n) => typeof n === "number")) continue;
+    // 最終話の配信時刻: 版のうち直近24時間の一覧に載っているもののいちばん早い時刻（未来は使わない）。
+    const finalTimes = cands.map((c) => updated.get(c.workId)).filter((t) => t && t <= nowIso).sort();
     works[id] = {
       ...works[id],
       danime: {
         workIds: cands.map((c) => c.workId).sort(),
         episodes: Math.max(...episodes),
+        ...(finalTimes.length > 0 ? { finalAt: finalTimes[0] } : {}),
         seenAt: nowIso,
       },
     };

@@ -51,6 +51,8 @@ const state = {
   syoboiBodyCode: null, // HTTP 200 のまま本文で返す結果コード（db.php の実際の挙動）
   syoboiRowCap: null, // この行数で黙って打ち切る（db.php は5,000行）
   danimeMarkupChanged: false, // 作品ページの h1 の形が変わった
+  danimeUpdated: [], // 直近24時間に更新された作品 [{ workId, latest }]
+  danimeUpdatedStatus: null,
 };
 
 function prog(tid, p) {
@@ -86,6 +88,19 @@ function handler(req, res) {
     let rows = tids.flatMap((t) => (state.syoboi[t] || []).map((p) => prog(t, p)));
     if (state.syoboiRowCap && rows.length > state.syoboiRowCap) rows = rows.slice(0, state.syoboiRowCap);
     return send(200, `<?xml version="1.0" encoding="UTF-8"?><ProgLookupResponse><ProgItems>${rows.join("")}</ProgItems><Result><Code>200</Code></Result></ProgLookupResponse>`, "text/xml");
+  }
+  if (u.pathname === "/animestore/rest/WS000118" && u.searchParams.get("onlyUpdatedFlag") === "1") {
+    // 直近24時間に話が追加された作品の一覧。この一覧だけは最終話の配信時刻を持つ。
+    if (state.danimeUpdatedStatus) return send(state.danimeUpdatedStatus, { error: "x" });
+    return send(200, {
+      resultCd: "00",
+      data: {
+        workList: state.danimeUpdated.map((w) => ({
+          workId: w.workId,
+          workInfo: { workTitle: "x", latestPartPublicDate: w.latest },
+        })),
+      },
+    });
   }
   if (u.pathname === "/animestore/rest/WS000118") {
     const list = state.danimeList[u.searchParams.get("cours")];
@@ -187,6 +202,8 @@ function baseFixture() {
   state.syoboiBodyCode = null;
   state.syoboiRowCap = null;
   state.danimeMarkupChanged = false;
+  state.danimeUpdated = [];
+  state.danimeUpdatedStatus = null;
 }
 
 async function main() {
@@ -241,11 +258,21 @@ async function main() {
     assert.ok(!data.works["201"]);
     ok("【規制解除版】だけ全N話 → まだ完結にしない");
     state.danimePages[29286] = 13;
+    // 「（全N話）」は最終話の配信と同時に付くので、直近24時間の一覧に最終話の時刻が載っている
+    // （版ごとに時刻が違えば早いほう。未来の時刻は使わない）。
+    state.danimeUpdated = [
+      { workId: "29286", latest: "2026-10-18T16:00:00.0Z" },
+      { workId: "29285", latest: "2026-10-18T15:30:00.0Z" },
+      { workId: "29999", latest: "2026-10-18T10:00:00.0Z" },
+    ];
     r = await run(port, out, ["2026-autumn"]);
     data = JSON.parse(readFileSync(out, "utf8"));
+    assert.strictEqual(r.code, 0, r.out);
     assert.deepStrictEqual(data.works["201"].danime.workIds, ["29285", "29286"]);
     assert.strictEqual(data.works["201"].danime.episodes, 13);
     ok("全部の版が全N話 → 完結");
+    assert.strictEqual(data.works["201"].danime.finalAt, "2026-10-18T15:30:00.000Z");
+    ok("直近24時間の一覧から最終話の時刻を取る（版のうち早いほう）", data.works["201"].danime.finalAt);
 
     // ── 4回目: dアニメの表記が消えても記録は残す。未来の終が取り下げられたら消す ──
     state.danimePages[29103] = null;
@@ -356,6 +383,31 @@ async function main() {
     assert.ok(/ページの形が変わった/.test(r.out), r.out);
     ok("dアニメのページの形が変わったら終了コード1");
     state.danimeMarkupChanged = false;
+
+    // ── 7-8: 直近24時間の一覧が取れない → 「全N話」は記録する（時刻は初めて見た時刻）・終了コード1 ──
+    const up = join(dir, "updated-fail.json");
+    baseFixture();
+    state.danimePages[29285] = 12;
+    state.danimePages[29286] = 12;
+    state.danimeUpdatedStatus = 403;
+    r = await run(port, up, ["2026-autumn"]);
+    data = JSON.parse(readFileSync(up, "utf8"));
+    assert.strictEqual(r.code, 1, r.out);
+    assert.ok(data.works["201"].danime && !("finalAt" in data.works["201"].danime), JSON.stringify(data.works["201"]));
+    assert.strictEqual(data.works["201"].danime.seenAt, "2026-10-19T06:00:00.000Z");
+    ok("更新一覧が取れなくても全N話は記録・時刻は初めて見た時刻・終了コード1");
+
+    // ── 7-9: 更新一覧の時刻が「いま」より未来 → 使わない（時計のずれ・壊れた値で早く完結にしない） ──
+    const fu = join(dir, "updated-future.json");
+    baseFixture();
+    state.danimePages[29285] = 12;
+    state.danimePages[29286] = 12;
+    state.danimeUpdated = [{ workId: "29285", latest: "2026-12-26T15:30:00.0Z" }];
+    r = await run(port, fu, ["2026-autumn"]);
+    data = JSON.parse(readFileSync(fu, "utf8"));
+    assert.strictEqual(r.code, 0, r.out);
+    assert.ok(!("finalAt" in data.works["201"].danime), JSON.stringify(data.works["201"]));
+    ok("更新一覧の時刻が未来なら使わない");
     baseFixture();
 
     // ── 8回目: サイトが全部落ちている → ファイルを変えず失敗 ──
