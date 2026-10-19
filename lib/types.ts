@@ -21,6 +21,8 @@ export interface EpisodeTail {
   lastRegisteredEpisode: number | null;
   // 話数が付いていて再放送でない枠だけを新しい順に（取得窓の中のもの）。
   programs: { channel: string; startedAt: string; episodeNumber: number | null }[];
+  // 取得に失敗した（＝「話数付きの配信が無い」とは違う）。「完結」の照合を保留する。
+  unavailable?: true;
 }
 
 export interface AnnictWork {

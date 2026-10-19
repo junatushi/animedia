@@ -18,11 +18,22 @@
 // 最大1週間遅い。LV999の村人＝TV 9/17・配信 9/10）。Annictに話数付きの配信枠があれば、
 // その話の**最初の配信**の時刻に合わせる（画面とSNSの曜日は配信から出しているため）。
 //
+// ただし配信が「印より前」に出ている場合は、**1話前も同じだけ先行していたときだけ**合わせる
+// （Annictに延期前の古い枠が残っていると、最終話だけが急に先行して見える。2026-10-19の反証）。
+// 配信が印より後なら、そのまま配信に合わせる（遅い側＝誤って早く完結にしない）。
+//
 // 【矛盾したら完結にしない】印があっても、Annictの話数付きの配信と食い違うときは捨てる:
 //   - 印の最終話より大きい番号の話が配信されている（続いている／番号の数え方が違う）
 //   - 印の時刻より1日以上あとに初めて配信された話がある（延期で古い枠が残った等。
 //     2026-10-18の反証で BLEACH のテレビ大阪の枠に実例）
-//   - 印の時刻が、その作品の最初の配信より前（別の作品の印を拾っている）
+//   - 印の時刻が、その作品の最初の配信より7日以上前（別の作品の印を拾っている）。
+//     7日以内なら最初の配信の時刻に寄せる（TVで全話を先に放送してから配信が始まる短い作品。
+//     わたしの幸せな結婚 特別篇＝TV 20:00に#29「終」・配信開始20:30）。これは完結を推す閾値ではなく
+//     「同じ作品の印か」を確かめる範囲（配信先行・TV先行のずれは実測で最大7日）。
+//   - Annictの話数付き配信の取得に失敗した（照合できない＝出さない。次の更新で戻る）
+// 【キャッシュの外で決める】lib/getSeasonData.ts はクール一覧をキャッシュ（今期6時間・
+// 終わったクール1週間）するので、印の照合はキャッシュの外で行う（completionInputOf で材料だけ
+// キャッシュに入れる）。中で決めると completion.json を更新してデプロイしても最大1週間反映されない。
 // ───────────────────────────────────────────────────────────────
 import type { EpisodeTail } from "./types.ts";
 import { classifyChannel } from "./services.ts";
@@ -31,14 +42,24 @@ export interface SyoboiCompletion {
   tid: number;
   finalCount: number;
   finalAt: string;
+  // 最終話の1話前（#finalCount-1）の最も早い枠。配信先行の幅が毎週同じかを確かめるのに使う。
+  prevAt: string | null;
 }
 export interface DanimeCompletion {
   workIds: string[];
   episodes: number;
-  // dアニメで最終話が出た時刻（一覧の latestPartPublicDate）。取れなければ null。
-  finalAt: string | null;
-  // 「（全N話）」を初めて見た時刻。finalAt が無いときの代わり（遅い側＝安全側）。
+  // 「（全N話）」を初めて見た時刻。dアニメの一覧は最終話の時刻を返さない
+  // （latestPartPublicDate が全作品 null。2026-10-19実測）ので、番号がAnnictとそろわない作品は
+  // この時刻（＝実際の最終話より必ず遅い＝安全側）で完結にする。
   seenAt: string;
+}
+// キャッシュに入れておく照合の材料（lib/getSeasonData.ts）。JSONにできる形だけ。
+export interface CompletionInput {
+  // [話数, その話の最初の配信のms]
+  earliest: [number, number][];
+  firstStreamMs: number | null;
+  // Annictの話数付き配信を取れなかった（＝照合できない）
+  unavailable?: boolean;
 }
 export interface CompletionSignal {
   syoboi?: SyoboiCompletion;
@@ -66,8 +87,15 @@ export function parseCompletionEntry(raw: unknown): CompletionSignal | null {
   const r = raw as Record<string, unknown>;
   const out: CompletionSignal = {};
   const s = r.syoboi as Record<string, unknown> | undefined;
-  if (s && typeof s === "object" && isPosInt(s.tid) && isPosInt(s.finalCount) && isIso(s.finalAt)) {
-    out.syoboi = { tid: s.tid, finalCount: s.finalCount, finalAt: s.finalAt };
+  if (
+    s &&
+    typeof s === "object" &&
+    isPosInt(s.tid) &&
+    isPosInt(s.finalCount) &&
+    isIso(s.finalAt) &&
+    (s.prevAt === undefined || s.prevAt === null || isIso(s.prevAt))
+  ) {
+    out.syoboi = { tid: s.tid, finalCount: s.finalCount, finalAt: s.finalAt, prevAt: (s.prevAt as string | null | undefined) ?? null };
   }
   const d = r.danime as Record<string, unknown> | undefined;
   if (
@@ -77,15 +105,9 @@ export function parseCompletionEntry(raw: unknown): CompletionSignal | null {
     d.workIds.length > 0 &&
     d.workIds.every((x) => typeof x === "string" && /^\d+$/.test(x)) &&
     isPosInt(d.episodes) &&
-    (d.finalAt === null || isIso(d.finalAt)) &&
     isIso(d.seenAt)
   ) {
-    out.danime = {
-      workIds: d.workIds as string[],
-      episodes: d.episodes,
-      finalAt: (d.finalAt as string | null) ?? null,
-      seenAt: d.seenAt,
-    };
+    out.danime = { workIds: d.workIds as string[], episodes: d.episodes, seenAt: d.seenAt };
   }
   return out.syoboi || out.danime ? out : null;
 }
@@ -120,57 +142,100 @@ export function earliestStreamByEpisode(tail: EpisodeTail | undefined): Map<numb
   return out;
 }
 
-// 印の時刻が Annict の配信と矛盾しないか（上の冒頭コメントの3条件）。
-function consistent(atMs: number, earliest: Map<number, number>, firstStreamMs: number | null): boolean {
-  if (firstStreamMs !== null && atMs < firstStreamMs) return false;
+// 照合の材料を作る（toAnimeItem から呼ぶ。キャッシュに入れるのでJSONにできる形）。
+export function completionInputOf(tail: EpisodeTail | undefined, firstStreamMs: number | null): CompletionInput {
+  return {
+    earliest: [...earliestStreamByEpisode(tail).entries()],
+    firstStreamMs,
+    ...(tail?.unavailable ? { unavailable: true } : {}),
+  };
+}
+
+// 印が同じ作品のものかを、最初の配信と比べて確かめる。7日以内の前なら最初の配信に寄せ、
+// それより前なら捨てる（null）。冒頭コメントの「矛盾したら完結にしない」の3つ目。
+const SAME_WORK_WINDOW_MS = 7 * DAY_MS;
+function alignToFirstStream(atMs: number, firstStreamMs: number | null): number | null {
+  if (firstStreamMs === null || atMs >= firstStreamMs) return atMs;
+  return firstStreamMs - atMs <= SAME_WORK_WINDOW_MS ? firstStreamMs : null;
+}
+
+// 印の時刻より1日以上あとに**初めて**配信された話があれば矛盾（遅れて配信するサービスは
+// 各話の最初の配信だけを見るので数えない）。
+function noLaterEpisode(atMs: number, earliest: Map<number, number>): boolean {
   for (const ms of earliest.values()) {
     if (ms > atMs + DAY_MS) return false;
   }
   return true;
 }
 
-// 印と Annict の話数付き配信（あれば）から、完結した時刻を決める。決められなければ null。
-// firstStreamMs はその作品の最初の配信（toAnimeItem の放送枠の起点）。
-export function resolveCompletion(
+// 印と照合の材料から、完結した時刻を決める。決められなければ null。
+export function resolveCompletionFrom(
   signal: CompletionSignal | undefined,
-  tail: EpisodeTail | undefined,
-  firstStreamMs: number | null
+  input: CompletionInput
 ): ResolvedCompletion | null {
   if (!signal) return null;
-  const earliest = earliestStreamByEpisode(tail);
+  if (input.unavailable) return null;
+  const earliest = new Map(input.earliest);
   const maxEpisode = earliest.size > 0 ? Math.max(...earliest.keys()) : null;
   const picks: { atMs: number; by: ResolvedCompletion["by"] }[] = [];
 
-  if (signal.syoboi) {
+  if (signal.syoboi && !(maxEpisode !== null && maxEpisode > signal.syoboi.finalCount)) {
     const f = signal.syoboi.finalCount;
-    let atMs = Date.parse(signal.syoboi.finalAt);
+    const markMs = Date.parse(signal.syoboi.finalAt);
     const streamed = earliest.get(f);
-    if (maxEpisode !== null && maxEpisode > f) {
-      // 印の最終話より先の話が配信されている＝矛盾。使わない。
-    } else {
-      if (streamed !== undefined) atMs = streamed;
-      if (consistent(atMs, earliest, firstStreamMs)) picks.push({ atMs, by: "syoboi" });
+    let atMs = markMs;
+    if (streamed !== undefined) {
+      if (streamed >= markMs) {
+        atMs = streamed; // TVが先・配信が後 → 配信に合わせる（遅い側）
+      } else {
+        // 配信が印より先。1話前も同じだけ先行していたときだけ合わせる（LV999の村人は毎週7日先行）。
+        const prevStreamed = earliest.get(f - 1);
+        const prevMark = signal.syoboi.prevAt ? Date.parse(signal.syoboi.prevAt) : NaN;
+        if (
+          prevStreamed !== undefined &&
+          !Number.isNaN(prevMark) &&
+          Math.abs(markMs - streamed - (prevMark - prevStreamed)) <= DAY_MS
+        ) {
+          atMs = streamed;
+        }
+      }
     }
+    const aligned = alignToFirstStream(atMs, input.firstStreamMs);
+    if (aligned !== null && noLaterEpisode(aligned, earliest)) picks.push({ atMs: aligned, by: "syoboi" });
   }
 
-  if (signal.danime) {
+  if (signal.danime && !(maxEpisode !== null && maxEpisode > signal.danime.episodes)) {
     const n = signal.danime.episodes;
-    const ownMs = Date.parse(signal.danime.finalAt ?? signal.danime.seenAt);
-    if (maxEpisode !== null && maxEpisode > n) {
-      // dアニメの全話数より大きい番号の話が配信されている＝別の作品か数え方が違う。使わない。
-    } else {
-      // 番号がそろっていれば（Annictの最新話＝全N話の最終話）その話の最初の配信に合わせる。
-      // そろわなければ dアニメ自身の時刻（無ければ初めて見た時刻＝遅い側）。
-      const streamed = maxEpisode === n ? earliest.get(n) : undefined;
-      const atMs = streamed !== undefined ? Math.min(streamed, ownMs) : ownMs;
-      if (consistent(atMs, earliest, firstStreamMs)) picks.push({ atMs, by: "danime" });
-    }
+    const seenMs = Date.parse(signal.danime.seenAt);
+    // 番号がそろっていれば（Annictの最新話＝全N話の最終話）その話の最初の配信に合わせる。
+    // 「（全N話）」は完結後にしか付かないので、ここで早めても「まだ続いている作品」にはならない。
+    const streamed = maxEpisode === n ? earliest.get(n) : undefined;
+    const atMs = streamed !== undefined ? Math.min(streamed, seenMs) : seenMs;
+    const aligned = alignToFirstStream(atMs, input.firstStreamMs);
+    if (aligned !== null && noLaterEpisode(aligned, earliest)) picks.push({ atMs: aligned, by: "danime" });
   }
 
   if (picks.length === 0) return null;
   // どちらも明示的な印なので、早いほうを採る（迅速さ）。
   picks.sort((a, b) => a.atMs - b.atMs);
   return { at: new Date(picks[0].atMs).toISOString(), by: picks[0].by };
+}
+
+// テストと作品ページ向けの入口（材料をその場で作る）。
+export function resolveCompletion(
+  signal: CompletionSignal | undefined,
+  tail: EpisodeTail | undefined,
+  firstStreamMs: number | null
+): ResolvedCompletion | null {
+  return resolveCompletionFrom(signal, completionInputOf(tail, firstStreamMs));
+}
+
+// 画面の「完結」を出すか（components/SeasonExplorer.tsx が使う）。最終回の枠が事前に入って
+// いると completedAt は未来の時刻なので、必ず「いま」と比べる。
+export function isCompletedAt(at: string | null | undefined, nowMs: number): boolean {
+  if (!at) return false;
+  const ms = Date.parse(at);
+  return !Number.isNaN(ms) && nowMs >= ms;
 }
 
 // "YYYY-MM-DD"（JST）。SNSの「今日の一覧」は日付単位で判定する（最終話の当日は載せ、翌日から外す）。

@@ -18,6 +18,9 @@
 //   - 取得に失敗したバッチの作品の印を消してしまう／失敗を黙る
 //   - 中身が変わらない日にファイルを書き換える（＝無駄な本番デプロイ）
 //   - 独自の User-Agent を送らない（しょぼいカレンダーの規約）
+//   - db.php の「HTTP 200 で本文にエラー」「5,000行の黙った打ち切り」を「終なし」と読んで印を消す
+//   - Annictで紐付けが外れた／付け替わったTIDの古い印を残す
+//   - 項目の欠落・ページの形の変化を「完結した作品が無い日」と同じに見せる（黙って緑）
 // ───────────────────────────────────────────────────────────────
 
 const { createServer } = require("node:http");
@@ -45,6 +48,9 @@ const state = {
   danimePages: {}, // workId → 話数（null＝表記なし）
   userAgents: new Set(),
   danimePageHits: 0,
+  syoboiBodyCode: null, // HTTP 200 のまま本文で返す結果コード（db.php の実際の挙動）
+  syoboiRowCap: null, // この行数で黙って打ち切る（db.php は5,000行）
+  danimeMarkupChanged: false, // 作品ページの h1 の形が変わった
 };
 
 function prog(tid, p) {
@@ -73,9 +79,13 @@ function handler(req, res) {
   if (u.pathname === "/db.php") {
     if (state.syoboiOnce.length > 0) return send(state.syoboiOnce.shift(), "busy", "text/plain");
     if (state.syoboiStatus) return send(state.syoboiStatus, "err", "text/plain");
+    if (state.syoboiBodyCode) {
+      return send(200, `<?xml version="1.0" encoding="UTF-8"?><ProgLookupResponse><Result><Code>${state.syoboiBodyCode}</Code><Message>err</Message></Result></ProgLookupResponse>`, "text/xml");
+    }
     const tids = (u.searchParams.get("TID") || "").split(",").map(Number);
-    const items = tids.flatMap((t) => (state.syoboi[t] || []).map((p) => prog(t, p))).join("");
-    return send(200, `<?xml version="1.0" encoding="UTF-8"?><ProgLookupResponse><ProgItems>${items}</ProgItems><Result><Code>200</Code></Result></ProgLookupResponse>`, "text/xml");
+    let rows = tids.flatMap((t) => (state.syoboi[t] || []).map((p) => prog(t, p)));
+    if (state.syoboiRowCap && rows.length > state.syoboiRowCap) rows = rows.slice(0, state.syoboiRowCap);
+    return send(200, `<?xml version="1.0" encoding="UTF-8"?><ProgLookupResponse><ProgItems>${rows.join("")}</ProgItems><Result><Code>200</Code></Result></ProgLookupResponse>`, "text/xml");
   }
   if (u.pathname === "/animestore/rest/WS000118") {
     const list = state.danimeList[u.searchParams.get("cours")];
@@ -85,7 +95,8 @@ function handler(req, res) {
       data: {
         workList: list.map((w) => ({
           workId: w.workId,
-          workInfo: { workTitle: w.title, latestPartPublicDate: w.latest || null },
+          // 本物の一覧は latestPartPublicDate を全作品 null で返す（2026-10-19実測）
+          workInfo: { workTitle: w.title, latestPartPublicDate: null },
         })),
       },
     });
@@ -94,7 +105,8 @@ function handler(req, res) {
     state.danimePageHits++;
     const id = u.searchParams.get("workId");
     const n = state.danimePages[id];
-    const h1 = n ? `<h1>作品${id}<span>（全${n}話）</span></h1>` : `<h1>作品${id}</h1>`;
+    const tag = state.danimeMarkupChanged ? `<h1 class="p-title">` : `<h1>`;
+    const h1 = n ? `${tag}作品${id}<span>（全${n}話）</span></h1>` : `${tag}作品${id}</h1>`;
     const ld = n ? `<script type="application/ld+json">{"@type":"TVSeries","numberOfEpisodes":"${n}"}</script>` : "";
     return send(200, `<html><head>${ld}</head><body>${h1}</body></html>`, "text/html");
   }
@@ -138,6 +150,7 @@ function baseFixture() {
       { id: 205, title: "わたしの幸せな結婚 特別篇", syobocalTid: 8200, broadcastStartDate: "2026-10-11" },
       { id: 206, title: "まだ始まらない作品", syobocalTid: null, broadcastStartDate: "2026-11-30" },
       { id: 207, title: "ガルパン", syobocalTid: 8300, broadcastStartDate: "2026-10-01" },
+      { id: 208, title: "ブルーロック", syobocalTid: null, broadcastStartDate: "2026-10-04" },
     ],
   };
   state.syoboi = {
@@ -167,9 +180,13 @@ function baseFixture() {
       { workId: "26308", title: "うまゆる" }, // 旧作（全24話）。部分一致で拾ってはいけない
       { workId: "29300", title: "わたしの幸せな結婚 特別篇", latest: "2026-10-25T11:00:00.0Z" },
       { workId: "29400", title: "まだ始まらない作品" },
+      { workId: "29600", title: "ブルーロック 総集編" }, // Annictの題名を含むだけ。拾ってはいけない
     ],
   };
-  state.danimePages = { 29103: 12, 29285: null, 29286: null, 26308: 24, 29300: null, 29400: 1 };
+  state.danimePages = { 29103: 12, 29285: null, 29286: null, 26308: 24, 29300: null, 29400: 1, 29600: 1 };
+  state.syoboiBodyCode = null;
+  state.syoboiRowCap = null;
+  state.danimeMarkupChanged = false;
 }
 
 async function main() {
@@ -186,7 +203,7 @@ async function main() {
     assert.strictEqual(r.code, 0, r.out);
     let data = JSON.parse(readFileSync(out, "utf8"));
     const w = data.works;
-    assert.deepStrictEqual(w["101"].syoboi, { tid: 7899, finalCount: 12, finalAt: "2026-09-16T15:12:00.000Z" });
+    assert.deepStrictEqual(w["101"].syoboi, { tid: 7899, finalCount: 12, finalAt: "2026-09-16T15:12:00.000Z", prevAt: "2026-09-09T15:06:00.000Z" });
     ok("終フラグの最も早い枠（StOffset込み）を採る", w["101"].syoboi.finalAt);
     ok("再放送・削除済みの枠の終は無視する");
     assert.ok(!w["202"], JSON.stringify(w["202"]));
@@ -197,12 +214,14 @@ async function main() {
     ok("放送中（終なし・全N話なし）の作品は書かない");
     assert.ok(!w["204"]);
     ok("題名の部分一致で別作品の全N話を拾わない（うまゆる）");
+    assert.ok(!w["208"], JSON.stringify(w["208"]));
+    ok("dアニメ側がAnnictの題名を含むだけ（総集編）でも拾わない");
     assert.ok(!w["206"]);
     ok("まだ始まっていない作品はdアニメを見ない");
     assert.strictEqual(w["205"].syoboi.finalAt, "2026-10-25T11:00:00.000Z");
     ok("未来の終も書く（サイトが時刻で切り替える）");
-    assert.deepStrictEqual(w["101"].danime, { workIds: ["29103"], episodes: 12, finalAt: null, seenAt: "2026-10-19T06:00:00.000Z" });
-    ok("dアニメの全N話を書く（時刻なし→初めて見た時刻）");
+    assert.deepStrictEqual(w["101"].danime, { workIds: ["29103"], episodes: 12, seenAt: "2026-10-19T06:00:00.000Z" });
+    ok("dアニメの全N話を書く（時刻は初めて見た時刻）");
     assert.ok([...state.userAgents].every((ua) => ua.startsWith("animedia-completion (+https://")));
     ok("独自の User-Agent を送る", [...state.userAgents][0]);
 
@@ -225,8 +244,8 @@ async function main() {
     r = await run(port, out, ["2026-autumn"]);
     data = JSON.parse(readFileSync(out, "utf8"));
     assert.deepStrictEqual(data.works["201"].danime.workIds, ["29285", "29286"]);
-    assert.strictEqual(data.works["201"].danime.finalAt, "2026-10-17T15:30:00.000Z");
-    ok("全部の版が全N話 → 完結（dアニメの最終話の時刻つき）");
+    assert.strictEqual(data.works["201"].danime.episodes, 13);
+    ok("全部の版が全N話 → 完結");
 
     // ── 4回目: dアニメの表記が消えても記録は残す。未来の終が取り下げられたら消す ──
     state.danimePages[29103] = null;
@@ -256,16 +275,88 @@ async function main() {
     assert.strictEqual(data.works["207"].syoboi.finalAt, "2026-12-31T14:30:00.000Z");
     ok("503/429は再試行して取る（延期した終は上書き）");
 
-    // ── 7回目: サイトが syobocalTid を返していない（デプロイ前）→ 落ちずに理由を出す ──
+    // ── 7回目: サイトが syobocalTid という項目ごと返していない → 前回の印を残し、失敗として知らせる
+    //    （黙って緑のまま最終回の印が更新されなくなるのを防ぐ）
     const saved = JSON.parse(JSON.stringify(state.site));
     for (const items of Object.values(state.site)) for (const it of items) delete it.syobocalTid;
     r = await run(port, out, ["2026-autumn"]);
-    assert.strictEqual(r.code, 0, r.out);
+    assert.strictEqual(r.code, 1, r.out);
     assert.ok(/syobocalTid を返していません/.test(r.out), r.out);
     data = JSON.parse(readFileSync(out, "utf8"));
     assert.ok(data.works["207"].syoboi);
-    ok("syobocalTid が無い日は黙らず、前回の印を残す");
+    ok("syobocalTid の項目が無い日は前回の印を残し・終了コード1");
     state.site = saved;
+
+    // ── 7-2: HTTP 200 でも本文の結果コードがエラー → 印を消さず失敗として知らせる ──
+    state.syoboiBodyCode = "500";
+    r = await run(port, out, ["2026-autumn"]);
+    data = JSON.parse(readFileSync(out, "utf8"));
+    assert.strictEqual(r.code, 1, r.out);
+    assert.ok(data.works["207"]?.syoboi, JSON.stringify(data.works["207"]));
+    ok("本文の結果コードがエラー → 印を消さない・終了コード1");
+    state.syoboiBodyCode = null;
+
+    // ── 7-3: 5,000行の打ち切り → 半分に割って取り直す。1件でも打ち切られるTIDは前回の印を残す ──
+    state.syoboiRowCap = 3; // 207（ガルパン）以外の行で埋まるように、テスト用に小さくする
+    state.syoboi[8300] = [
+      { count: "10", stTime: "2026-12-10 23:30:00" },
+      { count: "11", stTime: "2026-12-17 23:30:00" },
+      { count: "12", flag: 4, stTime: "2026-12-24 23:30:00" },
+      { count: "12", stTime: "2026-12-25 23:30:00", chId: 2 },
+    ];
+    r = await run(port, out, ["2026-autumn"], { COMPLETION_ROW_CAP: "3" });
+    data = JSON.parse(readFileSync(out, "utf8"));
+    assert.strictEqual(r.code, 1, r.out);
+    assert.strictEqual(data.works["207"].syoboi.finalAt, "2026-12-31T14:30:00.000Z", "打ち切られたTIDの前回の印が残る");
+    ok("行数の上限で打ち切られたTIDは前回の印を残す・終了コード1");
+    state.syoboiRowCap = null;
+    state.syoboi[8300] = [{ count: "12", flag: 4, stTime: "2026-12-31 23:30:00" }];
+
+    // ── 7-4: Annictで紐付けが外れた／付け替わった → 前回の印を消す（別作品の印かもしれない） ──
+    const tr = join(dir, "tid-change.json");
+    baseFixture();
+    r = await run(port, tr, ["2026-autumn"]);
+    data = JSON.parse(readFileSync(tr, "utf8"));
+    assert.ok(data.works["207"].syoboi);
+    state.site["2026-autumn"].find((it) => it.id === 207).syobocalTid = null;
+    r = await run(port, tr, ["2026-autumn"]);
+    data = JSON.parse(readFileSync(tr, "utf8"));
+    assert.ok(!data.works["207"], JSON.stringify(data.works["207"]));
+    ok("紐付けが外れたTIDの印は消す");
+
+    // ── 7-5: 単独だったTIDが後から共有になったら、前の記録を消す（Re:ゼロ 喪失編→奪還編） ──
+    const sh = join(dir, "shared.json");
+    baseFixture();
+    state.site = { "2026-summer": [{ id: 102, title: "Re:ゼロ 喪失編", syobocalTid: 7780, broadcastStartDate: "2026-04-08" }], "2026-autumn": [] };
+    r = await run(port, sh, ["2026-summer", "2026-autumn"]);
+    data = JSON.parse(readFileSync(sh, "utf8"));
+    assert.ok(data.works["102"]?.syoboi, JSON.stringify(data.works));
+    baseFixture();
+    r = await run(port, sh, ["2026-summer", "2026-autumn"]);
+    data = JSON.parse(readFileSync(sh, "utf8"));
+    assert.ok(!data.works["102"]?.syoboi && !data.works["203"]?.syoboi, JSON.stringify(data.works["102"]));
+    ok("単独だったTIDが共有になったら前の記録を消す");
+
+    // ── 7-6: 題名がAnnictで変わっても書き換えない（サイトは読まない＝デプロイを起こさない） ──
+    const ti = join(dir, "title.json");
+    baseFixture();
+    r = await run(port, ti, ["2026-autumn"]);
+    const titleBefore = readFileSync(ti, "utf8");
+    state.site["2026-autumn"].find((it) => it.id === 207).title = "ガールズ＆パンツァー";
+    r = await run(port, ti, ["2026-autumn"]);
+    assert.strictEqual(readFileSync(ti, "utf8"), titleBefore);
+    ok("題名だけの変化ではファイルを書き換えない");
+
+    // ── 7-7: dアニメの作品ページの形が変わった → 「完結が無い日」と区別して失敗にする ──
+    const mk = join(dir, "markup.json");
+    baseFixture();
+    state.danimeMarkupChanged = true;
+    r = await run(port, mk, ["2026-autumn"]);
+    assert.strictEqual(r.code, 1, r.out);
+    assert.ok(/ページの形が変わった/.test(r.out), r.out);
+    ok("dアニメのページの形が変わったら終了コード1");
+    state.danimeMarkupChanged = false;
+    baseFixture();
 
     // ── 8回目: サイトが全部落ちている → ファイルを変えず失敗 ──
     const snapshot = readFileSync(out, "utf8");
@@ -296,7 +387,7 @@ async function main() {
     const aged = join(dir, "aged.json");
     writeFileSync(aged, JSON.stringify({ works: {
       9001: { title: "2年前の作品", season: "2024-autumn", syoboi: { tid: 1, finalCount: 12, finalAt: "2024-12-20T15:00:00.000Z" } },
-      9002: { title: "前年の作品", season: "2025-autumn", danime: { workIds: ["1"], episodes: 12, finalAt: null, seenAt: "2025-12-25T00:00:00.000Z" } },
+      9002: { title: "前年の作品", season: "2025-autumn", danime: { workIds: ["1"], episodes: 12, seenAt: "2025-12-25T00:00:00.000Z" } },
     } }));
     baseFixture();
     r = await run(port, aged, ["2026-autumn"]);

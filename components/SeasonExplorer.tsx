@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import IntentLink from "./IntentLink";
 import { logEvent } from "@/lib/logEvent";
 import { textOn, splitRentalServices } from "@/lib/services";
+import { isCompletedAt } from "@/lib/completion";
 import { buildServicePlan } from "@/lib/servicePlan";
 import { CHANGELOG } from "@/lib/changelog";
 import ThemeToggle from "./ThemeToggle";
@@ -82,10 +83,9 @@ function isFarBeforePremiere(it: AnimeItem): boolean {
 // ことがあるので、いまと比べる（最終話の配信時刻を過ぎたら出す）。
 // **SNSの「今日の一覧」も同じ completedAt を使う**（日付単位。scripts/lib/build-digest.js と
 // app/api/sns-image/route.tsx）。3つが別の値を見ないことを scripts/check.ts が検査する。
+// 判定本体は lib/completion.ts の isCompletedAt（scripts/check.ts がテストできる場所に置く）。
 function isCompleted(it: AnimeItem): boolean {
-  if (!it.completedAt) return false;
-  const atMs = Date.parse(it.completedAt);
-  return !Number.isNaN(atMs) && Date.now() >= atMs;
+  return isCompletedAt(it.completedAt, Date.now());
 }
 
 // 「完結」の説明（title属性）。どの印で決まったかをそのまま書く。

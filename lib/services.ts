@@ -8,7 +8,7 @@
 //   サービスを増やしたいときは SERVICES に1行足すだけ。
 // ───────────────────────────────────────────────────────────────
 
-import { resolveCompletion, type CompletionSignal } from "./completion.ts";
+import { completionInputOf, resolveCompletionFrom, type CompletionInput, type CompletionSignal } from "./completion.ts";
 
 export type ServiceKey =
   | "d_anime" | "abema" | "netflix" | "prime" | "unext"
@@ -280,6 +280,28 @@ export function toAnimeItem(
   auto?: import("./types").AutoScheduleEntry,
   completion?: CompletionSignal
 ): import("./types").AnimeItem {
+  return buildAnimeItem(w, extra, release, auto, completion).item;
+}
+
+// クール一覧のキャッシュ（lib/getSeasonData.ts）用。印の照合はキャッシュの外でやるので、
+// 照合の材料（completionInput）を一緒に返す。印そのものはここでは使わない。
+export function toAnimeItemForCache(
+  w: import("./types").AnnictWork,
+  extra: ExtraServiceEntry[] = [],
+  release?: import("./types").ReleaseDateEntry,
+  auto?: import("./types").AutoScheduleEntry
+): import("./types").AnimeItem & { _completion: CompletionInput } {
+  const { item, completionInput } = buildAnimeItem(w, extra, release, auto, undefined);
+  return { ...item, _completion: completionInput };
+}
+
+function buildAnimeItem(
+  w: import("./types").AnnictWork,
+  extra: ExtraServiceEntry[],
+  release: import("./types").ReleaseDateEntry | undefined,
+  auto: import("./types").AutoScheduleEntry | undefined,
+  completion: CompletionSignal | undefined
+): { item: import("./types").AnimeItem; completionInput: CompletionInput } {
   const serviceMap = new Map<string, ServiceDef>();
   const others = new Set<string>();
   const streamingStarts: { startedAt: string | null }[] = [];
@@ -336,7 +358,11 @@ export function toAnimeItem(
   // 「完結」は明示的な印（dアニメの「（全N話）」・しょぼいカレンダーの「終」）があるときだけ。
   // 推定はしない（lib/completion.ts の冒頭）。時刻は Annict の話数付き配信に合わせ、
   // 矛盾すれば捨てる。人力の schedule しか無い作品にも印があれば効く（印そのものが根拠）。
-  const completed = resolveCompletion(completion, w.episodeTail, annictSlot?.earliestMs ?? null);
+  // 最初の配信は Annict の実データ、無ければ人力の schedule の開始日（別作品の印の照合に使う）。
+  const firstStreamMs =
+    annictSlot?.earliestMs ?? (manualSlot ? Date.parse(`${manualSlot.date}T00:00:00+09:00`) : null);
+  const completionInput = completionInputOf(w.episodeTail, firstStreamMs);
+  const completed = resolveCompletionFrom(completion, completionInput);
 
   // 機械補完（AniList由来。content/works/autoSchedule.json）は最下位の層。
   // Annictの実データ・人力補完のどちらかがあれば**使わない**（二次情報が確定情報を
@@ -354,7 +380,7 @@ export function toAnimeItem(
     ]),
   ].filter(Boolean);
 
-  return {
+  const item: import("./types").AnimeItem = {
     id: w.annictId,
     title: w.title,
     image: w.image?.recommendedImageUrl || null,
@@ -382,6 +408,7 @@ export function toAnimeItem(
     media: w.media ?? null,
     malAnimeId: w.malAnimeId ?? null,
   };
+  return { item, completionInput };
 }
 
 // ───────────────────────────────────────────────────────────────

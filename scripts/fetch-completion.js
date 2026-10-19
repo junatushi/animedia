@@ -16,6 +16,8 @@
 //      （サイトの公開API /api/season が返す）。放送前に付くことが多いので、
 //      最終話の時刻ちょうどにサイトの表示が切り替わる（デプロイを待たない）。
 //   ② dアニメストアの作品ページの「（全N話）」。dアニメが完結と判断した作品にだけ付く。
+//      時刻は「初めて見た時刻」（一覧が最終話の時刻を返さないため。サイト側でAnnictの
+//      最終話の配信にそろえられる作品はそちらに合わせる）。
 //      作品の対応は**そのクールのdアニメの一覧の中で、題名が完全一致するものだけ**。
 //      一度見えたら記録を消さない（続編が同じ作品IDで始まると表記が消えるため）。
 //   どちらも無い作品は書かない＝サイトは完結を出さない（「分からない」を「終わった」にしない）。
@@ -24,7 +26,8 @@
 // 【Vercelの無料枠】Vercelの関数は外へ出ない。ここ（GitHub Actions）が取って
 // content/works/completion.json にコミットする。**中身が変わった日だけ**コミットする
 // （＝デプロイが起きる）。最終回の枠は事前に入ることが多いので、完結の瞬間にデプロイは要らない。
-// 呼ぶのは fetch-upcoming.yml（1日1回）で、予定日と同じコミットに載せる＝デプロイを増やさない。
+// 呼ぶのは fetch-upcoming.yml（1日1回）で、予定日と同じコミットに載せる＝デプロイは1日最大1回
+// （ただし予定日が変わらず印だけが変わった日は、その1回が新たに増える）。
 //
 // 【相手への配慮】
 //   しょぼいカレンダー: https://docs.cal.syoboi.jp/spec/rate_limit/ ・ /rule/bot/
@@ -48,6 +51,8 @@
 const { readFileSync, writeFileSync, mkdirSync, existsSync } = require("node:fs");
 const { join, dirname } = require("node:path");
 const {
+  SYOBOI_ROW_CAP,
+  syoboiResultCode,
   parseSyoboiPrograms,
   syoboiFinal,
   danimeCandidates,
@@ -125,27 +130,45 @@ async function fetchSiteSeason(seasonStr) {
   return body.items;
 }
 
-// TIDごとの番組。取れなかったバッチのTIDは Map に入らない（＝前回の記録を残す）。
+// TIDごとの番組。取れなかったTIDは Map に入らない（＝前回の記録を残す）。
+// 「取れなかった」に数えるもの: HTTPの失敗、HTTP 200 でも本文の結果コードが 200/404 以外
+// （db.php は 400 などを本文で返す）、5,000行の打ち切り（半分に割って取り直し、1件でも
+// 打ち切られるならそのTIDは諦める）。どれも「終フラグなし」と読むと既にある印が消えるため。
+async function fetchSyoboiBatch(batch, byTid) {
+  const label = `syoboi/${batch[0]}..(${batch.length}件)`;
+  const xml = await withRetry(label, () =>
+    request(label, `${SYOBOI_URL}?Command=ProgLookup&TID=${batch.join(",")}`)
+  );
+  await sleep(PACE_MS);
+  const code = syoboiResultCode(xml);
+  if (!/<ProgLookupResponse/.test(xml) || (code !== "200" && code !== "404")) {
+    throw new Error(`${label}: 応答が正常ではありません（Code=${code ?? "なし"}）`);
+  }
+  const programs = code === "200" ? parseSyoboiPrograms(xml) : [];
+  if (programs.length >= SYOBOI_ROW_CAP) {
+    if (batch.length === 1) throw new Error(`${label}: ${SYOBOI_ROW_CAP}行で打ち切られました`);
+    const half = Math.ceil(batch.length / 2);
+    await fetchSyoboiBatch(batch.slice(0, half), byTid);
+    await fetchSyoboiBatch(batch.slice(half), byTid);
+    return;
+  }
+  for (const tid of batch) byTid.set(tid, []);
+  for (const p of programs) {
+    if (byTid.has(p.tid)) byTid.get(p.tid).push(p);
+  }
+}
+
 async function fetchSyoboi(tids) {
   const byTid = new Map();
   let failed = 0;
   for (let i = 0; i < tids.length; i += SYOBOI_BATCH) {
     const batch = tids.slice(i, i + SYOBOI_BATCH);
-    const label = `syoboi/${batch[0]}..`;
     try {
-      const xml = await withRetry(label, () =>
-        request(label, `${SYOBOI_URL}?Command=ProgLookup&TID=${batch.join(",")}`)
-      );
-      if (!/<ProgLookupResponse/.test(xml)) throw new Error(`${label}: 応答の形が違います`);
-      for (const tid of batch) byTid.set(tid, []);
-      for (const p of parseSyoboiPrograms(xml)) {
-        if (byTid.has(p.tid)) byTid.get(p.tid).push(p);
-      }
+      await fetchSyoboiBatch(batch, byTid);
     } catch (e) {
       failed++;
-      console.error(`  ${e.message}（このバッチの作品は前回の記録を残します）`);
+      console.error(`  ${e.message}（取れなかった作品は前回の記録を残します）`);
     }
-    await sleep(PACE_MS);
   }
   return { byTid, failed };
 }
@@ -164,18 +187,8 @@ async function fetchDanimeList(seasonStr) {
   if (body?.resultCd !== "00" || !Array.isArray(list)) throw new Error(`${label}: 一覧が返りませんでした（resultCd=${body?.resultCd}）`);
   return list
     .filter((w) => w && /^\d+$/.test(String(w.workId)) && w.workInfo?.workTitle)
-    .map((w) => ({
-      workId: String(w.workId),
-      title: w.workInfo.workTitle,
-      latestPartPublicDate: w.workInfo.latestPartPublicDate || null,
-    }));
-}
-
-// dアニメの latestPartPublicDate（"2026-10-17T15:30:00.0Z"）→ ISO。読めなければ null。
-function danimeTimeToIso(s) {
-  if (!s) return null;
-  const ms = Date.parse(String(s));
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+    // 最終話の時刻（latestPartPublicDate）は使わない: 一覧は全作品で null を返す（2026-10-19実測）。
+    .map((w) => ({ workId: String(w.workId), title: w.workInfo.workTitle }));
 }
 
 function loadStore() {
@@ -229,9 +242,12 @@ async function main() {
   }
   const usableTids = [...tidOwners.entries()].filter(([, ids]) => ids.size === 1).map(([tid]) => tid);
   const sharedTids = [...tidOwners.entries()].filter(([, ids]) => ids.size > 1);
-  if (tidOwners.size === 0) {
-    // サイトがまだ syobocalTid を返していない（このスクリプトより先にサイトのデプロイが要る）。
-    console.warn("  しょぼいカレンダー: /api/season が syobocalTid を返していません（サイトのデプロイ待ち）。今回は見ません。");
+  // サイトが syobocalTid という項目自体を返していない（デプロイ前・項目が消えた）。値が null の
+  // 作品があるのは普通（Annictに紐付けが無い）なので、項目の有無で見る。黙って緑にしない。
+  const siteHasTid = tracked.some(({ item }) => Object.prototype.hasOwnProperty.call(item, "syobocalTid"));
+  if (!siteHasTid) {
+    failures++;
+    console.error("  しょぼいカレンダー: /api/season が syobocalTid を返していません（デプロイ前？項目が消えた？）。最終回の印は更新されません。");
   }
   for (const [tid, ids] of sharedTids) {
     console.log(`  しょぼいカレンダー: TID ${tid} を複数の作品が共有（${[...ids].join(", ")}）。使いません`);
@@ -248,14 +264,18 @@ async function main() {
     let syoboi = prev.syoboi;
     if (Number.isInteger(tid) && tidOwners.get(tid)?.size === 1 && byTid.has(tid)) {
       const { final, reason } = syoboiFinal(byTid.get(tid));
-      syoboi = final ? { tid, finalCount: final.finalCount, finalAt: final.finalAt } : undefined;
+      syoboi = final ? { tid, finalCount: final.finalCount, finalAt: final.finalAt, prevAt: final.prevAt } : undefined;
       if (final) syoboiFinals++;
       else reasons[reason] = (reasons[reason] || 0) + 1;
     } else if (Number.isInteger(tid) && tidOwners.get(tid)?.size > 1) {
       syoboi = undefined; // 共有TIDになった＝以前の記録も信じない
+    } else if (siteHasTid && (!(Number.isInteger(tid) && tid > 0) || prev.syoboi?.tid !== tid)) {
+      // Annictで紐付けが外れた／別のTIDに付け替わった＝前回の印は別作品のものかもしれない。
+      syoboi = undefined;
     }
-    // TIDが無い・取れなかった作品は前回の記録をそのまま残す。
-    const next = { ...prev, title: item.title, season };
+    // 前回の記録を残すのは「サイトがTIDを返していない」か「同じTIDの取得が今回だけ失敗した」ときだけ。
+    // 題名は最初に書いたものを保つ（サイトは読まない。Annictの表記ゆれでデプロイを起こさない）。
+    const next = { ...prev, title: prev.title ?? item.title, season };
     if (syoboi) next.syoboi = syoboi;
     else delete next.syoboi;
     works[id] = next;
@@ -276,6 +296,7 @@ async function main() {
   }
   const pageCache = new Map(); // workId → 話数 | null
   let pagesRead = 0;
+  let pagesRecognized = 0; // <h1>題名</h1> の形が読めたページ（「全N話」の有無は問わない）
   let skippedByCap = 0;
   let danimeNew = 0;
   for (const { item, season } of tracked) {
@@ -298,6 +319,7 @@ async function main() {
           const html = await withRetry(`danime/${c.workId}`, () =>
             request(`danime/${c.workId}`, `${DANIME_URL}/ci_pc?workId=${c.workId}`)
           );
+          if (/<h1>[^<]*(?:<span>（全\d+話）<\/span>)?<\/h1>/.test(html)) pagesRecognized++;
           pageCache.set(c.workId, parseDanimeEpisodes(html));
         } catch (e) {
           failures++;
@@ -310,19 +332,22 @@ async function main() {
     }
     // 候補（【規制解除版】【TV放送版】など）が**全部**「（全N話）」を持つときだけ。
     if (episodes.length !== cands.length || !episodes.every((n) => typeof n === "number")) continue;
-    const times = cands.map((c) => danimeTimeToIso(c.latestPartPublicDate)).filter(Boolean).sort();
     works[id] = {
       ...works[id],
       danime: {
         workIds: cands.map((c) => c.workId).sort(),
         episodes: Math.max(...episodes),
-        finalAt: times[0] ?? null,
         seenAt: nowIso,
       },
     };
     danimeNew++;
   }
   console.log(`  dアニメストア: 作品ページ ${pagesRead}件を確認 / 新しく「全N話」 ${danimeNew}件`);
+  // ページの形が変わると「全N話」が読めないだけで、見た目は「完結した作品が無い日」と同じになる。
+  if (pagesRead > 0 && pagesRecognized === 0) {
+    failures++;
+    console.error(`  dアニメストア: 作品ページ${pagesRead}件のどれにも <h1>題名</h1> の形がありません（ページの形が変わった？）。「全N話」は読めていません。`);
+  }
   if (skippedByCap > 0) {
     console.log(`  dアニメストア: 1回の上限（${DANIME_PAGE_CAP}件）を超えた ${skippedByCap}作品は次回に回しました`);
   }

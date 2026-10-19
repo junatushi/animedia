@@ -747,8 +747,10 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   **だけ**で決める。入るのは**完結したら表記が変わる情報源**の印があるときだけ:
   ①dアニメストアの作品ページの「（全N話）」 ②しょぼいカレンダーの最終回の「終」フラグ。
   取得は`scripts/fetch-completion.js`（`fetch-upcoming.yml`の中で1日1回・予定日と同じコミット＝
-  デプロイを増やさない）→`content/works/completion.json`、照合は`lib/completion.ts`の
-  `resolveCompletion`（Annictの話数付き配信があれば最終話の最初の配信に合わせ、矛盾すれば捨てる）。
+  デプロイは1日最大1回）→`content/works/completion.json`、照合は`lib/completion.ts`の
+  `resolveCompletionFrom`（Annictの話数付き配信があれば最終話の最初の配信に合わせ、矛盾すれば捨てる）。
+  **照合はクール一覧のキャッシュの外で行うこと**（`lib/getSeasonData.ts`。中で行うと印の更新が
+  最大1週間届かない）。
   経緯: 「Annictの最後の放送枠が過ぎたら完結」と推定しており、Annictは枠を数週先までしか登録しない
   ため12話の作品が第4話の後に完結扱いになった（生徒会にも穴はある！ほか7作品・2026-10-18）。
   **話数の下限（1〜2話完結がある）・期間・停滞日数（X投稿の一覧から外すには遅すぎる）で縛る案は

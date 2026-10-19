@@ -78,7 +78,25 @@ function syoboiFinal(programs) {
   if (maxCount > finalCount) return { final: null, reason: `終フラグ（#${finalCount}）より先の話数（#${maxCount}）がある` };
   const times = finals.map((p) => syoboiTimeToIso(p.stTime, p.stOffset)).filter(Boolean).sort();
   if (times.length === 0) return { final: null, reason: "終フラグの時刻が読めない" };
-  return { final: { finalCount, finalAt: times[0] }, reason: null };
+  // 1話前のいちばん早い枠。サイト側（lib/completion.ts）が「配信が毎週同じだけ先行しているか」を
+  // 確かめるのに使う（最終話だけ急に先行して見えたら、Annictに延期前の古い枠が残っている）。
+  const prevTimes = numeric
+    .filter((p) => Number(p.count) === finalCount - 1)
+    .map((p) => syoboiTimeToIso(p.stTime, p.stOffset))
+    .filter(Boolean)
+    .sort();
+  return { final: { finalCount, finalAt: times[0], prevAt: prevTimes[0] ?? null }, reason: null };
+}
+
+// db.php は1回の応答を5,000行で黙って打ち切る（2026-10-19実測。ONE PIECE の TID 350 だけで
+// 4,231行）。打ち切られた応答を「終フラグなし」と読むと、既にある印が消える。
+// COMPLETION_ROW_CAP はテストで小さくするためだけ（判断の分岐は変えない。数値の差し替え）。
+const SYOBOI_ROW_CAP = Number(process.env.COMPLETION_ROW_CAP || 5000);
+
+// db.php の応答の結果コード。HTTP 200 のまま本文で 400/404 などを返す（2026-10-19実測）。
+function syoboiResultCode(xml) {
+  const m = String(xml || "").match(/<Result>\s*<Code>(\d+)<\/Code>/);
+  return m ? m[1] : null;
 }
 
 // ── ① dアニメストア ──────────────────────────────────────────
@@ -120,6 +138,8 @@ function danimeCours(seasonStr) {
 }
 
 module.exports = {
+  SYOBOI_ROW_CAP,
+  syoboiResultCode,
   parseSyoboiPrograms,
   syoboiTimeToIso,
   syoboiFinal,

@@ -70,11 +70,20 @@ import {
 // 「完結」の明示的な印（2026-10-19導入）。サイト側の照合（lib/completion.ts）と取得側の純粋関数。
 import {
   resolveCompletion,
+  resolveCompletionFrom,
   parseCompletions,
   parseCompletionEntry,
   earliestStreamByEpisode,
   completedDateJst,
+  isCompletedAt,
 } from "../lib/completion.ts";
+import { toAnimeItemForCache } from "../lib/services.ts";
+import {
+  syoboiFinal,
+  danimeCandidates,
+  parseDanimeEpisodes,
+  syoboiResultCode,
+} from "./lib/completion-signals.js";
 import COMPLETION_FILE from "../content/works/completion.json" with { type: "json" };
 import { xPostUrl, xSearchUrl } from "./lib/x-intent.js";
 // 日次の下書きIssueの本文組み立て（--issue）。require.main ガードがあるので
@@ -386,12 +395,31 @@ function checkDone(name: string, got: string | null | undefined, expect: string 
 
   // ②しょぼいカレンダーの「終」。Annictに同じ話数の配信があれば、その最初の配信に合わせる
   //   （LV999の村人: TVの最終回は9/17、配信先行で第12話は9/10）。
-  const syo = (finalCount: number, finalAt: string) => ({ syoboi: { tid: 1, finalCount, finalAt } });
+  const syo = (finalCount: number, finalAt: string, prevAt: string | null = null) => ({
+    syoboi: { tid: 1, finalCount, finalAt, prevAt },
+  });
   const lvTail = tailOf([
     ...weekly(12, "2026-06-25T15:00:00Z", "DMM TV"),
     ...weekly(12, "2026-07-02T15:30:00Z", "dアニメストア"),
   ]);
-  checkDone("終＋配信先行 → 最終話の最初の配信", resolveCompletion(syo(12, "2026-09-16T15:12:00Z"), lvTail, null)?.at ?? null, at("2026-09-10T15:00:00Z"));
+  // 1話前（#11）も同じだけ先行している（毎週6日先行）ときだけ配信に合わせる。
+  checkDone("終＋配信先行（毎週同じ幅）→ 最終話の最初の配信", resolveCompletion(syo(12, "2026-09-16T15:12:00Z", "2026-09-09T15:12:00Z"), lvTail, null)?.at ?? null, at("2026-09-10T15:00:00Z"));
+  // 1話前の時刻が無ければ合わせない（先行の幅を確かめられない＝印の時刻のまま）。
+  checkDone("1話前の時刻なし → 印の時刻のまま", resolveCompletion(syo(12, "2026-09-16T15:12:00Z"), lvTail, null)?.at ?? null, at("2026-09-16T15:12:00Z"));
+  // Annictに延期前の古い枠（第12話・9/26）が残り、最終話だけ急に先行して見える → 合わせない（2026-10-19の反証）。
+  const staleTail = tailOf([
+    { channel: "dアニメストア", startedAt: "2026-09-12T15:00:00Z", episodeNumber: 10 },
+    { channel: "dアニメストア", startedAt: "2026-09-19T15:00:00Z", episodeNumber: 11 },
+    { channel: "dアニメストア", startedAt: "2026-09-26T15:00:00Z", episodeNumber: 12 },
+    { channel: "dアニメストア", startedAt: "2026-10-03T14:30:00Z", episodeNumber: 12 },
+  ]);
+  checkDone("Annictの古い枠で早まらない（延期・総集編）", resolveCompletion(syo(12, "2026-10-03T14:30:00Z", "2026-09-19T15:00:00Z"), staleTail, null)?.at ?? null, at("2026-10-03T14:30:00Z"));
+  // 配信が印より後（TVが先）なら配信に合わせる（遅い側＝早く完結にしない）。
+  checkDone(
+    "TV先行・配信が後 → 配信に合わせる",
+    resolveCompletion(syo(12, "2026-09-24T13:00:00Z"), tailOf([{ channel: "dアニメストア", startedAt: "2026-09-25T15:00:00Z", episodeNumber: 12 }]), null)?.at ?? null,
+    at("2026-09-25T15:00:00Z")
+  );
   checkDone("終・Annictに最終話なし → 終の時刻", resolveCompletion(syo(13, "2026-09-23T15:30:00Z"), lvTail, null)?.at ?? null, at("2026-09-23T15:30:00Z"));
   checkDone("終・話数情報なし → 終の時刻", resolveCompletion(syo(12, "2026-12-24T14:30:00Z"), undefined, null)?.at ?? null, at("2026-12-24T14:30:00Z"));
   // 1話・2話で完結する作品にも効く（話数の下限を持たない＝利用者の指定）。
@@ -400,13 +428,31 @@ function checkDone(name: string, got: string | null | undefined, expect: string 
   checkDone("終(#4)より先の話が配信済み → 捨てる", resolveCompletion(syo(4, "2026-10-24T15:30:00Z"), tailOf(weekly(6)), null)?.at ?? null, null);
   // 矛盾は捨てる: 終の時刻より1日以上あとに初めて出た話がある（延期で古い枠が残った。BLEACHの実例）。
   checkDone("終のあとに初出の話あり → 捨てる", resolveCompletion(syo(50, "2026-09-26T15:00:00Z"), tailOf([{ channel: "U-NEXT", startedAt: "2026-10-19T03:00:00Z", episodeNumber: 49 }]), null)?.at ?? null, null);
-  // 矛盾は捨てる: 作品の最初の配信より前の「終」（別の作品の印）。
+  // 矛盾は捨てる: 作品の最初の配信より7日以上前の「終」（別の作品の印）。
   checkDone("初回配信より前の終 → 捨てる", resolveCompletion(syo(12, "2026-03-20T15:00:00Z"), undefined, Date.parse("2026-07-01T15:00:00Z"))?.at ?? null, null);
+  // TVで全話を放送してから配信が始まる短い作品（わたしの幸せな結婚 特別篇: TV 20:00に#29「終」・
+  // 配信開始20:30・Annictの話数は1〜3）。永久に完結にならないのではなく、配信開始の時刻に寄せる。
+  const tokuTail = tailOf([1, 2, 3].map((n) => ({ channel: "dアニメストア", startedAt: "2026-10-25T11:30:00Z", episodeNumber: n })));
+  checkDone("TVで先に完結・配信開始が後 → 配信開始に寄せる", resolveCompletion(syo(29, "2026-10-25T11:00:00Z"), tokuTail, Date.parse("2026-10-25T11:30:00Z"))?.at ?? null, at("2026-10-25T11:30:00Z"));
+  checkDone("同上・話数情報なし", resolveCompletion(syo(29, "2026-10-25T11:00:00Z"), undefined, Date.parse("2026-10-25T11:30:00Z"))?.at ?? null, at("2026-10-25T11:30:00Z"));
+  checkDone("初回配信の8日前の終 → 捨てる", resolveCompletion(syo(29, "2026-10-17T11:00:00Z"), undefined, Date.parse("2026-10-25T11:30:00Z"))?.at ?? null, null);
+  // Annictの話数付き配信を取れなかった → 照合できないので出さない（TVの時刻で早く完結にしない）。
+  checkDone(
+    "話数付き配信の取得失敗 → 出さない",
+    resolveCompletion(syo(24, "2026-09-21T11:00:00Z"), { lastRegisteredEpisode: null, programs: [], unavailable: true }, null)?.at ?? null,
+    null
+  );
+  // 印の最終話より大きい番号の話が、印と同時に配信されている（一挙配信）→ 時刻の照合では捕まらないが捨てる。
+  const dbl = tailOf([1, 2].map((n) => ({ channel: "dアニメストア", startedAt: "2026-10-03T15:30:00Z", episodeNumber: n })));
+  checkDone("終(#1)と同時に第2話 → 捨てる", resolveCompletion(syo(1, "2026-10-03T15:30:00Z"), dbl, null)?.at ?? null, null);
+  // 時刻の照合の幅（1日）: 3日後に初出の話 → 捨てる／12時間後 → 許容。
+  checkDone("終の3日後に初出の話 → 捨てる", resolveCompletion(syo(12, "2026-09-20T15:00:00Z"), tailOf([{ channel: "U-NEXT", startedAt: "2026-09-23T15:00:00Z", episodeNumber: 11 }]), null)?.at ?? null, null);
+  checkDone("終の12時間後に初出の話 → 許容", resolveCompletion(syo(12, "2026-09-20T15:00:00Z"), tailOf([{ channel: "U-NEXT", startedAt: "2026-09-21T03:00:00Z", episodeNumber: 11 }]), null)?.at ?? null, at("2026-09-20T15:00:00Z"));
   // 遅れて配信するサービスがあっても、各話の「最初の配信」だけを見る。
   checkDone(
     "遅れ配信は矛盾に数えない",
     resolveCompletion(
-      syo(12, "2026-09-25T13:30:00Z"),
+      syo(12, "2026-09-25T13:30:00Z", "2026-09-18T13:30:00Z"),
       tailOf([
         ...weekly(12, "2026-07-03T13:30:00Z", "Amazon プライム・ビデオ"),
         ...weekly(12, "2026-07-15T13:30:00Z", "U-NEXT"),
@@ -415,22 +461,34 @@ function checkDone(name: string, got: string | null | undefined, expect: string 
     )?.at ?? null,
     at(new Date(Date.parse("2026-07-03T13:30:00Z") + 11 * 7 * 86400000).toISOString())
   );
-  // TV局の枠は数えない（曜日・時刻と同じく配信で見る）。
+  // TV局の枠は数えない（曜日・時刻と同じく配信で見る）。TVが配信より先の形で確かめる
+  // （TVを数えると木曜のTV放送で完結になり、金曜の配信の最終話の日に一覧から消える）。
   checkDone(
     "TV局の枠は時刻合わせに使わない",
-    resolveCompletion(syo(12, "2026-09-21T15:00:00Z"), tailOf([{ channel: "TOKYO MX", startedAt: "2026-09-21T15:00:00Z", episodeNumber: 12 }]), null)?.at ?? null,
-    at("2026-09-21T15:00:00Z")
+    resolveCompletion(
+      syo(12, "2026-09-24T13:00:00Z"),
+      tailOf([
+        { channel: "TOKYO MX", startedAt: "2026-09-24T13:00:00Z", episodeNumber: 12 },
+        { channel: "dアニメストア", startedAt: "2026-09-25T15:00:00Z", episodeNumber: 12 },
+      ]),
+      null
+    )?.at ?? null,
+    at("2026-09-25T15:00:00Z")
   );
 
   // ③dアニメの「（全N話）」。番号がそろえば最終話の最初の配信、そろわなければ dアニメの時刻、
   //   それも無ければ初めて見た時刻（遅い側）。
-  const dan = (episodes: number, finalAt: string | null, seenAt = "2026-10-19T00:00:00Z") => ({
-    danime: { workIds: ["1"], episodes, finalAt, seenAt },
+  const dan = (episodes: number, seenAt = "2026-10-19T00:00:00Z") => ({
+    danime: { workIds: ["1"], episodes, seenAt },
   });
-  checkDone("全12話＋Annict第12話 → その配信", resolveCompletion(dan(12, null), lvTail, null)?.at ?? null, at("2026-09-10T15:00:00Z"));
-  checkDone("全24話（通算）・Annictは第12話まで → dアニメの時刻", resolveCompletion(dan(24, "2026-09-24T15:00:00Z"), lvTail, null)?.at ?? null, at("2026-09-24T15:00:00Z"));
-  checkDone("時刻なし → 初めて見た時刻", resolveCompletion(dan(3, null), undefined, null)?.at ?? null, at("2026-10-19T00:00:00Z"));
-  checkDone("全N話より先の話が配信済み → 捨てる", resolveCompletion(dan(4, null), tailOf(weekly(6)), null)?.at ?? null, null);
+  checkDone("全12話＋Annict第12話 → その配信", resolveCompletion(dan(12), lvTail, null)?.at ?? null, at("2026-09-10T15:00:00Z"));
+  checkDone("全24話（通算）・Annictは第12話まで → 初めて見た時刻", resolveCompletion(dan(24, "2026-09-24T15:00:00Z"), lvTail, null)?.at ?? null, at("2026-09-24T15:00:00Z"));
+  checkDone("Annictなし → 初めて見た時刻", resolveCompletion(dan(3), undefined, null)?.at ?? null, at("2026-10-19T00:00:00Z"));
+  checkDone("全N話より先の話が配信済み → 捨てる", resolveCompletion(dan(4, "2026-12-01T00:00:00Z"), tailOf(weekly(6)), null)?.at ?? null, null);
+  checkDone("全1話と同時に第2話 → 捨てる", resolveCompletion(dan(1, "2026-10-03T15:30:00Z"), dbl, null)?.at ?? null, null);
+  // dアニメ側の照合（別作品の印を拾った場合の守り）: 初回配信より前／その後に初出の話あり → 捨てる。
+  checkDone("dアニメ・初回配信より前 → 捨てる", resolveCompletion(dan(12, "2026-03-21T00:00:00Z"), undefined, Date.parse("2026-07-01T15:00:00Z"))?.at ?? null, null);
+  checkDone("dアニメの時刻より後に初出の話あり → 捨てる", resolveCompletion(dan(12, "2026-10-10T15:00:00Z"), tailOf(weekly(6, "2026-10-01T15:00:00Z")), null)?.at ?? null, null);
   // ④両方あれば早いほう（どちらも明示的な印なので、迅速さを取る）。
   const both = { ...syo(12, "2026-09-16T15:12:00Z"), ...dan(12, "2026-09-23T15:00:00Z") };
   const bothRes = resolveCompletion(both, undefined, null);
@@ -439,9 +497,25 @@ function checkDone(name: string, got: string | null | undefined, expect: string 
 
   // ⑤toAnimeItem が第5引数の印を通すこと（getSeasonData が渡し忘れても検査が落ちる形にする）。
   const lvWork = { ...work(weekly(12, "2026-06-25T15:00:00Z", "DMM TV").map(({ channel, startedAt }) => ({ channel, startedAt }))), episodeTail: lvTail };
-  const item = toAnimeItem(lvWork, [], undefined, undefined, syo(12, "2026-09-16T15:12:00Z"));
+  const lvSignal = syo(12, "2026-09-16T15:12:00Z", "2026-09-09T15:12:00Z");
+  const item = toAnimeItem(lvWork, [], undefined, undefined, lvSignal);
   checkDone("toAnimeItem が印を completedAt に通す", item.completedAt, at("2026-09-10T15:00:00Z"));
   checkDone("toAnimeItem が completedBy を通す", item.completedBy, "syoboi");
+  // キャッシュ用（lib/getSeasonData.ts）: 材料だけを持ち、キャッシュの外で照合すると同じ答えになる。
+  const cached = toAnimeItemForCache(lvWork);
+  checkDone("キャッシュ用は完結を決めない", cached.completedAt, null);
+  checkDone(
+    "キャッシュの外で照合すると同じ答え",
+    resolveCompletionFrom(lvSignal, JSON.parse(JSON.stringify(cached._completion)))?.at ?? null,
+    item.completedAt ?? null
+  );
+  // 画面の「完結」は時刻で比べる（最終回の枠が事前に入っていると completedAt は未来）。
+  const T = Date.parse("2026-10-19T12:00:00Z");
+  checkDone("isCompletedAt: 印なし", String(isCompletedAt(null, T)), "false");
+  checkDone("isCompletedAt: 壊れた値", String(isCompletedAt("garbage", T)), "false");
+  checkDone("isCompletedAt: これから", String(isCompletedAt(new Date(T + 1).toISOString(), T)), "false");
+  checkDone("isCompletedAt: ちょうど", String(isCompletedAt(new Date(T).toISOString(), T)), "true");
+  checkDone("isCompletedAt: 過ぎた", String(isCompletedAt("2026-10-01T00:00:00Z", T)), "true");
   checkDone("JSTの日付", completedDateJst("2026-09-16T15:12:00Z"), "2026-09-17");
 
   // ⑥読み込み時の検証: 壊れた側だけ捨てる（誤った完結を出さず、黙って落ちる方向に倒す）。
@@ -450,10 +524,28 @@ function checkDone(name: string, got: string | null | undefined, expect: string 
     "片方が壊れても他方は使う",
     parseCompletionEntry({
       syoboi: { tid: 1, finalCount: 0, finalAt: "2026-09-16T15:12:00.000Z" },
-      danime: { workIds: ["29103"], episodes: 12, finalAt: null, seenAt: "2026-10-19T00:02:19.551Z" },
+      danime: { workIds: ["29103"], episodes: 12, seenAt: "2026-10-19T00:02:19.551Z" },
     })?.danime?.workIds[0] ?? null,
     "29103"
   );
+  checkDone("壊れた1話前の時刻は捨てる", parseCompletionEntry({ syoboi: { tid: 1, finalCount: 12, finalAt: "2026-09-16T15:12:00.000Z", prevAt: "x" } }) === null ? null : "kept", null);
+
+  // ⑧取得側の純粋関数（scripts/lib/completion-signals.js）。誤って書くと放送中に「完結」が出る。
+  const P = (count: string, flag: number, stTime: string, chId = 1) => ({ tid: 1, chId, stTime, stOffset: 0, count, flag, deleted: false });
+  checkDone("終の話数が食い違う（順序逆）→ 決めない", JSON.stringify(syoboiFinal([P("13", 4, "2026-12-24 22:00:00"), P("12", 4, "2026-12-17 22:00:00")]).final), "null");
+  checkDone("数字でない話数の終は無視", JSON.stringify(syoboiFinal([P("#7～#12", 4, "2026-12-10 22:00:00"), P("12", 4, "2026-12-17 22:00:00")]).final?.finalAt), JSON.stringify("2026-12-17T13:00:00.000Z"));
+  checkDone("1話前の最も早い枠を持つ", syoboiFinal([P("11", 0, "2026-09-10 00:36:00", 239), P("11", 0, "2026-09-10 00:06:00", 7), P("12", 4, "2026-09-17 00:06:00")]).final?.prevAt ?? null, "2026-09-09T15:06:00.000Z");
+  checkDone("db.php の結果コード", syoboiResultCode("<ProgLookupResponse><Result><Code>400</Code></Result></ProgLookupResponse>"), "400");
+  checkDone("dアニメ: Annictの題名を含むだけ（総集編）は拾わない", String(danimeCandidates("ブルーロック", [{ workId: "1", title: "ブルーロック 総集編" }]).length), "0");
+  checkDone("dアニメ: Annictの題名の一部（旧作）は拾わない", String(danimeCandidates("うまゆる ふるげ～と！", [{ workId: "1", title: "うまゆる" }]).length), "0");
+  checkDone("dアニメ: 末尾の【】だけ落として一致", String(danimeCandidates("生徒会にも穴はある！", [{ workId: "1", title: "生徒会にも穴はある！【規制解除版】" }]).length), "1");
+  checkDone("dアニメ: 途中の【】は落とさない", String(danimeCandidates("ガルパン 最終章", [{ workId: "1", title: "ガルパン【特別編】 最終章" }]).length), "0");
+  const H = (n: number) => `<h1>作品<span>（全${n}話）</span></h1>`;
+  const L = (n: number) => `<script type="application/ld+json">{"@type":"TVSeries","numberOfEpisodes":"${n}"}</script>`;
+  checkDone("全N話: h1だけ → 読まない", String(parseDanimeEpisodes(H(12))), "null");
+  checkDone("全N話: JSON-LDだけ → 読まない", String(parseDanimeEpisodes(L(12))), "null");
+  checkDone("全N話: 数が食い違う → 読まない", String(parseDanimeEpisodes(L(13) + H(12))), "null");
+  checkDone("全N話: 両方そろう → 読む", String(parseDanimeEpisodes(L(12) + H(12))), "12");
   // ⑦コミット済みの completion.json が1件も検証で落ちていない（落ちていたら生成側の不具合）。
   const rawCount = Object.keys((COMPLETION_FILE as { works: object }).works).length;
   const parsedCount = Object.keys(parseCompletions(COMPLETION_FILE)).length;
@@ -537,7 +629,8 @@ checkEnded("最終回がこれから → 外さない", "2026-12-24T14:30:00Z", 
     const raw = readFileSync(new URL(f, import.meta.url), "utf8");
     // コメントは「旧 hasLikelyEnded」のような経緯の説明を含むので落としてから見る。
     const src = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
-    const usesCompletedAt = /\.completedAt\b/.test(src);
+    const usesCompletedAt =
+      /\.completedAt\b/.test(src) && (!f.endsWith("SeasonExplorer.tsx") || /isCompletedAt\(\s*it\.completedAt\s*,\s*Date\.now\(\)\s*\)/.test(src));
     const heuristic = /broadcastLastKnown|LIKELY_ENDED|lastKnown|hasLikelyEnded/.test(src);
     return { file: f.split("/").pop(), ok: usesCompletedAt && !heuristic, usesCompletedAt, heuristic };
   });
@@ -553,18 +646,51 @@ checkEnded("最終回がこれから → 外さない", "2026-12-24T14:30:00Z", 
 {
   const raw = readFileSync(new URL("../lib/services.ts", import.meta.url), "utf8");
   const src = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
-  const viaResolver = /completedAt:\s*completed\?\.at\s*\?\?\s*null/.test(src) && /resolveCompletion\(/.test(src);
+  const viaResolver = /completedAt:\s*completed\?\.at\s*\?\?\s*null/.test(src) && /resolveCompletionFrom\(/.test(src);
   const noLatest = !/lastKnown|latest\s*=|lastEpisodeStreamAt|hasConclusionEvidence/.test(src);
   const ok = viaResolver && noLatest;
   if (ok) endedOk++; else endedNg++;
   console.log(`${ok ? "✓" : "✗"}  ${"完結は印からだけ作る（services.ts）".padEnd(32)} → resolver=${viaResolver} / 推定なし=${noLatest}`);
 }
-// getSeasonData が印を toAnimeItem に渡していること（渡し忘れると完結が永久に出ない＝画面では気づけない）。
+// getSeasonData が印を**キャッシュの外で**照合していること。渡し忘れると完結が永久に出ず、
+// キャッシュの中で照合すると completion.json を更新しても最大1週間届かない（どちらも画面では気づけない）。
 {
-  const src = readFileSync(new URL("../lib/getSeasonData.ts", import.meta.url), "utf8");
-  const ok = /COMPLETIONS\[w\.annictId\]/.test(src) && /parseCompletions\(COMPLETION_FILE\)/.test(src);
+  const raw = readFileSync(new URL("../lib/getSeasonData.ts", import.meta.url), "utf8");
+  const src = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+  const build = src.slice(src.indexOf("async function fetchAndBuild"), src.indexOf("async function getCachedLiveSeasonData"));
+  const outside = src.slice(src.indexOf("async function getCachedLiveSeasonData"));
+  const ok =
+    /parseCompletions\(COMPLETION_FILE\)/.test(src) &&
+    /toAnimeItemForCache\(/.test(build) &&
+    !/COMPLETIONS/.test(build) &&
+    /resolveCompletionFrom\(COMPLETIONS\[it\.id\]/.test(outside);
   if (ok) endedOk++; else endedNg++;
-  console.log(`${ok ? "✓" : "✗"}  ${"一覧の取得が印を渡す".padEnd(34)} → ${ok}`);
+  console.log(`${ok ? "✓" : "✗"}  ${"一覧はキャッシュの外で印を照合する".padEnd(30)} → ${ok}`);
+}
+// SNS画像（edge）の判定を実際に動かす。本文（build-digest.js）と同じ答えでないと、投稿の文と
+// 添付画像で中身が食い違う。関数を取り出せなければ失敗にする（黙って飛ばさない）。
+{
+  const raw = readFileSync(new URL("../app/api/sns-image/route.tsx", import.meta.url), "utf8");
+  const m = raw.match(/function hasCompleted\([^)]*\)[^{]*\{[\s\S]*?\n\}/);
+  let same = false;
+  let filtered = false;
+  if (m) {
+    const js = m[0].replace(/\(it:[^,]+,\s*todayStr:\s*string\):\s*boolean/, "(it, todayStr)");
+    const fn = new Function(`${js}; return hasCompleted;`)() as (it: { completedAt: string | null }, t: string) => boolean;
+    const cases: [string | null, string][] = [
+      [null, "2026-09-19"],
+      ["2026-09-18T15:30:00Z", "2026-09-19"],
+      ["2026-09-17T15:30:00Z", "2026-09-19"],
+      ["2026-10-18T15:30:00Z", "2026-10-19"],
+      ["2026-10-18T15:30:00Z", "2026-10-20"],
+      ["2026-12-24T14:30:00Z", "2026-10-19"],
+    ];
+    same = cases.every(([a, t]) => fn({ completedAt: a }, t) === hasCompleted({ completedAt: a }, t));
+    filtered = /\.filter\(\(it\)\s*=>\s*!hasCompleted\(it,\s*todayStr\)\)/.test(raw);
+  }
+  const ok = !!m && same && filtered;
+  if (ok) endedOk++; else endedNg++;
+  console.log(`${ok ? "✓" : "✗"}  ${"SNS画像の判定が本文と同じ答え".padEnd(32)} → 取り出し=${!!m} / 一致=${same} / 絞り込み=${filtered}`);
 }
 // SNS画像は /api/season を1時間ごとに変わるキーで取る（2026-09-26）。キーを外すと、
 // edge が動く地域（sin1）のCDNが古い応答を抱えたまま、完結作品が画像にだけ残る
