@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-19",
+  "updatedAt": "2026-10-20",
   "source": "しょぼいカレンダー（https://cal.syoboi.jp）の最終回の「終」フラグ・dアニメストアの「（全N話）」 — scripts/fetch-completion.js が生成。手で編集しない",
   "works": {
     "6187": {
@@ -3062,6 +3062,16 @@
         "seenAt": "2026-10-19T00:02:19.551Z"
       },
       "season": "2026-summer"
+    },
+    "17197": {
+      "title": "Re:ゼロから始める異世界生活 4th season 奪還編",
+      "season": "2026-summer",
+      "syoboi": {
+        "tid": 7780,
+        "finalCount": 85,
+        "finalAt": "2026-09-30T13:00:00.000Z",
+        "prevAt": "2026-09-23T13:00:00.000Z"
+      }
     },
     "17296": {
       "title": "捨てられ聖女の異世界ごはん旅 隠れスキルでキャンピングカーを召喚しました",
