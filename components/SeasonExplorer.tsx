@@ -27,15 +27,12 @@ import { hasAnyActiveAffiliate } from "@/lib/affiliate";
 import type { AnimeItem, SeasonResponse, ServiceTag, SearchIndexEntry } from "@/lib/types";
 import { WORK_IMAGE_IDS } from "@/content/works/imageIds";
 import { RENTAL_SERVICES } from "@/content/works/rentalServices";
+import { EXCLUSIVE_KEY, matchesServiceFilter } from "@/lib/serviceFilter";
 import { WORK_ALIASES } from "@/content/works/aliases";
 import { currentSeasonKey, resolveYearSeason, validYears } from "@/lib/resolveSeasonParams";
 
-// 「独占」は実在の配信サービスではなく、「見放題配信サービスが1つだけの作品」を
-// 指す仮想チップ。active（配信サービスの絞り込みSet）に同居させることで、既存の
-// OR/AND切り替えがそのまま使える（例: 「独占」+「dアニメ」をANDにすると
-// dアニメの独占配信作品だけに絞れる）。lib/services.ts の ServiceKey には
-// 実データ由来のキーだけを置きたいのでUI側だけの定数として持つ。
-const EXCLUSIVE_KEY = "__exclusive__";
+// 「独占」チップ（EXCLUSIVE_KEY）の意味と、サービス絞り込みの判定は
+// lib/serviceFilter.ts だけが持つ（カードに出すチップと同じ集合で照合するため）。
 
 // AI独断解釈サムネの注釈（全箇所で同じ文言を使う）。
 const AI_IMAGE_NOTE = "AIがタイトルのみから独断と偏見で作成した画像です。本作品との関連性はありません。";
@@ -829,19 +826,7 @@ export default function SeasonExplorer({
         it.castNames.some((n) => n.toLowerCase().includes(q)) ||
         it.creditNames.some((n) => n.toLowerCase().includes(q)) ||
         aliases.some((a) => a.toLowerCase().includes(q));
-      const matchesKey = (k: string) => {
-        if (k === EXCLUSIVE_KEY) {
-          const { streaming } = splitRentalServices(it.services, RENTAL_SERVICES[it.id]);
-          return streaming.length === 1;
-        }
-        return it.services.some((s) => s.key === k);
-      };
-      const okSvc =
-        active.size === 0
-          ? true
-          : andMode
-            ? [...active].every(matchesKey)
-            : [...active].some(matchesKey);
+      const okSvc = matchesServiceFilter(it.services, RENTAL_SERVICES[it.id], active, andMode);
       const okCast =
         activeCast.size === 0 || it.castNames.some((n) => activeCast.has(n));
       const okFav = !favoritesOnly || favorites.has(it.id);

@@ -21,7 +21,8 @@ import {
   mergeEpisodeInfo,
   type ProgramNodes,
 } from "../lib/annict.ts";
-import type { AnnictWork } from "../lib/types.ts";
+import type { AnnictWork, ServiceTag } from "../lib/types.ts";
+import { EXCLUSIVE_KEY, matchesServiceFilter } from "../lib/serviceFilter.ts";
 import {
   buildEmbedSnippet,
   buildEmbedIframeSnippet,
@@ -3319,6 +3320,75 @@ let historyNg = 0;
   );
 }
 console.log(`結果（履歴の書き換え）: ${historyNg === 0 ? 2 : 0} 件OK / ${historyNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// 配信サービスの絞り込みは、カードに出すチップと同じ集合で照合する（2026-10-19追加）
+//
+// 「独占」は見放題（レンタル/都度課金を除く）で数え、サービスのチップはレンタルも含めて
+// 照合していたため、「独占」+「dアニメ」(AND) で **ABEMA独占・dアニメは個別課金** の作品が
+// 残り、選んでいないABEMAのチップだけが付いたカードが出た（利用者の指摘）。
+// **カードは正しく描かれるので、絞り込みの組み合わせを試すまで気づけない。**
+// 不変条件: 残ったカードには、ANDなら選んだサービスが全部、ORなら少なくとも1つ、
+// チップとして出ている（「独占」で残った分は見放題がちょうど1社）。
+// 組み合わせを総当たりで確かめる（手で選んだ例だけだと、選ばなかった形が漏れる）。
+// ─────────────────────────────────────────────
+console.log("\n── 配信サービスの絞り込み（カードのチップと同じ集合で照合）──");
+let filterNg = 0;
+{
+  const tag = (key: string) => ({ key, name: key, short: key, color: "#000000" }) as unknown as ServiceTag;
+  const KEYS = ["abema", "d_anime", "netflix"];
+  const subsets = <T,>(xs: T[]): T[][] =>
+    xs.reduce<T[][]>((acc, x) => acc.concat(acc.map((s) => [...s, x])), [[]]);
+  let cases = 0;
+  const failures: string[] = [];
+  for (const svc of subsets(KEYS)) {
+    for (const rental of subsets(svc)) {
+      const streamingKeys = svc.filter((k) => !rental.includes(k));
+      for (const active of subsets([EXCLUSIVE_KEY, ...KEYS])) {
+        for (const andMode of [false, true]) {
+          cases++;
+          const passed = matchesServiceFilter(svc.map(tag), rental, new Set(active), andMode);
+          if (!passed || active.length === 0) continue;
+          const ok = (k: string) =>
+            k === EXCLUSIVE_KEY ? streamingKeys.length === 1 : streamingKeys.includes(k);
+          const holds = andMode ? active.every(ok) : active.some(ok);
+          if (!holds && failures.length < 3) {
+            failures.push(
+              `見放題[${streamingKeys}]・レンタル[${rental}] が ${andMode ? "AND" : "OR"}[${active.map((k) => (k === EXCLUSIVE_KEY ? "独占" : k))}] で残る`
+            );
+          }
+        }
+      }
+    }
+  }
+  // 報告された形そのもの（ABEMA独占・dアニメは個別課金）を名指しで固定する。
+  const reported = matchesServiceFilter(
+    [tag("abema"), tag("d_anime")],
+    ["d_anime"],
+    new Set([EXCLUSIVE_KEY, "d_anime"]),
+    true
+  );
+  if (reported) failures.unshift("ABEMA独占・dアニメ個別課金の作品が「独占」+「dアニメ」(AND)で残る");
+  if (failures.length) filterNg++;
+  console.log(
+    `${failures.length ? "✗" : "✓"}  ${`残ったカードに選んだサービスが出る（${cases}通り）`.padEnd(40)} → ` +
+      (failures.length ? failures.join(" / ") : "OK")
+  );
+  // 一覧が判定を自前で書き戻していないか（書き戻すと上の検査をすり抜ける）。
+  const explorerSrc = stripCommentLines(
+    readFileSync(new URL("../components/SeasonExplorer.tsx", import.meta.url), "utf8")
+  );
+  const usesShared =
+    /matchesServiceFilter\(/.test(explorerSrc) &&
+    !/EXCLUSIVE_KEY\s*=/.test(explorerSrc) &&
+    !/it\.services\.some\(\s*\(?\s*s\s*\)?\s*=>\s*s\.key\s*===/.test(explorerSrc);
+  if (!usesShared) filterNg++;
+  console.log(
+    `${usesShared ? "✓" : "✗"}  ${"一覧はlib/serviceFilter.tsで判定する".padEnd(40)} → ` +
+      (usesShared ? "OK" : "SeasonExplorer が絞り込みを自前で判定している（lib/serviceFilter.ts を通す）")
+  );
+}
+console.log(`結果（配信サービスの絞り込み）: ${filterNg === 0 ? 2 : 0} 件OK / ${filterNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // 配信先ウィジェット（他サイトへの埋め込み）の不変条件（2026-08-06追加）
@@ -8650,7 +8720,8 @@ if (
   dataNg > 0 ||
   aliasNg > 0 ||
   svcAliasNg > 0 ||
-  historyNg > 0
+  historyNg > 0 ||
+  filterNg > 0
 )
   // process.exit() ではなく exitCode。Windows では stdout がパイプされていると
   // process.exit() が書き込み途中のバッファを巻き込んでプロセスを異常終了させ、
