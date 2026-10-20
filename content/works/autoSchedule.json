@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-19",
+  "updatedAt": "2026-10-20",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -153,10 +153,10 @@
       "date": "2026-10-20",
       "precision": "day",
       "weekday": 2,
-      "time": "16:05",
+      "time": "16:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/195539",
-      "fetchedDate": "2026-10-16",
+      "fetchedDate": "2026-10-20",
       "matchedBy": "mal",
       "title": "サイバーパンク: エッジランナーズ2"
     },
