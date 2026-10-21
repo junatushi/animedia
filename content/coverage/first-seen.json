@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-20",
+  "updatedAt": "2026-10-21",
   "sources": {
     "annict": {
       "2026-summer": {
@@ -4458,7 +4458,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1141,
+            "rank": 1146,
             "startDate": null,
             "media": "MOVIE"
           },
@@ -4498,7 +4498,7 @@
               }
             },
             "seeded": true,
-            "rank": 1321,
+            "rank": 1325,
             "startDate": "2026-10-07",
             "media": "TV"
           },
@@ -4529,7 +4529,7 @@
               }
             },
             "seeded": true,
-            "rank": 1038,
+            "rank": 1040,
             "startDate": "2026-10-01",
             "media": "TV"
           },
@@ -4538,7 +4538,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1383,
+            "rank": 1390,
             "startDate": null,
             "media": "MOVIE"
           },
@@ -4581,7 +4581,7 @@
               }
             },
             "seeded": true,
-            "rank": 781,
+            "rank": 791,
             "startDate": "2026-10-04",
             "media": "TV"
           },
@@ -4618,7 +4618,7 @@
               }
             },
             "seeded": true,
-            "rank": 388,
+            "rank": 391,
             "startDate": "2026-10-08",
             "media": "TV"
           },
@@ -4635,7 +4635,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 684,
+            "rank": 686,
             "startDate": null,
             "media": "MOVIE"
           },
@@ -4672,7 +4672,7 @@
               }
             },
             "seeded": true,
-            "rank": 914,
+            "rank": 921,
             "startDate": "2026-10-07",
             "media": "TV"
           },
@@ -4709,7 +4709,7 @@
               }
             },
             "seeded": true,
-            "rank": 647,
+            "rank": 649,
             "startDate": "2026-10-03",
             "media": "TV"
           },
@@ -4746,7 +4746,7 @@
               }
             },
             "seeded": true,
-            "rank": 778,
+            "rank": 780,
             "startDate": "2026-10-08",
             "media": "TV"
           },
@@ -4782,7 +4782,7 @@
                 "firstSeen": "2026-09-19"
               }
             },
-            "rank": 303,
+            "rank": 305,
             "startDate": "2026-10-14",
             "media": "TV"
           },
@@ -4801,7 +4801,7 @@
               }
             },
             "seeded": true,
-            "rank": 614,
+            "rank": 623,
             "startDate": "2026-10-03",
             "media": "TV"
           },
@@ -4814,8 +4814,8 @@
               }
             },
             "seeded": true,
-            "rank": 699,
-            "startDate": null,
+            "rank": 711,
+            "startDate": "2026-10-20",
             "media": "WEB"
           },
           "14745": {
@@ -4864,7 +4864,7 @@
               }
             },
             "seeded": true,
-            "rank": 961,
+            "rank": 963,
             "startDate": "2026-10-06",
             "media": "TV"
           },
@@ -4907,7 +4907,7 @@
               }
             },
             "seeded": true,
-            "rank": 951,
+            "rank": 957,
             "startDate": "2026-09-28",
             "media": "TV"
           },
@@ -4944,7 +4944,7 @@
               }
             },
             "seeded": true,
-            "rank": 711,
+            "rank": 715,
             "startDate": "2026-10-04",
             "media": "TV"
           },
@@ -4981,7 +4981,7 @@
               }
             },
             "seeded": true,
-            "rank": 1432,
+            "rank": 1443,
             "startDate": "2026-10-03",
             "media": "TV"
           },
@@ -5018,7 +5018,7 @@
               }
             },
             "seeded": true,
-            "rank": 472,
+            "rank": 474,
             "startDate": "2026-10-03",
             "media": "TV"
           },
@@ -5055,7 +5055,7 @@
               }
             },
             "seeded": true,
-            "rank": 752,
+            "rank": 761,
             "startDate": "2026-10-03",
             "media": "TV"
           },
@@ -5089,7 +5089,7 @@
               }
             },
             "seeded": true,
-            "rank": 118,
+            "rank": 119,
             "startDate": "2026-10-06",
             "media": "TV"
           },
@@ -5132,7 +5132,7 @@
               }
             },
             "seeded": true,
-            "rank": 1391,
+            "rank": 1392,
             "startDate": "2026-10-04",
             "media": "TV"
           },
@@ -5217,7 +5217,7 @@
               }
             },
             "seeded": true,
-            "rank": 2090,
+            "rank": 2107,
             "startDate": "2026-10-04",
             "media": "TV"
           },
@@ -5254,7 +5254,7 @@
               }
             },
             "seeded": true,
-            "rank": 521,
+            "rank": 525,
             "startDate": "2026-10-04",
             "media": "TV"
           },
@@ -5272,7 +5272,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 905,
+            "rank": 911,
             "startDate": null,
             "media": "OTHER"
           },
@@ -5315,7 +5315,7 @@
               }
             },
             "seeded": true,
-            "rank": 2473,
+            "rank": 2484,
             "startDate": "2026-10-03",
             "media": "TV"
           },
@@ -5324,7 +5324,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 457,
+            "rank": 460,
             "startDate": null,
             "media": "MOVIE"
           },
@@ -5355,7 +5355,7 @@
               }
             },
             "seeded": true,
-            "rank": 327,
+            "rank": 332,
             "startDate": "2026-10-10",
             "media": "TV"
           },
@@ -5395,7 +5395,7 @@
               }
             },
             "seeded": true,
-            "rank": 389,
+            "rank": 390,
             "startDate": "2026-10-04",
             "media": "TV"
           },
@@ -5432,7 +5432,7 @@
               }
             },
             "seeded": true,
-            "rank": 167,
+            "rank": 170,
             "startDate": "2026-10-05",
             "media": "TV"
           },
@@ -5441,7 +5441,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 492,
+            "rank": 496,
             "startDate": null,
             "media": "MOVIE"
           },
@@ -5478,7 +5478,7 @@
               }
             },
             "seeded": true,
-            "rank": 834,
+            "rank": 836,
             "startDate": "2026-10-04",
             "media": "TV"
           },
@@ -5521,7 +5521,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1546,
+            "rank": 1557,
             "startDate": null,
             "media": "MOVIE"
           },
@@ -5555,7 +5555,7 @@
               }
             },
             "seeded": true,
-            "rank": 315,
+            "rank": 316,
             "startDate": "2026-10-05",
             "media": "TV"
           },
@@ -5592,7 +5592,7 @@
               }
             },
             "seeded": true,
-            "rank": 840,
+            "rank": 852,
             "startDate": "2026-10-09",
             "media": "TV"
           },
@@ -5629,7 +5629,7 @@
               }
             },
             "seeded": true,
-            "rank": 586,
+            "rank": 589,
             "startDate": "2026-10-06",
             "media": "TV"
           },
@@ -5665,7 +5665,7 @@
                 "firstSeen": "2026-09-08"
               }
             },
-            "rank": 462,
+            "rank": 469,
             "startDate": "2026-10-05",
             "media": "TV"
           },
@@ -5674,7 +5674,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1238,
+            "rank": 1241,
             "startDate": null,
             "media": "MOVIE"
           },
@@ -5687,7 +5687,7 @@
               }
             },
             "seeded": true,
-            "rank": 280,
+            "rank": 281,
             "startDate": "2026-10-04",
             "media": "TV"
           },
@@ -5703,7 +5703,7 @@
               }
             },
             "seeded": true,
-            "rank": 678,
+            "rank": 685,
             "startDate": "2026-10-04",
             "media": "TV"
           },
@@ -5747,7 +5747,7 @@
               }
             },
             "seeded": true,
-            "rank": 291,
+            "rank": 295,
             "startDate": "2026-10-15",
             "media": "TV"
           },
@@ -5784,7 +5784,7 @@
               }
             },
             "seeded": true,
-            "rank": 709,
+            "rank": 713,
             "startDate": "2026-10-05",
             "media": "TV"
           },
@@ -5803,7 +5803,7 @@
               }
             },
             "seeded": true,
-            "rank": 520,
+            "rank": 522,
             "startDate": "2026-09-26",
             "media": "TV"
           },
@@ -5843,7 +5843,7 @@
               }
             },
             "seeded": true,
-            "rank": 419,
+            "rank": 424,
             "startDate": "2026-10-03",
             "media": "TV"
           },
@@ -5894,7 +5894,7 @@
               }
             },
             "seeded": true,
-            "rank": 418,
+            "rank": 419,
             "startDate": "2026-10-03",
             "media": "TV"
           },
@@ -5931,7 +5931,7 @@
               }
             },
             "seeded": true,
-            "rank": 574,
+            "rank": 585,
             "startDate": "2026-10-11",
             "media": "TV"
           },
@@ -5974,7 +5974,7 @@
               }
             },
             "seeded": true,
-            "rank": 815,
+            "rank": 820,
             "startDate": "2026-10-10",
             "media": "TV"
           },
@@ -5983,7 +5983,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 239,
+            "rank": 242,
             "startDate": null,
             "media": "MOVIE"
           },
@@ -6023,7 +6023,7 @@
               }
             },
             "seeded": true,
-            "rank": 1713,
+            "rank": 1735,
             "startDate": "2026-10-01",
             "media": "TV"
           },
@@ -6066,7 +6066,7 @@
               }
             },
             "seeded": true,
-            "rank": 393,
+            "rank": 394,
             "startDate": "2026-10-12",
             "media": "TV"
           },
@@ -6093,7 +6093,7 @@
                 "firstSeen": "2026-10-08"
               }
             },
-            "rank": 290,
+            "rank": 293,
             "startDate": "2026-10-08",
             "media": "TV"
           },
@@ -6130,7 +6130,7 @@
               }
             },
             "seeded": true,
-            "rank": 1248,
+            "rank": 1277,
             "startDate": "2026-10-06",
             "media": "TV"
           },
@@ -6164,7 +6164,7 @@
               }
             },
             "seeded": true,
-            "rank": 859,
+            "rank": 868,
             "startDate": "2026-10-05",
             "media": "TV"
           },
@@ -6210,7 +6210,7 @@
               }
             },
             "seeded": true,
-            "rank": 1377,
+            "rank": 1393,
             "startDate": "2026-10-07",
             "media": "TV"
           },
@@ -6219,7 +6219,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 741,
+            "rank": 744,
             "startDate": null,
             "media": "MOVIE"
           },
@@ -6250,7 +6250,7 @@
               }
             },
             "seeded": true,
-            "rank": 400,
+            "rank": 407,
             "startDate": "2026-10-08",
             "media": "TV"
           },
@@ -6287,7 +6287,7 @@
               }
             },
             "seeded": true,
-            "rank": 92,
+            "rank": 94,
             "startDate": "2026-10-08",
             "media": "TV"
           },
@@ -6372,7 +6372,7 @@
               }
             },
             "seeded": true,
-            "rank": 536,
+            "rank": 547,
             "startDate": "2026-10-05",
             "media": "TV"
           },
@@ -6406,7 +6406,7 @@
               }
             },
             "seeded": true,
-            "rank": 410,
+            "rank": 414,
             "startDate": "2026-10-04",
             "media": "TV"
           },
@@ -6443,7 +6443,7 @@
               }
             },
             "seeded": true,
-            "rank": 306,
+            "rank": 309,
             "startDate": "2026-10-05",
             "media": "TV"
           },
@@ -6483,7 +6483,7 @@
               }
             },
             "seeded": true,
-            "rank": 1101,
+            "rank": 1109,
             "startDate": "2026-10-06",
             "media": "TV"
           },
@@ -6520,7 +6520,7 @@
               }
             },
             "seeded": true,
-            "rank": 715,
+            "rank": 720,
             "startDate": "2026-10-03",
             "media": "TV"
           },
@@ -6529,7 +6529,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 213,
+            "rank": 214,
             "startDate": null,
             "media": "MOVIE"
           },
@@ -6561,7 +6561,7 @@
               }
             },
             "seeded": true,
-            "rank": 487,
+            "rank": 489,
             "startDate": "2026-10-04",
             "media": "TV"
           },
@@ -6641,7 +6641,7 @@
               }
             },
             "seeded": true,
-            "rank": 752,
+            "rank": 755,
             "startDate": "2026-09-25",
             "media": "WEB"
           },
@@ -6658,7 +6658,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 551,
+            "rank": 555,
             "startDate": null,
             "media": "OTHER"
           },
@@ -6680,7 +6680,7 @@
               }
             },
             "seeded": true,
-            "rank": 760,
+            "rank": 769,
             "startDate": "2026-10-07",
             "media": "TV"
           },
@@ -6765,7 +6765,7 @@
               }
             },
             "seeded": true,
-            "rank": 854,
+            "rank": 868,
             "startDate": "2026-10-07",
             "media": "TV"
           },
@@ -6799,7 +6799,7 @@
               }
             },
             "seeded": true,
-            "rank": 344,
+            "rank": 346,
             "startDate": "2026-10-08",
             "media": "TV"
           },
@@ -6836,7 +6836,7 @@
               }
             },
             "seeded": true,
-            "rank": 188,
+            "rank": 190,
             "startDate": "2026-10-02",
             "media": "TV"
           },
@@ -6873,7 +6873,7 @@
               }
             },
             "seeded": true,
-            "rank": 653,
+            "rank": 658,
             "startDate": "2026-10-09",
             "media": "TV"
           },
@@ -6909,7 +6909,7 @@
               }
             },
             "seeded": true,
-            "rank": 350,
+            "rank": 355,
             "startDate": "2026-10-08",
             "media": "TV"
           },
@@ -6922,7 +6922,7 @@
               }
             },
             "seeded": true,
-            "rank": 309,
+            "rank": 310,
             "startDate": "2026-10-04",
             "media": "TV"
           },
@@ -6965,7 +6965,7 @@
               }
             },
             "seeded": true,
-            "rank": 374,
+            "rank": 382,
             "startDate": "2026-09-27",
             "media": "TV"
           },
@@ -6990,7 +6990,7 @@
               }
             },
             "seeded": true,
-            "rank": 385,
+            "rank": 389,
             "startDate": "2026-10-08",
             "media": "TV"
           },
@@ -7073,7 +7073,7 @@
               }
             },
             "seeded": true,
-            "rank": 493,
+            "rank": 499,
             "startDate": "2026-10-04",
             "media": "TV"
           },
@@ -7085,7 +7085,7 @@
                 "firstSeen": "2026-10-03"
               }
             },
-            "rank": 409,
+            "rank": 412,
             "startDate": null,
             "media": "WEB"
           },
@@ -7125,7 +7125,7 @@
               }
             },
             "seeded": true,
-            "rank": 498,
+            "rank": 504,
             "startDate": "2026-10-11",
             "media": "TV"
           },
@@ -7144,7 +7144,7 @@
               }
             },
             "seeded": true,
-            "rank": 481,
+            "rank": 482,
             "startDate": "2026-10-09",
             "media": "TV"
           },
@@ -7236,7 +7236,7 @@
               }
             },
             "seeded": true,
-            "rank": 1177,
+            "rank": 1183,
             "startDate": "2026-10-02",
             "media": "TV"
           },
@@ -7273,7 +7273,7 @@
               }
             },
             "seeded": true,
-            "rank": 139,
+            "rank": 138,
             "startDate": "2026-10-10",
             "media": "TV"
           },
@@ -7304,7 +7304,7 @@
               }
             },
             "seeded": true,
-            "rank": 160,
+            "rank": 163,
             "startDate": "2026-10-18",
             "media": "TV"
           },
@@ -7394,7 +7394,7 @@
                 "firstSeen": "2026-08-24"
               }
             },
-            "rank": 44,
+            "rank": 46,
             "startDate": "2026-10-09",
             "media": "WEB"
           },
@@ -7406,7 +7406,7 @@
                 "firstSeen": "2026-09-28"
               }
             },
-            "rank": 137,
+            "rank": 138,
             "startDate": "2026-09-27",
             "media": "WEB"
           },
@@ -7445,7 +7445,7 @@
                 "firstSeen": "2026-09-05"
               }
             },
-            "rank": 60,
+            "rank": 62,
             "startDate": "2026-10-08",
             "media": "WEB"
           },
@@ -7592,7 +7592,7 @@
                 "firstSeen": "2026-10-03"
               }
             },
-            "rank": 179,
+            "rank": 180,
             "startDate": "2026-10-02",
             "media": "TV"
           },
@@ -7628,7 +7628,7 @@
                 "firstSeen": "2026-10-08"
               }
             },
-            "rank": 67,
+            "rank": 69,
             "startDate": null,
             "media": "TV"
           },
@@ -7661,7 +7661,7 @@
                 "firstSeen": "2026-10-16"
               }
             },
-            "rank": 84,
+            "rank": 90,
             "startDate": "2026-10-16",
             "media": "TV"
           },
@@ -7711,7 +7711,7 @@
                 "firstSeen": "2026-10-05"
               }
             },
-            "rank": 42,
+            "rank": 43,
             "startDate": "2026-10-08",
             "media": "WEB"
           },
@@ -7735,7 +7735,7 @@
                 "firstSeen": "2026-10-05"
               }
             },
-            "rank": 55,
+            "rank": 57,
             "startDate": "2026-10-05",
             "media": "WEB"
           },
@@ -7743,7 +7743,7 @@
             "title": "『魔法少女そらな☆マギカ ～Our Fates, Our Futures～』 プロモーションアニメ",
             "firstSeen": "2026-10-06",
             "services": {},
-            "rank": 21,
+            "rank": 22,
             "startDate": null,
             "media": "WEB"
           },
@@ -7755,7 +7755,7 @@
                 "firstSeen": "2026-10-15"
               }
             },
-            "rank": 32,
+            "rank": 33,
             "startDate": "2026-10-07",
             "media": "WEB"
           },
@@ -7787,7 +7787,7 @@
                 "firstSeen": "2026-10-10"
               }
             },
-            "rank": 5,
+            "rank": 8,
             "startDate": "2026-10-09",
             "media": "WEB"
           },
@@ -7847,7 +7847,7 @@
             "title": "『凶乱令嬢ニア・リストン』ミニアニメ",
             "firstSeen": "2026-10-16",
             "services": {},
-            "rank": 17,
+            "rank": 18,
             "startDate": null,
             "media": "WEB"
           },
@@ -7858,6 +7858,14 @@
             "rank": 3,
             "startDate": null,
             "media": "WEB"
+          },
+          "18319": {
+            "title": "ゲルぴよ 第2弾",
+            "firstSeen": "2026-10-21",
+            "services": {},
+            "rank": 0,
+            "startDate": null,
+            "media": "TV"
           }
         },
         "daily": [
@@ -8200,6 +8208,11 @@
             "date": "2026-10-20",
             "works": 144,
             "withServices": 105
+          },
+          {
+            "date": "2026-10-21",
+            "works": 145,
+            "withServices": 105
           }
         ]
       },
@@ -8219,7 +8232,7 @@
             "title": "世界最高の暗殺者、異世界貴族に転生する Season2",
             "firstSeen": "2026-09-04",
             "services": {},
-            "rank": 368,
+            "rank": 369,
             "startDate": null,
             "media": "TV"
           },
@@ -8246,7 +8259,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 225,
+            "rank": 226,
             "startDate": null,
             "media": "TV"
           },
@@ -8255,7 +8268,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 437,
+            "rank": 438,
             "startDate": null,
             "media": "TV"
           },
@@ -8263,7 +8276,7 @@
             "title": "機動戦士ガンダムSEED FREEDOM ZERO",
             "firstSeen": "2026-10-09",
             "services": {},
-            "rank": 140,
+            "rank": 141,
             "startDate": null,
             "media": "MOVIE"
           },
@@ -8280,7 +8293,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 146,
+            "rank": 147,
             "startDate": null,
             "media": "TV"
           },
@@ -8298,7 +8311,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 248,
+            "rank": 250,
             "startDate": null,
             "media": "TV"
           },
@@ -8307,7 +8320,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 116,
+            "rank": 118,
             "startDate": null,
             "media": "TV"
           },
@@ -8333,7 +8346,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 255,
+            "rank": 256,
             "startDate": null,
             "media": "TV"
           },
@@ -8342,7 +8355,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 490,
+            "rank": 491,
             "startDate": null,
             "media": "TV"
           },
@@ -8360,7 +8373,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 111,
+            "rank": 113,
             "startDate": null,
             "media": "MOVIE"
           },
@@ -8369,7 +8382,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 152,
+            "rank": 153,
             "startDate": null,
             "media": "TV"
           },
@@ -8395,7 +8408,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 126,
+            "rank": 127,
             "startDate": null,
             "media": "TV"
           },
@@ -8421,7 +8434,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 114,
+            "rank": 115,
             "startDate": null,
             "media": "TV"
           },
@@ -8430,7 +8443,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 202,
+            "rank": 203,
             "startDate": null,
             "media": "TV"
           },
@@ -8438,7 +8451,7 @@
             "title": "魔術を極めて旅に出た転生エルフ、持て余した寿命で生ける伝説となる",
             "firstSeen": "2026-09-21",
             "services": {},
-            "rank": 79,
+            "rank": 80,
             "startDate": null,
             "media": "TV"
           },
@@ -8446,7 +8459,7 @@
             "title": "描くなるうえは",
             "firstSeen": "2026-10-02",
             "services": {},
-            "rank": 174,
+            "rank": 177,
             "startDate": null,
             "media": "TV"
           },
@@ -8473,7 +8486,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 398,
+            "rank": 399,
             "startDate": null,
             "media": "TV"
           },
@@ -8482,7 +8495,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 295,
+            "rank": 296,
             "startDate": null,
             "media": "TV"
           },
@@ -8490,7 +8503,7 @@
             "title": "ワンパンマン 第3期第2クール",
             "firstSeen": "2026-10-11",
             "services": {},
-            "rank": 265,
+            "rank": 268,
             "startDate": null,
             "media": "TV"
           },
@@ -8499,7 +8512,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 196,
+            "rank": 200,
             "startDate": null,
             "media": "TV"
           },
@@ -8524,7 +8537,7 @@
             "title": "劇場版 メダリスト",
             "firstSeen": "2026-08-31",
             "services": {},
-            "rank": 502,
+            "rank": 507,
             "startDate": null,
             "media": "MOVIE"
           },
@@ -8533,7 +8546,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 92,
+            "rank": 93,
             "startDate": null,
             "media": "MOVIE"
           },
@@ -8550,7 +8563,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 147,
+            "rank": 148,
             "startDate": null,
             "media": "TV"
           },
@@ -8601,7 +8614,7 @@
             "title": "異世界でチート能力を手にした俺は、現実世界をも無双する ～レベルアップは人生を変えた～ 2nd Season",
             "firstSeen": "2026-10-16",
             "services": {},
-            "rank": 180,
+            "rank": 183,
             "startDate": null,
             "media": "TV"
           },
@@ -8610,7 +8623,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 180,
+            "rank": 181,
             "startDate": null,
             "media": "TV"
           },
@@ -8618,7 +8631,7 @@
             "title": "ザ・ファブル 第2期",
             "firstSeen": "2026-09-15",
             "services": {},
-            "rank": 105,
+            "rank": 108,
             "startDate": null,
             "media": "TV"
           },
@@ -8634,7 +8647,7 @@
             "title": "デート・ア・ライブF Last Date",
             "firstSeen": "2026-10-12",
             "services": {},
-            "rank": 93,
+            "rank": 94,
             "startDate": null,
             "media": "MOVIE"
           },
@@ -8728,7 +8741,7 @@
             "title": "MURCIÉLAGO-ムルシエラゴ-",
             "firstSeen": "2026-08-24",
             "services": {},
-            "rank": 63,
+            "rank": 65,
             "startDate": null,
             "media": "TV"
           },
@@ -8777,7 +8790,7 @@
             "title": "死して生きるSSS級ハンター",
             "firstSeen": "2026-09-11",
             "services": {},
-            "rank": 18,
+            "rank": 19,
             "startDate": null,
             "media": "TV"
           },
@@ -8785,7 +8798,7 @@
             "title": "青春のやり直しは異世界で",
             "firstSeen": "2026-09-15",
             "services": {},
-            "rank": 21,
+            "rank": 22,
             "startDate": null,
             "media": "TV"
           },
@@ -8801,7 +8814,7 @@
             "title": "ふつつかな悪女ではございますが ～雛宮蝶鼠とりかえ伝～ 第2クール",
             "firstSeen": "2026-09-21",
             "services": {},
-            "rank": 224,
+            "rank": 226,
             "startDate": null,
             "media": "TV"
           },
@@ -8817,7 +8830,7 @@
             "title": "SEKIRO: NO DEFEAT（TV版）",
             "firstSeen": "2026-10-02",
             "services": {},
-            "rank": 55,
+            "rank": 56,
             "startDate": null,
             "media": "TV"
           },
@@ -9202,6 +9215,11 @@
             "date": "2026-10-20",
             "works": 77,
             "withServices": 0
+          },
+          {
+            "date": "2026-10-21",
+            "works": 77,
+            "withServices": 0
           }
         ]
       },
@@ -9475,6 +9493,11 @@
           },
           {
             "date": "2026-10-20",
+            "works": 19,
+            "withServices": 0
+          },
+          {
+            "date": "2026-10-21",
             "works": 19,
             "withServices": 0
           }
@@ -10657,7 +10680,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 42164,
+            "rank": 42237,
             "startDate": "2026-11-20"
           },
           "152677": {
@@ -10665,7 +10688,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 25179,
+            "rank": 25244,
             "startDate": "2026-10-07"
           },
           "157330": {
@@ -10673,7 +10696,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4261,
+            "rank": 4266,
             "startDate": "2026-11-13"
           },
           "159042": {
@@ -10681,7 +10704,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 50873,
+            "rank": 51038,
             "startDate": "2026-10-01"
           },
           "160275": {
@@ -10689,7 +10712,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 43916,
+            "rank": 43986,
             "startDate": "2026-10-23"
           },
           "160803": {
@@ -10697,7 +10720,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 7085,
+            "rank": 7144,
             "startDate": "2026-10-06"
           },
           "169581": {
@@ -10705,7 +10728,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 21207,
+            "rank": 21530,
             "startDate": "2026-09-27"
           },
           "172192": {
@@ -10713,7 +10736,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 30599,
+            "rank": 30776,
             "startDate": "2026-10-08"
           },
           "176314": {
@@ -10721,7 +10744,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 14187,
+            "rank": 14256,
             "startDate": "2026-10-07"
           },
           "178083": {
@@ -10729,7 +10752,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 35553,
+            "rank": 35727,
             "startDate": "2026-10-03"
           },
           "178868": {
@@ -10737,7 +10760,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 11024,
+            "rank": 11092,
             "startDate": "2026-10-07"
           },
           "178972": {
@@ -10745,14 +10768,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 14043,
+            "rank": 14121,
             "startDate": "2026-11-06"
           },
           "179876": {
             "title": "DARK MACHINE -The Animation-",
             "firstSeen": "2026-08-20",
             "services": {},
-            "rank": 2583,
+            "rank": 2604,
             "startDate": "2026-10-14"
           },
           "180894": {
@@ -10760,7 +10783,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 14760,
+            "rank": 14994,
             "startDate": "2026-10-03"
           },
           "185756": {
@@ -10768,7 +10791,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 26567,
+            "rank": 26942,
             "startDate": "2026-09-27"
           },
           "186541": {
@@ -10776,7 +10799,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 23438,
+            "rank": 24052,
             "startDate": "2026-10-04"
           },
           "186742": {
@@ -10784,7 +10807,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 13599,
+            "rank": 13768,
             "startDate": "2026-10-09"
           },
           "187316": {
@@ -10792,7 +10815,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 6835,
+            "rank": 6882,
             "startDate": "2026-10-03"
           },
           "187402": {
@@ -10800,7 +10823,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 16879,
+            "rank": 17056,
             "startDate": "2026-10-03"
           },
           "187990": {
@@ -10808,14 +10831,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1765,
+            "rank": 1772,
             "startDate": "2026-10-06"
           },
           "188034": {
             "title": "ガールズ＆パンツァー もっとらぶらぶ作戦です！",
             "firstSeen": "2026-10-11",
             "services": {},
-            "rank": 3968,
+            "rank": 3983,
             "startDate": "2026-10-08"
           },
           "189123": {
@@ -10823,14 +10846,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 48414,
+            "rank": 48741,
             "startDate": "2026-10-04"
           },
           "190054": {
             "title": "わたしの幸せな結婚 特別篇",
             "firstSeen": "2026-08-31",
             "services": {},
-            "rank": 10432,
+            "rank": 10467,
             "startDate": "2026-10-25"
           },
           "191656": {
@@ -10838,7 +10861,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 40504,
+            "rank": 41158,
             "startDate": "2026-10-04"
           },
           "191788": {
@@ -10846,7 +10869,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 24482,
+            "rank": 24690,
             "startDate": "2026-10-04"
           },
           "194116": {
@@ -10862,7 +10885,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 521,
+            "rank": 524,
             "startDate": "2026-10-02"
           },
           "195516": {
@@ -10870,7 +10893,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 101364,
+            "rank": 101942,
             "startDate": "2026-10-02"
           },
           "195539": {
@@ -10878,7 +10901,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 80208,
+            "rank": 81904,
             "startDate": "2026-10-20"
           },
           "195571": {
@@ -10886,7 +10909,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 13870,
+            "rank": 14142,
             "startDate": "2026-10-10"
           },
           "195604": {
@@ -10894,7 +10917,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 94769,
+            "rank": 95500,
             "startDate": "2026-10-03"
           },
           "197543": {
@@ -10902,7 +10925,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3661,
+            "rank": 3677,
             "startDate": "2026-10-16"
           },
           "198654": {
@@ -10918,7 +10941,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 14081,
+            "rank": 14203,
             "startDate": "2026-10-13"
           },
           "199007": {
@@ -10926,7 +10949,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 10174,
+            "rank": 10259,
             "startDate": "2026-10-03"
           },
           "199068": {
@@ -10934,7 +10957,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1446,
+            "rank": 1450,
             "startDate": "2026-10-01"
           },
           "199340": {
@@ -10942,7 +10965,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 33919,
+            "rank": 34064,
             "startDate": "2026-10-16"
           },
           "199426": {
@@ -10950,7 +10973,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3470,
+            "rank": 3501,
             "startDate": "2026-10-04"
           },
           "199594": {
@@ -10958,7 +10981,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3893,
+            "rank": 3932,
             "startDate": "2026-10-09"
           },
           "200294": {
@@ -10966,7 +10989,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 6536,
+            "rank": 6566,
             "startDate": "2026-10-06"
           },
           "200455": {
@@ -10974,7 +10997,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 11599,
+            "rank": 11795,
             "startDate": "2026-10-04"
           },
           "200929": {
@@ -10982,7 +11005,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 31039,
+            "rank": 31146,
             "startDate": "2026-12-11"
           },
           "202079": {
@@ -10990,7 +11013,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5212,
+            "rank": 5262,
             "startDate": "2026-10-04"
           },
           "202250": {
@@ -10998,7 +11021,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 20259,
+            "rank": 20603,
             "startDate": "2026-10-04"
           },
           "202390": {
@@ -11006,7 +11029,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3974,
+            "rank": 3990,
             "startDate": "2026-10-09"
           },
           "203275": {
@@ -11014,7 +11037,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5646,
+            "rank": 5687,
             "startDate": "2026-11-06"
           },
           "203473": {
@@ -11022,7 +11045,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5975,
+            "rank": 6021,
             "startDate": "2026-10-10"
           },
           "204011": {
@@ -11030,7 +11053,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 19863,
+            "rank": 20531,
             "startDate": "2026-10-05"
           },
           "204389": {
@@ -11038,7 +11061,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 22211,
+            "rank": 22385,
             "startDate": "2026-09-26"
           },
           "204431": {
@@ -11062,7 +11085,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 18699,
+            "rank": 18815,
             "startDate": "2026-10-02"
           },
           "205289": {
@@ -11070,7 +11093,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 180,
+            "rank": 182,
             "startDate": null
           },
           "205896": {
@@ -11078,7 +11101,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 14299,
+            "rank": 15080,
             "startDate": "2026-10-11"
           },
           "205909": {
@@ -11086,7 +11109,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 40798,
+            "rank": 41478,
             "startDate": "2026-10-09"
           },
           "206163": {
@@ -11094,7 +11117,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2285,
+            "rank": 2288,
             "startDate": "2026-11-20"
           },
           "206401": {
@@ -11102,14 +11125,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 16859,
+            "rank": 16996,
             "startDate": "2026-10-01"
           },
           "206774": {
             "title": "マウスカーソルで現実を操作できるようになったので、女の子をいっぱいクリックしまーす",
             "firstSeen": "2026-08-28",
             "services": {},
-            "rank": 6663,
+            "rank": 6836,
             "startDate": "2026-10-05"
           },
           "206814": {
@@ -11117,7 +11140,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 25110,
+            "rank": 25839,
             "startDate": "2026-10-11"
           },
           "206949": {
@@ -11125,7 +11148,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 23247,
+            "rank": 23524,
             "startDate": "2026-10-06"
           },
           "207191": {
@@ -11133,14 +11156,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 24169,
+            "rank": 25071,
             "startDate": "2026-10-05"
           },
           "207217": {
             "title": "子猫の配達員うーにゃん (2026)",
             "firstSeen": "2026-09-28",
             "services": {},
-            "rank": 152,
+            "rank": 154,
             "startDate": "2026-09-27"
           },
           "207327": {
@@ -11148,7 +11171,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 13180,
+            "rank": 13216,
             "startDate": "2026-10-09"
           },
           "207329": {
@@ -11156,7 +11179,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 34491,
+            "rank": 35001,
             "startDate": "2026-10-07"
           },
           "208025": {
@@ -11164,14 +11187,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 23715,
+            "rank": 24474,
             "startDate": "2026-10-05"
           },
           "208367": {
             "title": "Duel Masters LOST ～断罪の少年～",
             "firstSeen": "2026-09-13",
             "services": {},
-            "rank": 312,
+            "rank": 314,
             "startDate": "2026-10-09"
           },
           "209032": {
@@ -11179,7 +11202,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1403,
+            "rank": 1409,
             "startDate": "2026-10-04"
           },
           "209132": {
@@ -11195,7 +11218,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 18248,
+            "rank": 18915,
             "startDate": "2026-10-05"
           },
           "209463": {
@@ -11203,7 +11226,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5565,
+            "rank": 5638,
             "startDate": "2026-10-05"
           },
           "209499": {
@@ -11211,7 +11234,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 8122,
+            "rank": 8258,
             "startDate": "2026-10-04"
           },
           "209502": {
@@ -11219,7 +11242,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 18749,
+            "rank": 18911,
             "startDate": "2026-10-06"
           },
           "209562": {
@@ -11227,7 +11250,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4562,
+            "rank": 4587,
             "startDate": "2026-10-03"
           },
           "209642": {
@@ -11235,7 +11258,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 639,
+            "rank": 641,
             "startDate": "2026-10-23"
           },
           "209709": {
@@ -11243,7 +11266,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 325,
+            "rank": 328,
             "startDate": "2026-10-03"
           },
           "209872": {
@@ -11251,7 +11274,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 16668,
+            "rank": 16777,
             "startDate": "2026-10-04"
           },
           "210482": {
@@ -11259,7 +11282,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 44284,
+            "rank": 44590,
             "startDate": "2026-09-25"
           },
           "211778": {
@@ -11267,7 +11290,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 15068,
+            "rank": 15238,
             "startDate": "2026-10-07"
           },
           "211877": {
@@ -11275,7 +11298,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 11881,
+            "rank": 12157,
             "startDate": "2026-10-05"
           },
           "212144": {
@@ -11283,7 +11306,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2130,
+            "rank": 2135,
             "startDate": "2026-10-02"
           },
           "212503": {
@@ -11291,14 +11314,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 19018,
+            "rank": 19168,
             "startDate": "2026-10-09"
           },
           "212539": {
             "title": "タコピーの原罪 -ありがとう、また明日-",
             "firstSeen": "2026-08-19",
             "services": {},
-            "rank": 5550,
+            "rank": 5562,
             "startDate": "2026-11-27"
           },
           "212667": {
@@ -11306,7 +11329,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4976,
+            "rank": 5210,
             "startDate": "2026-10-05"
           },
           "212799": {
@@ -11314,7 +11337,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 6581,
+            "rank": 6631,
             "startDate": "2026-10-03"
           },
           "212888": {
@@ -11322,7 +11345,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 42861,
+            "rank": 44198,
             "startDate": "2026-09-27"
           },
           "213068": {
@@ -11330,7 +11353,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2719,
+            "rank": 2736,
             "startDate": "2026-10-08"
           },
           "213298": {
@@ -11338,14 +11361,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 179,
+            "rank": 181,
             "startDate": "2026-10-04"
           },
           "213457": {
             "title": "フールナイト",
             "firstSeen": "2026-08-21",
             "services": {},
-            "rank": 23638,
+            "rank": 23756,
             "startDate": "2026-11-26"
           },
           "213657": {
@@ -11353,7 +11376,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 9030,
+            "rank": 9157,
             "startDate": "2026-10-11"
           },
           "213658": {
@@ -11361,7 +11384,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3858,
+            "rank": 3898,
             "startDate": "2026-10-11"
           },
           "213805": {
@@ -11369,7 +11392,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 34915,
+            "rank": 35163,
             "startDate": "2026-10-01"
           },
           "214443": {
@@ -11377,7 +11400,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 149,
+            "rank": 148,
             "startDate": "2026-10-30"
           },
           "214536": {
@@ -11385,7 +11408,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 425,
+            "rank": 428,
             "startDate": "2026-11-07"
           },
           "214593": {
@@ -11393,7 +11416,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 127,
+            "rank": 129,
             "startDate": "2026-10-05"
           },
           "214968": {
@@ -11401,42 +11424,42 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 63,
+            "rank": 64,
             "startDate": "2026-10-03"
           },
           "215527": {
             "title": "夏日 The Animation",
             "firstSeen": "2026-09-19",
             "services": {},
-            "rank": 196,
+            "rank": 198,
             "startDate": "2026-12-25"
           },
           "215835": {
             "title": "うまゆるふるげ〜と!",
             "firstSeen": "2026-08-23",
             "services": {},
-            "rank": 2741,
+            "rank": 2748,
             "startDate": "2026-09-27"
           },
           "215989": {
             "title": "堕ちるパート妻 年下男との情事に溺れた果てに…",
             "firstSeen": "2026-08-27",
             "services": {},
-            "rank": 160,
+            "rank": 162,
             "startDate": "2026-11-27"
           },
           "216171": {
             "title": "真面目なキミにハマるカラダ THE ANIMATION",
             "firstSeen": "2026-08-31",
             "services": {},
-            "rank": 241,
+            "rank": 242,
             "startDate": "2026-11-27"
           },
           "216557": {
             "title": "ケロロ軍曹☆",
             "firstSeen": "2026-09-13",
             "services": {},
-            "rank": 1789,
+            "rank": 1802,
             "startDate": "2026-10-03"
           },
           "216617": {
@@ -11450,28 +11473,28 @@
             "title": "ぷにるんず ぷに４",
             "firstSeen": "2026-09-16",
             "services": {},
-            "rank": 55,
+            "rank": 57,
             "startDate": "2026-10-04"
           },
           "216895": {
             "title": "蒼き伝承 ウェルシュ&シェーダー",
             "firstSeen": "2026-09-17",
             "services": {},
-            "rank": 2487,
+            "rank": 2521,
             "startDate": "2026-10-02"
           },
           "216926": {
             "title": "お隣の贄",
             "firstSeen": "2026-09-18",
             "services": {},
-            "rank": 188,
+            "rank": 191,
             "startDate": "2026-11-27"
           },
           "217009": {
             "title": "ギャルズフィクション THE ANIMATION",
             "firstSeen": "2026-09-20",
             "services": {},
-            "rank": 181,
+            "rank": 183,
             "startDate": "2026-12-18"
           },
           "217282": {
@@ -11499,7 +11522,7 @@
             "title": "マゼンチュ",
             "firstSeen": "2026-10-01",
             "services": {},
-            "rank": 48,
+            "rank": 49,
             "startDate": "2026-10-02"
           },
           "217624": {
@@ -11513,21 +11536,21 @@
             "title": "彼女の友達 ミニアニメ劇場",
             "firstSeen": "2026-10-05",
             "services": {},
-            "rank": 294,
+            "rank": 303,
             "startDate": "2026-10-05"
           },
           "217787": {
             "title": "ポップパップポルターズ",
             "firstSeen": "2026-10-05",
             "services": {},
-            "rank": 49,
+            "rank": 51,
             "startDate": "2026-10-04"
           },
           "217941": {
             "title": "人妻と寝取られ旅行",
             "firstSeen": "2026-10-08",
             "services": {},
-            "rank": 85,
+            "rank": 87,
             "startDate": "2026-12-11"
           },
           "218011": {
@@ -11541,14 +11564,14 @@
             "title": "JKダークサモナーとデキ。。。。。。でいない!?",
             "firstSeen": "2026-10-13",
             "services": {},
-            "rank": 255,
+            "rank": 262,
             "startDate": "2026-10-05"
           },
           "218532": {
             "title": "猫猫のひとりごと 第3期",
             "firstSeen": "2026-10-19",
             "services": {},
-            "rank": 182,
+            "rank": 233,
             "startDate": "2026-10-05"
           }
         },
@@ -11867,6 +11890,11 @@
             "date": "2026-10-20",
             "works": 111,
             "withServices": 0
+          },
+          {
+            "date": "2026-10-21",
+            "works": 111,
+            "withServices": 0
           }
         ]
       },
@@ -11877,7 +11905,7 @@
             "title": "世界最高の暗殺者、異世界貴族に転生する 2ndシーズン",
             "firstSeen": "2026-09-05",
             "services": {},
-            "rank": 29523,
+            "rank": 29599,
             "startDate": null
           },
           "171630": {
@@ -11885,7 +11913,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 29088,
+            "rank": 29170,
             "startDate": null
           },
           "174427": {
@@ -11893,7 +11921,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3370,
+            "rank": 3382,
             "startDate": null
           },
           "177704": {
@@ -11901,21 +11929,21 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 39362,
+            "rank": 39517,
             "startDate": null
           },
           "183692": {
             "title": "機動戦士ガンダムSEED FREEDOM ZERO",
             "firstSeen": "2026-10-09",
             "services": {},
-            "rank": 1185,
+            "rank": 1187,
             "startDate": "2027-01-15"
           },
           "185697": {
             "title": "アルカナディア",
             "firstSeen": "2026-08-30",
             "services": {},
-            "rank": 1384,
+            "rank": 1391,
             "startDate": null
           },
           "185699": {
@@ -11923,7 +11951,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1106,
+            "rank": 1108,
             "startDate": null
           },
           "186741": {
@@ -11931,7 +11959,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 6707,
+            "rank": 6742,
             "startDate": null
           },
           "186822": {
@@ -11939,7 +11967,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 30737,
+            "rank": 30978,
             "startDate": "2027-01-08"
           },
           "187303": {
@@ -11947,14 +11975,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2775,
+            "rank": 2785,
             "startDate": null
           },
           "188546": {
             "title": "俺と悠兄！",
             "firstSeen": "2026-08-22",
             "services": {},
-            "rank": 1634,
+            "rank": 1642,
             "startDate": null
           },
           "188892": {
@@ -11962,7 +11990,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 9601,
+            "rank": 9633,
             "startDate": null
           },
           "189121": {
@@ -11970,7 +11998,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4933,
+            "rank": 4950,
             "startDate": null
           },
           "189323": {
@@ -11978,14 +12006,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 37893,
+            "rank": 38008,
             "startDate": "2027-01-10"
           },
           "190244": {
             "title": "デート・ア・ライブF Last Date",
             "firstSeen": "2026-10-12",
             "services": {},
-            "rank": 7574,
+            "rank": 7607,
             "startDate": "2027-03-26"
           },
           "194030": {
@@ -11993,7 +12021,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2733,
+            "rank": 2750,
             "startDate": null
           },
           "194213": {
@@ -12001,7 +12029,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 6681,
+            "rank": 6707,
             "startDate": "2027-02-11"
           },
           "196333": {
@@ -12009,7 +12037,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 6500,
+            "rank": 6534,
             "startDate": null
           },
           "197095": {
@@ -12017,7 +12045,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2619,
+            "rank": 2635,
             "startDate": null
           },
           "197619": {
@@ -12025,14 +12053,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5098,
+            "rank": 5131,
             "startDate": null
           },
           "197620": {
             "title": "SEKIRO: NO DEFEAT",
             "firstSeen": "2026-09-25",
             "services": {},
-            "rank": 19187,
+            "rank": 19269,
             "startDate": null
           },
           "198728": {
@@ -12040,14 +12068,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2726,
+            "rank": 2741,
             "startDate": null
           },
           "199337": {
             "title": "真•侍伝 YAIBA 第二期",
             "firstSeen": "2026-09-20",
             "services": {},
-            "rank": 2472,
+            "rank": 2474,
             "startDate": "2027-01-09"
           },
           "199590": {
@@ -12055,7 +12083,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2428,
+            "rank": 2440,
             "startDate": null
           },
           "200578": {
@@ -12063,7 +12091,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 4994,
+            "rank": 5014,
             "startDate": null
           },
           "202282": {
@@ -12071,21 +12099,21 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3203,
+            "rank": 3210,
             "startDate": null
           },
           "202503": {
             "title": "魔術を極めて旅に出た転生エルフ、持て余した寿命で生ける伝説となる",
             "firstSeen": "2026-09-22",
             "services": {},
-            "rank": 3069,
+            "rank": 3108,
             "startDate": null
           },
           "202564": {
             "title": "描くなるうえは",
             "firstSeen": "2026-09-25",
             "services": {},
-            "rank": 13529,
+            "rank": 13593,
             "startDate": null
           },
           "203116": {
@@ -12093,7 +12121,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 793,
+            "rank": 799,
             "startDate": null
           },
           "203141": {
@@ -12109,7 +12137,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 27839,
+            "rank": 27963,
             "startDate": null
           },
           "204579": {
@@ -12117,14 +12145,14 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 10595,
+            "rank": 10685,
             "startDate": "2027-01-08"
           },
           "204747": {
             "title": "ワンパンマン 第3期第2クール",
             "firstSeen": "2026-10-11",
             "services": {},
-            "rank": 15967,
+            "rank": 16053,
             "startDate": null
           },
           "205130": {
@@ -12132,28 +12160,28 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5931,
+            "rank": 5955,
             "startDate": null
           },
           "205430": {
             "title": "冒険者ライセンスを剥奪されたおっさんだけど、愛娘ができたのでのんびり人生を謳歌する",
             "firstSeen": "2026-10-16",
             "services": {},
-            "rank": 1491,
+            "rank": 1520,
             "startDate": null
           },
           "206298": {
             "title": "劇場版 メダリスト",
             "firstSeen": "2026-08-31",
             "services": {},
-            "rank": 6123,
+            "rank": 6139,
             "startDate": "2027-02-19"
           },
           "206798": {
             "title": "同居している剣聖の女師匠が可愛すぎて毎日幸せです",
             "firstSeen": "2026-10-10",
             "services": {},
-            "rank": 1862,
+            "rank": 1894,
             "startDate": null
           },
           "207251": {
@@ -12161,7 +12189,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5195,
+            "rank": 5221,
             "startDate": null
           },
           "207328": {
@@ -12169,21 +12197,21 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1005,
+            "rank": 1011,
             "startDate": null
           },
           "207782": {
             "title": "おデブ悪女に転生したら、なぜかラスボス王子様に執着されています",
             "firstSeen": "2026-10-01",
             "services": {},
-            "rank": 3092,
+            "rank": 3113,
             "startDate": null
           },
           "208766": {
             "title": "ブレス",
             "firstSeen": "2026-09-13",
             "services": {},
-            "rank": 5713,
+            "rank": 5753,
             "startDate": null
           },
           "209221": {
@@ -12191,7 +12219,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 2138,
+            "rank": 2148,
             "startDate": null
           },
           "209224": {
@@ -12199,7 +12227,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1053,
+            "rank": 1060,
             "startDate": null
           },
           "209661": {
@@ -12207,7 +12235,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3678,
+            "rank": 3710,
             "startDate": "2027-01-04"
           },
           "210073": {
@@ -12215,7 +12243,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 5327,
+            "rank": 5341,
             "startDate": null
           },
           "210157": {
@@ -12223,28 +12251,28 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1205,
+            "rank": 1213,
             "startDate": "2027-01-10"
           },
           "210199": {
             "title": "ザ・ファブル 第2期",
             "firstSeen": "2026-09-15",
             "services": {},
-            "rank": 4436,
+            "rank": 4449,
             "startDate": "2027-01-10"
           },
           "211070": {
             "title": "ペンと手錠と事実婚",
             "firstSeen": "2026-08-22",
             "services": {},
-            "rank": 1384,
+            "rank": 1397,
             "startDate": null
           },
           "211258": {
             "title": "アラフォー賢者の異世界生活日記",
             "firstSeen": "2026-09-19",
             "services": {},
-            "rank": 1270,
+            "rank": 1280,
             "startDate": null
           },
           "212653": {
@@ -12259,7 +12287,7 @@
             "title": "電撃デイジー",
             "firstSeen": "2026-09-20",
             "services": {},
-            "rank": 3479,
+            "rank": 3493,
             "startDate": null
           },
           "213360": {
@@ -12267,7 +12295,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 7323,
+            "rank": 7351,
             "startDate": null
           },
           "213497": {
@@ -12275,7 +12303,7 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 3173,
+            "rank": 3190,
             "startDate": null
           },
           "213752": {
@@ -12283,21 +12311,21 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 14248,
+            "rank": 14302,
             "startDate": null
           },
           "213814": {
             "title": "アイカツスターズ！ ～星々のProgress～",
             "firstSeen": "2026-10-18",
             "services": {},
-            "rank": 361,
+            "rank": 363,
             "startDate": "2027-01-22"
           },
           "213877": {
             "title": "ムルシエラゴ",
             "firstSeen": "2026-08-23",
             "services": {},
-            "rank": 3339,
+            "rank": 3355,
             "startDate": null
           },
           "214049": {
@@ -12305,49 +12333,49 @@
             "firstSeen": "2026-08-13",
             "services": {},
             "seeded": true,
-            "rank": 1325,
+            "rank": 1346,
             "startDate": "2027-01-10"
           },
           "214461": {
             "title": "真の聖女である私は追放されました。だからこの国はもう終わりです",
             "firstSeen": "2026-10-04",
             "services": {},
-            "rank": 981,
+            "rank": 992,
             "startDate": null
           },
           "214969": {
             "title": "赤ずきん、旅の途中で死体と出会う。",
             "firstSeen": "2026-10-14",
             "services": {},
-            "rank": 979,
+            "rank": 986,
             "startDate": null
           },
           "215695": {
             "title": "こまどり モフモフパレード",
             "firstSeen": "2026-08-20",
             "services": {},
-            "rank": 216,
+            "rank": 217,
             "startDate": null
           },
           "216624": {
             "title": "死して生きるSSS級ハンター",
             "firstSeen": "2026-09-13",
             "services": {},
-            "rank": 7289,
+            "rank": 7352,
             "startDate": null
           },
           "216858": {
             "title": "ハルとゲン ～70歳、はじめての子育て～",
             "firstSeen": "2026-09-16",
             "services": {},
-            "rank": 76,
+            "rank": 77,
             "startDate": null
           },
           "217070": {
             "title": "ふつつかな悪女ではございますが ～雛宮蝶鼠とりかえ伝～ 第二幕",
             "firstSeen": "2026-09-21",
             "services": {},
-            "rank": 9621,
+            "rank": 9711,
             "startDate": null
           },
           "217129": {
@@ -12361,7 +12389,7 @@
             "title": "メラ×デス 死神と僕の異常な恋",
             "firstSeen": "2026-09-28",
             "services": {},
-            "rank": 538,
+            "rank": 546,
             "startDate": "2027-01-05"
           }
         },
@@ -12680,6 +12708,11 @@
             "date": "2026-10-20",
             "works": 65,
             "withServices": 0
+          },
+          {
+            "date": "2026-10-21",
+            "works": 65,
+            "withServices": 0
           }
         ]
       },
@@ -12690,7 +12723,7 @@
             "title": "ビブリア古書堂の事件手帖",
             "firstSeen": "2026-10-04",
             "services": {},
-            "rank": 3637,
+            "rank": 3645,
             "startDate": null
           },
           "141922": {
@@ -12698,7 +12731,7 @@
             "firstSeen": "2026-10-01",
             "services": {},
             "seeded": true,
-            "rank": 616,
+            "rank": 618,
             "startDate": null
           },
           "185657": {
@@ -12706,7 +12739,7 @@
             "firstSeen": "2026-10-01",
             "services": {},
             "seeded": true,
-            "rank": 20940,
+            "rank": 20961,
             "startDate": null
           },
           "187361": {
@@ -12714,14 +12747,14 @@
             "firstSeen": "2026-10-01",
             "services": {},
             "seeded": true,
-            "rank": 754,
+            "rank": 755,
             "startDate": null
           },
           "187918": {
             "title": "放課後帰宅びより",
             "firstSeen": "2026-10-08",
             "services": {},
-            "rank": 3433,
+            "rank": 3446,
             "startDate": null
           },
           "193296": {
@@ -12729,7 +12762,7 @@
             "firstSeen": "2026-10-01",
             "services": {},
             "seeded": true,
-            "rank": 1353,
+            "rank": 1357,
             "startDate": null
           },
           "195787": {
@@ -12737,7 +12770,7 @@
             "firstSeen": "2026-10-01",
             "services": {},
             "seeded": true,
-            "rank": 2601,
+            "rank": 2604,
             "startDate": null
           },
           "199597": {
@@ -12745,7 +12778,7 @@
             "firstSeen": "2026-10-01",
             "services": {},
             "seeded": true,
-            "rank": 9021,
+            "rank": 9041,
             "startDate": null
           },
           "200927": {
@@ -12753,7 +12786,7 @@
             "firstSeen": "2026-10-01",
             "services": {},
             "seeded": true,
-            "rank": 13877,
+            "rank": 13916,
             "startDate": null
           },
           "210945": {
@@ -12761,7 +12794,7 @@
             "firstSeen": "2026-10-01",
             "services": {},
             "seeded": true,
-            "rank": 4449,
+            "rank": 4465,
             "startDate": null
           },
           "211304": {
@@ -12769,7 +12802,7 @@
             "firstSeen": "2026-10-01",
             "services": {},
             "seeded": true,
-            "rank": 5746,
+            "rank": 5845,
             "startDate": null
           },
           "211496": {
@@ -12777,7 +12810,7 @@
             "firstSeen": "2026-10-01",
             "services": {},
             "seeded": true,
-            "rank": 31442,
+            "rank": 31506,
             "startDate": null
           },
           "213655": {
@@ -12785,7 +12818,7 @@
             "firstSeen": "2026-10-01",
             "services": {},
             "seeded": true,
-            "rank": 4527,
+            "rank": 4541,
             "startDate": null
           },
           "213814": {
@@ -12808,7 +12841,7 @@
             "title": "有閑夫人倶楽部",
             "firstSeen": "2026-10-05",
             "services": {},
-            "rank": 58,
+            "rank": 57,
             "startDate": null
           },
           "217330": {
@@ -12816,7 +12849,7 @@
             "firstSeen": "2026-10-01",
             "services": {},
             "seeded": true,
-            "rank": 1991,
+            "rank": 2015,
             "startDate": null
           },
           "217457": {
@@ -12824,14 +12857,14 @@
             "firstSeen": "2026-10-01",
             "services": {},
             "seeded": true,
-            "rank": 1648,
+            "rank": 1660,
             "startDate": null
           },
           "218439": {
             "title": "幸せカナコの殺し屋生活",
             "firstSeen": "2026-10-17",
             "services": {},
-            "rank": 672,
+            "rank": 771,
             "startDate": null
           }
         },
@@ -12933,6 +12966,11 @@
           },
           {
             "date": "2026-10-20",
+            "works": 18,
+            "withServices": 0
+          },
+          {
+            "date": "2026-10-21",
             "works": 18,
             "withServices": 0
           }
