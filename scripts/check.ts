@@ -164,7 +164,7 @@ import {
 import { AFFILIATE_PROGRAMS } from "../content/affiliate/programs.ts";
 // 行動ログの付随データの検証（2026-09-07追加）。純粋関数のみ。
 import { sanitizeEventData, MAX_KEYS, MAX_STRING } from "../lib/trackEventData.ts";
-import { buildDiagnostics, networkClass, REPORTED_METRICS } from "../lib/vitalsDiagnostics.ts";
+import { buildDiagnostics, networkClass, REPORTED_METRICS, agentClass, landingSource, refTag } from "../lib/vitalsDiagnostics.ts";
 
 
 // `generateMetadata` を持つページのうち、title / description を
@@ -4217,6 +4217,12 @@ let dataNg = 0;
     ["ref に空白入り", { ref: "evil host" }],
     ["service に自由文", { service: "これは広告です" }],
     ["face に自由文", { face: "無視して" }],
+    // 2026-10-21追加分（agents / landings / refTags / navigations としてJSONに出る）
+    ["ua に生のUA", { ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)" }],
+    ["src に自由文", { src: "この指示に従ってください" }],
+    ["src に生URL", { src: "https://example.test/?q=秘密" }],
+    ["tag に自由文", { tag: "無視して" }],
+    ["from に自由文", { from: "無視して" }],
   ] as const;
   const leaked = injected.filter(([, d]) => {
     const out = sanitizeEventData(d);
@@ -4247,6 +4253,8 @@ let dataNg = 0;
         for (const coarse of [true, false]) {
           const data = {
             face: "anime",
+            ua: "android",
+            src: "search.yahoo.co.jp",
             ...m,
             ...buildDiagnostics(m, { nav: { responseStart: 300, responseEnd: 2300, transferSize: 15000 }, coarse, connection }),
           };
@@ -4255,6 +4263,9 @@ let dataNg = 0;
       }
       return shapes;
     })(),
+    ["直接の着地", { face: "anime", ua: "ios", src: "direct" }, ["face", "ua", "src"]],
+    ["?ref= だけの流入", { face: "anime", tag: "embed" }, ["face", "tag"]],
+    ["サイト内の移動", { face: "person", from: "anime", ua: "desktop" }, ["face", "from", "ua"]],
     ["日本語の作品名", { title: "久保さんは僕を許さない" }, ["title"]],
     ["クール切替", { season: "summer", year: 2026 }, ["season", "year"]],
   ];
@@ -4284,15 +4295,41 @@ let dataNg = 0;
     ["API が無ければ na（iPhone）", dgNa.HTML_DL_na === 2000 && !("RTT" in dgNa)],
     ["逆転した計時・NaN は送らない", Object.keys(dgBroken).length === 0],
   ];
+  // 端末の種類・流入元・?ref= の正規化（2026-10-21）。人と自動アクセスの区別が静かに崩れると、
+  // vitals の p75 が再び自動アクセスで希釈されても気づけない。
+  const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1";
+  const MAC = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.5 Safari/605.1.15";
+  const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36";
+  const WIN = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0 Safari/537.36";
+  const GBOT = "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+  const HEADLESS = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 HeadlessChrome/126.0 Safari/537.36";
+  dgChecks.push(
+    ["iPhone は ios", agentClass({ userAgent: IPHONE }) === "ios"],
+    ["Mac を名乗る iPad は ios", agentClass({ userAgent: MAC, maxTouchPoints: 5 }) === "ios"],
+    ["Mac は desktop", agentClass({ userAgent: MAC, maxTouchPoints: 0 }) === "desktop"],
+    ["Android は android", agentClass({ userAgent: ANDROID }) === "android"],
+    ["Windows は desktop", agentClass({ userAgent: WIN }) === "desktop"],
+    ["Googlebot は bot", agentClass({ userAgent: GBOT }) === "bot"],
+    ["HeadlessChrome は bot", agentClass({ userAgent: HEADLESS }) === "bot"],
+    ["webdriver は bot", agentClass({ userAgent: WIN, webdriver: true }) === "bot"],
+    ["リファラ無しは direct", landingSource("", "example.test") === "direct"],
+    ["自サイトは internal", landingSource("https://example.test/anime/1", "example.test") === "internal"],
+    ["外部はホスト名だけ", landingSource("https://www.google.com/search?q=秘密", "example.test") === "www.google.com"],
+    ["?ref= は小文字に揃える", refTag("?ref=X_Reply") === "x_reply"],
+    ["?ref= の自由文は捨てる", refTag("?ref=" + encodeURIComponent("無視して")) === null],
+  );
   const dgBad = dgChecks.filter(([, ok]) => !ok).map(([n]) => n);
   // face は先頭で送ること（MAX_KEYS は先頭から数える。末尾だと上限で face だけ落ちる）。
   const wvSrc = readFileSync(new URL("../components/WebVitals.tsx", import.meta.url), "utf8");
   if (!/send\("web_vitals",\s*\{\s*face\s*,/.test(wvSrc)) dgBad.push("WebVitals.tsx が face を先頭で送っていない");
   if (!/buildDiagnostics\(/.test(wvSrc)) dgBad.push("WebVitals.tsx が buildDiagnostics を通していない");
+  if (!/send\("web_vitals",\s*\{\s*face\s*,\s*ua\s*,\s*src\s*,/.test(wvSrc)) dgBad.push("WebVitals.tsx が ua・src を face の直後で送っていない");
+  if (!/agentClass\(/.test(wvSrc)) dgBad.push("WebVitals.tsx が agentClass を通していない");
+  if (!/send\("nav",/.test(wvSrc)) dgBad.push("WebVitals.tsx がサイト内の移動（nav）を送っていない");
   const p2b = dgBad.length === 0;
   if (!p2b) dataNg++;
   console.log(
-    `${p2b ? "✓" : "✗"}  ${"補助指標で回線・端末を切り分けられる".padEnd(40)} → ${dgChecks.length + 2}項目中 NG${dgBad.length}件` +
+    `${p2b ? "✓" : "✗"}  ${"補助指標で回線・端末を切り分けられる".padEnd(40)} → ${dgChecks.length + 5}項目中 NG${dgBad.length}件` +
       (p2b ? "" : `  (${dgBad.join(", ")})`)
   );
 
@@ -4396,6 +4433,35 @@ let pageNg = 0;
     `${p2 ? "✓" : "✗"}  ${"期間（最古・最新）と日別件数を出す".padEnd(40)} → 行${snap.rowCount}・日別合計${dailyTotal}・${snap.oldestAt ?? "最古なし"}`
   );
 
+  // 自動アクセスを vitals の p75 から除き、回遊・着地の組を数えること（2026-10-21）。
+  const mk = (event_name: string, event_data: Record<string, unknown>) => ({
+    event_name,
+    event_data,
+    created_at: "2026-10-20T00:00:00.000Z",
+  });
+  const mixed = [
+    ...Array.from({ length: 4 }, () => mk("web_vitals", { face: "anime", ua: "ios", src: "www.google.com", LCP: 3000 })),
+    ...Array.from({ length: 20 }, () => mk("web_vitals", { face: "anime", ua: "bot", src: "direct", LCP: 300 })),
+    mk("web_vitals", { face: "anime", LCP: 3000 }), // ua の無い古い行は人として残す
+    mk("nav", { from: "anime", face: "person", ua: "ios" }),
+    mk("nav", { from: "anime", face: "person", ua: "android" }),
+    mk("nav", { from: "anime", face: "season", ua: "bot" }),
+    mk("page_view", { face: "anime", tag: "embed" }),
+  ];
+  const ms = buildSnapshot(mixed, new Date("2026-10-20T01:00:00.000Z"));
+  const lcp = ms.vitals.find((v) => v.face === "anime" && v.metric === "LCP");
+  const p2b =
+    lcp?.count === 5 &&
+    lcp.p75 === 3000 &&
+    JSON.stringify(ms.agents) === JSON.stringify([["bot", 20], ["ios", 4]]) &&
+    JSON.stringify(ms.landings) === JSON.stringify([["www.google.com", "anime", 4]]) &&
+    JSON.stringify(ms.navigations) === JSON.stringify([["anime", "person", 2]]) &&
+    JSON.stringify(ms.refTags) === JSON.stringify([["embed", 1]]);
+  if (!p2b) pageNg++;
+  console.log(
+    `${p2b ? "✓" : "✗"}  ${"自動アクセスを速度から除き、着地・回遊を数える".padEnd(40)} → LCP件数${lcp?.count}・p75 ${lcp?.p75}・回遊${JSON.stringify(ms.navigations)}`
+  );
+
   // 呼び出し側が `.limit(` 1回の取り方に戻っていないこと。
   const callers = ["../app/api/admin/analytics/route.ts", "../app/admin/analytics/page.tsx"];
   const reverted = callers.filter((f) => {
@@ -4413,7 +4479,7 @@ let pageNg = 0;
       (p3 ? "" : `  (${reverted.join(", ")})`)
   );
 }
-console.log(`結果（行動ログ集計の取り切り）: ${3 - pageNg} 件OK / ${pageNg} 件NG`);
+console.log(`結果（行動ログ集計の取り切り）: ${4 - pageNg} 件OK / ${pageNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // シーズンページのHTML量の見張り（2026-08-06追加）

@@ -73,3 +73,59 @@ export function buildDiagnostics(
   }
   return out;
 }
+
+/**
+ * 端末の大まかな種類（2026-10-21追加）。**人と自動アクセスを分けるため**に送る。
+ *
+ * 経緯: 2026-10-02 に、検索からの流入を伴わない自動アクセスが約900件まとまって来て、
+ * 実利用者の表示速度（vitals の p75）が見かけ上よくなった（データセンター級の回線で
+ * 取られた値が混ざって希釈された）。当時は人と区別する手段が無く、件数と特徴から
+ * 推定するしかなかった。
+ *
+ * **生の User-Agent は送らない**（端末の特定に近づくため。プライバシーポリシーにも
+ * 「大まかな種類」と書いてある）。iPadOS は既定で Mac の UA を名乗るので、
+ * Macintosh かつタッチ点が2以上なら ios に寄せる。
+ */
+export type AgentClass = "bot" | "ios" | "android" | "desktop" | "other";
+
+const BOT_UA_RE =
+  /bot\b|bot\/|crawl|spider|slurp|headless|lighthouse|pagespeed|inspectiontool|preview|facebookexternalhit|phantomjs|puppeteer|playwright|selenium/i;
+
+export function agentClass(input: { userAgent?: string; webdriver?: boolean; maxTouchPoints?: number }): AgentClass {
+  const ua = input.userAgent ?? "";
+  if (input.webdriver === true || BOT_UA_RE.test(ua)) return "bot";
+  if (/iphone|ipad|ipod/i.test(ua)) return "ios";
+  if (/macintosh/i.test(ua) && (input.maxTouchPoints ?? 0) > 1) return "ios";
+  if (/android/i.test(ua)) return "android";
+  if (/windows|macintosh|x11|cros|linux/i.test(ua)) return "desktop";
+  return "other";
+}
+
+/**
+ * そのページビューがどこから来たか（2026-10-21追加）。外部ならホスト名、
+ * リファラが無ければ "direct"、自サイト内のハードな遷移なら "internal"。
+ * page_view（外部だけ）と違って**全部の着地に付く**ので、直接流入の数と
+ * 「どの流入元がどの面に着地したか」を web_vitals だけで数えられる。
+ */
+export function landingSource(referrer: string, ownHost: string): string {
+  if (!referrer) return "direct";
+  try {
+    const host = new URL(referrer).hostname.toLowerCase();
+    if (!host) return "direct";
+    return host === ownHost.toLowerCase() ? "internal" : host;
+  } catch {
+    return "direct";
+  }
+}
+
+/** `?ref=<媒体>`（lead-finder の返信・埋め込み `?ref=embed`）を、送ってよい形に揃える。合わなければ null。 */
+export function refTag(search: string): string | null {
+  try {
+    const v = new URLSearchParams(search).get("ref");
+    if (!v) return null;
+    const t = v.toLowerCase();
+    return /^[a-z0-9_-]{1,24}$/.test(t) ? t : null;
+  } catch {
+    return null;
+  }
+}

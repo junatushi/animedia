@@ -408,6 +408,26 @@ function main() {
     }
   }
 
+  // ── ⑦ 端末・国（2026-10-21追加）。取得を始めた日より前の断面には無い＝黙って省かず、無いと言う。
+  console.log("\n── ⑦ 端末・国の内訳（直近28日） ──");
+  const devices = Array.isArray(d.devices) ? d.devices : null;
+  if (!devices || devices.length === 0) {
+    console.log("  この断面には端末・国の内訳がありません（2026-10-21の取得追加より前、または取得失敗）。");
+  } else {
+    const imp = devices.reduce((a, r) => a + r.impressions, 0) || 1;
+    const clk = devices.reduce((a, r) => a + r.clicks, 0) || 1;
+    for (const r of devices) {
+      console.log(
+        `  ${pad(r.keys[0], 10)}クリック ${pad(String(r.clicks), 6)}(${((r.clicks / clk) * 100).toFixed(0)}%)  ` +
+          `表示 ${pad(String(r.impressions), 7)}(${((r.impressions / imp) * 100).toFixed(0)}%)  平均${r.position.toFixed(1)}位`
+      );
+    }
+    const countries = Array.isArray(d.countries) ? d.countries.slice(0, 5) : [];
+    if (countries.length > 0) {
+      console.log("  国（表示の多い順・上位5）: " + countries.map((r) => `${r.keys[0]} ${r.impressions}表示/${r.clicks}click`).join("、"));
+    }
+  }
+
   console.log("\n════════════════════════════════════════════════════════");
   console.log("  判断の手順は docs/seo-operations.md");
   console.log("════════════════════════════════════════════════════════\n");

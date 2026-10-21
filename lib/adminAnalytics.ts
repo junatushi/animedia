@@ -97,7 +97,8 @@ export const EVENT_LABELS: Record<string, string> = {
   official_link_click: "公式サイトへ（未提携）",
   embed_copy: "埋め込みコードをコピー",
   web_vitals: "表示速度の実測（1ページビュー1件）",
-  page_view: "外部からの流入（リファラあり）",
+  page_view: "外部からの流入（リファラまたは ?ref= あり）",
+  nav: "サイト内の移動（ページ種別間）",
 };
 
 export function countBy(rows: EventRow[], since: Date | null): Record<string, number> {
@@ -143,6 +144,9 @@ export function vitalsP75(
     if (row.event_name !== "web_vitals") continue;
     const d = row.event_data;
     if (!d) continue;
+    // 自動アクセスは除く（2026-10-21）。10/2 の約900件で p75 が見かけ上よくなった。
+    // ua を持たない古い行（〜10/21）は区別できないので従来どおり入れる。
+    if (isBotRow(row)) continue;
     const face = typeof d.face === "string" ? d.face : "other";
     for (const [metric, value] of Object.entries(d)) {
       if (metric === "face") continue;
@@ -163,6 +167,41 @@ export function vitalsP75(
   }
   // 面 → 指標 の順に並べて、画面でもJSONでも同じ並びになるようにする。
   return out.sort((a, b) => a.face.localeCompare(b.face) || a.metric.localeCompare(b.metric));
+}
+
+/** web_vitals / nav に付く端末の大まかな種類が bot か（lib/vitalsDiagnostics.ts の agentClass）。 */
+function isBotRow(row: EventRow): boolean {
+  return row.event_data?.ua === "bot";
+}
+
+/**
+ * 2つのフィールドの組ごとの件数（多い順・上位 limit 件）。自動アクセスの行は除く。
+ * 「どの流入元がどの面に着地したか」（web_vitals の src×face）と
+ * 「どの面からどの面へ移ったか」（nav の from×face）に使う。
+ */
+export function countPairs(
+  rows: EventRow[],
+  eventName: string,
+  a: string,
+  b: string,
+  limit = 30
+): [string, string, number][] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (row.event_name !== eventName || isBotRow(row)) continue;
+    const x = row.event_data?.[a];
+    const y = row.event_data?.[b];
+    if (typeof x !== "string" || typeof y !== "string") continue;
+    const key = `${x}\u0000${y}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((p, q) => q[1] - p[1])
+    .slice(0, limit)
+    .map(([key, n]) => {
+      const [x, y] = key.split("\u0000");
+      return [x, y, n];
+    });
 }
 
 function rowSpan(rows: EventRow[]): { oldestAt: string | null; newestAt: string | null } {
@@ -223,6 +262,19 @@ export type AnalyticsSnapshot = {
   vitals: { face: string; metric: string; p75: number; count: number }[];
   /** 外から来た経路のホスト名の多い順（同上）。AI検索からの流入もここに出る。 */
   referrers: [string, number][];
+  /**
+   * 以下は 2026-10-21 追加。どれも ua / src / tag / nav を送り始めた日より前の行には無い
+   * （＝窓に古い行が残っている間は件数が過小。oldestAt と合わせて読む）。
+   *
+   * agents … ページビュー（web_vitals）の端末の大まかな種類（bot＝自動アクセス）
+   * landings … [流入元, 着地した面, 件数]。流入元は外部ホスト名／direct／internal。bot は除く
+   * refTags … `?ref=<媒体>` で来た件数（返信・埋め込みのリンク）
+   * navigations … [移動元の面, 移動先の面, 件数]。サイト内の回遊。bot は除く
+   */
+  agents: [string, number][];
+  landings: [string, string, number][];
+  refTags: [string, number][];
+  navigations: [string, string, number][];
 };
 
 /**
@@ -252,5 +304,9 @@ export function buildSnapshot(rows: EventRow[], now = new Date()): AnalyticsSnap
     affiliateClicks: countByDataField(rows, "affiliate_click", "service"),
     vitals: vitalsP75(rows),
     referrers: countByDataField(rows, "page_view", "ref"),
+    agents: countByDataField(rows, "web_vitals", "ua"),
+    landings: countPairs(rows, "web_vitals", "src", "face"),
+    refTags: countByDataField(rows, "page_view", "tag"),
+    navigations: countPairs(rows, "nav", "from", "face"),
   };
 }

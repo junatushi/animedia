@@ -46,7 +46,7 @@
 // ───────────────────────────────────────────────────────────────
 
 /**
- * 1イベントに付けられるキーの数。web_vitals が最大（6指標＋face＋補助6＝13。
+ * 1イベントに付けられるキーの数。web_vitals が最大（6指標＋face＋ua＋src＋補助6＝15。
  * 補助は lib/vitalsDiagnostics.ts が作る。実際の最大形が収まることは node scripts/check.ts が
  * その関数を呼んで確かめるので、ここに数を書き写して合わせる必要は無い）。
  */
@@ -70,6 +70,12 @@ const FIELD_SHAPE: Record<string, RegExp> = {
   service: /^[a-z0-9_]{1,32}$/,
   // 面（ページ種別）。components/WebVitals.tsx が送るのは小文字の英字だけ。
   face: /^[a-z]{1,16}$/,
+  // 2026-10-21追加。どれもコミットされるJSONに出る（lib/adminAnalytics.ts の agents / landings / refTags）。
+  ua: /^(bot|ios|android|desktop|other)$/,
+  src: /^(direct|internal|[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+)$/,
+  tag: /^[a-z0-9_-]{1,24}$/,
+  // 回遊（nav）の移動元の面。移動先は face。face と同じ形。
+  from: /^[a-z]{1,16}$/,
 };
 
 /**

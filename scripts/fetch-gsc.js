@@ -293,6 +293,18 @@ const SPECS = [
     transform: keepTop,
     bandsKey: "pageBands",
   },
+  // 端末・国の内訳（2026-10-21追加）。Vercel Web Analytics はログインが要りセッションから読めず、
+  // 自前計測にも端末の種類が無かったため、「どの端末で見られているか」に答える一次情報が無かった。
+  // 行数はどちらも小さい（端末は DESKTOP/MOBILE/TABLET の3行）のでそのまま書く。
+  { key: "devices", label: "端末別", dimensions: ["device"], rowLimit: 10, range: "recent" },
+  {
+    key: "countries",
+    label: "国別",
+    dimensions: ["country"],
+    rowLimit: 250,
+    range: "recent",
+    transform: (rows) => rows.slice(0, 20),
+  },
   {
     key: "weeklyByType",
     label: "面別（週次・長期）",
@@ -340,6 +352,8 @@ async function main() {
     pages: [],
     queryBands: [],
     pageBands: [],
+    devices: [],
+    countries: [],
     weeklyByType: [],
     errors: [],
   };
