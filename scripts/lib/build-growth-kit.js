@@ -12,14 +12,13 @@
 //   声優/データもの）。日次＝その日の放送作品、週次キット＝フォロー転換とリーチの動線。
 const {
   SITE_URL,
-  MAX_LEN,
-  truncate,
   jstParts,
   currentSeasonByMonth,
   shortTitle,
   bodyIncludesUrl,
 } = require("./build-digest");
 const { xPostUrl, xSearchUrl } = require("./x-intent");
+const { fitsX, truncateForX } = require("./x-text");
 
 // --- 各投稿ドラフトの組み立て ---
 //
@@ -44,6 +43,18 @@ function replyUrlFor(url) {
   return bodyIncludesUrl("x") ? null : url;
 }
 
+// Xの上限（重みで280。全角2・URL23）に収める（2026-10-21導入。scripts/lib/x-text.js）。
+// 以前は文字の個数で260字に切っており、日本語の下書きは毎回上限を超えていた。
+// 超えるときは末尾で切らず（ハッシュタグが千切れる）、一覧の下位の作品から落とす。
+// build(rows) は rows を一覧に使った本文の行を返す関数。
+function fitList(build, rows) {
+  let text = build(rows).join("\n");
+  for (let n = rows.length - 1; n >= 1 && !fitsX(text); n--) {
+    text = build(rows.slice(0, n)).join("\n");
+  }
+  return truncateForX(text);
+}
+
 // ① 独占配信ピック: 見放題が1社だけの作品（独占）を注目度順に。需要◎◎（growth-ideas.md）。
 function draftExclusive(items, year, label, exclusiveUrl) {
   const exclusives = items
@@ -51,16 +62,16 @@ function draftExclusive(items, year, label, exclusiveUrl) {
     .sort((a, b) => b.watchers - a.watchers)
     .slice(0, 3);
   if (exclusives.length === 0) return null;
-  const lines = [
+  const build = (rows) => [
     `【独占配信】${year}年${label}アニメで“ここでしか見られない”注目作`,
     "",
-    ...exclusives.map((it) => `・${shortTitle(it.title, 20)}（${it.services[0].name}）`),
+    ...rows.map((it) => `・${shortTitle(it.title, 20)}（${it.services[0].name}）`),
     "",
     "サービス別の独占一覧はリプライのリンクから。",
     ...urlLinesFor(exclusiveUrl),
     `#${year}年${label}アニメ`,
   ];
-  return { text: truncate(lines.join("\n"), MAX_LEN), replyUrl: replyUrlFor(exclusiveUrl) };
+  return { text: fitList(build, exclusives), replyUrl: replyUrlFor(exclusiveUrl) };
 }
 
 // ② 配信サービス別ピック: そのクールで最も多くの作品を配信しているサービスを取り上げる。
@@ -81,16 +92,16 @@ function draftServicePick(items, year, label, seasonKey) {
     .filter((it) => it.services.some((s) => s.key === top.key))
     .sort((a, b) => b.watchers - a.watchers)
     .slice(0, 3);
-  const lines = [
+  const build = (rows) => [
     `【${top.name}】${year}年${label}アニメは${top.count}作品が配信対象`,
     "",
-    ...picks.map((it) => `・${shortTitle(it.title, 20)}`),
+    ...rows.map((it) => `・${shortTitle(it.title, 20)}`),
     "",
     `${top.name}で見られる今期作品の一覧はリプライのリンクから。`,
     ...urlLinesFor(serviceUrl),
     `#${year}年${label}アニメ`,
   ];
-  return { text: truncate(lines.join("\n"), MAX_LEN), replyUrl: replyUrlFor(serviceUrl) };
+  return { text: fitList(build, picks), replyUrl: replyUrlFor(serviceUrl) };
 }
 
 // ③ 声優ピック: そのクールで最も多くの作品に出ている声優を取り上げる。需要○。
@@ -117,16 +128,16 @@ function draftVoiceActor(items, year, label, seasonKey) {
     .sort((a, b) => b.watchers - a.watchers)
     .slice(0, 3);
   const personUrl = `${SITE_URL}/person/${encodeURIComponent(name)}/${year}/${seasonKey}`;
-  const lines = [
+  const build = (rows) => [
     `【今期の注目声優】${name}さんは${year}年${label}アニメで${(worksByName.get(name) || []).length}作品に出演`,
     "",
-    ...works.map((it) => `・${shortTitle(it.title, 20)}`),
+    ...rows.map((it) => `・${shortTitle(it.title, 20)}`),
     "",
     "出演作と配信先はリプライのリンクから。",
     ...urlLinesFor(personUrl),
     `#${year}年${label}アニメ`,
   ];
-  return { text: truncate(lines.join("\n"), MAX_LEN), replyUrl: replyUrlFor(personUrl) };
+  return { text: fitList(build, works), replyUrl: replyUrlFor(personUrl) };
 }
 
 // ④ データもの: 配信サービス別の対応本数ランキング。権利画像不要で拡散・被リンク源になる想定。
@@ -141,16 +152,16 @@ function draftDataViz(items, year, label, rankingUrl) {
   }
   const top = [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 5);
   if (top.length === 0) return null;
-  const lines = [
-    `【データで見る${year}年${label}アニメ】配信サービス別・対応本数トップ5`,
+  const build = (rows) => [
+    `【データで見る${year}年${label}アニメ】配信サービス別・対応本数トップ${rows.length}`,
     "",
-    ...top.map((s, i) => `${i + 1}. ${s.name} … ${s.count}作品`),
+    ...rows.map((s, i) => `${i + 1}. ${s.name} … ${s.count}作品`),
     "",
     "全ランキングはリプライのリンクから。",
     ...urlLinesFor(rankingUrl),
     `#${year}年${label}アニメ`,
   ];
-  return { text: truncate(lines.join("\n"), MAX_LEN), replyUrl: replyUrlFor(rankingUrl) };
+  return { text: fitList(build, top), replyUrl: replyUrlFor(rankingUrl) };
 }
 
 // --- リサーチ用: 困りごとを読むための検索クエリ ---
@@ -194,7 +205,7 @@ function draftPinned(year, label, count, seasonUrl) {
     "・配信情報は毎日自動で最新に更新",
     ...(bodyIncludesUrl("x") ? ["", seasonUrl] : []),
   ];
-  return { text: truncate(lines.join("\n"), MAX_LEN), replyUrl: replyUrlFor(seasonUrl) };
+  return { text: truncateForX(lines.join("\n")), replyUrl: replyUrlFor(seasonUrl) };
 }
 
 // --- 全体の組み立て ---

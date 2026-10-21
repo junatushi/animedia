@@ -11,6 +11,7 @@ const SITE_URL = process.env.DIGEST_SITE_URL || "https://animedia-khaki.vercel.a
 // スポットライト枠（2026-07-27導入）の対象作品リスト。実測データの一次情報は
 // content/sns/spotlight.js 側のコメントを参照。
 const { SPOTLIGHT_WORKS } = require("../../content/sns/spotlight");
+const { fitsX, truncateForX, fitTitleForX, weightOf } = require("./x-text");
 
 // X(280字)・Bluesky(300字)双方で安全に収まるよう、控えめな上限で統一する。
 const MAX_LEN = 260;
@@ -59,6 +60,22 @@ function normalizePlatform(platform) {
 const PLATFORM_MAX_LEN = { x: MAX_LEN, bluesky: MAX_LEN, mastodon: 440, threads: 440 };
 function maxLenFor(platform) {
   return PLATFORM_MAX_LEN[platform] || MAX_LEN;
+}
+
+// 上限に収まるか／収まらなければ切る（2026-10-21導入）。
+// **Xだけは文字の個数ではなく重み（全角2・URL23・上限280）で数える**（scripts/lib/x-text.js）。
+// 個数の260字で判定していた間、Xの下書きは毎回上限を超えていた（日次の放送枠で393〜444）。
+// 他の投稿先は従来どおり個数で数える（Blueskyは個数で300字）。
+function fitsFor(platform, text) {
+  return platform === "x" ? fitsX(text) : [...text].length <= maxLenFor(platform);
+}
+function truncateFor(platform, text) {
+  return platform === "x" ? truncateForX(text) : truncate(text, maxLenFor(platform));
+}
+// Xでは長すぎる作品名を「同じ行と合わせて2行以内」に省略する（利用者の基準・2026-10-21）。
+// fixed は同じ行に並ぶ作品名以外の文字（「・」「（00:30〜）」など）。他の投稿先は触らない。
+function titleFor(platform, title, fixed = "") {
+  return platform === "x" ? fitTitleForX(title, weightOf(fixed)) : title;
 }
 
 // 本文にURLを載せるか（2026-08-16導入）。
@@ -457,18 +474,26 @@ function buildTop5(data, year, label, url, shotUrl = url, todayStr, platform = "
   const lead = pickFor(TOP5_LEAD, platform, "top5", todayStr)({ year, label });
   // TOP5は日曜（weekday=0）に出る枠なので曜日条件は持たせず、週番号だけで頻度を決める。
   const question = questionFor("top5", platform, todayStr, 0);
-  const lines = [
+  const buildLines = (titleMax, withQuestion) => [
     lead,
     "",
-    ...top5.map((it, i) => `${i + 1}. ${shortTitle(it.title)}（${it.watchers.toLocaleString("ja-JP")}人が注目）`),
+    ...top5.map((it, i) => `${i + 1}. ${shortTitle(it.title, titleMax)}（${it.watchers.toLocaleString("ja-JP")}人が注目）`),
     "",
-    ...(question ? [question] : []),
+    ...(withQuestion && question ? [question] : []),
     ...(bodyIncludesUrl(platform) ? [url] : []),
     `#${year}年${label}アニメ`,
   ];
+  // 上限を超えるときは末尾で切らず（ハッシュタグが千切れる）、問いかけを落とし、
+  // それでも超えれば作品名を短くする。**作品数は減らさない**（書き出しが「TOP5」「5作品」と
+  // 言っているので、4件しか載せないと本文と食い違う）。
+  let text = buildLines(16, true).join("\n");
+  for (const titleMax of [16, 14, 12, 10, 8]) {
+    if (fitsFor(platform, text)) break;
+    text = buildLines(titleMax, false).join("\n");
+  }
   return {
     kind: "top5",
-    text: truncate(lines.join("\n"), maxLenFor(platform)),
+    text: truncateFor(platform, text),
     // 本文にURLを載せない投稿先（＝X）では、リプライに貼るURLをここで返す。
     // 本文から消すだけだと導線が丸ごと消えるため、必ず対で持たせる。
     replyUrl: bodyIncludesUrl(platform) ? null : url,
@@ -528,28 +553,34 @@ function buildTodayAiring(data, weekday, year, label, url, todayStr, platform = 
   const question = questionFor("airing", platform, todayStr, weekday);
   const questionLines = question ? [question] : [];
   const tag = `#${year}年${label}アニメ`;
-  const max = maxLenFor(platform);
   // Xは本文にURLを載せない（リプライに退避する。bodyIncludesUrl のコメント参照）。
   // 字数計算にもそのまま効かせたいので、行を組み立てる全ての箇所でこの配列を展開する。
   const urlLines = bodyIncludesUrl(platform, todayStr, "airing") ? [url] : [];
 
   // タイトルを1本ずつ足していき、上限を超えない範囲で最大数を載せる。
   const picks = [];
-  for (const it of today) {
-    const line = it.broadcastTime ? `・${it.title}（${it.broadcastTime}〜）` : `・${it.title}`;
-    const remain = today.length - (picks.length + 1);
+  // Xでは長すぎる作品名を省略する（titleFor。「・」と放送時刻も同じ行なので幅に含める）。
+  const lineFor = (it) => {
+    const time = it.broadcastTime ? `（${it.broadcastTime}〜）` : "";
+    return `・${titleFor(platform, it.title, `・${time}`)}${time}`;
+  };
+  const compose = (rows, qLines) => {
+    const remain = today.length - rows.length;
     const tail = remain > 0 ? `ほか${remain}作品。${cta}` : cta;
-    const candidate = [header, "", ...picks, line, "", tail, ...questionLines, ...urlLines, tag].join("\n");
-    if ([...candidate].length > max) break;
+    return [header, "", ...rows, "", tail, ...qLines, ...urlLines, tag].join("\n");
+  };
+  // 問いかけを入れたまま1本も入らないなら、問いかけを落として作品名を優先する。
+  const qLines = fitsFor(platform, compose([lineFor(today[0])], questionLines)) ? questionLines : [];
+  for (const it of today) {
+    const line = lineFor(it);
+    if (!fitsFor(platform, compose([...picks, line], qLines))) break;
     picks.push(line);
   }
   // 1本も入らない極端なケースはヘッダーだけでも出す（通常は起きない）。
   if (picks.length === 0) {
-    return truncate([header, "", ...urlLines, tag].join("\n"), max);
+    return truncateFor(platform, [header, "", ...urlLines, tag].join("\n"));
   }
-  const remain = today.length - picks.length;
-  const tail = remain > 0 ? `ほか${remain}作品。${cta}` : cta;
-  return truncate([header, "", ...picks, "", tail, ...questionLines, ...urlLines, tag].join("\n"), max);
+  return truncateFor(platform, compose(picks, qLines));
 }
 
 // スポットライト枠（2026-07-27導入）: GSC・Vercel Analyticsの実測で需要が確認できている
@@ -619,17 +650,17 @@ function buildSpotlight(data, year, label, todayStr, platform = "x") {
   const body = pickFor(SPOTLIGHT_BODY, platform, "spotlight", todayStr)();
   // スポットライトは曜日で出し分けない枠なので、頻度の判定にも曜日は渡さない（週番号だけ）。
   const question = questionFor("spotlight", platform, todayStr, 0);
-  const max = maxLenFor(platform);
   // スポットライトのリンク先は作品ページ。Xでは本文に出さずリプライへ回す
   // （bodyIncludesUrl のコメント参照）。
   const workUrl = `${SITE_URL}/anime/${picked.id}`;
   const replyUrl = bodyIncludesUrl(platform) ? null : workUrl;
-  const buildLines = (tagLine) => [
-    `【どこで見れる？】${picked.title}`,
+  const lead = "【どこで見れる？】";
+  const buildLines = (tagLine, withQuestion = true) => [
+    `${lead}${titleFor(platform, picked.title, lead)}`,
     "",
     `${watchersLine}${serviceLine}`,
     body,
-    ...(question ? ["", question] : []),
+    ...(withQuestion && question ? ["", question] : []),
     "",
     ...(bodyIncludesUrl(platform) ? [workUrl] : []),
     tagLine,
@@ -642,13 +673,16 @@ function buildSpotlight(data, year, label, todayStr, platform = "x") {
     // 超過時は先にtruncateへ流さず、作品名タグごと落として季節タグだけに戻す
     // （通常の投稿文＝季節タグのみは元々上限に収まる想定のため、この段階で切り詰める
     // 必要はまず発生しない）。
-    if ([...withWorkTag].length <= max) {
+    if (fitsFor(platform, withWorkTag)) {
       return { kind: "spotlight", text: withWorkTag, replyUrl, screenshot: null, image: workImage };
     }
   }
+  // 収まらなければ末尾で切る前に問いかけを落とす（ハッシュタグを千切らないため）。
+  const withQuestion = buildLines(seasonTag).join("\n");
+  const text = fitsFor(platform, withQuestion) ? withQuestion : buildLines(seasonTag, false).join("\n");
   return {
     kind: "spotlight",
-    text: truncate(buildLines(seasonTag).join("\n"), max),
+    text: truncateFor(platform, text),
     replyUrl,
     screenshot: null,
     image: workImage,
@@ -777,7 +811,7 @@ async function buildSeasonAnnounce(now = new Date(), rawPlatform) {
     `#${year}年${label}アニメ`,
   ];
   return {
-    posts: [{ text: truncate(lines.join("\n"), maxLenFor(platform)), screenshot: null }],
+    posts: [{ text: truncateFor(platform, lines.join("\n")), screenshot: null }],
     year,
     season,
     label,
@@ -872,6 +906,8 @@ module.exports = {
   PLATFORMS,
   normalizePlatform,
   maxLenFor,
+  fitsFor,
+  truncateFor,
   // X運用の組み直し（2026-08-16導入）。scripts/check.ts が直接検査する。
   bodyIncludesUrl,
   X_BODY_URL_EXPERIMENT_DATES,

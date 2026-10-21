@@ -67,8 +67,11 @@ import {
   X_BODY_URL_EXPERIMENT_DATES,
   pickDailyXPost,
   buildTodayAiring,
+  buildTop5,
+  buildSpotlight,
   hasCompleted,
 } from "./lib/build-digest.js";
+import { xWeightedLength, X_LINE_WEIGHT, X_TITLE_MAX_LINES } from "./lib/x-text.js";
 // 「完結」の明示的な印（2026-10-19導入）。サイト側の照合（lib/completion.ts）と取得側の純粋関数。
 import {
   resolveCompletion,
@@ -3216,6 +3219,89 @@ let xPolicyNg = 0;
     );
   }
 console.log(`結果（Xの投稿方針）: ${7 - xPolicyNg} 件OK / ${xPolicyNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// Xの文字数上限と長い作品名の省略（2026-10-21追加）
+//
+// Xは文字の個数ではなく重み（全角2・半角1・URL23、上限280）で数える。下書きは個数の260字で
+// 切っていたため、日本語の本文は**毎回**上限を超えていた（実測: 日次の放送枠で393〜444）。
+// 画面にもCIにも何も出ず、利用者が投稿画面で毎回手で削っていて発覚した。
+// 長い作品名（例: 追放されたチート付与魔術師は…）は「ポスト表示で2行」を超えたら「…」で省略する
+// （利用者の基準）。実データに依らないよう、長い作品名を含む仮のクールで実際に組み立てて測る。
+// ─────────────────────────────────────────────
+console.log("\n── Xの文字数上限と長い作品名の省略（2026-10-21）──");
+let xLenNg = 0;
+{
+  // (1) 数え方そのもの（twitter-text v3）。
+  const countOk =
+    xWeightedLength("abc") === 3 &&
+    xWeightedLength("あ") === 2 &&
+    xWeightedLength("https://example.test/very/long/path/to/page") === 23 &&
+    xWeightedLength("あ https://x.test/a") === 26;
+  if (!countOk) xLenNg++;
+  console.log(`${countOk ? "✓" : "✗"}  ${"Xの重み（全角2・半角1・URL23）".padEnd(40)} → あ=${xWeightedLength("あ")} URL=${xWeightedLength("https://example.test/very/long/path/to/page")}`);
+
+  const LONG =
+    "追放されたチート付与魔術師は気ままなセカンドライフを謳歌する。 ～俺は武器だけじゃなく、あらゆるものに『強化ポイント』を付与できるし、俺の意思でいつでも効果を解除できるけど、残った人たち大丈夫？～";
+  const svc = [{ key: "danime", name: "dアニメストア", short: "dアニメ" }, { key: "unext", name: "U-NEXT", short: "U-NEXT" }, { key: "abema", name: "ABEMA", short: "ABEMA" }, { key: "netflix", name: "Netflix", short: "Netflix" }];
+  const mk = (id: number, title: string, watchers: number) => ({
+    id, title, watchers, broadcastWeekday: 3, broadcastTime: "00:30", broadcastStartDate: "2026-10-01", services: svc, completedAt: null,
+  });
+  const items = [
+    mk(14132, LONG, 3000), // スポットライト対象のIDに長い作品名を当てる
+    mk(2, "目覚めたら最強装備と宇宙船持ちだったので、一戸建て目指して傭兵として自由に生きたい", 2900),
+    mk(3, "マウスカーソルで現実を操作できるようになったので、女の子をいっぱいクリックしまーす", 2800),
+    mk(4, "凶乱令嬢ニア・リストン 病弱令嬢に転生した神殺しの武人の華麗なる無双録", 2700),
+    mk(5, "探偵はもう、死んでいる。Season2", 2950),
+    mk(6, "弱気MAX令嬢なのに、辣腕婚約者様の賭けに乗ってしまった", 2500),
+  ];
+  const data = { items, count: items.length };
+  const url = "https://animedia-khaki.vercel.app/season/2026/autumn";
+  const TAG = "#2026年秋アニメ";
+
+  // (2) 日次の3種類が、言い回しの変わる8週ぶん・実験日（本文URLあり）も含めて全部280以内で、
+  //     末尾のハッシュタグが千切れていないこと。
+  const dates = ["2026-10-21", "2026-10-28", ...Array.from({ length: 8 }, (_, i) => new Date(Date.UTC(2026, 10, 4 + i * 7)).toISOString().slice(0, 10))];
+  const over: string[] = [];
+  for (const ts of dates) {
+    const posts = [
+      ["airing", buildTodayAiring(data, 3, 2026, "秋", url, ts, "x")],
+      ["top5", buildTop5(data, 2026, "秋", url, url, ts, "x")?.text],
+      ["spotlight", buildSpotlight(data, 2026, "秋", ts, "x")?.text],
+    ] as [string, string | null | undefined][];
+    for (const [kind, text] of posts) {
+      if (!text || xWeightedLength(text) > 280 || !text.endsWith(TAG)) over.push(`${ts}/${kind}=${text ? xWeightedLength(text) : "なし"}`);
+    }
+  }
+  const p2 = over.length === 0;
+  if (!p2) xLenNg++;
+  console.log(`${p2 ? "✓" : "✗"}  ${"日次のX下書きは280以内・タグが千切れない".padEnd(40)} → ${p2 ? `${dates.length}日×3種` : over.join(" ")}`);
+
+  // (3) 長い作品名は「…」で省略され、その行が2行（重み）以内。短い作品名はそのまま。
+  const airing = buildTodayAiring(data, 3, 2026, "秋", url, "2026-10-21", "x") ?? "";
+  const longLine = airing.split("\n").find((l) => l.startsWith("・追放された")) ?? "";
+  const spotTitle = (buildSpotlight(data, 2026, "秋", "2026-10-21", "x")?.text ?? "").split("\n")[0];
+  const limit = X_LINE_WEIGHT * X_TITLE_MAX_LINES;
+  const p3 =
+    longLine.includes("…") && xWeightedLength(longLine) <= limit &&
+    spotTitle.endsWith("…") && xWeightedLength(spotTitle) <= limit &&
+    airing.includes("・探偵はもう、死んでいる。Season2（00:30〜）");
+  if (!p3) xLenNg++;
+  console.log(`${p3 ? "✓" : "✗"}  ${"長い作品名は2行以内に「…」で省略".padEnd(40)} → 放送枠=${xWeightedLength(longLine)}/${limit} スポットライト=${xWeightedLength(spotTitle)}/${limit}`);
+
+  // (4) 他の投稿先は触らない（Blueskyは個数で数え、作品名も省略しない）。
+  const bsky = buildTodayAiring(data, 3, 2026, "秋", url, "2026-10-21", "bluesky") ?? "";
+  const p4 = !bsky.includes("…（") && [...bsky].length <= 260;
+  if (!p4) xLenNg++;
+  console.log(`${p4 ? "✓" : "✗"}  ${"Bluesky等は従来どおり（X専用の変更）".padEnd(40)} → 省略なし=${!bsky.includes("…（")} 個数=${[...bsky].length}`);
+
+  // (5) 週次キットも個数の260字で切る形に戻っていない（X専用の数え方を共有する）。
+  const kitSrc = readFileSync(new URL("./lib/build-growth-kit.js", import.meta.url), "utf8");
+  const p5 = /require\("\.\/x-text"\)/.test(kitSrc) && !/\btruncate\(/.test(kitSrc) && !/MAX_LEN/.test(kitSrc);
+  if (!p5) xLenNg++;
+  console.log(`${p5 ? "✓" : "✗"}  ${"週次キットもXの重みで数える".padEnd(40)} → x-textを使う=${/require\("\.\/x-text"\)/.test(kitSrc)}`);
+}
+console.log(`結果（Xの文字数上限）: ${5 - xLenNg} 件OK / ${xLenNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // SSRの中身が空にならないことの検査（2026-08-05追加・重大度高）
@@ -8716,6 +8802,7 @@ if (
   ldNg > 0 ||
   xIntentNg > 0 ||
   xPolicyNg > 0 ||
+  xLenNg > 0 ||
   trackNg > 0 ||
   dataNg > 0 ||
   aliasNg > 0 ||
