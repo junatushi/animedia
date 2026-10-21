@@ -1085,6 +1085,9 @@ export default function SeasonExplorer({
                     onClick={() => {
                       setYear(y);
                       setYearMenuOpen(false);
+                      // 年の切替も「閲覧クールの切替」として数える（2026-10-21。以前は季節タブだけ
+                      // 数えていて、年をまたいで過去クールを見に行く回遊が記録に出なかった）。
+                      if (y !== year) logEvent("change_season", { season, year: y });
                     }}
                   >
                     {y}

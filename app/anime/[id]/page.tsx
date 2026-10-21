@@ -223,6 +223,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         <div className="state error">
           <h2>データを取得できませんでした</h2>
           <p>{e instanceof Error ? e.message : "取得に失敗しました。"}</p>
+          {/* 取得に失敗した画面を行き止まりにしない（2026-10-21）。以前はリンクが0本で、
+              ここに着地した人は戻るしか無かった。クール名は日付から組まない（ISRで残るため）。 */}
+          <p>
+            <IntentLink href="/">アニメ視聴ガイドのトップで今期の配信情報を見る</IntentLink>
+          </p>
         </div>
       </div>
     );
@@ -898,6 +903,21 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                   );
                 })}
               </ul>
+            </div>
+          </article>
+        )}
+        {/* このクールの他の面への導線（2026-10-21に関連作品の欄から独立させた）。
+            以前は下の3本が関連作品の欄の中にあり、クール一覧の取得が時間上限
+            （lib/withTimeout.ts）に間に合わない回は欄ごと消えていた＝サービス別ページ
+            （sitemapにあってサイト内の入口がここしか無い）への導線も一緒に消えていた。
+            どれもクール一覧の取得に依存しない（作品自身の配信サービスとクールだけで組める）。
+            独占配信・ランキングへのリンクも作品ページには1本も無かったので足した。 */}
+        {workSeason && (
+          <article className="card">
+            <div className="card-body">
+              <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
+                {workSeason.year}年{workSeason.label}アニメをもっと見る
+              </h2>
               <p className="related-works-more">
                 <IntentLink href={`/season/${workSeason.year}/${workSeason.key}`}>
                   {workSeason.year}年{workSeason.label}アニメの配信情報をすべて見る →
@@ -922,6 +942,15 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                   ))}
                 </p>
               )}
+              <p className="related-works-more">
+                <IntentLink href={`/exclusive/${workSeason.year}/${workSeason.key}`}>
+                  {workSeason.year}年{workSeason.label}アニメの独占配信まとめ
+                </IntentLink>
+                {" ・ "}
+                <IntentLink href={`/rankings/${workSeason.year}/${workSeason.key}`}>
+                  配信サービス勢力図・ランキング
+                </IntentLink>
+              </p>
             </div>
           </article>
         )}

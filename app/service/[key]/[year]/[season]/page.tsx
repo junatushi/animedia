@@ -117,10 +117,21 @@ export default async function ServicePage({ params }: { params: Params }) {
   // 取得日はデータ層が持つ（過去クール＝スナップショット由来なら null＝日付を名乗らない）。
   // ここで new Date() を呼ばないこと。理由は lib/dataFreshness.ts。
   let fetchedAt: FetchedAt = null;
+  // 同じクールの他の配信サービスの作品数（2026-10-21追加）。サービス別ページは
+  // 作品ページからしか入口が無く、ここから他のサービスへは1本も出ていなかった
+  // （「ABEMAには何がある？→ではU-NEXTは？」の比較がこの面の中で途切れていた）。
+  // 0作品のサービスには張らない（中身の無いページへ送らない）。
+  const otherServiceCounts = new Map<string, { short: string; count: number }>();
   try {
     const data = await getSeasonData(year, season);
     fetchedAt = data.fetchedAt ?? null;
     for (const it of data.items) {
+      for (const s of it.services) {
+        if (s.key === key) continue;
+        const cur = otherServiceCounts.get(s.key) ?? { short: s.short, count: 0 };
+        cur.count++;
+        otherServiceCounts.set(s.key, cur);
+      }
       const hasService = it.services.some((s) => s.key === key);
       if (!hasService) continue;
       const { streaming, rental } = splitRentalServices(it.services, RENTAL_SERVICES[it.id]);
@@ -135,6 +146,9 @@ export default async function ServicePage({ params }: { params: Params }) {
     fetchError = e instanceof Error ? e.message : "取得に失敗しました。";
   }
   const exclusiveItems = items.filter((it) => it.exclusive);
+  const otherServices = [...otherServiceCounts.entries()]
+    .sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0]))
+    .slice(0, 8);
 
   // 「ネトフリ アニメ」のようにサービス名を口語形で書く検索がある（GSC実測）。
   // ページ内が正式名称だけだとその語彙を持たないため、導入文で一度だけ併記する
@@ -291,6 +305,27 @@ export default async function ServicePage({ params }: { params: Params }) {
                     </li>
                   ))}
                 </ul>
+              </section>
+            )}
+
+            {!fetchError && otherServices.length > 0 && (
+              <section className="detail-section">
+                <h2 className="detail-heading">他の配信サービスで見れる{year}年{label}アニメ</h2>
+                <p className="detail-text">
+                  {otherServices.map(([k, v], i) => (
+                    <span key={k}>
+                      {i > 0 && " ・ "}
+                      <IntentLink href={`/service/${k}/${year}/${season}`}>
+                        {v.short}（{v.count}作品）
+                      </IntentLink>
+                    </span>
+                  ))}
+                </p>
+                <p className="detail-text">
+                  <IntentLink href={`/rankings/${year}/${season}`}>
+                    {year}年{label}アニメの配信サービス勢力図・ランキングを見る
+                  </IntentLink>
+                </p>
               </section>
             )}
 
