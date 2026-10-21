@@ -88,8 +88,10 @@ export function buildDiagnostics(
  */
 export type AgentClass = "bot" | "ios" | "android" | "desktop" | "other";
 
+// `(?<!cu)` は Android 端末の CUBOT（例: "CUBOT X30"）を自動アクセスに誤分類しないため
+// （2026-10-21の反証レビューで実測）。
 const BOT_UA_RE =
-  /bot\b|bot\/|crawl|spider|slurp|headless|lighthouse|pagespeed|inspectiontool|preview|facebookexternalhit|phantomjs|puppeteer|playwright|selenium/i;
+  /(?<!cu)bot\b|(?<!cu)bot\/|crawl|spider|slurp|headless|lighthouse|pagespeed|inspectiontool|preview|facebookexternalhit|phantomjs|puppeteer|playwright|selenium/i;
 
 export function agentClass(input: { userAgent?: string; webdriver?: boolean; maxTouchPoints?: number }): AgentClass {
   const ua = input.userAgent ?? "";
@@ -110,7 +112,8 @@ export function agentClass(input: { userAgent?: string; webdriver?: boolean; max
 export function landingSource(referrer: string, ownHost: string): string {
   if (!referrer) return "direct";
   try {
-    const host = new URL(referrer).hostname.toLowerCase();
+    // 末尾ドット付きの完全修飾名（example.com.）は送る形の検査で落ちるので外す。
+    const host = new URL(referrer).hostname.toLowerCase().replace(/\.$/, "");
     if (!host) return "direct";
     return host === ownHost.toLowerCase() ? "internal" : host;
   } catch {
@@ -128,4 +131,18 @@ export function refTag(search: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * web_vitals で送る形を組み立てる（2026-10-21）。**face・ua・src を必ず先頭に置く**
+ * （lib/trackEventData.ts の MAX_KEYS は先頭から数えるので、末尾に置くと補助指標を
+ * 足した日にそこだけ黙って落ちる）。components/WebVitals.tsx と node scripts/check.ts の
+ * 両方がこの関数を通すので、キーを足しても検査は手で書き写した形とズレない。
+ */
+export function vitalsPayload(
+  head: { face: string; ua: string; src: string },
+  metrics: Record<string, number>,
+  diagnostics: Record<string, number>
+): Record<string, string | number> {
+  return { face: head.face, ua: head.ua, src: head.src, ...metrics, ...diagnostics };
 }

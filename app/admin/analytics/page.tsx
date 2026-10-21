@@ -81,6 +81,8 @@ export default async function AnalyticsDashboard({
       .gte("created_at", since.toISOString())
       .lte("created_at", until.toISOString())
       .order("created_at", { ascending: false })
+      // 同じ時刻の行がページの境目をまたいでも重複・取りこぼしが出ないよう、主キーで順序を確定させる。
+      .order("id", { ascending: false })
       .range(from, to)
   );
 

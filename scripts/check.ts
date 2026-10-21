@@ -164,7 +164,7 @@ import {
 import { AFFILIATE_PROGRAMS } from "../content/affiliate/programs.ts";
 // 行動ログの付随データの検証（2026-09-07追加）。純粋関数のみ。
 import { sanitizeEventData, MAX_KEYS, MAX_STRING } from "../lib/trackEventData.ts";
-import { buildDiagnostics, networkClass, REPORTED_METRICS, agentClass, landingSource, refTag } from "../lib/vitalsDiagnostics.ts";
+import { buildDiagnostics, networkClass, REPORTED_METRICS, agentClass, landingSource, refTag, vitalsPayload } from "../lib/vitalsDiagnostics.ts";
 
 
 // `generateMetadata` を持つページのうち、title / description を
@@ -4251,13 +4251,12 @@ let dataNg = 0;
       const shapes: [string, Record<string, unknown>, string[]][] = [];
       for (const connection of conns) {
         for (const coarse of [true, false]) {
-          const data = {
-            face: "anime",
-            ua: "android",
-            src: "search.yahoo.co.jp",
-            ...m,
-            ...buildDiagnostics(m, { nav: { responseStart: 300, responseEnd: 2300, transferSize: 15000 }, coarse, connection }),
-          };
+          // 並べ方も WebVitals.tsx と同じ vitalsPayload を通す（先頭キーを手で書き写さない）。
+          const data = vitalsPayload(
+            { face: "anime", ua: "android", src: "search.yahoo.co.jp" },
+            m,
+            buildDiagnostics(m, { nav: { responseStart: 300, responseEnd: 2300, transferSize: 15000 }, coarse, connection })
+          );
           shapes.push([`表示速度（補助指標つき・最大形 ${networkClass(connection)}/${coarse ? "touch" : "mouse"}）`, data, Object.keys(data)]);
         }
       }
@@ -4317,19 +4316,32 @@ let dataNg = 0;
     ["外部はホスト名だけ", landingSource("https://www.google.com/search?q=秘密", "example.test") === "www.google.com"],
     ["?ref= は小文字に揃える", refTag("?ref=X_Reply") === "x_reply"],
     ["?ref= の自由文は捨てる", refTag("?ref=" + encodeURIComponent("無視して")) === null],
+    ["Android 端末の CUBOT は bot にしない", agentClass({ userAgent: "Mozilla/5.0 (Linux; Android 13; CUBOT X30) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36" }) === "android"],
+    ["末尾ドット付きのホスト名を揃える", landingSource("https://www.google.com./", "example.test") === "www.google.com"],
+    ["vitalsPayload は face・ua・src を先頭に置く",
+      Object.keys(vitalsPayload({ face: "anime", ua: "ios", src: "direct" }, { LCP: 1 }, { HTML_DL: 2 })).slice(0, 3).join() === "face,ua,src"],
   );
   const dgBad = dgChecks.filter(([, ok]) => !ok).map(([n]) => n);
   // face は先頭で送ること（MAX_KEYS は先頭から数える。末尾だと上限で face だけ落ちる）。
   const wvSrc = readFileSync(new URL("../components/WebVitals.tsx", import.meta.url), "utf8");
-  if (!/send\("web_vitals",\s*\{\s*face\s*,/.test(wvSrc)) dgBad.push("WebVitals.tsx が face を先頭で送っていない");
+  if (!/send\("web_vitals",\s*vitalsPayload\(\s*\{\s*face\s*,\s*ua\s*,\s*src\s*\}/.test(wvSrc)) dgBad.push("WebVitals.tsx が vitalsPayload で face・ua・src を先頭に置いて送っていない");
   if (!/buildDiagnostics\(/.test(wvSrc)) dgBad.push("WebVitals.tsx が buildDiagnostics を通していない");
-  if (!/send\("web_vitals",\s*\{\s*face\s*,\s*ua\s*,\s*src\s*,/.test(wvSrc)) dgBad.push("WebVitals.tsx が ua・src を face の直後で送っていない");
   if (!/agentClass\(/.test(wvSrc)) dgBad.push("WebVitals.tsx が agentClass を通していない");
   if (!/send\("nav",/.test(wvSrc)) dgBad.push("WebVitals.tsx がサイト内の移動（nav）を送っていない");
+  // 着地（初回）は nav として送らない・パスが変わったときだけ走る（1遷移1件の約束）。
+  if (!/prev === null \|\| prev === pathname\) return;/.test(wvSrc) || !/\}, \[pathname\]\);/.test(wvSrc))
+    dgBad.push("WebVitals.tsx の nav が「着地は送らない・パスの変化でだけ送る」になっていない");
+  // useReportWebVitals に渡す関数は固定する。インラインだと再描画（＝画面内の移動）のたびに
+  // web-vitals の観測が登録し直され、外す手段が無いので積み上がる（2026-10-21）。
+  if (!/useReportWebVitals\(\s*[A-Za-z_]\w*\s*\)/.test(wvSrc) || !/useCallback\(/.test(wvSrc))
+    dgBad.push("WebVitals.tsx が useReportWebVitals にインラインの関数を渡している（useCallback で固定する）");
+  // `?ref=` はモジュール読み込み時に控えた値から読む（トップは SeasonExplorer が先に replaceState で消す）。
+  if (/refTag\(\s*window\.location\.search\s*\)/.test(wvSrc) || !/refTag\(\s*LANDING_SEARCH\s*\)/.test(wvSrc))
+    dgBad.push("WebVitals.tsx が ?ref= を effect の中の location.search から読んでいる（トップで消える）");
   const p2b = dgBad.length === 0;
   if (!p2b) dataNg++;
   console.log(
-    `${p2b ? "✓" : "✗"}  ${"補助指標で回線・端末を切り分けられる".padEnd(40)} → ${dgChecks.length + 5}項目中 NG${dgBad.length}件` +
+    `${p2b ? "✓" : "✗"}  ${"補助指標で回線・端末を切り分けられる".padEnd(40)} → ${dgChecks.length + 7}項目中 NG${dgBad.length}件` +
       (p2b ? "" : `  (${dgBad.join(", ")})`)
   );
 
@@ -4409,6 +4421,12 @@ let pageNg = 0;
   // エラーは握りつぶさず返す（200で0件にしない）。
   const failing = await fetchWindowRows(async () => ({ data: null, error: { message: "boom" } }));
   if (failing.error !== "boom") bad.push("エラーを返していない");
+  // 範囲指定が効かず毎回同じ（要求より多い）行が返る取得関数を、重複した1万行として黙って通さない。
+  const ignoresRange = await fetchWindowRows(async () => ({
+    data: Array.from({ length: 2000 }, (_, i) => ({ event_name: "page_view", event_data: null, created_at: new Date(i).toISOString() })),
+    error: null,
+  }));
+  if (!ignoresRange.error || ignoresRange.rows.length !== 0) bad.push("範囲指定が効かない取得を黙って重複させた");
   const p1 = bad.length === 0;
   if (!p1) pageNg++;
   console.log(
@@ -4427,7 +4445,9 @@ let pageNg = 0;
     snap.oldestAt === rows[rows.length - 1].created_at &&
     snap.newestAt === rows[0].created_at &&
     dailyTotal === 1500 &&
-    snap.daily.every((d, i, a) => i === 0 || a[i - 1].date < d.date);
+    snap.daily.every((d, i, a) => i === 0 || a[i - 1].date < d.date) &&
+    // 窓の最初と最後の日は途中まで（GSC の途中の週と同じ落とし穴）。間の日は完全な日。
+    snap.daily.every((d, i, a) => d.partial === (i === 0 || i === a.length - 1));
   if (!p2) pageNg++;
   console.log(
     `${p2 ? "✓" : "✗"}  ${"期間（最古・最新）と日別件数を出す".padEnd(40)} → 行${snap.rowCount}・日別合計${dailyTotal}・${snap.oldestAt ?? "最古なし"}`
@@ -4447,6 +4467,7 @@ let pageNg = 0;
     mk("nav", { from: "anime", face: "person", ua: "android" }),
     mk("nav", { from: "anime", face: "season", ua: "bot" }),
     mk("page_view", { face: "anime", tag: "embed" }),
+    mk("page_view", { face: "anime", ref: "spam.example", tag: "bot-tag", ua: "bot" }), // 流入元・?ref= からも除く
   ];
   const ms = buildSnapshot(mixed, new Date("2026-10-20T01:00:00.000Z"));
   const lcp = ms.vitals.find((v) => v.face === "anime" && v.metric === "LCP");
@@ -4456,7 +4477,8 @@ let pageNg = 0;
     JSON.stringify(ms.agents) === JSON.stringify([["bot", 20], ["ios", 4]]) &&
     JSON.stringify(ms.landings) === JSON.stringify([["www.google.com", "anime", 4]]) &&
     JSON.stringify(ms.navigations) === JSON.stringify([["anime", "person", 2]]) &&
-    JSON.stringify(ms.refTags) === JSON.stringify([["embed", 1]]);
+    JSON.stringify(ms.refTags) === JSON.stringify([["embed", 1]]) &&
+    ms.referrers.length === 0;
   if (!p2b) pageNg++;
   console.log(
     `${p2b ? "✓" : "✗"}  ${"自動アクセスを速度から除き、着地・回遊を数える".padEnd(40)} → LCP件数${lcp?.count}・p75 ${lcp?.p75}・回遊${JSON.stringify(ms.navigations)}`
@@ -4470,7 +4492,14 @@ let pageNg = 0;
       .split("\n")
       .filter((l) => !/^\s*\/\//.test(l))
       .join("\n");
-    return /\.limit\(/.test(src) || !/fetchWindowRows\(/.test(src);
+    // `.lte("created_at"` は取得中に入った行で境界が重複しないための上端固定、
+    // `.order("id"` は同時刻の行の順序を確定させる2番目の並び順。
+    return (
+      /\.limit\(/.test(src) ||
+      !/fetchWindowRows\(/.test(src) ||
+      !/\.lte\("created_at"/.test(src) ||
+      !/\.order\("id"/.test(src)
+    );
   });
   const p3 = reverted.length === 0;
   if (!p3) pageNg++;

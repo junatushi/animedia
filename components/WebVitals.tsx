@@ -35,10 +35,16 @@
 //   その前提は `node scripts/check.ts` が検査している）。
 // ───────────────────────────────────────────────────────────────
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useReportWebVitals } from "next/web-vitals";
-import { agentClass, buildDiagnostics, landingSource, refTag } from "@/lib/vitalsDiagnostics";
+import { agentClass, buildDiagnostics, landingSource, refTag, vitalsPayload } from "@/lib/vitalsDiagnostics";
+
+// 着地したときのクエリ。**モジュールの読み込み時（＝hydrationより前）に控える**（2026-10-21）。
+// トップ（/）では SeasonExplorer の URL 同期が先に replaceState("/") して `?ref=` を消す
+// （子の effect は親より先に走り、layout では {children} が <WebVitals/> より前にある）。
+// effect の中で location.search を読むと、`/?ref=xxx` で来た人の tag が必ず空になる。
+const LANDING_SEARCH = typeof window !== "undefined" ? window.location.search : "";
 
 // 面（ページ種別）。SEOレポートの「面」と同じ粒度に揃えるが、
 // 分類そのものは共有しない（上の④）。知らない接頭辞は "other" に落とす。
@@ -127,14 +133,21 @@ export default function WebVitals() {
     const prev = prevPath.current;
     prevPath.current = pathname;
     if (prev === null || prev === pathname) return;
+    // 自動アクセスの移動は集計で捨てるので送らない（/api/track と Supabase への書き込みを増やさない）。
+    if (agent.current === "bot") return;
     send("nav", { face: faceOf(pathname), from: faceOf(prev), ua: agent.current });
   }, [pathname]);
 
-  useReportWebVitals((metric) => {
+  // **渡す関数は useCallback で固定する**（2026-10-21・反証レビューで判明）。
+  // useReportWebVitals は渡された関数を effect の依存に持ち、変わるたびに onLCP/onINP 等を
+  // 登録し直す（web-vitals には登録を外す手段が無い）。usePathname を足してからは画面内の
+  // 移動ごとにこの部品が再描画されるので、インラインの関数だと移動のたびに観測が積み上がる。
+  const report = useCallback((metric: { name: string; value: number }) => {
     // 値は小数以下が長いので丸める。CLS だけは小さい値なので3桁残す。
     metrics.current[metric.name] =
       metric.name === "CLS" ? Math.round(metric.value * 1000) / 1000 : Math.round(metric.value);
-  });
+  }, []);
+  useReportWebVitals(report);
 
   useEffect(() => {
     const face = faceOf(window.location.pathname);
@@ -161,12 +174,14 @@ export default function WebVitals() {
     // `?ref=<媒体>`（返信・埋め込みに付けるリンク）はリファラが消えるアプリ内ブラウザから
     // 来ることがあるので、リファラが無くても tag があれば送る（2026-10-21）。
     try {
-      const tag = refTag(window.location.search);
+      const tag = refTag(LANDING_SEARCH);
       const external = src !== "direct" && src !== "internal";
       if (external || tag) {
+        // ua も付ける（流入元・?ref= の集計から自動アクセスを除くため）。
         send("page_view", {
           ...(external ? { ref: src } : {}),
           face,
+          ua,
           ...(tag ? { tag } : {}),
         });
       }
@@ -181,10 +196,10 @@ export default function WebVitals() {
       // 1つも確定していないなら送らない（空行を作らない）。
       if (Object.keys(m).length === 0) return;
       sent.current = true;
-      // face を先頭に置く。キー数の上限（MAX_KEYS）は先頭から数えるので、
-      // 末尾に置くと補助指標を足した日に face だけ落ちて面が "other" に化ける。
-      // ua・src は face の直後に置く（文字列は p75 の対象外。MAX_KEYS で落ちないよう前に寄せる）。
-      send("web_vitals", { face, ua, src, ...m, ...diagnostics(m) });
+      // face・ua・src を先頭に置く。キー数の上限（MAX_KEYS）は先頭から数えるので、
+      // 末尾に置くと補助指標を足した日にそこだけ落ちて面が "other" に化ける。
+      // 並べ方は vitalsPayload が1箇所で持つ（node scripts/check.ts も同じ関数で最大形を作る）。
+      send("web_vitals", vitalsPayload({ face, ua, src }, m, diagnostics(m)));
     };
 
     // visibilitychange(hidden) が最も確実。pagehide も併せて張る

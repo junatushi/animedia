@@ -8873,4 +8873,18 @@ Vercelの関数は外へ出ない（読むのはデプロイに同梱した JSON
 - 新しい項目は**送り始めた日より前の行には無い**。30日の窓が入れ替わるまでは過小（`oldestAt` と合わせて読む）
 - `ua=bot` で拾えるのは自分から名乗る自動アクセスだけ。10/2 の型（普通の Chrome を名乗る）は拾えない可能性がある。
   その場合も `src=direct` かつ監督・制作会社への着地が急増する形で `landings` に出る
+- **回遊は `navigations` と `landings` の `src=internal` を足して読む**。`navigations` は画面内（クライアント側）の
+  移動だけで、ページを読み込み直すサイト内の移動は `landings` の `src=internal` に入る（移動元の面は持たない）
+- `daily` の最初と最後の日は `partial: true`（途中までの値）。完全な日と並べて「減った」と読まない
 - 検査は `node scripts/check.ts` の「行動ログ集計の取り切り」「行動ログの付随データ」節と `node scripts/check-gsc.js`
+
+**同日の反証レビューで直したこと**（実装が画面に何も出さない形で壊れていた）
+- `usePathname` を足したため画面内の移動ごとに `WebVitals` が再描画され、`useReportWebVitals` に
+  インラインで渡していた関数が毎回変わって web-vitals の観測が**移動のたびに積み上がる**形になっていた
+  （Next 14.2 は関数を effect の依存に持ち、web-vitals には登録を外す手段が無い）。`useCallback` で固定
+- トップ（`/?ref=xxx`）では `SeasonExplorer` の URL 同期が先に `replaceState("/")` して `?ref=` を消すため、
+  `tag` が必ず空になっていた。モジュール読み込み時（hydration前）に控えた値から読む
+- `page_view` にも `ua` を付け、`referrers`/`refTags` から自動アクセスを除く。自動アクセスの `nav` は送らない
+- 並べ替えに主キー（`id`）を足した（同時刻の行がページ境界をまたいだときの重複・取りこぼし）。
+  範囲指定が効かない取得（要求より多く返る）はエラーにする
+- `CUBOT`（Android端末）が `bot` に誤分類されていたのを除外。プライバシーポリシーに補助指標と `?ref=` を明記

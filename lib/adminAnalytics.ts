@@ -63,6 +63,10 @@ export async function fetchWindowRows(
     if (error) return { rows, error: error.message };
     const page = (data ?? []) as EventRow[];
     if (page.length === 0) break;
+    // 要求した幅より多く返る＝範囲指定が効いていない（毎回同じ行が返る）。黙って重複させない。
+    if (page.length > to - from + 1) {
+      return { rows, error: `範囲指定が効いていない（${from}〜${to} を要求して ${page.length} 行が返った）` };
+    }
     rows.push(...page.slice(0, MAX_ROWS - rows.length));
   }
   return { rows, error: null };
@@ -224,8 +228,14 @@ function jstDate(t: number): string {
   return new Date(t + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
-/** 日ごと・イベントごとの件数。EVENT_LABELS に無いイベントは出さない（画面と同じ許可制）。 */
-export function dailyCounts(rows: EventRow[]): { date: string; counts: Record<string, number> }[] {
+/**
+ * 日ごと・イベントごとの件数。EVENT_LABELS に無いイベントは出さない（画面と同じ許可制）。
+ * **最初と最後の日は途中までの値**（窓の端は日の途中・最後の日は今日）なので `partial` を付ける。
+ * GSC の途中の週と同じで、印が無いと完全な日と並べて「減った」と読んでしまう。
+ */
+export function dailyCounts(
+  rows: EventRow[]
+): { date: string; partial: boolean; counts: Record<string, number> }[] {
   const byDate = new Map<string, Record<string, number>>();
   for (const row of rows) {
     if (!(row.event_name in EVENT_LABELS)) continue;
@@ -238,7 +248,7 @@ export function dailyCounts(rows: EventRow[]): { date: string; counts: Record<st
   }
   return [...byDate.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, counts]) => ({ date, counts }));
+    .map(([date, counts], i, all) => ({ date, partial: i === 0 || i === all.length - 1, counts }));
 }
 
 export type AnalyticsSnapshot = {
@@ -253,7 +263,7 @@ export type AnalyticsSnapshot = {
   oldestAt: string | null;
   newestAt: string | null;
   /** 日（JST）ごとのイベント件数（2026-10-21追加）。前日の断面との差から推定しなくて済むように。 */
-  daily: { date: string; counts: Record<string, number> }[];
+  daily: { date: string; partial: boolean; counts: Record<string, number> }[];
   events: { event: string; label: string; last7: number; last30: number }[];
   filterService: [string, number][];
   officialClicks: [string, number][];
@@ -268,8 +278,11 @@ export type AnalyticsSnapshot = {
    *
    * agents … ページビュー（web_vitals）の端末の大まかな種類（bot＝自動アクセス）
    * landings … [流入元, 着地した面, 件数]。流入元は外部ホスト名／direct／internal。bot は除く
-   * refTags … `?ref=<媒体>` で来た件数（返信・埋め込みのリンク）
-   * navigations … [移動元の面, 移動先の面, 件数]。サイト内の回遊。bot は除く
+   * refTags … `?ref=<媒体>` で来た件数（返信・埋め込みのリンク）。bot は除く
+   * navigations … [移動元の面, 移動先の面, 件数]。画面内（クライアント側）の移動だけ。bot は除く。
+   *   ページを読み込み直すサイト内の移動は landings の src=internal に入る（移動元の面は持たない）
+   *   ので、回遊は**両方を足して**読む。navigations だけだと過小になる
+   * referrers も 2026-10-21 から bot を除く（page_view に ua が付いた行のみ。それ以前の行は区別できない）
    */
   agents: [string, number][];
   landings: [string, string, number][];
@@ -287,6 +300,7 @@ export type AnalyticsSnapshot = {
 export function buildSnapshot(rows: EventRow[], now = new Date()): AnalyticsSnapshot {
   const totalCounts = countBy(rows, null);
   const last7Counts = countBy(rows, new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
+  const humans = rows.filter((row) => !isBotRow(row));
   return {
     windowDays: WINDOW_DAYS,
     rowCount: rows.length,
@@ -303,10 +317,10 @@ export function buildSnapshot(rows: EventRow[], now = new Date()): AnalyticsSnap
     officialClicks: countByDataField(rows, "official_link_click", "service"),
     affiliateClicks: countByDataField(rows, "affiliate_click", "service"),
     vitals: vitalsP75(rows),
-    referrers: countByDataField(rows, "page_view", "ref"),
+    referrers: countByDataField(humans, "page_view", "ref"),
     agents: countByDataField(rows, "web_vitals", "ua"),
     landings: countPairs(rows, "web_vitals", "src", "face"),
-    refTags: countByDataField(rows, "page_view", "tag"),
+    refTags: countByDataField(humans, "page_view", "tag"),
     navigations: countPairs(rows, "nav", "from", "face"),
   };
 }
