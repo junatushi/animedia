@@ -4329,6 +4329,93 @@ let dataNg = 0;
 console.log(`結果（行動ログの付随データ）: ${4 - dataNg} 件OK / ${dataNg} 件NG`);
 
 // ─────────────────────────────────────────────
+// 行動ログ集計の取り切り（2026-10-21追加・重大度高）
+//
+// `.limit(5000)` 1回で取っていたため、Supabase（PostgREST）の Max Rows（既定1000）で
+// **黙って1000行に切られていた**。エラーも警告も無く、truncated は 5000 基準なので立たず、
+// 2026-09-28から13日以上「直近30日」と書いたJSONが実際は「新しい順の1000行」だった。
+// **画面にもJSONにも壊れた形が出ない**ので、取得の関数をスタブのサーバーで実際に動かして確かめる。
+// ─────────────────────────────────────────────
+console.log("\n── 行動ログ集計の取り切り（Supabase の Max Rows）──");
+let pageNg = 0;
+{
+  const { fetchWindowRows, buildSnapshot, MAX_ROWS } = await import("../lib/adminAnalytics.ts");
+  // サーバーの上限 cap で黙って切る、PostgREST と同じふるまいのスタブ。
+  const fakeServer = (total: number, cap: number) => {
+    const all = Array.from({ length: total }, (_, i) => ({
+      event_name: i % 3 === 0 ? "page_view" : "web_vitals",
+      event_data: null,
+      created_at: new Date(Date.UTC(2026, 9, 20) - i * 60_000).toISOString(),
+    }));
+    let calls = 0;
+    const fetchPage = async (from: number, to: number) => {
+      calls++;
+      return { data: all.slice(from, Math.min(to + 1, from + cap)), error: null };
+    };
+    return { fetchPage, calls: () => calls };
+  };
+  const cases: [string, number, number, number][] = [
+    // [名前, 行数, サーバーの上限, 期待する取得行数]
+    ["既定の上限1000で3,500行", 3500, 1000, 3500],
+    ["上限がPAGE_ROWSより小さい（500）", 2300, 500, 2300],
+    ["ちょうど1000行", 1000, 1000, 1000],
+    ["0行", 0, 1000, 0],
+    ["上限を超える量は MAX_ROWS で止める", MAX_ROWS + 1500, 1000, MAX_ROWS],
+  ];
+  const bad: string[] = [];
+  for (const [name, total, cap, want] of cases) {
+    const srv = fakeServer(total, cap);
+    const { rows, error } = await fetchWindowRows(srv.fetchPage);
+    if (error !== null || rows.length !== want) bad.push(`${name}: ${rows.length}/${want}`);
+    if (srv.calls() > Math.ceil(want / cap) + 2) bad.push(`${name}: 問い合わせ${srv.calls()}回は多すぎる`);
+  }
+  // エラーは握りつぶさず返す（200で0件にしない）。
+  const failing = await fetchWindowRows(async () => ({ data: null, error: { message: "boom" } }));
+  if (failing.error !== "boom") bad.push("エラーを返していない");
+  const p1 = bad.length === 0;
+  if (!p1) pageNg++;
+  console.log(
+    `${p1 ? "✓" : "✗"}  ${"サーバーの上限に関係なく窓を取り切る".padEnd(40)} → ${cases.length + 1}通り中 NG${bad.length}件` +
+      (p1 ? "" : `  (${bad.join(", ")})`)
+  );
+
+  // 打ち切りの判定は「上限に届いたか」だけでなく、期間（最古の行）でも読めること。
+  const srv = fakeServer(1500, 1000);
+  const { rows } = await fetchWindowRows(srv.fetchPage);
+  const snap = buildSnapshot(rows, new Date(Date.UTC(2026, 9, 20, 1)));
+  const dailyTotal = snap.daily.reduce((n, d) => n + Object.values(d.counts).reduce((a, b) => a + b, 0), 0);
+  const p2 =
+    snap.rowCount === 1500 &&
+    snap.truncated === false &&
+    snap.oldestAt === rows[rows.length - 1].created_at &&
+    snap.newestAt === rows[0].created_at &&
+    dailyTotal === 1500 &&
+    snap.daily.every((d, i, a) => i === 0 || a[i - 1].date < d.date);
+  if (!p2) pageNg++;
+  console.log(
+    `${p2 ? "✓" : "✗"}  ${"期間（最古・最新）と日別件数を出す".padEnd(40)} → 行${snap.rowCount}・日別合計${dailyTotal}・${snap.oldestAt ?? "最古なし"}`
+  );
+
+  // 呼び出し側が `.limit(` 1回の取り方に戻っていないこと。
+  const callers = ["../app/api/admin/analytics/route.ts", "../app/admin/analytics/page.tsx"];
+  const reverted = callers.filter((f) => {
+    // コメント行は落としてから見る（「.limit() で取らないこと」という注意書きに反応しないように）。
+    const src = readFileSync(new URL(f, import.meta.url), "utf8")
+      .split("\n")
+      .filter((l) => !/^\s*\/\//.test(l))
+      .join("\n");
+    return /\.limit\(/.test(src) || !/fetchWindowRows\(/.test(src);
+  });
+  const p3 = reverted.length === 0;
+  if (!p3) pageNg++;
+  console.log(
+    `${p3 ? "✓" : "✗"}  ${"画面とJSONの両方がページ取得を通す".padEnd(40)} → ${callers.length}本中 NG${reverted.length}本` +
+      (p3 ? "" : `  (${reverted.join(", ")})`)
+  );
+}
+console.log(`結果（行動ログ集計の取り切り）: ${3 - pageNg} 件OK / ${pageNg} 件NG`);
+
+// ─────────────────────────────────────────────
 // シーズンページのHTML量の見張り（2026-08-06追加）
 //
 // 2026-08-05にSSRを直した結果、シーズンページのHTMLは「作品数に比例して増える」形に
@@ -8718,6 +8805,7 @@ if (
   xPolicyNg > 0 ||
   trackNg > 0 ||
   dataNg > 0 ||
+  pageNg > 0 ||
   aliasNg > 0 ||
   svcAliasNg > 0 ||
   historyNg > 0 ||
