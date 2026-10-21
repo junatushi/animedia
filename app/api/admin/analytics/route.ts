@@ -20,7 +20,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { buildSnapshot, MAX_ROWS, WINDOW_DAYS, type EventRow } from "@/lib/adminAnalytics";
+import { buildSnapshot, fetchWindowRows, WINDOW_DAYS } from "@/lib/adminAnalytics";
 
 // 集計対象は毎回最新にする（キャッシュされた古い数字を運営者に見せない）。
 export const dynamic = "force-dynamic";
@@ -55,21 +55,26 @@ export async function GET(request: Request) {
   const since = new Date();
   since.setDate(since.getDate() - WINDOW_DAYS);
 
-  const { data, error } = await supabase
-    .from("analytics_events")
-    .select("event_name, event_data, created_at")
-    .gte("created_at", since.toISOString())
-    .order("created_at", { ascending: false })
-    .limit(MAX_ROWS);
+  // 上端も固定する（取得中に入った行でページの境界がずれて重複しないように）。
+  const until = new Date();
+  // `.limit()` 1回で取らないこと（Supabase の Max Rows で黙って1000行に切られる。lib/adminAnalytics.ts の PAGE_ROWS）。
+  const { rows, error } = await fetchWindowRows((from, to) =>
+    supabase
+      .from("analytics_events")
+      .select("event_name, event_data, created_at")
+      .gte("created_at", since.toISOString())
+      .lte("created_at", until.toISOString())
+      .order("created_at", { ascending: false })
+      // 同じ時刻の行がページの境目をまたいでも重複・取りこぼしが出ないよう、主キーで順序を確定させる。
+      .order("id", { ascending: false })
+      .range(from, to)
+  );
 
   if (error) {
     // 取得失敗は500で返す。呼び出し側（fetch-site-analytics.js）が一時エラーとして
     // 再試行できるようにするため、200で「失敗」を返さない。
-    return NextResponse.json({ error: error.message }, { status: 500, headers: NOINDEX });
+    return NextResponse.json({ error }, { status: 500, headers: NOINDEX });
   }
 
-  return NextResponse.json(
-    { configured: true, ...buildSnapshot((data ?? []) as EventRow[]) },
-    { headers: NOINDEX }
-  );
+  return NextResponse.json({ configured: true, ...buildSnapshot(rows, until) }, { headers: NOINDEX });
 }

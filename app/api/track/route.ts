@@ -32,6 +32,10 @@ const ALLOWED_EVENTS = new Set([
   // （2026-08-07追加。components/SeasonExplorer.tsx / lib/servicePlan.ts）。
   // 加入判断に最も近い操作なので、affiliate_click と並べて転換を見る。
   "plan_open",
+  // サイト内のページ種別間の移動（2026-10-21追加。components/WebVitals.tsx）。
+  // web_vitals はハードロード1回に1件で、クライアント側の遷移が残らず回遊を測れなかった。
+  // 送るのは面（anime・person…）の組だけで、URL・作品名は送らない。
+  "nav",
   // 実利用者の表示速度（2026-09-06追加。components/WebVitals.tsx）。
   // data は { LCP, CLS, INP, FCP, TTFB, face } で、1ページビューにつき1件だけ届く。
   // このサイトは「2秒未満」を目標にしながら実利用者の速度を一度も測っていなかった

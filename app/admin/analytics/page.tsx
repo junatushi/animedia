@@ -10,7 +10,7 @@ import {
   WINDOW_DAYS,
   countBy,
   countByDataField,
-  type EventRow,
+  fetchWindowRows,
 } from "@/lib/adminAnalytics";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -72,22 +72,28 @@ export default async function AnalyticsDashboard({
   const since = new Date();
   since.setDate(since.getDate() - WINDOW_DAYS);
 
-  const { data, error } = await supabase
-    .from("analytics_events")
-    .select("event_name, event_data, created_at")
-    .gte("created_at", since.toISOString())
-    .order("created_at", { ascending: false })
-    .limit(MAX_ROWS);
+  const until = new Date();
+  // `.limit()` 1回で取らないこと（Supabase の Max Rows で黙って1000行に切られる。lib/adminAnalytics.ts の PAGE_ROWS）。
+  const { rows, error } = await fetchWindowRows((from, to) =>
+    supabase
+      .from("analytics_events")
+      .select("event_name, event_data, created_at")
+      .gte("created_at", since.toISOString())
+      .lte("created_at", until.toISOString())
+      .order("created_at", { ascending: false })
+      // 同じ時刻の行がページの境目をまたいでも重複・取りこぼしが出ないよう、主キーで順序を確定させる。
+      .order("id", { ascending: false })
+      .range(from, to)
+  );
 
   if (error) {
     return (
       <main style={{ padding: 32, fontFamily: "var(--mono)", color: "var(--ink)", background: "var(--bg)" }}>
-        <p>取得に失敗しました: {error.message}</p>
+        <p>取得に失敗しました: {error}</p>
       </main>
     );
   }
 
-  const rows = (data ?? []) as EventRow[];
   const totalCounts = countBy(rows, null);
   const last7Counts = countBy(rows, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
   const events = Object.keys(EVENT_LABELS);
@@ -120,6 +126,7 @@ export default async function AnalyticsDashboard({
       <h1 style={{ fontSize: 20, marginBottom: 4 }}>効果測定ダッシュボード</h1>
       <p style={{ color: "var(--muted)", fontSize: 13, marginBottom: 24 }}>
         直近{WINDOW_DAYS}日間・最大{MAX_ROWS}件を集計（Supabase自前計測。IPアドレス・ユーザーIDは記録していません）。
+        {rows.length >= MAX_ROWS ? ` ⚠ ${rows.length}件で打ち切り（合計は過小）。` : ` ${rows.length}件。`}
       </p>
 
       <h2 style={{ fontSize: 15, marginBottom: 10 }}>イベント別件数（直近7日 / 直近{WINDOW_DAYS}日）</h2>

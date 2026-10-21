@@ -11,6 +11,7 @@
 // スニペットの中身の組み立ては lib/embed.ts（サーバー側で生成して文字列で受け取る）。
 import { useState } from "react";
 import { logEvent } from "@/lib/logEvent";
+import IntentLink from "@/components/IntentLink";
 
 interface Props {
   title: string;
@@ -70,7 +71,7 @@ export default function EmbedSnippet({ title, snippet, iframeSnippet }: Props) {
           <button type="button" className="embed-share-copy" onClick={copy}>
             {copied ? "コピーしました" : "コピー"}
           </button>
-          <a href="/developers">使い方・利用条件</a>
+          <IntentLink href="/developers">使い方・利用条件</IntentLink>
         </div>
       </div>
     </details>

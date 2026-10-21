@@ -73,3 +73,76 @@ export function buildDiagnostics(
   }
   return out;
 }
+
+/**
+ * 端末の大まかな種類（2026-10-21追加）。**人と自動アクセスを分けるため**に送る。
+ *
+ * 経緯: 2026-10-02 に、検索からの流入を伴わない自動アクセスが約900件まとまって来て、
+ * 実利用者の表示速度（vitals の p75）が見かけ上よくなった（データセンター級の回線で
+ * 取られた値が混ざって希釈された）。当時は人と区別する手段が無く、件数と特徴から
+ * 推定するしかなかった。
+ *
+ * **生の User-Agent は送らない**（端末の特定に近づくため。プライバシーポリシーにも
+ * 「大まかな種類」と書いてある）。iPadOS は既定で Mac の UA を名乗るので、
+ * Macintosh かつタッチ点が2以上なら ios に寄せる。
+ */
+export type AgentClass = "bot" | "ios" | "android" | "desktop" | "other";
+
+// `(?<!cu)` は Android 端末の CUBOT（例: "CUBOT X30"）を自動アクセスに誤分類しないため
+// （2026-10-21の反証レビューで実測）。
+const BOT_UA_RE =
+  /(?<!cu)bot\b|(?<!cu)bot\/|crawl|spider|slurp|headless|lighthouse|pagespeed|inspectiontool|preview|facebookexternalhit|phantomjs|puppeteer|playwright|selenium/i;
+
+export function agentClass(input: { userAgent?: string; webdriver?: boolean; maxTouchPoints?: number }): AgentClass {
+  const ua = input.userAgent ?? "";
+  if (input.webdriver === true || BOT_UA_RE.test(ua)) return "bot";
+  if (/iphone|ipad|ipod/i.test(ua)) return "ios";
+  if (/macintosh/i.test(ua) && (input.maxTouchPoints ?? 0) > 1) return "ios";
+  if (/android/i.test(ua)) return "android";
+  if (/windows|macintosh|x11|cros|linux/i.test(ua)) return "desktop";
+  return "other";
+}
+
+/**
+ * そのページビューがどこから来たか（2026-10-21追加）。外部ならホスト名、
+ * リファラが無ければ "direct"、自サイト内のハードな遷移なら "internal"。
+ * page_view（外部だけ）と違って**全部の着地に付く**ので、直接流入の数と
+ * 「どの流入元がどの面に着地したか」を web_vitals だけで数えられる。
+ */
+export function landingSource(referrer: string, ownHost: string): string {
+  if (!referrer) return "direct";
+  try {
+    // 末尾ドット付きの完全修飾名（example.com.）は送る形の検査で落ちるので外す。
+    const host = new URL(referrer).hostname.toLowerCase().replace(/\.$/, "");
+    if (!host) return "direct";
+    return host === ownHost.toLowerCase() ? "internal" : host;
+  } catch {
+    return "direct";
+  }
+}
+
+/** `?ref=<媒体>`（lead-finder の返信・埋め込み `?ref=embed`）を、送ってよい形に揃える。合わなければ null。 */
+export function refTag(search: string): string | null {
+  try {
+    const v = new URLSearchParams(search).get("ref");
+    if (!v) return null;
+    const t = v.toLowerCase();
+    return /^[a-z0-9_-]{1,24}$/.test(t) ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * web_vitals で送る形を組み立てる（2026-10-21）。**face・ua・src を必ず先頭に置く**
+ * （lib/trackEventData.ts の MAX_KEYS は先頭から数えるので、末尾に置くと補助指標を
+ * 足した日にそこだけ黙って落ちる）。components/WebVitals.tsx と node scripts/check.ts の
+ * 両方がこの関数を通すので、キーを足しても検査は手で書き写した形とズレない。
+ */
+export function vitalsPayload(
+  head: { face: string; ua: string; src: string },
+  metrics: Record<string, number>,
+  diagnostics: Record<string, number>
+): Record<string, string | number> {
+  return { face: head.face, ua: head.ua, src: head.src, ...metrics, ...diagnostics };
+}

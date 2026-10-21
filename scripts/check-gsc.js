@@ -69,7 +69,7 @@ function jsonRes(res, status, body) {
 function startStub(behavior) {
   // 軸の並びをそのままキーにする。dimensions[0] で数えると
   // ["date"] と ["date","page"] が同じ "date" に潰れて、再試行回数の検証が壊れる。
-  const counts = { token: 0, date: 0, query: 0, page: 0, "date+page": 0 };
+  const counts = { token: 0, date: 0, query: 0, page: 0, device: 0, country: 0, "date+page": 0 };
   const server = http.createServer((req, res) => {
     let raw = "";
     req.on("data", (c) => (raw += c));
@@ -131,6 +131,21 @@ const DATE_PAGE_ROWS = [
 ];
 
 function rowsFor(dim, body = {}) {
+  if (dim === "device") {
+    return [
+      { keys: ["MOBILE"], clicks: 8, impressions: 700, ctr: 0.011, position: 12 },
+      { keys: ["DESKTOP"], clicks: 2, impressions: 300, ctr: 0.0067, position: 9 },
+    ];
+  }
+  if (dim === "country") {
+    return Array.from({ length: 25 }, (_, i) => ({
+      keys: [i === 0 ? "jpn" : `c${String(i).padStart(2, "0")}`],
+      clicks: i === 0 ? 10 : 0,
+      impressions: 1000 - i,
+      ctr: 0,
+      position: 10,
+    }));
+  }
   if (dim === "date") {
     return [
       { keys: ["2026-08-01"], clicks: 3, impressions: 100, ctr: 0.03, position: 20 },
@@ -220,6 +235,13 @@ async function main() {
         Math.abs(j.totals.position - 11) < 1e-9, `position=${j.totals.position}`);
       ok("正常系: ファイル名が期間の終端日", output.name === `${j.range.endDate}.json`, output.name);
       ok("正常系: errorsが空", j.errors.length === 0);
+      // 端末・国の内訳（2026-10-21追加）。国は上位20行だけ残す。
+      ok("端末別: そのまま書き出す",
+        Array.isArray(j.devices) && j.devices.length === 2 && j.devices[0].keys[0] === "MOBILE",
+        JSON.stringify(j.devices));
+      ok("国別: 上位20行に絞る",
+        Array.isArray(j.countries) && j.countries.length === 20 && j.countries[0].keys[0] === "jpn",
+        `countries=${j.countries?.length}`);
 
       // 順位帯サマリ（2026-08-31追加）。上位100行だけを保存する運用では、
       // 全表示の大半がどの順位にいるか分からず、按分で誤診したことがある（㉟）。

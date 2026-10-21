@@ -17,8 +17,60 @@
 
 /** 集計の窓（日）。画面もJSONも同じ窓を見る。 */
 export const WINDOW_DAYS = 30;
-/** 1回の問い合わせで読む上限行数。Supabase無料枠を踏み抜かないための蓋。 */
-export const MAX_ROWS = 5000;
+/**
+ * 集計に読む行数の上限。Supabase無料枠を踏み抜かないための蓋。
+ * 2026-10時点の実測は1日80〜110行（30日で約3,000行）なので、一時的な急増（10/2に
+ * 自動アクセスが約900件まとまって来た）が重なっても窓全体が収まる大きさにしてある。
+ */
+export const MAX_ROWS = 10000;
+
+/**
+ * 1回の問い合わせで取りに行く行数。
+ *
+ * 【2026-10-21・重大度高】以前は `.limit(MAX_ROWS)` 1回で取っていたが、Supabase（PostgREST）は
+ * **サーバー側の Max Rows（既定1000）で黙って切る**。エラーも警告も返らないので、
+ * 2026-09-28から**13日以上「直近30日」ではなく「新しい順の1000行」だけを集計していた**
+ * （rowCount が毎日ちょうど1000・truncated は false のまま。30日以内の記録が窓から消えていた）。
+ * truncated の判定も `rows.length >= MAX_ROWS`（5000）だったので、1000で止まると永久に立たない。
+ * いまは fetchWindowRows がページ単位で取り切る。
+ */
+export const PAGE_ROWS = 1000;
+
+/** 1ページ分を取る関数。Supabase の `.range(from, to)` をそのまま渡す想定（境界は両端を含む）。 */
+export type FetchPage = (
+  from: number,
+  to: number
+) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
+
+/**
+ * 窓の行を**サーバーの上限に関係なく**取り切る。
+ *
+ * **「要求より少なく返った＝最後のページ」と判定しないこと。** サーバーの Max Rows が
+ * PAGE_ROWS より小さく設定されていると（例: 500）、毎回そこで「終わり」と誤認して
+ * 今回と同じ形で黙って切れる。**空のページが返るまで**、実際に返った件数ぶんだけ進める
+ * （最後に1回だけ空振りの問い合わせが増えるのが代償）。
+ * 取得中に新しい行が入ると順序がずれて境界で重複しうるので、呼び出し側は
+ * `created_at` の上端（取得開始時刻）も固定すること。
+ */
+export async function fetchWindowRows(
+  fetchPage: FetchPage
+): Promise<{ rows: EventRow[]; error: string | null }> {
+  const rows: EventRow[] = [];
+  while (rows.length < MAX_ROWS) {
+    const from = rows.length;
+    const to = Math.min(from + PAGE_ROWS, MAX_ROWS) - 1;
+    const { data, error } = await fetchPage(from, to);
+    if (error) return { rows, error: error.message };
+    const page = (data ?? []) as EventRow[];
+    if (page.length === 0) break;
+    // 要求した幅より多く返る＝範囲指定が効いていない（毎回同じ行が返る）。黙って重複させない。
+    if (page.length > to - from + 1) {
+      return { rows, error: `範囲指定が効いていない（${from}〜${to} を要求して ${page.length} 行が返った）` };
+    }
+    rows.push(...page.slice(0, MAX_ROWS - rows.length));
+  }
+  return { rows, error: null };
+}
 
 export type EventRow = {
   event_name: string;
@@ -49,7 +101,8 @@ export const EVENT_LABELS: Record<string, string> = {
   official_link_click: "公式サイトへ（未提携）",
   embed_copy: "埋め込みコードをコピー",
   web_vitals: "表示速度の実測（1ページビュー1件）",
-  page_view: "外部からの流入（リファラあり）",
+  page_view: "外部からの流入（リファラまたは ?ref= あり）",
+  nav: "サイト内の移動（ページ種別間）",
 };
 
 export function countBy(rows: EventRow[], since: Date | null): Record<string, number> {
@@ -95,6 +148,9 @@ export function vitalsP75(
     if (row.event_name !== "web_vitals") continue;
     const d = row.event_data;
     if (!d) continue;
+    // 自動アクセスは除く（2026-10-21）。10/2 の約900件で p75 が見かけ上よくなった。
+    // ua を持たない古い行（〜10/21）は区別できないので従来どおり入れる。
+    if (isBotRow(row)) continue;
     const face = typeof d.face === "string" ? d.face : "other";
     for (const [metric, value] of Object.entries(d)) {
       if (metric === "face") continue;
@@ -117,11 +173,97 @@ export function vitalsP75(
   return out.sort((a, b) => a.face.localeCompare(b.face) || a.metric.localeCompare(b.metric));
 }
 
+/** web_vitals / nav に付く端末の大まかな種類が bot か（lib/vitalsDiagnostics.ts の agentClass）。 */
+function isBotRow(row: EventRow): boolean {
+  return row.event_data?.ua === "bot";
+}
+
+/**
+ * 2つのフィールドの組ごとの件数（多い順・上位 limit 件）。自動アクセスの行は除く。
+ * 「どの流入元がどの面に着地したか」（web_vitals の src×face）と
+ * 「どの面からどの面へ移ったか」（nav の from×face）に使う。
+ */
+export function countPairs(
+  rows: EventRow[],
+  eventName: string,
+  a: string,
+  b: string,
+  limit = 30
+): [string, string, number][] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (row.event_name !== eventName || isBotRow(row)) continue;
+    const x = row.event_data?.[a];
+    const y = row.event_data?.[b];
+    if (typeof x !== "string" || typeof y !== "string") continue;
+    const key = `${x}\u0000${y}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((p, q) => q[1] - p[1])
+    .slice(0, limit)
+    .map(([key, n]) => {
+      const [x, y] = key.split("\u0000");
+      return [x, y, n];
+    });
+}
+
+function rowSpan(rows: EventRow[]): { oldestAt: string | null; newestAt: string | null } {
+  let oldest: number | null = null;
+  let newest: number | null = null;
+  for (const row of rows) {
+    const t = Date.parse(row.created_at);
+    if (!Number.isFinite(t)) continue;
+    if (oldest === null || t < oldest) oldest = t;
+    if (newest === null || t > newest) newest = t;
+  }
+  return {
+    oldestAt: oldest === null ? null : new Date(oldest).toISOString(),
+    newestAt: newest === null ? null : new Date(newest).toISOString(),
+  };
+}
+
+/** JST の日付（YYYY-MM-DD）。運用（Issue・コミットの日付）がJSTなので合わせる。 */
+function jstDate(t: number): string {
+  return new Date(t + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * 日ごと・イベントごとの件数。EVENT_LABELS に無いイベントは出さない（画面と同じ許可制）。
+ * **最初と最後の日は途中までの値**（窓の端は日の途中・最後の日は今日）なので `partial` を付ける。
+ * GSC の途中の週と同じで、印が無いと完全な日と並べて「減った」と読んでしまう。
+ */
+export function dailyCounts(
+  rows: EventRow[]
+): { date: string; partial: boolean; counts: Record<string, number> }[] {
+  const byDate = new Map<string, Record<string, number>>();
+  for (const row of rows) {
+    if (!(row.event_name in EVENT_LABELS)) continue;
+    const t = Date.parse(row.created_at);
+    if (!Number.isFinite(t)) continue;
+    const date = jstDate(t);
+    const counts = byDate.get(date) ?? {};
+    counts[row.event_name] = (counts[row.event_name] ?? 0) + 1;
+    byDate.set(date, counts);
+  }
+  return [...byDate.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, counts], i, all) => ({ date, partial: i === 0 || i === all.length - 1, counts }));
+}
+
 export type AnalyticsSnapshot = {
   windowDays: number;
   /** 何行を集計したか。MAX_ROWS と同じなら**打ち切られている**＝合計を過小に読まないこと。 */
   rowCount: number;
   truncated: boolean;
+  /**
+   * 実際に集計した行の最古・最新（2026-10-21追加）。窓の端（windowDays日前）より最古が
+   * 新しければ、その期間には本当に記録が無い。打ち切りを件数だけでなく**期間で**確かめるための値。
+   */
+  oldestAt: string | null;
+  newestAt: string | null;
+  /** 日（JST）ごとのイベント件数（2026-10-21追加）。前日の断面との差から推定しなくて済むように。 */
+  daily: { date: string; partial: boolean; counts: Record<string, number> }[];
   events: { event: string; label: string; last7: number; last30: number }[];
   filterService: [string, number][];
   officialClicks: [string, number][];
@@ -130,6 +272,22 @@ export type AnalyticsSnapshot = {
   vitals: { face: string; metric: string; p75: number; count: number }[];
   /** 外から来た経路のホスト名の多い順（同上）。AI検索からの流入もここに出る。 */
   referrers: [string, number][];
+  /**
+   * 以下は 2026-10-21 追加。どれも ua / src / tag / nav を送り始めた日より前の行には無い
+   * （＝窓に古い行が残っている間は件数が過小。oldestAt と合わせて読む）。
+   *
+   * agents … ページビュー（web_vitals）の端末の大まかな種類（bot＝自動アクセス）
+   * landings … [流入元, 着地した面, 件数]。流入元は外部ホスト名／direct／internal。bot は除く
+   * refTags … `?ref=<媒体>` で来た件数（返信・埋め込みのリンク）。bot は除く
+   * navigations … [移動元の面, 移動先の面, 件数]。画面内（クライアント側）の移動だけ。bot は除く。
+   *   ページを読み込み直すサイト内の移動は landings の src=internal に入る（移動元の面は持たない）
+   *   ので、回遊は**両方を足して**読む。navigations だけだと過小になる
+   * referrers も 2026-10-21 から bot を除く（page_view に ua が付いた行のみ。それ以前の行は区別できない）
+   */
+  agents: [string, number][];
+  landings: [string, string, number][];
+  refTags: [string, number][];
+  navigations: [string, string, number][];
 };
 
 /**
@@ -142,10 +300,13 @@ export type AnalyticsSnapshot = {
 export function buildSnapshot(rows: EventRow[], now = new Date()): AnalyticsSnapshot {
   const totalCounts = countBy(rows, null);
   const last7Counts = countBy(rows, new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
+  const humans = rows.filter((row) => !isBotRow(row));
   return {
     windowDays: WINDOW_DAYS,
     rowCount: rows.length,
     truncated: rows.length >= MAX_ROWS,
+    ...rowSpan(rows),
+    daily: dailyCounts(rows),
     events: Object.keys(EVENT_LABELS).map((event) => ({
       event,
       label: EVENT_LABELS[event],
@@ -156,6 +317,10 @@ export function buildSnapshot(rows: EventRow[], now = new Date()): AnalyticsSnap
     officialClicks: countByDataField(rows, "official_link_click", "service"),
     affiliateClicks: countByDataField(rows, "affiliate_click", "service"),
     vitals: vitalsP75(rows),
-    referrers: countByDataField(rows, "page_view", "ref"),
+    referrers: countByDataField(humans, "page_view", "ref"),
+    agents: countByDataField(rows, "web_vitals", "ua"),
+    landings: countPairs(rows, "web_vitals", "src", "face"),
+    refTags: countByDataField(humans, "page_view", "tag"),
+    navigations: countPairs(rows, "nav", "from", "face"),
   };
 }
