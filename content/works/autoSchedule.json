@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-20",
+  "updatedAt": "2026-10-24",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -1105,6 +1105,15 @@
       "matchedBy": "mal",
       "title": "らんま1/2 第3期"
     },
+    "17357": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/209980",
+      "fetchedDate": "2026-10-24",
+      "matchedBy": "mal",
+      "title": "異世界でチート能力を手にした俺は、現実世界をも無双する ～レベルアップは人生を変えた～ 2nd Season"
+    },
     "17358": {
       "date": "2026-10-04",
       "precision": "day",
@@ -1523,11 +1532,13 @@
       "title": "死して生きるSSS級ハンター"
     },
     "18201": {
-      "date": "2027-01",
-      "precision": "month",
+      "date": "2027-01-04",
+      "precision": "day",
+      "weekday": 1,
+      "time": "21:56",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/216858",
-      "fetchedDate": "2026-09-19",
+      "fetchedDate": "2026-10-24",
       "matchedBy": "title",
       "title": "ハルとゲン ～70歳、はじめての子育て～"
     },
