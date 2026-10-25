@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-20",
+  "updatedAt": "2026-10-26",
   "source": "しょぼいカレンダー（https://cal.syoboi.jp）の最終回の「終」フラグ・dアニメストアの「（全N話）」 — scripts/fetch-completion.js が生成。手で編集しない",
   "works": {
     "6187": {
@@ -1299,7 +1299,14 @@
         "finalAt": "2026-10-25T11:00:00.000Z",
         "prevAt": "2026-10-25T10:30:00.000Z"
       },
-      "season": "2026-autumn"
+      "season": "2026-autumn",
+      "danime": {
+        "workIds": [
+          "29260"
+        ],
+        "episodes": 3,
+        "seenAt": "2026-10-25T21:53:12.648Z"
+      }
     },
     "15873": {
       "title": "春夏秋冬代行者 春の舞",
