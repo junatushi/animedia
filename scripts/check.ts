@@ -9077,7 +9077,8 @@ let circNg = 0;
   const files = [
     ...listSourceFiles(new URL("../app/", import.meta.url)),
     ...listSourceFiles(new URL("../components/", import.meta.url)),
-  ].map((u) => decodeURIComponent(u.pathname));
+    // 区切りは / に揃える（Windows の \\ だと下の endsWith・split が合わない。readFileSync は / でも開ける）。
+  ].map((u) => fileURLToPath(u).replace(/\\/g, "/"));
   const navNames = new Map<string, string[]>();
   for (const file of files) {
     const src = readFileSync(file, "utf8");
