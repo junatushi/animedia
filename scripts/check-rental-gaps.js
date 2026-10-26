@@ -53,6 +53,11 @@ const PAGES = {
   "/cf/": `<title>Just a moment...</title><div id="challenge-platform"></div>`,
   // 課金の区画が無い → 何も出さない
   "/plain/": `<h3>配信情報</h3><p>dアニメストア</p><p>U-NEXT</p>`,
+  // 配信先の抜け（2026-10-26）: 恐怖コレクターの形。トップのニュース欄の Lemino、配信の見出しより前の
+  // メニューの YouTube、BD の見出しの後の U-NEXT は拾わない。アニメ放題・TELASA だけが抜け。
+  "/miss/": `<p>Leminoほかで配信決定！</p><a href="/miss/streaming/">配信情報</a>`,
+  "/miss/streaming/": `<ul><li>YouTube</li><li>NEWS</li></ul><h3>配信情報</h3><p>放送翌週木曜日12:00以降、順次配信</p>
+    <p>dアニメストア</p><p>アニメ放題</p><p>TELASA（見放題プラン）</p><h3>BD</h3><p>U-NEXT</p>`,
 };
 
 const SEASON_ITEMS = [
@@ -71,6 +76,8 @@ const SEASON_ITEMS = [
   { id: 900007, title: "課金なし", officialSiteUrl: "https://p.example/plain/", services: ["d_anime", "unext"] },
   { id: 900008, title: "読めない", officialSiteUrl: "https://x.example/missing/", services: ["d_anime", "unext"] },
   { id: 900009, title: "1社だけ", officialSiteUrl: "https://x.example/tenken/", services: ["abema"] },
+  { id: 900014, title: "抜けあり", officialSiteUrl: "https://m.example/miss/", services: ["d_anime"] },
+  { id: 900015, title: "配信先なし", officialSiteUrl: "https://m.example/miss/", services: [] },
 ].map((w) => ({ ...w, services: w.services.map((key) => ({ key })) }));
 
 function startStub({ seasonStatus = 200, items = SEASON_ITEMS } = {}) {
@@ -116,6 +123,15 @@ function runCli(origin, extraArgs = [], today = "2026-10-10") {
   const r0 = S.classifySections(["＜個別課金サービス＞", "ｄアニメストア"], cls);
   assert.deepStrictEqual(r0.payOnly, ["d_anime"]);
   ok("課金の見出しの下だけにあるサービスを拾う");
+
+  const SA = require("./lib/streaming-acknowledged.js");
+  const ackList = [{ id: 1, keys: ["lemino"], reason: "別の期の表", recheckOn: "2026-11-01" }];
+  assert.deepStrictEqual(SA.ackedKeys(ackList, 1, "2026-10-31"), ["lemino"]);
+  assert.deepStrictEqual(SA.ackedKeys(ackList, 1, "2026-11-01"), []);
+  assert.strictEqual(SA.expiredFor(ackList, 1, "2026-11-01"), "別の期の表");
+  assert.throws(() => SA.validateAcknowledged([{ id: 1, reason: "x", recheckOn: "2026-11-01" }]));
+  SA.validateAcknowledged(SA.ACKNOWLEDGED);
+  ok("抜けの確認済み除外はサービス単位・期日まで", "keys の無い行・期日の無い行は起動時に落ちる");
 
   console.log("── CLI を実際に動かす ──");
   const stub = await startStub();
@@ -164,11 +180,34 @@ function runCli(origin, extraArgs = [], today = "2026-10-10") {
     assert.strictEqual(by[900013].kind, "unread");
     ok("読めなかったサイトを「問題なし」に数えない");
 
-    assert.ok(!by[900009]);
-    ok("配信サービスが1社だけの作品は見に行かない", "相手のサイトへの取得を減らす");
+    assert.strictEqual(by[900009].kind, "ok");
+    ok("配信サービスが1社だけの作品は課金の判定をしない", "1社だけなら区別する相手が無い");
 
-    const issue = await runCli(stub.origin);
+    console.log("── 配信先の抜け（2026-10-26） ──");
+    assert.strictEqual(by[900014].streamingGap.kind, "missing");
+    assert.deepStrictEqual(by[900014].streamingGap.missing, ["anime_houdai", "telasa"]);
+    ok("配信情報ページの見出し以降にあって作品ページに無いサービスを拾う", "トップのニュース・見出し前のメニュー・BD欄は拾わない");
+    assert.deepStrictEqual(by[900009].streamingGap.kind, "ok");
+    ok("課金の区画にだけあるサービスは抜けに出さない", "rental-gaps 側の話");
+    assert.ok(!by[900015]);
+    ok("配信先が0件の作品は見に行かない", "coverage-gaps と自動補完の担当");
+    assert.strictEqual(by[900008].streamingGap.kind, "nopage");
+    ok("公式サイトを読めなかった作品を「抜けなし」に数えない");
+
+    const missPath = join(require("node:os").tmpdir(), `missing-${process.pid}.md`);
+    const before = stub.hits.filter((p) => p === "/api/season").length;
+    const issue = await runCli(stub.origin, ["--missing-out", missPath]);
     assert.strictEqual(issue.code, 0);
+    // Vercel の無料枠: 2つの判定を1回の実行で出し、サイトへの要求はクールごとの /api/season 1回だけ
+    // （エッジキャッシュに乗る）。作品数が増えても Vercel 側の要求は増えない。
+    assert.strictEqual(stub.hits.filter((p) => p === "/api/season").length - before, 2);
+    ok("サイトへの要求はクールごとの /api/season 1回だけ", "作品数に比例しない＝Vercelの無料枠を食わない");
+    const miss = require("node:fs").readFileSync(missPath, "utf8");
+    assert.match(miss, /抜けあり/);
+    assert.match(miss, /`anime_houdai`, `telasa`/);
+    assert.match(miss, /アニメ放題/);
+    assert.doesNotMatch(miss, /1社だけ/);
+    ok("抜けのIssue本文を --missing-out のファイルに書く", "抜き書きつき");
     assert.match(issue.out, /転剣テスト/);
     assert.match(issue.out, /読めなかった作品 2件/);
     assert.doesNotMatch(issue.out, /課金なし/);
@@ -185,10 +224,12 @@ function runCli(origin, extraArgs = [], today = "2026-10-10") {
 
   const clean = await startStub({ items: SEASON_ITEMS.filter((w) => [900002, 900007].includes(w.id)) });
   try {
-    const { code, out } = await runCli(clean.origin);
+    const cleanMiss = join(require("node:os").tmpdir(), `missing-clean-${process.pid}.md`);
+    const { code, out } = await runCli(clean.origin, ["--missing-out", cleanMiss]);
     assert.strictEqual(code, 0);
     assert.strictEqual(out, "");
-    ok("要対応が0件なら標準出力は空", "ワークフローはそれを見てIssueを閉じる");
+    assert.strictEqual(require("node:fs").readFileSync(cleanMiss, "utf8"), "");
+    ok("要対応が0件なら標準出力も抜けのファイルも空", "ワークフローはそれを見てIssueを閉じる");
   } finally {
     clean.server.close();
   }

@@ -249,7 +249,12 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   const serviceNames = [...streamingServices.map((s) => s.short), ...item.otherServices];
   // 点線バッジ（Annict未登録・公式サイト/報道記事で人力確認）の出典。バッジ内には置かず
   // （2026-07-28の誤タップ事故対応）、「配信情報の確認日」の下に簡略表示で1回だけ出す。
-  const manualSources = streamingServices.filter((s) => s.manualSourceUrl);
+  // 出典URLごとにまとめる（公式の配信ページ1枚で何社も確かめた作品で、同じリンクが社数ぶん並ばないように）。
+  const manualSources = [
+    ...streamingServices
+      .filter((s) => s.manualSourceUrl)
+      .reduce((m, s) => m.set(s.manualSourceUrl as string, [...(m.get(s.manualSourceUrl as string) ?? []), s.short]), new Map<string, string[]>()),
+  ].map(([url, shorts]) => ({ url, shorts }));
   // 検索する人はサービス名をカタカナで書くことが多い（2026-07-26のSearch Console実測で
   // 「ユーネクスト」「ネットフリックス」を含むクエリが表示回数の上位を占めていた）。
   // ページ内に英字表記しか無いとこの表記ゆれを拾えないため、FAQの回答文でだけ
@@ -723,11 +728,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
             {manualSources.length > 0 && (
               <p className="svc-manual-note">
                 出典:{" "}
-                {manualSources.map((s, i) => (
-                  <span key={s.key}>
+                {manualSources.map((m, i) => (
+                  <span key={m.url}>
                     {i > 0 && "・"}
-                    <a href={s.manualSourceUrl} target="_blank" rel="noopener noreferrer" data-out="source">
-                      {s.short}の記事 ↗
+                    <a href={m.url} target="_blank" rel="noopener noreferrer" data-out="source">
+                      {m.shorts.join("・")}の出典 ↗
                     </a>
                   </span>
                 ))}
