@@ -4,6 +4,8 @@ import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { usePathname } from "next/navigation";
 import IntentLink from "./IntentLink";
 import { logEvent } from "@/lib/logEvent";
+import { normalizeSearchQuery } from "@/lib/trackEventData";
+import { currentAgent } from "@/lib/vitalsDiagnostics";
 import { textOn, splitRentalServices } from "@/lib/services";
 import { isCompletedAt } from "@/lib/completion";
 import { buildServicePlan } from "@/lib/servicePlan";
@@ -30,6 +32,9 @@ import { RENTAL_SERVICES } from "@/content/works/rentalServices";
 import { EXCLUSIVE_KEY, matchesServiceFilter } from "@/lib/serviceFilter";
 import { WORK_ALIASES } from "@/content/works/aliases";
 import { currentSeasonKey, resolveYearSeason, validYears } from "@/lib/resolveSeasonParams";
+
+/** 検索語の入力が止まってから記録するまでの待ち（ミリ秒）。打ち途中の語を数えないため。 */
+const SEARCH_LOG_DELAY_MS = 1500;
 
 // 「独占」チップ（EXCLUSIVE_KEY）の意味と、サービス絞り込みの判定は
 // lib/serviceFilter.ts だけが持つ（カードに出すチップと同じ集合で照合するため）。
@@ -887,6 +892,40 @@ export default function SeasonExplorer({
   }, [query, searchIndex, data, active, favoritesOnly]);
   const crossShown = crossMatches.slice(0, CROSS_LIMIT);
 
+  // ── 検索欄の利用の記録（2026-10-26）。**入力が止まってから**1件だけ送る（1文字ごとには送らない）。
+  // 送るのは正規化した語（normalizeSearchQuery の形に合うものだけ）と、そのとき今のクールで何件・
+  // 他のクールで何件当たったか。絞り込み中は f=1 を付ける（0件を「作品が無い」と読まないため）。
+  // 他のクールの索引がまだ読めていなければ other を付けない（0件と区別できないので数えない）。
+  // **利用者が自分で入力したときだけ**送る（一覧に戻ったときの検索語の復元では送らない）。
+  // 検索語は Vercel Web Analytics には渡さない（ownOnly）。JSONに出るのは2回以上検索された語だけ
+  // （lib/adminAnalytics.ts の searchUsage）。
+  const searchTyped = useRef(false);
+  const lastLoggedQuery = useRef<string | null>(null);
+  useEffect(() => {
+    if (!searchTyped.current || !data) return;
+    const q = normalizeSearchQuery(query);
+    if (!q || q === lastLoggedQuery.current) return;
+    const timer = setTimeout(() => {
+      const ua = currentAgent();
+      if (ua === "bot") return;
+      lastLoggedQuery.current = q;
+      const filters = active.size > 0 || activeCast.size > 0 || favoritesOnly;
+      logEvent(
+        "search",
+        {
+          q,
+          hits: filtered.length,
+          ...(searchIndex.length > 0 && !filters ? { other: crossMatches.length } : {}),
+          ...(filters ? { f: 1 } : {}),
+          face: pathname === "/" ? "home" : "season",
+          ua,
+        },
+        { ownOnly: true }
+      );
+    }, SEARCH_LOG_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [query, data, filtered.length, crossMatches.length, searchIndex.length, active, activeCast, favoritesOnly, pathname]);
+
   // カード内に出す「いつ放送か」のラベル（現在表示中クール）。
   const currentSeasonLabel = `${year}年 ${SEASON_LABEL[season] ?? ""}`;
 
@@ -1113,6 +1152,7 @@ export default function SeasonExplorer({
             onFocus={ensureSearchIndex}
             onChange={(e) => {
               ensureSearchIndex();
+              searchTyped.current = true;
               setQuery(e.target.value);
             }}
           />
@@ -1438,7 +1478,7 @@ export default function SeasonExplorer({
             時刻は初回放送/配信から推定した目安です。話数によって前後する場合があります。
             放送開始の1週間前から表示されます。
           </p>
-          <div className="calendar" data-single={calendarDay !== "all"}>
+          <div className="calendar" data-nav="calendar" data-single={calendarDay !== "all"}>
           {visibleCalendarGroups.map((g) => (
             <section key={g.label} className="calendar-day">
               <h3 className="calendar-day-head">
@@ -1507,7 +1547,7 @@ export default function SeasonExplorer({
 
       {viewMode === "grid" && !loading && !error && data && filtered.length > 0 && (
         <>
-          <div className="grid">
+          <div className="grid" data-nav="list">
           {cardChunks.map((group, gi) => (
           <Suspense key={gi}>
           {group.map((it) => (
@@ -1658,7 +1698,7 @@ export default function SeasonExplorer({
       {/* クール横断検索の結果。検索語が入っている時だけ、表示中クール以外の作品を
           別枠で出す（配信サービス等の重いデータは持たないので、作品ページへ誘導する）。 */}
       {viewMode === "grid" && !loading && !error && data && crossShown.length > 0 && (
-        <section className="cross" aria-label="他のクールの検索結果">
+        <section className="cross" data-nav="cross" aria-label="他のクールの検索結果">
           <h2 className="cross-title">
             他のクールの作品
             <span className="cross-count">{crossMatches.length}件</span>

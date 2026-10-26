@@ -5,8 +5,15 @@
 // 送れるイベント名は app/api/track/route.ts の ALLOWED_EVENTS で許可制。
 import { track } from "@vercel/analytics";
 
-export function logEvent(event: string, data?: Record<string, string | number | boolean | null>) {
-  track(event, data);
+// opts.ownOnly … 自前の /api/track にだけ送り、Vercel Web Analytics には渡さない（2026-10-26）。
+// 検索語のように利用者が入力した文字列は、集計の門番（lib/trackEventData.ts）を通らない
+// 第三者の計測へは出さない。
+export function logEvent(
+  event: string,
+  data?: Record<string, string | number | boolean | null>,
+  opts?: { ownOnly?: boolean }
+) {
+  if (!opts?.ownOnly) track(event, data);
   fetch("/api/track", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

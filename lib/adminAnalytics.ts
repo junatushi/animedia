@@ -15,6 +15,8 @@
 // 素の `.ts` なのは `node scripts/check.ts` から import して検査するため
 // （`.tsx` は Node が JSX を解釈できない＝lib/workTitle.ts と同じ理由）。
 
+import { normalizeSearchQuery, SEARCH_QUERY_RE } from "./trackEventData.ts";
+
 /** 集計の窓（日）。画面もJSONも同じ窓を見る。 */
 export const WINDOW_DAYS = 30;
 /**
@@ -103,6 +105,9 @@ export const EVENT_LABELS: Record<string, string> = {
   web_vitals: "表示速度の実測（1ページビュー1件）",
   page_view: "外部からの流入（リファラまたは ?ref= あり）",
   nav: "サイト内の移動（ページ種別間）",
+  outbound_click: "外部リンク（公式サイト・出典など）をクリック",
+  seen: "画面に出た欄（移動せず閉じたページ）",
+  search: "検索欄で検索（入力が止まった時点で1件）",
 };
 
 export function countBy(rows: EventRow[], since: Date | null): Record<string, number> {
@@ -208,6 +213,99 @@ export function countPairs(
     });
 }
 
+/**
+ * 3つ以上のフィールドの組ごとの件数（多い順・上位 limit 件）。countPairs の一般形。自動アクセスは除く。
+ * 「どの面の、どの欄のリンクから、どの面へ移ったか」（nav の from×via×face）に使う。
+ */
+export function countTuples(rows: EventRow[], eventName: string, fields: string[], limit = 30): (string | number)[][] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (row.event_name !== eventName || isBotRow(row)) continue;
+    const values = fields.map((f) => row.event_data?.[f]);
+    if (!values.every((v) => typeof v === "string")) continue;
+    const key = values.join("\u0000");
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((p, q) => q[1] - p[1])
+    .slice(0, limit)
+    .map(([key, n]) => [...key.split("\u0000"), n]);
+}
+
+/**
+ * 面ごとに、どの欄が画面に出たか（2026-10-26導入）。
+ * `seen`（カンマ区切りの欄の一覧）は、離脱した面なら web_vitals か seen、移動した面なら nav に付く
+ * （nav の面は移動**元**＝from）。1ページにつき1回だけ付けて送るので、二重には数えない。
+ * 返すのは [面, 欄, 画面に出たページ数, その面のページ数]。分母は seen を持つ行だけ
+ * （= data-nav の欄があるページ。古い行・欄の無いページは入らない）。
+ * 「押されない」が「見られていない」からか「見ても押さない」からかを、navVia と並べて切り分ける。
+ */
+export function sectionsSeen(rows: EventRow[]): [string, string, number, number][] {
+  const views = new Map<string, number>();
+  const seen = new Map<string, number>();
+  for (const row of rows) {
+    if (isBotRow(row)) continue;
+    const d = row.event_data;
+    if (!d || typeof d.seen !== "string") continue;
+    let face: unknown;
+    if (row.event_name === "nav") face = d.from;
+    else if (row.event_name === "web_vitals" || row.event_name === "seen") face = d.face;
+    else continue;
+    if (typeof face !== "string") continue;
+    views.set(face, (views.get(face) ?? 0) + 1);
+    if (d.seen === "-") continue;
+    for (const section of new Set(d.seen.split(","))) {
+      const key = `${face}\u0000${section}`;
+      seen.set(key, (seen.get(key) ?? 0) + 1);
+    }
+  }
+  return [...seen.entries()]
+    .map(([key, n]): [string, string, number, number] => {
+      const [face, section] = key.split("\u0000");
+      return [face, section, n, views.get(face) ?? 0];
+    })
+    .sort((a, b) => a[0].localeCompare(b[0]) || b[2] - a[2] || a[1].localeCompare(b[1]));
+}
+
+/** 検索語を JSON に載せる最小の回数。1回だけの語は出さない（個人の入力をそのまま公開しない）。 */
+export const SEARCH_MIN_COUNT = 2;
+
+/**
+ * 検索欄の利用（2026-10-26導入）。
+ * summary はすべての検索（bot を除く）の件数と、何も見つからなかった件数。
+ * queries は **SEARCH_MIN_COUNT 回以上**検索された語だけ（[語, 回数, 0件だった回数]・多い順・上位30）。
+ * 語は集計の側でも normalizeSearchQuery と同じ形かを確かめ直す（DBには門番を入れる前の行も残りうる）。
+ * 「0件」は絞り込み（サービス・声優・お気に入り）を掛けていない検索で、今のクールにも
+ * 他のクールにも1件も無かったもの（他のクールの索引が読めていない検索は数えない）。
+ */
+export function searchUsage(rows: EventRow[]): {
+  summary: { searches: number; zeroHit: number };
+  queries: [string, number, number][];
+} {
+  let searches = 0;
+  let zeroHit = 0;
+  const byQuery = new Map<string, [number, number]>();
+  for (const row of rows) {
+    if (row.event_name !== "search" || isBotRow(row)) continue;
+    const d = row.event_data;
+    if (!d || typeof d.q !== "string") continue;
+    searches++;
+    const miss = d.hits === 0 && d.other === 0 && d.f !== 1;
+    if (miss) zeroHit++;
+    if (!SEARCH_QUERY_RE.test(d.q) || normalizeSearchQuery(d.q) !== d.q) continue;
+    const cur = byQuery.get(d.q) ?? [0, 0];
+    cur[0]++;
+    if (miss) cur[1]++;
+    byQuery.set(d.q, cur);
+  }
+  const queries = [...byQuery.entries()]
+    .filter(([, [n]]) => n >= SEARCH_MIN_COUNT)
+    .sort((a, b) => b[1][0] - a[1][0] || a[0].localeCompare(b[0]))
+    .slice(0, 30)
+    .map(([q, [n, miss]]): [string, number, number] => [q, n, miss]);
+  return { summary: { searches, zeroHit }, queries };
+}
+
 function rowSpan(rows: EventRow[]): { oldestAt: string | null; newestAt: string | null } {
   let oldest: number | null = null;
   let newest: number | null = null;
@@ -288,6 +386,20 @@ export type AnalyticsSnapshot = {
   landings: [string, string, number][];
   refTags: [string, number][];
   navigations: [string, string, number][];
+  /**
+   * 以下は 2026-10-26 追加（どれも送り始めた日より前の行には無い）。bot は除く。
+   *
+   * navVia … [移動元の面, 押したリンクがあった欄, 移動先の面, 件数]。欄は data-nav の値。
+   *   戻る・進む・欄の外のリンクでは欄が付かないので、navigations の合計より少ない
+   * outbound … [面, 外部リンクの種類, 件数]。種類は data-out の値（official＝作品の公式サイト、
+   *   source＝出典など）。配信サービスのバッジは official_link_click 側で数えるのでここには入らない
+   * sectionsSeen … [面, 欄, 画面に出たページ数, その面のページ数]（sectionsSeen の説明）
+   * search … 検索の件数と、SEARCH_MIN_COUNT 回以上検索された語（searchUsage の説明）
+   */
+  navVia: (string | number)[][];
+  outbound: (string | number)[][];
+  sectionsSeen: [string, string, number, number][];
+  search: { summary: { searches: number; zeroHit: number }; queries: [string, number, number][] };
 };
 
 /**
@@ -322,5 +434,9 @@ export function buildSnapshot(rows: EventRow[], now = new Date()): AnalyticsSnap
     landings: countPairs(rows, "web_vitals", "src", "face"),
     refTags: countByDataField(humans, "page_view", "tag"),
     navigations: countPairs(rows, "nav", "from", "face"),
+    navVia: countTuples(rows, "nav", ["from", "via", "face"]),
+    outbound: countTuples(rows, "outbound_click", ["face", "kind"]),
+    sectionsSeen: sectionsSeen(rows),
+    search: searchUsage(rows),
   };
 }

@@ -5,6 +5,7 @@ import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
 import { canStateFetchDate, dateModifiedLd, type FetchedAt } from "@/lib/dataFreshness";
 import {
   PERSON_PAGE_MIN_APPEARANCES as MIN_APPEARANCES,
+  coStars,
   shouldIndexPersonSeasonPage,
 } from "@/lib/personPage";
 import { NOINDEX_FOLLOW } from "@/lib/indexPolicy";
@@ -203,6 +204,7 @@ export default async function PersonPage({ params }: { params: Params }) {
 
   const label = SEASON_LABEL[season];
   let works: AnimeItem[] = [];
+  let costars: [string, number][] = [];
   let fetchError: string | null = null;
   // 取得日はデータ層が持つ（過去クール＝スナップショット由来なら null＝日付を名乗らない）。
   // ここで new Date() を呼ばないこと。理由は lib/dataFreshness.ts。
@@ -211,6 +213,7 @@ export default async function PersonPage({ params }: { params: Params }) {
     const data = await getSeasonData(year, season);
     fetchedAt = data.fetchedAt ?? null;
     works = findWorks(data.items, name).sort((a, b) => b.watchers - a.watchers);
+    costars = coStars(data.items, works, name, MIN_APPEARANCES);
   } catch (e) {
     fetchError = e instanceof Error ? e.message : "取得に失敗しました。";
   }
@@ -287,7 +290,9 @@ export default async function PersonPage({ params }: { params: Params }) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredLd) }}
         />
       )}
-      <header className="masthead">
+      {/* data-nav は欄の名前（2026-10-26。components/WebVitals.tsx の計測用）:
+          head 見出し / film 代表作 / works このクールの出演作 / costar 共演 / other 他のクールの出演作 / seasons 他のクールのページ */}
+      <header className="masthead" data-nav="head">
         <span className="eyebrow" aria-hidden="true">
           LINK START :: 出演者データ照会
         </span>
@@ -317,7 +322,7 @@ export default async function PersonPage({ params }: { params: Params }) {
             ) : (
               <>
                 {filmography && (
-                  <section className="detail-section">
+                  <section className="detail-section" data-nav="film">
                     <h2 className="detail-heading">代表作（役名付き）</h2>
                     <ul className="detail-list">
                       {filmography.works.map((w, i) => (
@@ -328,7 +333,7 @@ export default async function PersonPage({ params }: { params: Params }) {
                     </ul>
                     <p className="detail-updated">
                       出典:{" "}
-                      <a href={filmography.sourceUrl} target="_blank" rel="noopener noreferrer">
+                      <a href={filmography.sourceUrl} target="_blank" rel="noopener noreferrer" data-out="source">
                         {filmography.sourceUrl}
                       </a>
                       {" "}（確認日: {filmography.confirmedDate}）
@@ -336,7 +341,7 @@ export default async function PersonPage({ params }: { params: Params }) {
                   </section>
                 )}
 
-                <section className="detail-section">
+                <section className="detail-section" data-nav="works">
                   <h2 className="detail-heading">
                     {year}年{label}アニメの出演作品（{works.length}作品
                     {canStateFetchDate(fetchedAt) ? `・${fetchedAt}時点` : ""}）
@@ -350,8 +355,27 @@ export default async function PersonPage({ params }: { params: Params }) {
                   </ul>
                 </section>
 
+                {/* 同じクールで共演の多い声優（2026-10-26追加。lib/personPage.ts の coStars）。
+                    相手のページがある人だけ並ぶので 404 へのリンクにはならない。 */}
+                {costars.length > 0 && (
+                  <section className="detail-section" data-nav="costar">
+                    <h2 className="detail-heading">
+                      {year}年{label}アニメで{name}さんと共演の多い声優
+                    </h2>
+                    <ul className="person-season-links">
+                      {costars.map(([n, c]) => (
+                        <li key={n}>
+                          <IntentLink href={`/person/${encodeURIComponent(n)}/${year}/${season}`}>
+                            {n}（共演{c}作品）
+                          </IntentLink>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
                 {otherWorks.length > 0 && (
-                  <section className="detail-section">
+                  <section className="detail-section" data-nav="other">
                     {/* 【表現の注意】ここに並ぶのは「そのクールの番組表に配信の記録があった」
                         作品であって、いま配信されている保証は無い（Annictは配信終了を
                         記録しない。CLAUDE.mdの基本ルール／lib/workAvailability.ts）。
@@ -377,7 +401,7 @@ export default async function PersonPage({ params }: { params: Params }) {
                 )}
 
                 {otherPages.length > 0 && (
-                  <section className="detail-section">
+                  <section className="detail-section" data-nav="seasons">
                     {/* 同じ人の他クールのページへの導線（2026-08-19追加）。
                         ここが無いと、sitemapに載せた過去クールの声優ページは
                         「そのクールの作品ページの声優名リンク」1本でしか辿れず、

@@ -140,9 +140,33 @@ export function refTag(search: string): string | null {
  * 両方がこの関数を通すので、キーを足しても検査は手で書き写した形とズレない。
  */
 export function vitalsPayload(
-  head: { face: string; ua: string; src: string },
+  head: { face: string; ua: string; src: string; seen?: string },
   metrics: Record<string, number>,
   diagnostics: Record<string, number>
 ): Record<string, string | number> {
-  return { face: head.face, ua: head.ua, src: head.src, ...metrics, ...diagnostics };
+  // seen（画面に出た欄・2026-10-26）も先頭側に置く。末尾だと上限で落ちたとき欄の集計だけが黙って欠ける。
+  return {
+    face: head.face,
+    ua: head.ua,
+    src: head.src,
+    ...(head.seen ? { seen: head.seen } : {}),
+    ...metrics,
+    ...diagnostics,
+  };
+}
+
+/**
+ * いまのブラウザの agentClass（2026-10-26）。WebVitals と検索欄の計測が同じ判定を使うための入口。
+ * navigator が無い・読めない環境では "other"。
+ */
+export function currentAgent(): AgentClass {
+  try {
+    return agentClass({
+      userAgent: navigator.userAgent,
+      webdriver: navigator.webdriver,
+      maxTouchPoints: navigator.maxTouchPoints,
+    });
+  } catch {
+    return "other";
+  }
 }

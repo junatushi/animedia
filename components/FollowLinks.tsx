@@ -48,6 +48,7 @@ export default function FollowLinks() {
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => logEvent("follow_click", { network: l.key })}
+              data-selflog=""
             >
               {l.label}
             </a>

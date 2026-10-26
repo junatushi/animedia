@@ -42,7 +42,7 @@ export default function EmbedSnippet({ title, snippet, iframeSnippet }: Props) {
   }
 
   return (
-    <details className="embed-share">
+    <details className="embed-share" data-nav="emb">
       <summary>ブログ・サイトに「{title}」の配信先を貼る（無料・HTMLをコピー）</summary>
       <div className="embed-share-body">
         <div className="embed-share-tabs" role="group" aria-label="貼り付けコードの形式">

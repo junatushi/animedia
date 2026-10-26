@@ -209,7 +209,7 @@ export default async function ServicePage({ params }: { params: Params }) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredLd) }}
         />
       )}
-      <header className="masthead">
+      <header className="masthead" data-nav="head">
         <span className="eyebrow" aria-hidden="true">
           LINK START :: サービス別データ照会
         </span>
@@ -260,7 +260,7 @@ export default async function ServicePage({ params }: { params: Params }) {
                 dアニメが各クールの74〜82%をカバーする以上、複数社で配信されている作品は
                 「どこで見ても同じ」であって加入の理由にならない。 */}
             {!fetchError && exclusiveItems.length > 0 && (
-              <section className="detail-section">
+              <section className="detail-section" data-nav="excl">
                 <h2 className="detail-heading">
                   {service.name}でしか見られない作品（{exclusiveItems.length}作品）
                 </h2>
@@ -293,7 +293,7 @@ export default async function ServicePage({ params }: { params: Params }) {
             )}
 
             {!fetchError && items.length > 0 && (
-              <section className="detail-section">
+              <section className="detail-section" data-nav="list">
                 <h2 className="detail-heading">
                   {service.name}で見れる作品（{items.length}作品）
                 </h2>
@@ -309,7 +309,7 @@ export default async function ServicePage({ params }: { params: Params }) {
             )}
 
             {!fetchError && otherServices.length > 0 && (
-              <section className="detail-section">
+              <section className="detail-section" data-nav="others">
                 <h2 className="detail-heading">他の配信サービスで見れる{year}年{label}アニメ</h2>
                 <p className="detail-text">
                   {otherServices.map(([k, v], i) => (
@@ -338,7 +338,7 @@ export default async function ServicePage({ params }: { params: Params }) {
                 「2020年冬の予定表」を期待した人に今期のカレンダーを渡すことになる
                 ので、今期のページでだけ出す。 */}
             {!fetchError && items.length > 0 && isCurrentSeason && (
-              <section className="detail-section">
+              <section className="detail-section" data-nav="cal">
                 <h2 className="detail-heading">カレンダーで購読する</h2>
                 <p className="detail-text">
                   {service.name}で見られる今期の放送・配信スケジュールを、お使いのカレンダー

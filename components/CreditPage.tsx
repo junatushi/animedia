@@ -4,6 +4,7 @@ import { creditHeadline } from "@/lib/pageMeta";
 import {
   CREDIT_ROLE_LABEL,
   MAX_WORKS_SHOWN,
+  partnerRole,
   type CreditRole,
   type StudioWork,
 } from "@/lib/studioIndex";
@@ -34,11 +35,15 @@ export function CreditPage({
   role,
   name,
   works,
+  partners = [],
 }: {
   role: CreditRole;
   name: string;
   works: StudioWork[];
+  /** よく組んでいる相手（lib/studioIndex.ts の creditPartners）。相手のページがある名前だけ。 */
+  partners?: [string, number][];
 }) {
+  const other = partnerRole(role);
   const roleLabel = CREDIT_ROLE_LABEL[role];
   const shown = works.slice(0, MAX_WORKS_SHOWN);
   const path = `${siteUrl}/${role}/${encodeURIComponent(name)}`;
@@ -73,7 +78,8 @@ export function CreditPage({
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredLd) }}
       />
-      <header className="masthead">
+      {/* data-nav は欄の名前（2026-10-26。components/WebVitals.tsx の計測用）。 */}
+      <header className="masthead" data-nav="head">
         <span className="eyebrow" aria-hidden="true">
           LINK START :: {roleLabel}データ照会
         </span>
@@ -92,7 +98,7 @@ export function CreditPage({
       <div className="detail-page">
         <article className="card">
           <div className="card-body detail-body">
-            <section className="detail-section">
+            <section className="detail-section" data-nav="works">
               <h2 className="detail-heading">
                 配信情報がある作品（{shown.length}作品
                 {works.length > shown.length ? `／全${works.length}作品` : ""}・新しい順）
@@ -112,6 +118,24 @@ export function CreditPage({
                 現在も配信されているかは各サービスでご確認ください。
               </p>
             </section>
+            {/* 横の移動（監督⇔制作会社）。2026-10-26追加。このページは作品ページへのリンクしか
+                持たず、2026-10-21〜26の実測で制作会社・監督ページからの移動は作品ページへの1件だけだった。 */}
+            {partners.length > 0 && (
+              <section className="detail-section" data-nav="partner">
+                <h2 className="detail-heading">
+                  {role === "director" ? `${name}監督の作品を多く制作した会社` : `${name}の作品を多く手がけた監督`}
+                </h2>
+                <ul className="person-season-links">
+                  {partners.map(([partner, n]) => (
+                    <li key={partner}>
+                      <IntentLink href={`/${other}/${encodeURIComponent(partner)}`}>
+                        {partner}（{n}作品）
+                      </IntentLink>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           </div>
         </article>
       </div>

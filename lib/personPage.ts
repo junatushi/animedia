@@ -62,3 +62,43 @@ export function shouldIndexPersonSeasonPage(
   if (Number(year) >= new Date().getFullYear()) return true;
   return totalWorks >= PERSON_PAGE_INDEX_MIN_TOTAL_WORKS;
 }
+
+/**
+ * 同じクールで共演の多い声優（2026-10-26導入）。声優ページの「次の一歩」。
+ *
+ * 2026-10-21〜26の実測で、サイト内の移動の大半は声優⇔作品の往復で、声優→声優は少なかった。
+ * 共演者は「この人が出ている作品」の外にある次の候補で、しかも同じクールの声優ページは
+ * 既にある（新しいページを作らない）。
+ *
+ * - `items` はそのクールの全作品、`works` はこの人の出演作（items の部分集合）
+ * - **相手のページがある人だけ**返す（そのクールの出演が minAppearances 以上＝作品ページの
+ *   声優リンクと同じ門番。404 へのリンクを配らない）
+ * - 共演が2作品以上の人だけ（1作品の共演は「その作品の出演者」と同じで、新しい情報が無い）
+ * - 並びは共演作品数の多い順 → そのクールの出演数の多い順 → 名前
+ */
+export function coStars(
+  items: { castNames: string[] }[],
+  works: { castNames: string[] }[],
+  name: string,
+  minAppearances: number,
+  limit = 10
+): [string, number][] {
+  const appearances = new Map<string, number>();
+  for (const it of items) {
+    for (const n of new Set(it.castNames)) appearances.set(n, (appearances.get(n) ?? 0) + 1);
+  }
+  const shared = new Map<string, number>();
+  for (const it of works) {
+    for (const n of new Set(it.castNames)) {
+      if (n === name) continue;
+      shared.set(n, (shared.get(n) ?? 0) + 1);
+    }
+  }
+  return [...shared.entries()]
+    .filter(([n, c]) => c >= 2 && (appearances.get(n) ?? 0) >= minAppearances)
+    .sort(
+      (a, b) =>
+        b[1] - a[1] || (appearances.get(b[0]) ?? 0) - (appearances.get(a[0]) ?? 0) || a[0].localeCompare(b[0], "ja")
+    )
+    .slice(0, limit);
+}
