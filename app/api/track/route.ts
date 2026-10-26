@@ -46,6 +46,14 @@ const ALLOWED_EVENTS = new Set([
   // これが無いと docs/ai-era-strategy-2026-08-13.md の「AI検索からの流入が
   // 月1件以上あるか」という判定が、実際に流入があっても0件のまま期限を迎える。
   "page_view",
+  // 2026-10-26追加。回遊の導線を評価するための3つ（docs/operations.md の [68]）。
+  // outbound_click … 外部リンク（作品の公式サイト・出典など）。data は { face, kind, via?, ua }。URLは送らない
+  // seen … 画面内の移動のあとに閉じたページで、画面に出た欄。data は { face, ua, seen }
+  // search … 検索欄で入力が止まるたびの語。data は { q, hits, other?, f?, face, ua }（f=1 は0件の判定に使わない検索）。
+  //   q は lib/trackEventData.ts の SEARCH_QUERY_RE の形だけ通る。JSONに出るのは2回以上検索された語だけ
+  "outbound_click",
+  "seen",
+  "search",
 ]);
 
 export async function POST(request: Request) {

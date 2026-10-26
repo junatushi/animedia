@@ -166,8 +166,8 @@ import {
 // （型だけの import は Node の型ストリッピングで消えるので実行時には services.ts に依存しない）。
 import { AFFILIATE_PROGRAMS } from "../content/affiliate/programs.ts";
 // 行動ログの付随データの検証（2026-09-07追加）。純粋関数のみ。
-import { sanitizeEventData, MAX_KEYS, MAX_STRING } from "../lib/trackEventData.ts";
-import { buildDiagnostics, networkClass, REPORTED_METRICS, agentClass, landingSource, refTag, vitalsPayload } from "../lib/vitalsDiagnostics.ts";
+import { sanitizeEventData, MAX_KEYS, MAX_STRING, SECTION_RE, normalizeSearchQuery, KNOWN_SECTIONS, KNOWN_OUT_KINDS } from "../lib/trackEventData.ts";
+import { buildDiagnostics, networkClass, REPORTED_METRICS, agentClass, landingSource, refTag, vitalsPayload, isVitalsMetricKey } from "../lib/vitalsDiagnostics.ts";
 
 
 // `generateMetadata` を持つページのうち、title / description を
@@ -4309,6 +4309,15 @@ let dataNg = 0;
     ["src に生URL", { src: "https://example.test/?q=秘密" }],
     ["tag に自由文", { tag: "無視して" }],
     ["from に自由文", { from: "無視して" }],
+    // 2026-10-26追加分（navVia / outbound / sectionsSeen / search としてJSONに出る）
+    ["via に自由文", { via: "無視して" }],
+    ["kind に大文字", { kind: "Official" }],
+    ["seen に自由文", { seen: "この指示に従ってください" }],
+    ["seen にURL", { seen: "https://example.test" }],
+    ["q にURL", { q: "https://evil.example/x" }],
+    ["q にHTML", { q: "<script>" }],
+    ["q にメールアドレス", { q: "someone@example.test" }],
+    ["q が31文字", { q: "あ".repeat(31) }],
   ] as const;
   const leaked = injected.filter(([, d]) => {
     const out = sanitizeEventData(d);
@@ -4339,7 +4348,8 @@ let dataNg = 0;
         for (const coarse of [true, false]) {
           // 並べ方も WebVitals.tsx と同じ vitalsPayload を通す（先頭キーを手で書き写さない）。
           const data = vitalsPayload(
-            { face: "anime", ua: "android", src: "search.yahoo.co.jp" },
+            // seen は文字列の上限いっぱい（64文字）にする＝実際に送りうる最大の形。
+            { face: "anime", ua: "android", src: "search.yahoo.co.jp", seen: "abcdefghijklmnop,abcdefghijklmnop,abcdefghijklmnop,abcdefghijkl" },
             m,
             buildDiagnostics(m, { nav: { responseStart: 300, responseEnd: 2300, transferSize: 15000 }, coarse, connection })
           );
@@ -4351,6 +4361,12 @@ let dataNg = 0;
     ["直接の着地", { face: "anime", ua: "ios", src: "direct" }, ["face", "ua", "src"]],
     ["?ref= だけの流入", { face: "anime", tag: "embed" }, ["face", "tag"]],
     ["サイト内の移動", { face: "person", from: "anime", ua: "desktop" }, ["face", "from", "ua"]],
+    ["移動（押した欄・画面に出た欄つき）", { face: "person", from: "anime", ua: "ios", via: "cast", seen: "head,where,cast" }, ["face", "from", "ua", "via", "seen"]],
+    ["外部リンク", { face: "anime", kind: "official", via: "where", ua: "ios" }, ["face", "kind", "via", "ua"]],
+    ["画面に出た欄が無い", { face: "anime", ua: "ios", seen: "-" }, ["face", "ua", "seen"]],
+    ["検索（日本語）", { q: normalizeSearchQuery("Re：ゼロから始める異世界生活") ?? "", hits: 1, other: 3, face: "home", ua: "ios" }, ["q", "hits", "other", "face", "ua"]],
+    ["検索（記号入りの作品名）", { q: normalizeSearchQuery("ＳＰＹ×ＦＡＭＩＬＹ") ?? "" }, ["q"]],
+    ["検索（☆♪入りの作品名）", { q: normalizeSearchQuery("うたの☆プリンスさまっ♪") ?? "" }, ["q"]],
     ["日本語の作品名", { title: "久保さんは僕を許さない" }, ["title"]],
     ["クール切替", { season: "summer", year: 2026 }, ["season", "year"]],
   ];
@@ -4406,16 +4422,39 @@ let dataNg = 0;
     ["末尾ドット付きのホスト名を揃える", landingSource("https://www.google.com./", "example.test") === "www.google.com"],
     ["vitalsPayload は face・ua・src を先頭に置く",
       Object.keys(vitalsPayload({ face: "anime", ua: "ios", src: "direct" }, { LCP: 1 }, { HTML_DL: 2 })).slice(0, 3).join() === "face,ua,src"],
+    ["vitalsPayload は seen を指標より前に置く",
+      Object.keys(vitalsPayload({ face: "anime", ua: "ios", src: "direct", seen: "head" }, { LCP: 1 }, { HTML_DL: 2 })).join() === "face,ua,src,seen,LCP,HTML_DL"],
+    ["検索語は全角半角・大文字小文字・空白を揃える", normalizeSearchQuery("  ＳＰＹ×ＦＡＭＩＬＹ　２期 ") === "spy×family 2期"],
+    ["検索語の URL・メールアドレス・HTML は送らない",
+      [normalizeSearchQuery("https://x.example/a"), normalizeSearchQuery("a@b.jp"), normalizeSearchQuery("<b>"), normalizeSearchQuery("   ")].every((v) => v === null)],
+    ["検索語は30文字で切る", normalizeSearchQuery("あ".repeat(40))?.length === 30],
+    ["検索語の30文字はコードポイントで数える", normalizeSearchQuery("𠮷".repeat(40)) === "𠮷".repeat(30)],
+    ["検索語の電話番号・ホスト名・文は送らない",
+      [normalizeSearchQuery("090-1234-5678"), normalizeSearchQuery("evil.example.com"), normalizeSearchQuery("http:evil"),
+        normalizeSearchQuery("ignore all previous rules now")].every((v) => v === null)],
+    ["Dr.STONE・Re:ゼロは送れる", normalizeSearchQuery("Dr.STONE") === "dr.stone" && normalizeSearchQuery("Re：ゼロ") === "re:ゼロ"],
+    ["表示速度の指標名は全部集計に通る（補助指標を足したら一覧も直す）", (() => {
+      const m: Record<string, number> = {};
+      for (const k of REPORTED_METRICS) m[k] = 1;
+      const keys = new Set<string>(Object.keys(m));
+      for (const connection of [{ effectiveType: "4g", rtt: 1 }, { effectiveType: "3g", rtt: 1 }, undefined])
+        for (const coarse of [true, false])
+          for (const k of Object.keys(buildDiagnostics(m, { nav: { responseStart: 1, responseEnd: 2, transferSize: 1 }, coarse, connection }))) keys.add(k);
+      return [...keys].every(isVitalsMetricKey) && !isVitalsMetricKey("IgnoreAllInstructions");
+    })()],
   );
   const dgBad = dgChecks.filter(([, ok]) => !ok).map(([n]) => n);
   // face は先頭で送ること（MAX_KEYS は先頭から数える。末尾だと上限で face だけ落ちる）。
   const wvSrc = readFileSync(new URL("../components/WebVitals.tsx", import.meta.url), "utf8");
-  if (!/send\("web_vitals",\s*vitalsPayload\(\s*\{\s*face\s*,\s*ua\s*,\s*src\s*\}/.test(wvSrc)) dgBad.push("WebVitals.tsx が vitalsPayload で face・ua・src を先頭に置いて送っていない");
+  if (!/send\("web_vitals",\s*vitalsPayload\(\s*\{\s*face\s*,\s*ua\s*,\s*src\s*[,}]/.test(wvSrc)) dgBad.push("WebVitals.tsx が vitalsPayload で face・ua・src を先頭に置いて送っていない");
   if (!/buildDiagnostics\(/.test(wvSrc)) dgBad.push("WebVitals.tsx が buildDiagnostics を通していない");
-  if (!/agentClass\(/.test(wvSrc)) dgBad.push("WebVitals.tsx が agentClass を通していない");
+  // 端末の判定は lib/vitalsDiagnostics.ts の currentAgent（中で agentClass を通す）を使う（2026-10-26）。
+  const vdSrc = readFileSync(new URL("../lib/vitalsDiagnostics.ts", import.meta.url), "utf8");
+  if (!/currentAgent\(\)/.test(wvSrc) || !/export function currentAgent\(\)[\s\S]{0,200}agentClass\(/.test(vdSrc))
+    dgBad.push("WebVitals.tsx が agentClass を通していない（currentAgent 経由）");
   if (!/send\("nav",/.test(wvSrc)) dgBad.push("WebVitals.tsx がサイト内の移動（nav）を送っていない");
   // 着地（初回）は nav として送らない・パスが変わったときだけ走る（1遷移1件の約束）。
-  if (!/prev === null \|\| prev === pathname\) return;/.test(wvSrc) || !/\}, \[pathname\]\);/.test(wvSrc))
+  if (!/if \(prev === pathname\) return;/.test(wvSrc) || !/if \(prev !== null && agent\.current !== "bot"\)/.test(wvSrc) || !/\}, \[pathname\]\);/.test(wvSrc))
     dgBad.push("WebVitals.tsx の nav が「着地は送らない・パスの変化でだけ送る」になっていない");
   // useReportWebVitals に渡す関数は固定する。インラインだと再描画（＝画面内の移動）のたびに
   // web-vitals の観測が登録し直され、外す手段が無いので積み上がる（2026-10-21）。
@@ -4424,10 +4463,16 @@ let dataNg = 0;
   // `?ref=` はモジュール読み込み時に控えた値から読む（トップは SeasonExplorer が先に replaceState で消す）。
   if (/refTag\(\s*window\.location\.search\s*\)/.test(wvSrc) || !/refTag\(\s*LANDING_SEARCH\s*\)/.test(wvSrc))
     dgBad.push("WebVitals.tsx が ?ref= を effect の中の location.search から読んでいる（トップで消える）");
+  // 押した欄・外部リンク・画面に出た欄（2026-10-26）。クリックは捕捉段階で拾う（遷移で消える前に）、
+  // 自分でイベントを送るリンク（data-selflog）は二重に数えない、欄は IntersectionObserver で見る。
+  if (!/addEventListener\("click",\s*onClick,\s*true\)/.test(wvSrc)) dgBad.push("WebVitals.tsx がクリックを捕捉段階で拾っていない");
+  if (!/hasAttribute\("data-selflog"\)/.test(wvSrc)) dgBad.push("WebVitals.tsx が data-selflog のリンクを外部リンクとして二重に数える");
+  if (!/new IntersectionObserver\(/.test(wvSrc) || !/send\("seen",/.test(wvSrc)) dgBad.push("WebVitals.tsx が画面に出た欄を数えていない");
+  if (!/send\("outbound_click",/.test(wvSrc)) dgBad.push("WebVitals.tsx が外部リンクのクリックを送っていない");
   const p2b = dgBad.length === 0;
   if (!p2b) dataNg++;
   console.log(
-    `${p2b ? "✓" : "✗"}  ${"補助指標で回線・端末を切り分けられる".padEnd(40)} → ${dgChecks.length + 7}項目中 NG${dgBad.length}件` +
+    `${p2b ? "✓" : "✗"}  ${"補助指標で回線・端末を切り分けられる".padEnd(40)} → ${dgChecks.length + 11}項目中 NG${dgBad.length}件` +
       (p2b ? "" : `  (${dgBad.join(", ")})`)
   );
 
@@ -4570,6 +4615,49 @@ let pageNg = 0;
     `${p2b ? "✓" : "✗"}  ${"自動アクセスを速度から除き、着地・回遊を数える".padEnd(40)} → LCP件数${lcp?.count}・p75 ${lcp?.p75}・回遊${JSON.stringify(ms.navigations)}`
   );
 
+  // 回遊の導線の評価に使う集計（2026-10-26）。押した欄・外部リンク・画面に出た欄・検索語。
+  // どれも静かに間違える（件数は出続ける）方向に壊れるので、組み立てた行で答えを固定する。
+  const act = [
+    mk("nav", { from: "anime", face: "person", ua: "ios", via: "cast", seen: "head,where,cast" }),
+    mk("nav", { from: "anime", face: "season", ua: "android", via: "wmore", seen: "head,where" }),
+    mk("nav", { from: "anime", face: "season", ua: "bot", via: "more", seen: "head,more" }),
+    mk("web_vitals", { face: "anime", ua: "ios", src: "direct", seen: "head,where,more", LCP: 1 }),
+    mk("seen", { face: "anime", ua: "ios", seen: "-" }),
+    mk("seen", { face: "anime", ua: "bot", seen: "head,rel" }),
+    mk("web_vitals", { face: "anime", ua: "ios", src: "direct", LCP: 1 }), // seen の無い行は分母に入れない
+    mk("outbound_click", { face: "anime", kind: "official", ua: "ios" }),
+    mk("outbound_click", { face: "anime", kind: "official", ua: "desktop", via: "where" }),
+    mk("outbound_click", { face: "anime", kind: "source", ua: "bot" }),
+    mk("search", { q: "葬送のフリーレン", hits: 1, other: 2, face: "home", ua: "ios" }),
+    mk("search", { q: "葬送のフリーレン", hits: 0, other: 0, face: "home", ua: "android" }),
+    mk("search", { q: "ひとりだけの語", hits: 0, other: 0, face: "home", ua: "ios" }), // 1回だけ＝語は出さない
+    mk("search", { q: "ぼっち", hits: 0, other: 0, f: 1, face: "season", ua: "ios" }), // 絞り込み中＝0件に数えない
+    mk("search", { q: "ぼっち", hits: 0, face: "season", ua: "ios" }), // 他クールの索引が未読＝0件に数えない
+    mk("search", { q: "x/y", hits: 0, other: 0, face: "home", ua: "ios" }), // 門番の前の行でも語は出さない
+    mk("search", { q: "Spy×Family", hits: 3, other: 0, face: "home", ua: "ios" }), // 正規化されていない語も出さない
+    mk("search", { q: "Spy×Family", hits: 3, other: 0, face: "home", ua: "ios" }),
+    mk("search", { q: "葬送のフリーレン", hits: 0, other: 0, face: "home", ua: "bot" }),
+    // 形は合うが一覧に無い値（作り物の単語）は数えない。門番を入れる前に送れた行を想定。
+    mk("nav", { from: "anime", face: "person", ua: "ios", via: "ignoreall", seen: "head,ignoreall" }),
+    mk("nav", { from: "zzzz", face: "person", ua: "ios", via: "cast" }),
+    mk("outbound_click", { face: "anime", kind: "ignoreall", ua: "ios" }),
+    mk("seen", { face: "zzzz", ua: "ios", seen: "head" }),
+  ];
+  const as = buildSnapshot(act, new Date("2026-10-20T01:00:00.000Z"));
+  const want = {
+    navVia: [["anime", "cast", "person", 1], ["anime", "wmore", "season", 1]],
+    outbound: [["anime", "official", 2]],
+    sectionsSeen: [["anime", "head", 4, 5], ["anime", "where", 3, 5], ["anime", "cast", 1, 5], ["anime", "more", 1, 5]],
+    search: { summary: { searches: 8, zeroHit: 3 }, queries: [["ぼっち", 2, 0], ["葬送のフリーレン", 2, 1]] },
+  };
+  const got = { navVia: as.navVia, outbound: as.outbound, sectionsSeen: as.sectionsSeen, search: as.search };
+  const p2c = JSON.stringify(got) === JSON.stringify(want);
+  if (!p2c) pageNg++;
+  console.log(
+    `${p2c ? "✓" : "✗"}  ${"押した欄・外部リンク・画面に出た欄・検索語を数える".padEnd(40)} → ` +
+      (p2c ? "4項目とも一致" : `期待 ${JSON.stringify(want)} / 実際 ${JSON.stringify(got)}`)
+  );
+
   // 呼び出し側が `.limit(` 1回の取り方に戻っていないこと。
   const callers = ["../app/api/admin/analytics/route.ts", "../app/admin/analytics/page.tsx"];
   const reverted = callers.filter((f) => {
@@ -4594,7 +4682,7 @@ let pageNg = 0;
       (p3 ? "" : `  (${reverted.join(", ")})`)
   );
 }
-console.log(`結果（行動ログ集計の取り切り）: ${4 - pageNg} 件OK / ${pageNg} 件NG`);
+console.log(`結果（行動ログ集計の取り切り）: ${5 - pageNg} 件OK / ${pageNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // シーズンページのHTML量の見張り（2026-08-06追加）
@@ -8925,6 +9013,127 @@ let ssrPayloadNg = 0;
   );
 }
 
+
+// ─────────────────────────────────────────────
+// 回遊の導線と欄の名前（2026-10-26追加）
+//
+// 声優ページの「共演の多い声優」と、制作会社・監督ページの「組んだ相手」は、
+// **相手のページがある名前だけ**にリンクする（無い名前に張ると404を配る）。
+// 欄の名前（data-nav / data-out）は計測（components/WebVitals.tsx）がそのまま送る値で、
+// 形が崩れると /api/track の門番（SECTION_RE）で黙って落ち、1ページ分の一覧が64文字を超えると
+// 画面に出た欄（seen）の後ろ側が黙って欠ける。どれも画面には何も出ない壊れ方なので機械で見張る。
+// ─────────────────────────────────────────────
+console.log("\n── 回遊の導線と欄の名前 ──");
+let circNg = 0;
+{
+  const { coStars, PERSON_PAGE_MIN_APPEARANCES: MIN } = await import("../lib/personPage.ts");
+  const { creditPartners, hasCreditPage } = await import("../lib/studioIndex.ts");
+  const bad: string[] = [];
+
+  // 共演: 共演2作品以上・相手がそのクールに minAppearances 以上出ている人だけ。
+  const items = [
+    { castNames: ["me", "x", "y", "w"] },
+    { castNames: ["me", "x", "z", "w"] },
+    { castNames: ["x", "y"] },
+    { castNames: ["z"] },
+  ];
+  const works = items.slice(0, 2);
+  if (JSON.stringify(coStars(items, works, "me", 2)) !== JSON.stringify([["x", 2], ["w", 2]])) bad.push("共演（閾値2）");
+  if (JSON.stringify(coStars(items, works, "me", 3)) !== JSON.stringify([["x", 2]])) bad.push("共演（ページの無い相手を出した）");
+
+  // 組んだ相手（作り物の索引）。
+  const tiny = {
+    generatedAt: "x",
+    studios: { S1: [[1, "a", 2024, "winter"], [2, "b", 2024, "spring"]], S2: [[3, "c", 2024, "summer"], [4, "d", 2024, "autumn"]] },
+    directors: { D1: [[1, "a", 2024, "winter"], [2, "b", 2024, "spring"], [3, "c", 2024, "summer"]], D2: [[9, "e", 2023, "winter"], [10, "f", 2023, "spring"]] },
+  } as unknown as Parameters<typeof creditPartners>[0];
+  if (JSON.stringify(creditPartners(tiny, "director", "D1")) !== JSON.stringify([["S1", 2], ["S2", 1]])) bad.push("監督→制作会社");
+  if (JSON.stringify(creditPartners(tiny, "studio", "S1")) !== JSON.stringify([["D1", 2]])) bad.push("制作会社→監督");
+  if (creditPartners(tiny, "director", "D2").length !== 0) bad.push("共通の作品が無いのに相手を出した");
+
+  // 実データ: 返る相手は全部ページがある（404 へのリンクにならない）。
+  const real = JSON.parse(readFileSync(new URL("../content/archive/studios.json", import.meta.url), "utf8"));
+  let partnerLinks = 0;
+  for (const role of ["studio", "director"] as const) {
+    const other = role === "studio" ? "director" : "studio";
+    for (const name of Object.keys(role === "studio" ? real.studios : real.directors)) {
+      for (const [partner] of creditPartners(real, role, name)) {
+        partnerLinks++;
+        if (!hasCreditPage(real, other, partner)) bad.push(`${role}/${name} → ページの無い ${partner}`);
+      }
+    }
+  }
+  const p1 = bad.length === 0 && partnerLinks > 0;
+  if (!p1) circNg++;
+  console.log(
+    `${p1 ? "✓" : "✗"}  ${"共演・組んだ相手はページのある名前だけ".padEnd(40)} → 実データのリンク${partnerLinks}本・NG${bad.length}件` +
+      (p1 ? "" : `  (${bad.slice(0, 5).join(", ")})`)
+  );
+
+  // 欄の名前。app/ と components/ を走査して導出する（ページを足せば自動で効く）。
+  const nameBad: string[] = [];
+  const namesOf = (src: string, attr: string) =>
+    [...src.matchAll(new RegExp(`${attr}="([^"]*)"`, "g"))].map((m) => m[1]);
+  const files = [
+    ...listSourceFiles(new URL("../app/", import.meta.url)),
+    ...listSourceFiles(new URL("../components/", import.meta.url)),
+    // 区切りは / に揃える（Windows の \\ だと下の endsWith・split が合わない。readFileSync は / でも開ける）。
+  ].map((u) => fileURLToPath(u).replace(/\\/g, "/"));
+  const navNames = new Map<string, string[]>();
+  for (const file of files) {
+    const src = readFileSync(file, "utf8");
+    const navs = namesOf(src, "data-nav");
+    const where = file.split("/").slice(-2).join("/");
+    for (const v of [...navs, ...namesOf(src, "data-out")]) if (!SECTION_RE.test(v)) nameBad.push(`${where}: "${v}"`);
+    // 集計は一覧にある値だけを数えるので、一覧に無い欄は黙って0件になる（lib/trackEventData.ts）。
+    for (const v of navs) if (!KNOWN_SECTIONS.has(v)) nameBad.push(`${where}: "${v}" が KNOWN_SECTIONS に無い`);
+    for (const v of namesOf(src, "data-out")) if (!KNOWN_OUT_KINDS.has(v)) nameBad.push(`${where}: "${v}" が KNOWN_OUT_KINDS に無い`);
+    navNames.set(file, navs);
+  }
+  // 1ページの一覧（そのページと、直接 import している components の欄）が64文字に収まる。
+  let pages = 0;
+  for (const file of files.filter((f) => /\/page\.tsx$/.test(f))) {
+    const src = readFileSync(file, "utf8");
+    const names = new Set(navNames.get(file) ?? []);
+    for (const m of src.matchAll(/from "(?:@\/components\/|\.\/)([A-Za-z]+)"/g)) {
+      const comp = files.find((f) => f.endsWith(`/components/${m[1]}.tsx`));
+      for (const v of (comp && navNames.get(comp)) ?? []) names.add(v);
+    }
+    if (names.size === 0) continue;
+    pages++;
+    const joined = [...names].join(",");
+    if (joined.length > 64) nameBad.push(`${file.split("/app/")[1]}: ${joined.length}文字（${joined}）`);
+  }
+  const p2 = nameBad.length === 0 && pages > 0;
+  if (!p2) circNg++;
+  console.log(
+    `${p2 ? "✓" : "✗"}  ${"欄の名前が送れる形で64文字に収まる".padEnd(40)} → 欄のあるページ${pages}種・NG${nameBad.length}件` +
+      (p2 ? "" : `  (${nameBad.slice(0, 5).join(", ")})`)
+  );
+
+  // 検索語の記録: 利用者が入力したときだけ・Vercel Web Analytics には渡さない・正規化を通す。
+  const seSrc = readFileSync(new URL("../components/SeasonExplorer.tsx", import.meta.url), "utf8");
+  const searchBad: string[] = [];
+  if (!/logEvent\(\s*"search"[\s\S]{0,700}?\{\s*ownOnly:\s*true\s*\}/.test(seSrc)) searchBad.push("search を Vercel Web Analytics にも送っている（ownOnly が無い）");
+  if (!/if \(!searchTyped\.current/.test(seSrc) || !/searchTyped\.current = true;/.test(seSrc)) searchBad.push("検索語の復元でも送ってしまう");
+  if (!/normalizeSearchQuery\(query\)/.test(seSrc)) searchBad.push("正規化を通さずに送っている");
+  if (!/setTimeout\([\s\S]{0,900}?SEARCH_LOG_DELAY_MS\)/.test(seSrc)) searchBad.push("入力が止まるのを待たずに送っている");
+  const logSrc = readFileSync(new URL("../lib/logEvent.ts", import.meta.url), "utf8");
+  if (!/if \(!opts\?\.ownOnly\) track\(/.test(logSrc)) searchBad.push("logEvent が ownOnly でも track() を呼ぶ");
+  // プライバシーポリシーが実装に追いついている（記録する項目を足したら文面も足す）。
+  const privacy = readFileSync(new URL("../app/privacy/page.tsx", import.meta.url), "utf8");
+  for (const phrase of ["検索欄に入力された語", "2回以上検索された語だけ", "どの欄にあったか", "外部サイトへのリンクが押された"]) {
+    if (!privacy.includes(phrase)) searchBad.push(`プライバシーポリシーに「${phrase}」が無い`);
+  }
+  const p3 = searchBad.length === 0;
+  if (!p3) circNg++;
+  console.log(
+    `${p3 ? "✓" : "✗"}  ${"検索語は入力したときだけ・自前の計測にだけ送る".padEnd(40)} → NG${searchBad.length}件` +
+      (p3 ? "" : `  (${searchBad.join(", ")})`)
+  );
+}
+console.log(`結果（回遊の導線と欄の名前）: ${3 - circNg} 件OK / ${circNg} 件NG`);
+
 if (
   ssrPayloadNg > 0 ||
   topSsrNg > 0 ||
@@ -8991,7 +9200,8 @@ if (
   aliasNg > 0 ||
   svcAliasNg > 0 ||
   historyNg > 0 ||
-  filterNg > 0
+  filterNg > 0 ||
+  circNg > 0
 )
   // process.exit() ではなく exitCode。Windows では stdout がパイプされていると
   // process.exit() が書き込み途中のバッファを巻き込んでプロセスを異常終了させ、

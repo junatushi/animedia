@@ -46,17 +46,86 @@
 // ───────────────────────────────────────────────────────────────
 
 /**
- * 1イベントに付けられるキーの数。web_vitals が最大（6指標＋face＋ua＋src＋補助6＝15。
+ * 1イベントに付けられるキーの数。web_vitals が最大（6指標＋face＋ua＋src＋seen＋補助6＝16。
  * 補助は lib/vitalsDiagnostics.ts が作る。実際の最大形が収まることは node scripts/check.ts が
  * その関数を呼んで確かめるので、ここに数を書き写して合わせる必要は無い）。
  */
-export const MAX_KEYS = 16;
+// 2026-10-26に seen を足して最大形が16＝上限ちょうどになったので 20 に上げた
+// （上限ちょうどだと補助指標を1つ足した日に末尾が黙って落ちる）。
+export const MAX_KEYS = 20;
 /** キー名の形。指標名（LCP・CLS…）と面（face）が通ればよい。 */
 const KEY_RE = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
 /** 文字列値の長さ。作品名・声優名が入るので日本語で十分な長さを取る。 */
 export const MAX_STRING = 64;
 /** 数値の絶対値の上限。ミリ秒の指標なので桁で十分。 */
 const MAX_NUMBER = 1e9;
+
+/** ページ内の欄の名前（data-nav / data-out の値）。小文字の英字と _ だけ。 */
+export const SECTION_RE = /^[a-z_]{1,16}$/;
+
+/**
+ * 集計に通してよい値の一覧（2026-10-26・反証レビューで追加）。形（上の正規表現）だけだと、
+ * 無認証の口に「形の合う任意の単語」を大量に送ってコミットされるJSONを膨らませられる。
+ * また via / seen は形を縛る前から nav・web_vitals に付けて送れたので、窓の中に自由文の行が残りうる。
+ * 集計（lib/adminAnalytics.ts）は**この一覧にある値だけ**を数える。
+ * ページに欄を足したら KNOWN_SECTIONS にも足すこと（node scripts/check.ts が app/ と components/ の
+ * data-nav / data-out を走査して突き合わせ、無い名前があれば落ちる）。
+ */
+/** 面。components/WebVitals.tsx の faceOf が返しうる値の全部。 */
+export const KNOWN_FACES = new Set([
+  "home",
+  "other",
+  "anime",
+  "season",
+  "person",
+  "service",
+  "studio",
+  "director",
+  "rankings",
+  "exclusive",
+  "developers",
+]);
+/** 欄（data-nav）。名前の意味は各ページの冒頭のコメント。 */
+export const KNOWN_SECTIONS = new Set([
+  // 作品ページ
+  "head", "where", "wmore", "rent", "cast", "cred", "more", "ser", "rel", "emb", "foot",
+  // 声優ページ
+  "film", "works", "costar", "other", "seasons",
+  // 制作会社・監督ページ（head・works は上と共通）
+  "partner",
+  // サービス別ページ
+  "excl", "list", "others", "cal",
+  // 一覧（トップ・シーズン。list は上と共通）
+  "calendar", "cross",
+]);
+/** 外部リンクの種類（data-out）。付いていないリンクは other。 */
+export const KNOWN_OUT_KINDS = new Set(["official", "source", "other"]);
+
+/**
+ * 検索語として通してよい形（2026-10-26導入）。
+ * 作品名・声優名に使われる文字（文字・数字・空白と ー〜~・×☆★♪.:!?&'- ）だけで30文字まで。
+ * **`/` `<` `>` `"` `@` `#` `=` と括弧は通さない**（URL・HTML・メールアドレス・指示文の体裁を作らせない）。
+ * 検索語は自由文で、しかも集計がコミットされるJSONに出る（2回以上検索された語だけ）。
+ * 無認証の口から届く値なので、ここが唯一の門番になる（上の【なぜ要るか】）。
+ */
+export const SEARCH_QUERY_RE = /^[\p{L}\p{N}\p{M} ー〜~・×☆★♪.:!?&'-]{1,30}$/u;
+
+/**
+ * 検索語の正規化（クライアントが送る前・集計が数える前の両方で使う）。
+ * 全角半角の揺れ（NFKC）・大文字小文字・前後と連続の空白を畳み、30文字で切る。
+ * 形に合わなければ null（送らない・数えない）。
+ */
+export function normalizeSearchQuery(raw: string): string | null {
+  // 30文字はコードポイントで数える（slice だとサロゲートペアの片割れが残って全体が弾かれる）。
+  const q = Array.from(raw.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim()).slice(0, 30).join("").trim();
+  if (q === "" || !SEARCH_QUERY_RE.test(q)) return null;
+  // 作品名・声優名の検索には現れない形も落とす（2026-10-26・反証レビュー）。
+  // 7桁以上の数字（電話番号・郵便番号）／ホスト名（http・www・ドット2つ以上）／5語以上の文。
+  if ((q.match(/[0-9]/g)?.length ?? 0) >= 7) return null;
+  if (/http|www/.test(q) || (q.match(/\./g)?.length ?? 0) >= 2) return null;
+  if (q.split(" ").length >= 5) return null;
+  return q;
+}
 
 /**
  * コミットされるJSONに入るフィールドだけ、形まで縛る。
@@ -76,6 +145,14 @@ const FIELD_SHAPE: Record<string, RegExp> = {
   tag: /^[a-z0-9_-]{1,24}$/,
   // 回遊（nav）の移動元の面。移動先は face。face と同じ形。
   from: /^[a-z]{1,16}$/,
+  // 2026-10-26追加。どれもコミットされるJSONに出る（lib/adminAnalytics.ts の navVia / outbound / sectionsSeen）。
+  // via … 押されたリンクがあった欄（ページ内の data-nav の値）。kind … 外部リンクの種類（data-out の値）。
+  via: SECTION_RE,
+  kind: SECTION_RE,
+  // seen … そのページで画面に出た欄の一覧（カンマ区切り。1つも無ければ "-"）。
+  seen: /^(-|[a-z_]{1,16}(,[a-z_]{1,16})*)$/,
+  // q … 検索欄に入力された語（normalizeSearchQuery を通した形）。URL・HTML・記号の並びはここで落ちる。
+  q: SEARCH_QUERY_RE,
 };
 
 /**
@@ -106,6 +183,8 @@ export function sanitizeEventData(data: unknown): Record<string, string | number
       if (value.length === 0 || value.length > MAX_STRING) continue;
       const shape = FIELD_SHAPE[key];
       if (shape && !shape.test(value)) continue;
+      // 検索語は形に加えて正規化済みであること（normalizeSearchQuery の追加の条件も通す）。
+      if (key === "q" && normalizeSearchQuery(value) !== value) continue;
       out[key] = value;
       kept++;
       continue;

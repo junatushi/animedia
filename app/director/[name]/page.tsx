@@ -5,7 +5,7 @@ import { CreditPage } from "@/components/CreditPage";
 import { creditPageTitle, creditPageDescription } from "@/lib/pageMeta";
 import { titleText } from "@/lib/pageTitle";
 import { decodeParamName } from "@/lib/staticParams";
-import { creditMap, creditWorks, type StudioIndex } from "@/lib/studioIndex";
+import { creditMap, creditPartners, creditWorks, type StudioIndex } from "@/lib/studioIndex";
 import studioIndexJson from "@/content/archive/studios.json";
 import { OG_IMAGES } from "@/lib/ogImage";
 
@@ -48,5 +48,5 @@ export default function DirectorPage({ params }: { params: Params }) {
   const works = creditWorks(INDEX, "director", name);
   if (works.length === 0) notFound();
 
-  return <CreditPage role="director" name={name} works={works} />;
+  return <CreditPage role="director" name={name} works={works} partners={creditPartners(INDEX, "director", name)} />;
 }

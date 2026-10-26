@@ -24,9 +24,11 @@
 // ①**初期JSを重くしない**のがこのサイトの方針（ログイン用JSを遅延読込にしている）。
 //   ここで使う `useReportWebVitals` は Next.js 同梱なので**新しい依存は増えない**。
 //   実測の増分は commit メッセージに残す。
-// ②**1ページビューにつき送信は最大2件**。指標が確定するたびに送るとページビュー×5件に
+// ②**送信はまとめる**。指標が確定するたびに送るとページビュー×5件に
 //   なり、Supabaseへの往復＝Fluid Provisioned Memory（I/O待ちも課金される・㉝④）を
 //   無駄に食う。指標は溜めておき、ページを離れるときに1件だけ送る。
+//   2026-10-26に足した「画面に出た欄」（seen）も、新しい送信を増やさず web_vitals と nav に相乗りする。
+//   単独で送るのは、画面内の移動のあとに閉じたページの分（seen）と、外部リンクのクリック（outbound_click）だけ。
 // ③**リファラは「ホスト名」だけ**を送る。生のURLは検索語などを含みうるので保存しない。
 //   自サイト内の遷移は送らない（外から来たときだけ）。
 // ④面（ページ種別）は**先頭セグメントだけ**をその場で求める。
@@ -38,7 +40,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useReportWebVitals } from "next/web-vitals";
-import { agentClass, buildDiagnostics, landingSource, refTag, vitalsPayload } from "@/lib/vitalsDiagnostics";
+import { buildDiagnostics, currentAgent, landingSource, refTag, vitalsPayload } from "@/lib/vitalsDiagnostics";
+import { KNOWN_FACES, SECTION_RE } from "@/lib/trackEventData";
 
 // 着地したときのクエリ。**モジュールの読み込み時（＝hydrationより前）に控える**（2026-10-21）。
 // トップ（/）では SeasonExplorer の URL 同期が先に replaceState("/") して `?ref=` を消す
@@ -48,22 +51,11 @@ const LANDING_SEARCH = typeof window !== "undefined" ? window.location.search : 
 
 // 面（ページ種別）。SEOレポートの「面」と同じ粒度に揃えるが、
 // 分類そのものは共有しない（上の④）。知らない接頭辞は "other" に落とす。
-const FACES = new Set([
-  "anime",
-  "season",
-  "person",
-  "service",
-  "studio",
-  "director",
-  "rankings",
-  "exclusive",
-  "developers",
-]);
-
+// 面の一覧は lib/trackEventData.ts の KNOWN_FACES（集計がその一覧の値だけを数えるので1箇所に置く）。
 function faceOf(pathname: string): string {
   const first = pathname.split("/")[1] ?? "";
   if (first === "") return "home";
-  return FACES.has(first) ? first : "other";
+  return first !== "home" && first !== "other" && KNOWN_FACES.has(first) ? first : "other";
 }
 
 // 送信は sendBeacon を優先する。ページを離れる瞬間でも届きやすく、
@@ -116,6 +108,40 @@ function diagnostics(m: Record<string, number>): Record<string, number> {
   }
 }
 
+// ── 押したリンクがあった欄（2026-10-26）。クリックは遷移より先に起きるので、ここで控えて次の nav に付ける。
+// 欄はページ側が data-nav 属性で囲んで示す（値は SECTION_RE の形）。
+// 欄の外のリンク・戻る/進む・アドレスバーからの移動では付かない。
+let pendingVia: { via: string; at: number } | null = null;
+/**
+ * クリックから遷移までにこれ以上かかったら、そのクリックによる移動とはみなさない。
+ * 作品ページは loading.tsx を置かない（ソフト404回避）ので、遅いときはデータが届くまで
+ * パスが変わらない（初回の生成で数十秒の実測がある）。短いと遅いページほど欄が付かずに偏る。
+ * 戻る・進む（popstate）では捨てる（クリックと無関係の移動に付けない。BackLink の戻るは残す）。
+ */
+const VIA_TTL_MS = 60_000;
+
+function sectionOf(el: Element | null): string | null {
+  const v = el?.closest("[data-nav]")?.getAttribute("data-nav");
+  return v && SECTION_RE.test(v) ? v : null;
+}
+
+/** 1ページ（画面内の移動1回ぶん）の「画面に出た欄」。1ページにつき1回だけ送る。 */
+type PageSeen = { face: string; landing: boolean; sections: boolean; seen: Set<string>; reported: boolean };
+
+/** 送る形（カンマ区切り）にして、送ったことにする。欄の無いページ・送り済みなら null。 */
+function takeSeen(page: PageSeen | null): string | null {
+  if (!page || !page.sections || page.reported) return null;
+  page.reported = true;
+  let out = "";
+  for (const name of page.seen) {
+    const next = out === "" ? name : `${out},${name}`;
+    // 文字列の上限（MAX_STRING=64）を超えると欄ごと落ちるので、収まる分だけにする。
+    if (next.length > 64) break;
+    out = next;
+  }
+  return out === "" ? "-" : out;
+}
+
 export default function WebVitals() {
   // 指標が確定するたびにここへ溜め、離脱時に1件だけ送る。
   const metrics = useRef<Record<string, number>>({});
@@ -123,19 +149,81 @@ export default function WebVitals() {
   const pathname = usePathname();
   const prevPath = useRef<string | null>(null);
   const agent = useRef("other");
+  const page = useRef<PageSeen | null>(null);
 
   // ── ③ サイト内の移動（2026-10-21追加）。クライアント側の遷移は web_vitals に残らないので、
   // パスが変わるたびに「どの面からどの面へ」を1件送る。初回（着地）は送らない＝1遷移1件。
   // クエリだけの変化（一覧の ?year= の書き換え）はパスが変わらないので数えない。
   // 戻る・進むでもパスは変わるので、それも1回の移動として数える。
+  // 2026-10-26: 押したリンクの欄（via）と、離れたページで画面に出た欄（seen）も付ける。
   useEffect(() => {
     if (!pathname) return;
     const prev = prevPath.current;
+    if (prev === pathname) return;
     prevPath.current = pathname;
-    if (prev === null || prev === pathname) return;
+    const left = page.current;
+    const cur: PageSeen = {
+      face: faceOf(pathname),
+      landing: prev === null,
+      sections: false,
+      seen: new Set(),
+      reported: false,
+    };
+    page.current = cur;
+    const via = pendingVia && Date.now() - pendingVia.at < VIA_TTL_MS ? pendingVia.via : null;
+    pendingVia = null;
     // 自動アクセスの移動は集計で捨てるので送らない（/api/track と Supabase への書き込みを増やさない）。
-    if (agent.current === "bot") return;
-    send("nav", { face: faceOf(pathname), from: faceOf(prev), ua: agent.current });
+    if (prev !== null && agent.current !== "bot") {
+      const seen = takeSeen(left);
+      send("nav", {
+        face: cur.face,
+        from: faceOf(prev),
+        ua: agent.current,
+        ...(via ? { via } : {}),
+        ...(seen ? { seen } : {}),
+      });
+    }
+  }, [pathname]);
+
+  // 新しいページの欄の観測。上の effect とは分ける（上は同じパスで2回走ると何もしないので、
+  // 開発時の StrictMode の付け外しで観測だけが外れたままになる）。上で作った page.current を使う。
+  // 下端から15%は「まだ出ていない」扱い（端がのぞいただけを数えない）。
+  useEffect(() => {
+    const cur = page.current;
+    if (!cur) return;
+    let io: IntersectionObserver | null = null;
+    const rescans: ReturnType<typeof setTimeout>[] = [];
+    try {
+      const observed = new Set<Element>();
+      io = new IntersectionObserver(
+        (entries) => {
+          for (const en of entries) {
+            if (!en.isIntersecting) continue;
+            const name = sectionOf(en.target);
+            if (name) cur.seen.add(name);
+            io?.unobserve(en.target);
+          }
+        },
+        { rootMargin: "0px 0px -15% 0px" }
+      );
+      const scan = () => {
+        document.querySelectorAll("[data-nav]").forEach((el) => {
+          if (observed.has(el)) return;
+          observed.add(el);
+          cur.sections = true;
+          io?.observe(el);
+        });
+      };
+      scan();
+      // 後から差し込まれる欄（ストリーミング・一覧のデータ取得後の描画）を拾い直す。
+      rescans.push(setTimeout(scan, 1500), setTimeout(scan, 5000));
+    } catch {
+      // IntersectionObserver が無い環境では欄を数えない（sections=false のまま＝分母にも入らない）
+    }
+    return () => {
+      rescans.forEach(clearTimeout);
+      io?.disconnect();
+    };
   }, [pathname]);
 
   // **渡す関数は useCallback で固定する**（2026-10-21・反証レビューで判明）。
@@ -155,15 +243,10 @@ export default function WebVitals() {
     // 端末の大まかな種類。どちらも web_vitals に付けて「人か自動アクセスか」
     // 「どこから来てどの面に着地したか」を数えられるようにする（2026-10-21）。
     let src = "direct";
-    let ua = "other";
+    const ua = currentAgent();
+    agent.current = ua;
     try {
       src = landingSource(document.referrer, window.location.hostname);
-      ua = agentClass({
-        userAgent: navigator.userAgent,
-        webdriver: navigator.webdriver,
-        maxTouchPoints: navigator.maxTouchPoints,
-      });
-      agent.current = ua;
     } catch {
       // 読めなくても計測本体は続ける
     }
@@ -189,17 +272,65 @@ export default function WebVitals() {
       // referrer が壊れた値でも計測以外に影響させない
     }
 
+    // ── ④ リンクのクリック（2026-10-26）。サイト内なら欄を控えて次の nav に付け、
+    // 外部なら outbound_click を1件送る。外部リンクの種類はページ側が `data-out` で示す
+    // （無ければ other）。**自分でイベントを送るリンクは数えない**（`data-selflog` を付ける。
+    // 配信サービスのバッジ＝official_link_click / affiliate_click、SNSフォロー＝follow_click。
+    // ここでも送ると二重になる）。
+    // URL・作品名は送らない（種類と欄の名前だけ）。
+    const onClick = (e: MouseEvent) => {
+      try {
+        const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+        if (!a) return;
+        const url = new URL(a.href, window.location.href);
+        const via = sectionOf(a);
+        if (url.origin === window.location.origin) {
+          // 画面内の移動にならないクリックでは控えない（新しいタブ・ダウンロード・同じページ内）。
+          // 控えると、10秒〜1分以内の戻る・進むなど無関係の移動に欄が付いてしまう。
+          const newTab = e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target === "_blank";
+          if (newTab || a.hasAttribute("download") || url.pathname === window.location.pathname) return;
+          pendingVia = via ? { via, at: Date.now() } : null;
+          return;
+        }
+        if (!/^https?:$/.test(url.protocol) || a.hasAttribute("data-selflog") || agent.current === "bot") return;
+        const kind = a.getAttribute("data-out");
+        send("outbound_click", {
+          face: faceOf(window.location.pathname),
+          kind: kind && SECTION_RE.test(kind) ? kind : "other",
+          ...(via ? { via } : {}),
+          ua: agent.current,
+        });
+      } catch {
+        // 計測の失敗はクリックの邪魔をしない
+      }
+    };
+    document.addEventListener("click", onClick, true);
+    // 戻る・進むでは控えた欄を捨てる。ただし直前（1秒以内）のクリックが起こした戻る
+    // （BackLink の router.back()）はそのクリックの移動なので残す。
+    const onPop = () => {
+      if (pendingVia && Date.now() - pendingVia.at > 1000) pendingVia = null;
+    };
+    window.addEventListener("popstate", onPop);
+
     // ── ② Core Web Vitals（離脱時にまとめて1件）
     const flush = () => {
-      if (sent.current) return;
+      const cur = page.current;
       const m = metrics.current;
       // 1つも確定していないなら送らない（空行を作らない）。
-      if (Object.keys(m).length === 0) return;
-      sent.current = true;
-      // face・ua・src を先頭に置く。キー数の上限（MAX_KEYS）は先頭から数えるので、
-      // 末尾に置くと補助指標を足した日にそこだけ落ちて面が "other" に化ける。
-      // 並べ方は vitalsPayload が1箇所で持つ（node scripts/check.ts も同じ関数で最大形を作る）。
-      send("web_vitals", vitalsPayload({ face, ua, src }, m, diagnostics(m)));
+      if (!sent.current && Object.keys(m).length > 0) {
+        sent.current = true;
+        // 着地したページのままなら、画面に出た欄もここに相乗りさせる。
+        const seen = cur?.landing ? takeSeen(cur) : null;
+        // face・ua・src を先頭に置く。キー数の上限（MAX_KEYS）は先頭から数えるので、
+        // 末尾に置くと補助指標を足した日にそこだけ落ちて面が "other" に化ける。
+        // 並べ方は vitalsPayload が1箇所で持つ（node scripts/check.ts も同じ関数で最大形を作る）。
+        send("web_vitals", vitalsPayload({ face, ua, src, ...(seen ? { seen } : {}) }, m, diagnostics(m)));
+      }
+      // 画面内を移動したあとのページ（または指標が1つも無いまま閉じた着地ページ）の欄は単独で送る。
+      if (agent.current !== "bot") {
+        const seen = takeSeen(cur);
+        if (seen && cur) send("seen", { face: cur.face, ua: agent.current, seen });
+      }
     };
 
     // visibilitychange(hidden) が最も確実。pagehide も併せて張る
@@ -210,6 +341,8 @@ export default function WebVitals() {
     document.addEventListener("visibilitychange", onHide);
     window.addEventListener("pagehide", flush);
     return () => {
+      document.removeEventListener("click", onClick, true);
+      window.removeEventListener("popstate", onPop);
       document.removeEventListener("visibilitychange", onHide);
       window.removeEventListener("pagehide", flush);
     };

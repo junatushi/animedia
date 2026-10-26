@@ -94,3 +94,57 @@ export function otherSeasonWorks(
   if (!works) return [];
   return works.filter(([, , year, season]) => !(year === excludeYear && season === excludeSeason));
 }
+
+// 相方の役割（監督ページなら制作会社、制作会社ページなら監督）。
+export function partnerRole(role: CreditRole): CreditRole {
+  return role === "studio" ? "director" : "studio";
+}
+
+const partnerCache = new WeakMap<StudioIndex, Record<CreditRole, Map<number, string[]>>>();
+
+// 作品ID → その作品に付いている名前（役割ごと）。索引から1回だけ作る。
+function namesById(index: StudioIndex, role: CreditRole): Map<number, string[]> {
+  let cached = partnerCache.get(index);
+  if (!cached) {
+    const build = (map: Record<string, StudioWork[]>) => {
+      const out = new Map<number, string[]>();
+      for (const [name, works] of Object.entries(map)) {
+        for (const [id] of works) {
+          const list = out.get(id);
+          if (list) list.push(name);
+          else out.set(id, [name]);
+        }
+      }
+      return out;
+    };
+    cached = { studio: build(index.studios), director: build(index.directors) };
+    partnerCache.set(index, cached);
+  }
+  return cached[role];
+}
+
+// 組んだことのある相手（2026-10-26導入）。監督ページなら「この監督の作品を制作した会社」、
+// 制作会社ページなら「この会社の作品を手がけた監督」を、共通の作品数の多い順に返す
+// （1作品だけの相手も返す。見出しで「多く」と言わず、件数を添えて出す）。
+// 制作会社・監督ページは作品ページへのリンクしか持たず、横の移動（監督→制作会社）が
+// 1本も無かった。**相手も索引に載っている名前だけ**を返す（= hasCreditPage が真＝404へ送らない）。
+// 名前の見た目で人名か会社名かを推測しない（索引の役割をそのまま使う）。
+export function creditPartners(
+  index: StudioIndex,
+  role: CreditRole,
+  name: string,
+  limit = 8
+): [string, number][] {
+  const other = partnerRole(role);
+  const byId = namesById(index, other);
+  const counts = new Map<string, number>();
+  for (const [id] of creditWorks(index, role, name)) {
+    for (const partner of byId.get(id) ?? []) {
+      counts.set(partner, (counts.get(partner) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .filter(([partner]) => hasCreditPage(index, other, partner))
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ja"))
+    .slice(0, limit);
+}

@@ -11,7 +11,7 @@ import { splitRentalServices, getServiceKana, sortServicesForMetadata } from "@/
 import { buildServiceLabel } from "@/content/services/aliases";
 import { DESCRIPTION_WIDTH_BUDGET } from "@/lib/pageMeta";
 import { buildWorkTitle } from "@/lib/workTitle";
-import { seasonKeyForMonth, SEASON_LABEL } from "@/lib/resolveSeasonParams";
+import { isSeasonYearInRange, seasonKeyForMonth, SEASON_LABEL } from "@/lib/resolveSeasonParams";
 import {
   airingStatus,
   jstToday,
@@ -400,7 +400,9 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   // 作品でもシーズンページへのリンク・パンくずだけが消える**（劇場作品で releaseDate を
   // 足したのと同じ理由）。月精度（"2026-10"）でも split の [y, m] は取れる。
   const seasonBaseDate = item.broadcastStartDate ?? release?.date ?? auto?.date ?? null;
-  const workSeason = seasonBaseDate
+  // クールのページが存在する年（2010〜今年+1）だけ。範囲外（古い作品など）だと
+  // /season・/service・/person へのリンクが全部 404 になる（2026-10-26・反証レビューで指摘）。
+  const workSeason = seasonBaseDate && isSeasonYearInRange(seasonBaseDate.slice(0, 4))
     ? (() => {
         const [y, m] = seasonBaseDate.split("-").map(Number);
         const seasonKey = seasonKeyForMonth(m);
@@ -564,7 +566,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
           __html: JSON.stringify([workLd, provenanceLd, breadcrumbLd, faqLd]),
         }}
       />
-      <header className="masthead">
+      {/* data-nav は欄の名前（2026-10-26）。押したリンクの欄と画面に出た欄の計測に使う
+          （components/WebVitals.tsx）。1ページの欄の一覧は64文字に収める必要があるので短い名前にする:
+          head 見出し / where 配信先 / wmore 配信先の直下の次の一歩 / rent 都度課金 / cast 声優 /
+          cred 監督・製作会社・原作 / more もっと見る / ser シリーズ / rel 関連作品 / emb 埋め込み / foot 脚注 */}
+      <header className="masthead" data-nav="head">
         <span className="eyebrow" aria-hidden="true">
           LINK START :: 作品データ照会
         </span>
@@ -577,7 +583,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         {alias && alias.names.length > 0 && (
           <p className="detail-alias">
             通称: <strong>{alias.names.join("・")}</strong>{" "}
-            <a href={alias.sourceUrl} target="_blank" rel="noopener noreferrer">
+            <a href={alias.sourceUrl} target="_blank" rel="noopener noreferrer" data-out="source">
               出典 ↗
             </a>{" "}
             <span className="detail-sub">（{alias.confirmedDate}確認）</span>
@@ -626,7 +632,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
             （2026-07-26のSearch Console実測）、答えが下にあるとスマホでは
             あらすじ→見どころ→よくある質問→声優グリッドを全部スクロールしないと届かず、
             戻られてしまう。検索意図に対する答えを最初の画面に入れる。 */}
-        <article className="card">
+        <article className="card" data-nav="where">
           <div className="card-body">
             <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
               「{item.title}」はどこで配信されている？
@@ -636,7 +642,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
             {release && (
               <p className="detail-release">
                 劇場公開日: <strong>{formatJpDate(release.date)}</strong>{" "}
-                <a href={release.sourceUrl} target="_blank" rel="noopener noreferrer">
+                <a href={release.sourceUrl} target="_blank" rel="noopener noreferrer" data-out="source">
                   出典 ↗
                 </a>
                 <span className="detail-sub">（{release.confirmedDate}確認・変更の可能性あり）</span>
@@ -651,7 +657,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
               <p className="detail-release detail-release-planned">
                 {auto.kind === "release" ? "公開予定" : "放送開始予定"}:{" "}
                 <strong>{formatAutoScheduleDate(auto)}</strong>{" "}
-                <a href={auto.sourceUrl} target="_blank" rel="noopener noreferrer">
+                <a href={auto.sourceUrl} target="_blank" rel="noopener noreferrer" data-out="source">
                   出典: AniList ↗
                 </a>
                 <span className="detail-sub">
@@ -680,9 +686,29 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ marginTop: 14 }}
+                data-out="official"
               >
                 公式サイト ↗
               </a>
+            )}
+            {/* 配信先を見た直後の「次の一歩」（2026-10-26追加）。下の「もっと見る」欄と同じ行き先の一部を
+                答えのすぐ下にも置く。2026-10-21〜26の実測で、作品ページから出た移動28件のうち
+                ページ下部の「もっと見る」欄からは0件だった（声優への移動が21件）。
+                どちらの位置から押されたかは data-nav（wmore／more）で分けて数える。
+                バッジ列（ServiceMarks）の外に置く＝「バッジの中に別行き先のリンクを入れない」に触れない。 */}
+            {/* 文言は「いま見られる」と読めない形にする（放送が終わった作品にも出るため。
+                lib/workAvailability.ts と同じ考え方）。クール一覧へは見出しの BackLink があるので重ねない。 */}
+            {workSeason && streamingServices.length > 0 && (
+              <p className="related-works-more" data-nav="wmore">
+                {streamingServices.slice(0, 3).map((s, i) => (
+                  <span key={s.key}>
+                    {i > 0 && " ・ "}
+                    <IntentLink href={`/service/${s.key}/${workSeason.year}/${workSeason.key}`}>
+                      {s.short}の{workSeason.year}年{workSeason.label}アニメ一覧
+                    </IntentLink>
+                  </span>
+                ))}
+              </p>
             )}
             {/* 「確認日」だと「その日に配信されていることを確認した」と読めてしまうが、
                 実際はAnnictからデータを取得した日でしかない（配信の現在の可否は誰も
@@ -699,7 +725,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                 {manualSources.map((s, i) => (
                   <span key={s.key}>
                     {i > 0 && "・"}
-                    <a href={s.manualSourceUrl} target="_blank" rel="noopener noreferrer">
+                    <a href={s.manualSourceUrl} target="_blank" rel="noopener noreferrer" data-out="source">
                       {s.short}の記事 ↗
                     </a>
                   </span>
@@ -710,7 +736,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         </article>
 
         {rentalServices.length > 0 && (
-          <article className="card">
+          <article className="card" data-nav="rent">
             <div className="card-body">
               <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
                 都度課金・レンタルで視聴できるサービス
@@ -757,7 +783,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
               )}
 
               {credits.casts.length > 0 && (
-                <section className="detail-section">
+                <section className="detail-section" data-nav="cast">
                   <h2 className="detail-heading">声優</h2>
                   {/* 人数が多いので2〜3列のグリッドで縦を抑える。役名は声優名の上に小さく置き、
                       1行に詰め込まず可読性を確保する。 */}
@@ -790,7 +816,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                   ＝ここが唯一の入口なので消さないこと（scripts/check.ts の
                   「孤立ページを作らない」節が見張っている）。 */}
               {credits.director && (
-                <section className="detail-section">
+                <section className="detail-section" data-nav="cred">
                   <h2 className="detail-heading">監督</h2>
                   <p className="detail-text">
                     {hasCreditPage(STUDIO_INDEX, "director", credits.director) ? (
@@ -805,7 +831,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
               )}
 
               {credits.productionCompany && (
-                <section className="detail-section">
+                <section className="detail-section" data-nav="cred">
                   <h2 className="detail-heading">製作会社</h2>
                   <p className="detail-text">
                     {hasCreditPage(STUDIO_INDEX, "studio", credits.productionCompany) ? (
@@ -820,7 +846,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
               )}
 
               {(credits.originalCreators.length > 0 || content?.publisher) && (
-                <section className="detail-section">
+                <section className="detail-section" data-nav="cred">
                   <h2 className="detail-heading">原作</h2>
                   <p className="detail-text">
                     {credits.originalCreators.length > 0 ? credits.originalCreators.join("、") : "―"}
@@ -832,77 +858,11 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
               {content?.sourceUrl && (
                 <p className="detail-source">
                   参照:{" "}
-                  <a href={content.sourceUrl} target="_blank" rel="noopener noreferrer">
+                  <a href={content.sourceUrl} target="_blank" rel="noopener noreferrer" data-out="source">
                     公式サイト等の情報 ↗
                   </a>
                 </p>
               )}
-            </div>
-          </article>
-        )}
-        {/* シリーズの他の作品（2026-08-11追加）。
-            GSCの実測で、逃げ上手の若君は2期（/anime/14132）が184表示・0クリック・15.9位、
-            1期（/anime/10591）は**表示回数ゼロ**で、しかも互いにリンクが1本も無かった。
-            同じ作品名の需要を分け合う2ページが繋がっていない状態だったので、双方向に繋ぐ。
-            対応表は content/works/series.ts（一次情報・出典明示の人力補完）。
-            **放送が終わったシリーズ作品に「いま配信中」とは書かない**（CLAUDE.mdの基本ルール）。
-            ここは作品ページへのリンクと、シリーズ内での位置（第1期など）を出すだけにして、
-            配信の現在の可否には触れない。 */}
-        {series && seriesOthers.length > 0 && (
-          <article className="card">
-            <div className="card-body">
-              <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
-                「{series.title}」シリーズの他の作品
-              </h2>
-              <ul className="related-works">
-                {seriesOthers.map((w) => (
-                  <li key={w.id} className="related-work">
-                    <IntentLink href={`/anime/${w.id}`} className="related-work-title">
-                      {series.title}（{w.label}）
-                    </IntentLink>
-                    <span className="related-work-sub">配信情報を見る</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="related-works-more" style={{ color: "var(--muted)" }}>
-                シリーズの構成は{" "}
-                <a href={series.sourceUrl} target="_blank" rel="noopener noreferrer">
-                  公式サイト
-                </a>{" "}
-                で確認（{series.confirmedDate}時点）
-              </p>
-            </div>
-          </article>
-        )}
-        {/* 関連作品（同じクール）。作品ページ同士を繋ぐ唯一の導線なので、
-            配信サービスのバッジを添えて「次に見る作品もここで配信先が分かる」ことを
-            その場で示す。バッジは出さずサービス名の短縮表記だけを文字で置く
-            （ServiceMarksはリンクを持つため、作品ページへ飛ぶこの一覧に入れると
-            CLAUDE.mdの「リンクの中に別行き先のリンクを入れない」に反する）。 */}
-        {relatedWorks.length > 0 && workSeason && (
-          <article className="card">
-            <div className="card-body">
-              <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
-                {workSeason.year}年{workSeason.label}アニメの他の作品
-              </h2>
-              <ul className="related-works">
-                {relatedWorks.map(({ it, sharedCasts }) => {
-                  const names = [...it.services.map((s) => s.short), ...it.otherServices];
-                  return (
-                    <li key={it.id} className="related-work">
-                      <IntentLink href={`/anime/${it.id}`} className="related-work-title">
-                        {it.title}
-                      </IntentLink>
-                      <span className="related-work-sub">
-                        {names.length > 0
-                          ? `${names.slice(0, 3).join("・")}${names.length > 3 ? `ほか${names.length - 3}件` : ""}で配信`
-                          : "配信情報は未登録"}
-                        {sharedCasts > 0 && "・共通の出演声優あり"}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
             </div>
           </article>
         )}
@@ -911,9 +871,12 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
             （lib/withTimeout.ts）に間に合わない回は欄ごと消えていた＝サービス別ページ
             （sitemapにあってサイト内の入口がここしか無い）への導線も一緒に消えていた。
             どれもクール一覧の取得に依存しない（作品自身の配信サービスとクールだけで組める）。
-            独占配信・ランキングへのリンクも作品ページには1本も無かったので足した。 */}
+            独占配信・ランキングへのリンクも作品ページには1本も無かったので足した。
+            2026-10-26に、ページ最下部（関連作品の下）からシリーズ・関連作品の上へ移した。
+            10/21〜26の実測でこの欄からの移動が0件だったため（位置の効果は data-nav="more" の
+            画面に出た割合と押された件数で見る）。 */}
         {workSeason && (
-          <article className="card">
+          <article className="card" data-nav="more">
             <div className="card-body">
               <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
                 {workSeason.year}年{workSeason.label}アニメをもっと見る
@@ -954,6 +917,72 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
             </div>
           </article>
         )}
+        {/* シリーズの他の作品（2026-08-11追加）。
+            GSCの実測で、逃げ上手の若君は2期（/anime/14132）が184表示・0クリック・15.9位、
+            1期（/anime/10591）は**表示回数ゼロ**で、しかも互いにリンクが1本も無かった。
+            同じ作品名の需要を分け合う2ページが繋がっていない状態だったので、双方向に繋ぐ。
+            対応表は content/works/series.ts（一次情報・出典明示の人力補完）。
+            **放送が終わったシリーズ作品に「いま配信中」とは書かない**（CLAUDE.mdの基本ルール）。
+            ここは作品ページへのリンクと、シリーズ内での位置（第1期など）を出すだけにして、
+            配信の現在の可否には触れない。 */}
+        {series && seriesOthers.length > 0 && (
+          <article className="card" data-nav="ser">
+            <div className="card-body">
+              <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
+                「{series.title}」シリーズの他の作品
+              </h2>
+              <ul className="related-works">
+                {seriesOthers.map((w) => (
+                  <li key={w.id} className="related-work">
+                    <IntentLink href={`/anime/${w.id}`} className="related-work-title">
+                      {series.title}（{w.label}）
+                    </IntentLink>
+                    <span className="related-work-sub">配信情報を見る</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="related-works-more" style={{ color: "var(--muted)" }}>
+                シリーズの構成は{" "}
+                <a href={series.sourceUrl} target="_blank" rel="noopener noreferrer" data-out="source">
+                  公式サイト
+                </a>{" "}
+                で確認（{series.confirmedDate}時点）
+              </p>
+            </div>
+          </article>
+        )}
+        {/* 関連作品（同じクール）。作品ページ同士を繋ぐ唯一の導線なので、
+            配信サービスのバッジを添えて「次に見る作品もここで配信先が分かる」ことを
+            その場で示す。バッジは出さずサービス名の短縮表記だけを文字で置く
+            （ServiceMarksはリンクを持つため、作品ページへ飛ぶこの一覧に入れると
+            CLAUDE.mdの「リンクの中に別行き先のリンクを入れない」に反する）。 */}
+        {relatedWorks.length > 0 && workSeason && (
+          <article className="card" data-nav="rel">
+            <div className="card-body">
+              <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px", color: "var(--ink)" }}>
+                {workSeason.year}年{workSeason.label}アニメの他の作品
+              </h2>
+              <ul className="related-works">
+                {relatedWorks.map(({ it, sharedCasts }) => {
+                  const names = [...it.services.map((s) => s.short), ...it.otherServices];
+                  return (
+                    <li key={it.id} className="related-work">
+                      <IntentLink href={`/anime/${it.id}`} className="related-work-title">
+                        {it.title}
+                      </IntentLink>
+                      <span className="related-work-sub">
+                        {names.length > 0
+                          ? `${names.slice(0, 3).join("・")}${names.length > 3 ? `ほか${names.length - 3}件` : ""}で配信`
+                          : "配信情報は未登録"}
+                        {sharedCasts > 0 && "・共通の出演声優あり"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </article>
+        )}
         {/* 配信先ウィジェットの貼り付けコード（2026-08-06導入）。
             被リンク・外部言及がゼロに近いことが順位（19.8位）のボトルネックという判断で、
             「アニメ感想ブログが記事末に貼りたい情報」を1行で配れるようにした。
@@ -968,7 +997,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
 
       <FollowLinks />
 
-      <p className="footnote">
+      <p className="footnote" data-nav="foot">
         データ元: Annict（コミュニティ更新ベース）。配信情報は網羅率100%ではなく、
         新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
         「その他配信」は未登録サービスの可能性があり、点線で表示しています。

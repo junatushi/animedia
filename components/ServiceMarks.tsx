@@ -111,6 +111,7 @@ export default function ServiceMarks({
                   target="_blank"
                   rel={program ? "sponsored nofollow noopener noreferrer" : "noopener noreferrer"}
                   className="svc-chip-link"
+                  data-selflog=""
                   onClick={() =>
                     logEvent(program ? "affiliate_click" : "official_link_click", {
                       service: s.key,
