@@ -147,4 +147,7 @@ export const RENTAL_SERVICES: Record<number, string[]> = {
   // 炎の闘球女 ドッジ弾子: 「見放題配信」にニコニコの記載はなく、
   // 「レンタル配信」欄にのみ「ニコニコチャンネル」。
   16328: ["niconico"],
+  // dreamland: 公式サイト(https://www.dreamland-anime.com/ 2026-10-26確認)の「レンタル配信」欄にのみ
+  // 「ニコニコチャンネル」。見放題欄にあるのは別ブランドの「dアニメストア ニコニコ支店」だけ。
+  17942: ["niconico"],
 };
