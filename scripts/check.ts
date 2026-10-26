@@ -166,8 +166,8 @@ import {
 // （型だけの import は Node の型ストリッピングで消えるので実行時には services.ts に依存しない）。
 import { AFFILIATE_PROGRAMS } from "../content/affiliate/programs.ts";
 // 行動ログの付随データの検証（2026-09-07追加）。純粋関数のみ。
-import { sanitizeEventData, MAX_KEYS, MAX_STRING, SECTION_RE, normalizeSearchQuery } from "../lib/trackEventData.ts";
-import { buildDiagnostics, networkClass, REPORTED_METRICS, agentClass, landingSource, refTag, vitalsPayload } from "../lib/vitalsDiagnostics.ts";
+import { sanitizeEventData, MAX_KEYS, MAX_STRING, SECTION_RE, normalizeSearchQuery, KNOWN_SECTIONS, KNOWN_OUT_KINDS } from "../lib/trackEventData.ts";
+import { buildDiagnostics, networkClass, REPORTED_METRICS, agentClass, landingSource, refTag, vitalsPayload, isVitalsMetricKey } from "../lib/vitalsDiagnostics.ts";
 
 
 // `generateMetadata` を持つページのうち、title / description を
@@ -4428,6 +4428,20 @@ let dataNg = 0;
     ["検索語の URL・メールアドレス・HTML は送らない",
       [normalizeSearchQuery("https://x.example/a"), normalizeSearchQuery("a@b.jp"), normalizeSearchQuery("<b>"), normalizeSearchQuery("   ")].every((v) => v === null)],
     ["検索語は30文字で切る", normalizeSearchQuery("あ".repeat(40))?.length === 30],
+    ["検索語の30文字はコードポイントで数える", normalizeSearchQuery("𠮷".repeat(40)) === "𠮷".repeat(30)],
+    ["検索語の電話番号・ホスト名・文は送らない",
+      [normalizeSearchQuery("090-1234-5678"), normalizeSearchQuery("evil.example.com"), normalizeSearchQuery("http:evil"),
+        normalizeSearchQuery("ignore all previous rules now")].every((v) => v === null)],
+    ["Dr.STONE・Re:ゼロは送れる", normalizeSearchQuery("Dr.STONE") === "dr.stone" && normalizeSearchQuery("Re：ゼロ") === "re:ゼロ"],
+    ["表示速度の指標名は全部集計に通る（補助指標を足したら一覧も直す）", (() => {
+      const m: Record<string, number> = {};
+      for (const k of REPORTED_METRICS) m[k] = 1;
+      const keys = new Set<string>(Object.keys(m));
+      for (const connection of [{ effectiveType: "4g", rtt: 1 }, { effectiveType: "3g", rtt: 1 }, undefined])
+        for (const coarse of [true, false])
+          for (const k of Object.keys(buildDiagnostics(m, { nav: { responseStart: 1, responseEnd: 2, transferSize: 1 }, coarse, connection }))) keys.add(k);
+      return [...keys].every(isVitalsMetricKey) && !isVitalsMetricKey("IgnoreAllInstructions");
+    })()],
   );
   const dgBad = dgChecks.filter(([, ok]) => !ok).map(([n]) => n);
   // face は先頭で送ること（MAX_KEYS は先頭から数える。末尾だと上限で face だけ落ちる）。
@@ -4623,12 +4637,17 @@ let pageNg = 0;
     mk("search", { q: "Spy×Family", hits: 3, other: 0, face: "home", ua: "ios" }), // 正規化されていない語も出さない
     mk("search", { q: "Spy×Family", hits: 3, other: 0, face: "home", ua: "ios" }),
     mk("search", { q: "葬送のフリーレン", hits: 0, other: 0, face: "home", ua: "bot" }),
+    // 形は合うが一覧に無い値（作り物の単語）は数えない。門番を入れる前に送れた行を想定。
+    mk("nav", { from: "anime", face: "person", ua: "ios", via: "ignoreall", seen: "head,ignoreall" }),
+    mk("nav", { from: "zzzz", face: "person", ua: "ios", via: "cast" }),
+    mk("outbound_click", { face: "anime", kind: "ignoreall", ua: "ios" }),
+    mk("seen", { face: "zzzz", ua: "ios", seen: "head" }),
   ];
   const as = buildSnapshot(act, new Date("2026-10-20T01:00:00.000Z"));
   const want = {
     navVia: [["anime", "cast", "person", 1], ["anime", "wmore", "season", 1]],
     outbound: [["anime", "official", 2]],
-    sectionsSeen: [["anime", "head", 3, 4], ["anime", "where", 3, 4], ["anime", "cast", 1, 4], ["anime", "more", 1, 4]],
+    sectionsSeen: [["anime", "head", 4, 5], ["anime", "where", 3, 5], ["anime", "cast", 1, 5], ["anime", "more", 1, 5]],
     search: { summary: { searches: 8, zeroHit: 3 }, queries: [["ぼっち", 2, 0], ["葬送のフリーレン", 2, 1]] },
   };
   const got = { navVia: as.navVia, outbound: as.outbound, sectionsSeen: as.sectionsSeen, search: as.search };
@@ -8998,7 +9017,7 @@ let ssrPayloadNg = 0;
 // ─────────────────────────────────────────────
 // 回遊の導線と欄の名前（2026-10-26追加）
 //
-// 声優ページの「共演の多い声優」と、制作会社・監督ページの「よく組んでいる相手」は、
+// 声優ページの「共演の多い声優」と、制作会社・監督ページの「組んだ相手」は、
 // **相手のページがある名前だけ**にリンクする（無い名前に張ると404を配る）。
 // 欄の名前（data-nav / data-out）は計測（components/WebVitals.tsx）がそのまま送る値で、
 // 形が崩れると /api/track の門番（SECTION_RE）で黙って落ち、1ページ分の一覧が64文字を超えると
@@ -9022,7 +9041,7 @@ let circNg = 0;
   if (JSON.stringify(coStars(items, works, "me", 2)) !== JSON.stringify([["x", 2], ["w", 2]])) bad.push("共演（閾値2）");
   if (JSON.stringify(coStars(items, works, "me", 3)) !== JSON.stringify([["x", 2]])) bad.push("共演（ページの無い相手を出した）");
 
-  // よく組んでいる相手（作り物の索引）。
+  // 組んだ相手（作り物の索引）。
   const tiny = {
     generatedAt: "x",
     studios: { S1: [[1, "a", 2024, "winter"], [2, "b", 2024, "spring"]], S2: [[3, "c", 2024, "summer"], [4, "d", 2024, "autumn"]] },
@@ -9047,7 +9066,7 @@ let circNg = 0;
   const p1 = bad.length === 0 && partnerLinks > 0;
   if (!p1) circNg++;
   console.log(
-    `${p1 ? "✓" : "✗"}  ${"共演・よく組んでいる相手はページのある名前だけ".padEnd(40)} → 実データのリンク${partnerLinks}本・NG${bad.length}件` +
+    `${p1 ? "✓" : "✗"}  ${"共演・組んだ相手はページのある名前だけ".padEnd(40)} → 実データのリンク${partnerLinks}本・NG${bad.length}件` +
       (p1 ? "" : `  (${bad.slice(0, 5).join(", ")})`)
   );
 
@@ -9063,7 +9082,11 @@ let circNg = 0;
   for (const file of files) {
     const src = readFileSync(file, "utf8");
     const navs = namesOf(src, "data-nav");
-    for (const v of [...navs, ...namesOf(src, "data-out")]) if (!SECTION_RE.test(v)) nameBad.push(`${file.split("/").slice(-2).join("/")}: "${v}"`);
+    const where = file.split("/").slice(-2).join("/");
+    for (const v of [...navs, ...namesOf(src, "data-out")]) if (!SECTION_RE.test(v)) nameBad.push(`${where}: "${v}"`);
+    // 集計は一覧にある値だけを数えるので、一覧に無い欄は黙って0件になる（lib/trackEventData.ts）。
+    for (const v of navs) if (!KNOWN_SECTIONS.has(v)) nameBad.push(`${where}: "${v}" が KNOWN_SECTIONS に無い`);
+    for (const v of namesOf(src, "data-out")) if (!KNOWN_OUT_KINDS.has(v)) nameBad.push(`${where}: "${v}" が KNOWN_OUT_KINDS に無い`);
     navNames.set(file, navs);
   }
   // 1ページの一覧（そのページと、直接 import している components の欄）が64文字に収まる。

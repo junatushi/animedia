@@ -75,6 +75,17 @@ export function buildDiagnostics(
 }
 
 /**
+ * 集計（lib/adminAnalytics.ts の vitalsP75）が指標として数えてよいキー名（2026-10-26）。
+ * REPORTED_METRICS と buildDiagnostics が作る名前だけ。補助指標を足したらここも直す
+ * （node scripts/check.ts が両方の実際の出力を全部通して確かめる）。
+ */
+const VITALS_METRIC_RE =
+  /^(CLS|FCP|FID|INP|LCP|TTFB)$|^(FCP|LCP)_(touch|mouse)$|^HTML_DL(_(4g|slow|na))?$|^HTML_TX$|^RTT$/;
+export function isVitalsMetricKey(key: string): boolean {
+  return VITALS_METRIC_RE.test(key);
+}
+
+/**
  * 端末の大まかな種類（2026-10-21追加）。**人と自動アクセスを分けるため**に送る。
  *
  * 経緯: 2026-10-02 に、検索からの流入を伴わない自動アクセスが約900件まとまって来て、

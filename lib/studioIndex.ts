@@ -123,8 +123,9 @@ function namesById(index: StudioIndex, role: CreditRole): Map<number, string[]> 
   return cached[role];
 }
 
-// よく組んでいる相手（2026-10-26導入）。監督ページなら「この監督の作品を多く制作した会社」、
-// 制作会社ページなら「この会社の作品を多く手がけた監督」を、共通の作品数の多い順に返す。
+// 組んだことのある相手（2026-10-26導入）。監督ページなら「この監督の作品を制作した会社」、
+// 制作会社ページなら「この会社の作品を手がけた監督」を、共通の作品数の多い順に返す
+// （1作品だけの相手も返す。見出しで「多く」と言わず、件数を添えて出す）。
 // 制作会社・監督ページは作品ページへのリンクしか持たず、横の移動（監督→制作会社）が
 // 1本も無かった。**相手も索引に載っている名前だけ**を返す（= hasCreditPage が真＝404へ送らない）。
 // 名前の見た目で人名か会社名かを推測しない（索引の役割をそのまま使う）。
@@ -139,7 +140,6 @@ export function creditPartners(
   const counts = new Map<string, number>();
   for (const [id] of creditWorks(index, role, name)) {
     for (const partner of byId.get(id) ?? []) {
-      if (other === role && partner === name) continue;
       counts.set(partner, (counts.get(partner) ?? 0) + 1);
     }
   }

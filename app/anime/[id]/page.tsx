@@ -11,7 +11,7 @@ import { splitRentalServices, getServiceKana, sortServicesForMetadata } from "@/
 import { buildServiceLabel } from "@/content/services/aliases";
 import { DESCRIPTION_WIDTH_BUDGET } from "@/lib/pageMeta";
 import { buildWorkTitle } from "@/lib/workTitle";
-import { seasonKeyForMonth, SEASON_LABEL } from "@/lib/resolveSeasonParams";
+import { isSeasonYearInRange, seasonKeyForMonth, SEASON_LABEL } from "@/lib/resolveSeasonParams";
 import {
   airingStatus,
   jstToday,
@@ -400,7 +400,9 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
   // 作品でもシーズンページへのリンク・パンくずだけが消える**（劇場作品で releaseDate を
   // 足したのと同じ理由）。月精度（"2026-10"）でも split の [y, m] は取れる。
   const seasonBaseDate = item.broadcastStartDate ?? release?.date ?? auto?.date ?? null;
-  const workSeason = seasonBaseDate
+  // クールのページが存在する年（2010〜今年+1）だけ。範囲外（古い作品など）だと
+  // /season・/service・/person へのリンクが全部 404 になる（2026-10-26・反証レビューで指摘）。
+  const workSeason = seasonBaseDate && isSeasonYearInRange(seasonBaseDate.slice(0, 4))
     ? (() => {
         const [y, m] = seasonBaseDate.split("-").map(Number);
         const seasonKey = seasonKeyForMonth(m);
@@ -694,20 +696,18 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
                 ページ下部の「もっと見る」欄からは0件だった（声優への移動が21件）。
                 どちらの位置から押されたかは data-nav（wmore／more）で分けて数える。
                 バッジ列（ServiceMarks）の外に置く＝「バッジの中に別行き先のリンクを入れない」に触れない。 */}
+            {/* 文言は「いま見られる」と読めない形にする（放送が終わった作品にも出るため。
+                lib/workAvailability.ts と同じ考え方）。クール一覧へは見出しの BackLink があるので重ねない。 */}
             {workSeason && streamingServices.length > 0 && (
               <p className="related-works-more" data-nav="wmore">
                 {streamingServices.slice(0, 3).map((s, i) => (
                   <span key={s.key}>
                     {i > 0 && " ・ "}
                     <IntentLink href={`/service/${s.key}/${workSeason.year}/${workSeason.key}`}>
-                      {s.short}で見られる他の{workSeason.label}アニメ
+                      {s.short}の{workSeason.year}年{workSeason.label}アニメ一覧
                     </IntentLink>
                   </span>
                 ))}
-                {" ・ "}
-                <IntentLink href={`/season/${workSeason.year}/${workSeason.key}`}>
-                  {workSeason.year}年{workSeason.label}アニメ一覧
-                </IntentLink>
               </p>
             )}
             {/* 「確認日」だと「その日に配信されていることを確認した」と読めてしまうが、

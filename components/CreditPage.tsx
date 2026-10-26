@@ -40,7 +40,7 @@ export function CreditPage({
   role: CreditRole;
   name: string;
   works: StudioWork[];
-  /** よく組んでいる相手（lib/studioIndex.ts の creditPartners）。相手のページがある名前だけ。 */
+  /** 組んだことのある相手（lib/studioIndex.ts の creditPartners）。相手のページがある名前だけ。 */
   partners?: [string, number][];
 }) {
   const other = partnerRole(role);
@@ -123,7 +123,7 @@ export function CreditPage({
             {partners.length > 0 && (
               <section className="detail-section" data-nav="partner">
                 <h2 className="detail-heading">
-                  {role === "director" ? `${name}監督の作品を多く制作した会社` : `${name}の作品を多く手がけた監督`}
+                  {role === "director" ? `${name}監督と組んだ制作会社` : `${name}の作品を手がけた監督`}
                 </h2>
                 <ul className="person-season-links">
                   {partners.map(([partner, n]) => (

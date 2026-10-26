@@ -41,7 +41,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useReportWebVitals } from "next/web-vitals";
 import { buildDiagnostics, currentAgent, landingSource, refTag, vitalsPayload } from "@/lib/vitalsDiagnostics";
-import { SECTION_RE } from "@/lib/trackEventData";
+import { KNOWN_FACES, SECTION_RE } from "@/lib/trackEventData";
 
 // 着地したときのクエリ。**モジュールの読み込み時（＝hydrationより前）に控える**（2026-10-21）。
 // トップ（/）では SeasonExplorer の URL 同期が先に replaceState("/") して `?ref=` を消す
@@ -51,22 +51,11 @@ const LANDING_SEARCH = typeof window !== "undefined" ? window.location.search : 
 
 // 面（ページ種別）。SEOレポートの「面」と同じ粒度に揃えるが、
 // 分類そのものは共有しない（上の④）。知らない接頭辞は "other" に落とす。
-const FACES = new Set([
-  "anime",
-  "season",
-  "person",
-  "service",
-  "studio",
-  "director",
-  "rankings",
-  "exclusive",
-  "developers",
-]);
-
+// 面の一覧は lib/trackEventData.ts の KNOWN_FACES（集計がその一覧の値だけを数えるので1箇所に置く）。
 function faceOf(pathname: string): string {
   const first = pathname.split("/")[1] ?? "";
   if (first === "") return "home";
-  return FACES.has(first) ? first : "other";
+  return first !== "home" && first !== "other" && KNOWN_FACES.has(first) ? first : "other";
 }
 
 // 送信は sendBeacon を優先する。ページを離れる瞬間でも届きやすく、
@@ -123,8 +112,13 @@ function diagnostics(m: Record<string, number>): Record<string, number> {
 // 欄はページ側が data-nav 属性で囲んで示す（値は SECTION_RE の形）。
 // 欄の外のリンク・戻る/進む・アドレスバーからの移動では付かない。
 let pendingVia: { via: string; at: number } | null = null;
-/** クリックから遷移までにこれ以上かかったら、そのクリックによる移動とはみなさない。 */
-const VIA_TTL_MS = 10_000;
+/**
+ * クリックから遷移までにこれ以上かかったら、そのクリックによる移動とはみなさない。
+ * 作品ページは loading.tsx を置かない（ソフト404回避）ので、遅いときはデータが届くまで
+ * パスが変わらない（初回の生成で数十秒の実測がある）。短いと遅いページほど欄が付かずに偏る。
+ * 戻る・進む（popstate）では捨てる（クリックと無関係の移動に付けない。BackLink の戻るは残す）。
+ */
+const VIA_TTL_MS = 60_000;
 
 function sectionOf(el: Element | null): string | null {
   const v = el?.closest("[data-nav]")?.getAttribute("data-nav");
@@ -198,7 +192,7 @@ export default function WebVitals() {
     const cur = page.current;
     if (!cur) return;
     let io: IntersectionObserver | null = null;
-    let rescan: ReturnType<typeof setTimeout> | null = null;
+    const rescans: ReturnType<typeof setTimeout>[] = [];
     try {
       const observed = new Set<Element>();
       io = new IntersectionObserver(
@@ -221,13 +215,13 @@ export default function WebVitals() {
         });
       };
       scan();
-      // 後から差し込まれる欄（ストリーミング・クライアント描画）を1回だけ拾い直す。
-      rescan = setTimeout(scan, 1500);
+      // 後から差し込まれる欄（ストリーミング・一覧のデータ取得後の描画）を拾い直す。
+      rescans.push(setTimeout(scan, 1500), setTimeout(scan, 5000));
     } catch {
       // IntersectionObserver が無い環境では欄を数えない（sections=false のまま＝分母にも入らない）
     }
     return () => {
-      if (rescan) clearTimeout(rescan);
+      rescans.forEach(clearTimeout);
       io?.disconnect();
     };
   }, [pathname]);
@@ -291,6 +285,10 @@ export default function WebVitals() {
         const url = new URL(a.href, window.location.href);
         const via = sectionOf(a);
         if (url.origin === window.location.origin) {
+          // 画面内の移動にならないクリックでは控えない（新しいタブ・ダウンロード・同じページ内）。
+          // 控えると、10秒〜1分以内の戻る・進むなど無関係の移動に欄が付いてしまう。
+          const newTab = e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target === "_blank";
+          if (newTab || a.hasAttribute("download") || url.pathname === window.location.pathname) return;
           pendingVia = via ? { via, at: Date.now() } : null;
           return;
         }
@@ -307,6 +305,12 @@ export default function WebVitals() {
       }
     };
     document.addEventListener("click", onClick, true);
+    // 戻る・進むでは控えた欄を捨てる。ただし直前（1秒以内）のクリックが起こした戻る
+    // （BackLink の router.back()）はそのクリックの移動なので残す。
+    const onPop = () => {
+      if (pendingVia && Date.now() - pendingVia.at > 1000) pendingVia = null;
+    };
+    window.addEventListener("popstate", onPop);
 
     // ── ② Core Web Vitals（離脱時にまとめて1件）
     const flush = () => {
@@ -338,6 +342,7 @@ export default function WebVitals() {
     window.addEventListener("pagehide", flush);
     return () => {
       document.removeEventListener("click", onClick, true);
+      window.removeEventListener("popstate", onPop);
       document.removeEventListener("visibilitychange", onHide);
       window.removeEventListener("pagehide", flush);
     };

@@ -64,6 +64,44 @@ const MAX_NUMBER = 1e9;
 export const SECTION_RE = /^[a-z_]{1,16}$/;
 
 /**
+ * 集計に通してよい値の一覧（2026-10-26・反証レビューで追加）。形（上の正規表現）だけだと、
+ * 無認証の口に「形の合う任意の単語」を大量に送ってコミットされるJSONを膨らませられる。
+ * また via / seen は形を縛る前から nav・web_vitals に付けて送れたので、窓の中に自由文の行が残りうる。
+ * 集計（lib/adminAnalytics.ts）は**この一覧にある値だけ**を数える。
+ * ページに欄を足したら KNOWN_SECTIONS にも足すこと（node scripts/check.ts が app/ と components/ の
+ * data-nav / data-out を走査して突き合わせ、無い名前があれば落ちる）。
+ */
+/** 面。components/WebVitals.tsx の faceOf が返しうる値の全部。 */
+export const KNOWN_FACES = new Set([
+  "home",
+  "other",
+  "anime",
+  "season",
+  "person",
+  "service",
+  "studio",
+  "director",
+  "rankings",
+  "exclusive",
+  "developers",
+]);
+/** 欄（data-nav）。名前の意味は各ページの冒頭のコメント。 */
+export const KNOWN_SECTIONS = new Set([
+  // 作品ページ
+  "head", "where", "wmore", "rent", "cast", "cred", "more", "ser", "rel", "emb", "foot",
+  // 声優ページ
+  "film", "works", "costar", "other", "seasons",
+  // 制作会社・監督ページ（head・works は上と共通）
+  "partner",
+  // サービス別ページ
+  "excl", "list", "others", "cal",
+  // 一覧（トップ・シーズン。list は上と共通）
+  "calendar", "cross",
+]);
+/** 外部リンクの種類（data-out）。付いていないリンクは other。 */
+export const KNOWN_OUT_KINDS = new Set(["official", "source", "other"]);
+
+/**
  * 検索語として通してよい形（2026-10-26導入）。
  * 作品名・声優名に使われる文字（文字・数字・空白と ー〜~・×☆★♪.:!?&'- ）だけで30文字まで。
  * **`/` `<` `>` `"` `@` `#` `=` と括弧は通さない**（URL・HTML・メールアドレス・指示文の体裁を作らせない）。
@@ -78,8 +116,15 @@ export const SEARCH_QUERY_RE = /^[\p{L}\p{N}\p{M} ー〜~・×☆★♪.:!?&'-]{
  * 形に合わなければ null（送らない・数えない）。
  */
 export function normalizeSearchQuery(raw: string): string | null {
-  const q = raw.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim().slice(0, 30).trim();
-  return q !== "" && SEARCH_QUERY_RE.test(q) ? q : null;
+  // 30文字はコードポイントで数える（slice だとサロゲートペアの片割れが残って全体が弾かれる）。
+  const q = Array.from(raw.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim()).slice(0, 30).join("").trim();
+  if (q === "" || !SEARCH_QUERY_RE.test(q)) return null;
+  // 作品名・声優名の検索には現れない形も落とす（2026-10-26・反証レビュー）。
+  // 7桁以上の数字（電話番号・郵便番号）／ホスト名（http・www・ドット2つ以上）／5語以上の文。
+  if ((q.match(/[0-9]/g)?.length ?? 0) >= 7) return null;
+  if (/http|www/.test(q) || (q.match(/\./g)?.length ?? 0) >= 2) return null;
+  if (q.split(" ").length >= 5) return null;
+  return q;
 }
 
 /**
@@ -138,6 +183,8 @@ export function sanitizeEventData(data: unknown): Record<string, string | number
       if (value.length === 0 || value.length > MAX_STRING) continue;
       const shape = FIELD_SHAPE[key];
       if (shape && !shape.test(value)) continue;
+      // 検索語は形に加えて正規化済みであること（normalizeSearchQuery の追加の条件も通す）。
+      if (key === "q" && normalizeSearchQuery(value) !== value) continue;
       out[key] = value;
       kept++;
       continue;

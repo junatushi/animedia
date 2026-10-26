@@ -15,7 +15,14 @@
 // 素の `.ts` なのは `node scripts/check.ts` から import して検査するため
 // （`.tsx` は Node が JSX を解釈できない＝lib/workTitle.ts と同じ理由）。
 
-import { normalizeSearchQuery, SEARCH_QUERY_RE } from "./trackEventData.ts";
+import {
+  KNOWN_FACES,
+  KNOWN_OUT_KINDS,
+  KNOWN_SECTIONS,
+  normalizeSearchQuery,
+  SEARCH_QUERY_RE,
+} from "./trackEventData.ts";
+import { isVitalsMetricKey } from "./vitalsDiagnostics.ts";
 
 /** 集計の窓（日）。画面もJSONも同じ窓を見る。 */
 export const WINDOW_DAYS = 30;
@@ -156,9 +163,11 @@ export function vitalsP75(
     // 自動アクセスは除く（2026-10-21）。10/2 の約900件で p75 が見かけ上よくなった。
     // ua を持たない古い行（〜10/21）は区別できないので従来どおり入れる。
     if (isBotRow(row)) continue;
-    const face = typeof d.face === "string" ? d.face : "other";
+    const face = typeof d.face === "string" && KNOWN_FACES.has(d.face) ? d.face : "other";
     for (const [metric, value] of Object.entries(d)) {
-      if (metric === "face") continue;
+      // 指標名は送る側が作る名前だけ（2026-10-26）。形の合う任意のキー名を数値つきで送ると、
+      // それが「指標名」としてコミットされるJSONに出ていた。
+      if (!isVitalsMetricKey(metric)) continue;
       if (typeof value !== "number" || !Number.isFinite(value)) continue;
       const key = `${face}\u0000${metric}`;
       const arr = buckets.get(key);
@@ -217,12 +226,20 @@ export function countPairs(
  * 3つ以上のフィールドの組ごとの件数（多い順・上位 limit 件）。countPairs の一般形。自動アクセスは除く。
  * 「どの面の、どの欄のリンクから、どの面へ移ったか」（nav の from×via×face）に使う。
  */
-export function countTuples(rows: EventRow[], eventName: string, fields: string[], limit = 30): (string | number)[][] {
+export function countTuples(
+  rows: EventRow[],
+  eventName: string,
+  fields: string[],
+  allow: Record<string, Set<string>>,
+  limit = 30
+): (string | number)[][] {
   const counts = new Map<string, number>();
   for (const row of rows) {
     if (row.event_name !== eventName || isBotRow(row)) continue;
     const values = fields.map((f) => row.event_data?.[f]);
     if (!values.every((v) => typeof v === "string")) continue;
+    // 一覧にある値だけ数える（lib/trackEventData.ts の KNOWN_*。自由文・作り物の単語をJSONに出さない）。
+    if (!fields.every((f, i) => !allow[f] || allow[f].has(values[i] as string))) continue;
     const key = values.join("\u0000");
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
@@ -251,10 +268,12 @@ export function sectionsSeen(rows: EventRow[]): [string, string, number, number]
     if (row.event_name === "nav") face = d.from;
     else if (row.event_name === "web_vitals" || row.event_name === "seen") face = d.face;
     else continue;
-    if (typeof face !== "string") continue;
+    // 面も欄も一覧にあるものだけ（件数に上限が無くても行数は 面×欄 で頭打ちになる）。
+    if (typeof face !== "string" || !KNOWN_FACES.has(face)) continue;
     views.set(face, (views.get(face) ?? 0) + 1);
     if (d.seen === "-") continue;
     for (const section of new Set(d.seen.split(","))) {
+      if (!KNOWN_SECTIONS.has(section)) continue;
       const key = `${face}\u0000${section}`;
       seen.set(key, (seen.get(key) ?? 0) + 1);
     }
@@ -433,9 +452,14 @@ export function buildSnapshot(rows: EventRow[], now = new Date()): AnalyticsSnap
     agents: countByDataField(rows, "web_vitals", "ua"),
     landings: countPairs(rows, "web_vitals", "src", "face"),
     refTags: countByDataField(humans, "page_view", "tag"),
-    navigations: countPairs(rows, "nav", "from", "face"),
-    navVia: countTuples(rows, "nav", ["from", "via", "face"]),
-    outbound: countTuples(rows, "outbound_click", ["face", "kind"]),
+    // 面は一覧にある値だけ（2026-10-26。形の合う作り物の面で行を埋められないように）。
+    navigations: countTuples(rows, "nav", ["from", "face"], { from: KNOWN_FACES, face: KNOWN_FACES }) as [
+      string,
+      string,
+      number,
+    ][],
+    navVia: countTuples(rows, "nav", ["from", "via", "face"], { from: KNOWN_FACES, via: KNOWN_SECTIONS, face: KNOWN_FACES }),
+    outbound: countTuples(rows, "outbound_click", ["face", "kind"], { face: KNOWN_FACES, kind: KNOWN_OUT_KINDS }),
     sectionsSeen: sectionsSeen(rows),
     search: searchUsage(rows),
   };

@@ -894,7 +894,7 @@ export default function SeasonExplorer({
 
   // ── 検索欄の利用の記録（2026-10-26）。**入力が止まってから**1件だけ送る（1文字ごとには送らない）。
   // 送るのは正規化した語（normalizeSearchQuery の形に合うものだけ）と、そのとき今のクールで何件・
-  // 他のクールで何件当たったか。絞り込み中は f=1 を付ける（0件を「作品が無い」と読まないため）。
+  // 他のクールで何件当たったか。絞り込み中などは f=1 を付ける（0件を「作品が無い」と読まないため）。
   // 他のクールの索引がまだ読めていなければ other を付けない（0件と区別できないので数えない）。
   // **利用者が自分で入力したときだけ**送る（一覧に戻ったときの検索語の復元では送らない）。
   // 検索語は Vercel Web Analytics には渡さない（ownOnly）。JSONに出るのは2回以上検索された語だけ
@@ -909,7 +909,10 @@ export default function SeasonExplorer({
       const ua = currentAgent();
       if (ua === "bot") return;
       lastLoggedQuery.current = q;
-      const filters = active.size > 0 || activeCast.size > 0 || favoritesOnly;
+      // f=1 … この検索の件数で「0件」を判定しない。絞り込み中と、表記を揃えた語が実際に照合した語と
+      // 違うとき（全角英数・連続空白・30文字超。照合は trim と小文字化だけなので、"ＳＰＹ" は
+      // 0件でも "spy" として記録される＝当たる語と同じ行に「0件」が混ざる）。
+      const filters = active.size > 0 || activeCast.size > 0 || favoritesOnly || q !== query.trim().toLowerCase();
       logEvent(
         "search",
         {
