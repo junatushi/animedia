@@ -2199,7 +2199,7 @@ console.log(`結果（スポットライト枠）: ${4 - spotlightNg} 件OK / ${
 console.log("\n── 作品ページ title の幅 ──");
 let titleNg = 0;
 {
-  const { buildWorkTitle, displayWidth: width, TITLE_WIDTH_BUDGET: BUDGET } = await import(
+  const { buildWorkTitle, displayWidth: width, TITLE_WIDTH_BUDGET: BUDGET, WORK_TITLE_QUESTION } = await import(
     "../lib/workTitle.ts"
   );
 
@@ -2214,10 +2214,10 @@ let titleNg = 0;
     [
       "Re:ゼロから始める異世界生活 3rd season 反撃編",
       ["dアニメ", "ABEMA", "U-NEXT"],
-      (t) => t.startsWith("Re:ゼロから始める異世界生活 3rd season 反撃編はどこで配信？"),
+      (t) => t.startsWith(`Re:ゼロから始める異世界生活 3rd season 反撃編${WORK_TITLE_QUESTION}`),
       "長い作品名でも作品名は削られない",
     ],
-    ["薬屋のひとりごと 第2期", [], (t) => t === "薬屋のひとりごと 第2期はどこで配信？", "配信0件でも成立する"],
+    ["薬屋のひとりごと 第2期", [], (t) => t === `薬屋のひとりごと 第2期${WORK_TITLE_QUESTION}`, "配信0件でも成立する"],
   ];
   for (const [workTitle, services, ok, label] of cases) {
     const t = buildWorkTitle(workTitle, services);
@@ -2237,7 +2237,7 @@ let titleNg = 0;
     for (const it of data.items) {
       const shorts = it.services.map((s) => s.short);
       const t = buildWorkTitle(it.title, shorts);
-      const base = `${it.title}はどこで配信？`;
+      const base = `${it.title}${WORK_TITLE_QUESTION}`;
       checked++;
       if (width(base) <= BUDGET) {
         if (width(t) > BUDGET) over++;

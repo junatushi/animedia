@@ -166,6 +166,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   // 直接問う形だった（平均掲載順位19.8位＝2ページ目、上位ページはCTR 0%）。
   // titleを「〜の配信状況」から検索語に近い「〜はどこで配信？」に寄せ、
   // 主要な配信サービス名を前方に置いてスニペットでの一致を上げる。
+  // 2026-10-26に問いかけを「〜はどこで見れる？」へ変えた（理由は lib/workTitle.ts）。
   // Annict由来の並び順は作品ごとにばらつく（先頭がFOD等になり、実際に検索されている
   // 主要サービスがtitleから漏れる）ため、実クエリの多い順（sortServicesForMetadata）に揃える。
   const serviceShorts = sortServicesForMetadata(streaming).map((s) => s.short);
