@@ -26,6 +26,8 @@ const S = require("./lib/rental-scan.js");
 const { currentAndNextSeason } = require("./lib/coverage-gaps.js");
 const { ACKNOWLEDGED, validateAcknowledged } = require("./lib/rental-acknowledged.js");
 validateAcknowledged(ACKNOWLEDGED);
+const SA = require("./lib/streaming-acknowledged.js");
+SA.validateAcknowledged(SA.ACKNOWLEDGED);
 
 const UA = "animedia-rental-gaps (+https://github.com/junatushi/animedia)";
 const TIMEOUT_MS = 15000;
@@ -34,7 +36,7 @@ const MAX_HTML = 2_000_000;
 
 const today = process.env.RENTAL_GAPS_TODAY || new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 const site = (process.env.RENTAL_GAPS_SITE || siteUrl).replace(/\/$/, "");
-const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+const args = process.argv.slice(2).filter((a, i, all) => !a.startsWith("--") && all[i - 1] !== "--missing-out");
 const seasons: string[] = args.length >= 2 ? [`${args[0]}-${args[1]}`] : currentAndNextSeason(today);
 
 function classify(name: string): string | null {
@@ -93,23 +95,39 @@ async function fetchSeason(season: string) {
   throw new Error(`/api/season（${season}）を取れませんでした: ${(lastErr as Error)?.message}`);
 }
 
+// 1作品ぶんの公式サイトを1回だけ取り、2つの判定（課金だけの配信先／配信先の抜け）に使う。
+// 抜けの判定を別のスクリプトにしないのは、公式サイトと /api/season を2回ずつ取らないため。
 async function scanWork(w: { id: number; title: string; officialSiteUrl: string | null; services: string[] }) {
   if (!w.officialSiteUrl || !/^https?:\/\//.test(w.officialSiteUrl)) {
-    return { kind: "unread", work: w, reason: "公式サイトのURLが無い" };
+    const r = { kind: "unread", work: w, reason: "公式サイトのURLが無い" };
+    return { rental: r, missing: { kind: "nopage", work: w } };
   }
   try {
     const top = await getText(w.officialSiteUrl);
     const lines: (string | null)[] = [...S.htmlToLines(top), null];
+    // 抜けの判定は配信情報ページ（下層）だけを読む。トップのニュース欄の言及は拾わない。
+    const subLines: (string | null)[] = [];
+    let page: string | null = null;
     for (const u of S.findStreamingPages(top, w.officialSiteUrl)) {
       try {
-        lines.push(...S.htmlToLines(await getText(u)), null);
+        const l = S.htmlToLines(await getText(u));
+        lines.push(...l, null);
+        subLines.push(...l, null);
+        page ??= u;
       } catch {
         // 下層ページの1枚が取れなくても、取れた分で判定する。
       }
     }
-    return S.judgeWork(w, S.classifySections(lines, classify), RENTAL_SERVICES[w.id]);
+    const scan = S.classifySections(lines, classify);
+    // 配信サービスが2社未満の作品は「同じ枠に混ざる」ことが起きない（1社だけなら区別する相手が無い）。
+    const rental =
+      w.services.length >= 2 || RENTAL_SERVICES[w.id] ? S.judgeWork(w, scan, RENTAL_SERVICES[w.id]) : { kind: "ok", work: w };
+    const listed = subLines.length ? S.listedServices(subLines, classify) : null;
+    const missing = { ...S.judgeMissing(w, listed, scan.payOnly, SA.ackedKeys(SA.ACKNOWLEDGED, w.id, today)), page };
+    return { rental, missing };
   } catch (e) {
-    return { kind: "unread", work: w, reason: (e as Error).name === "AbortError" ? "時間切れ" : (e as Error).message };
+    const r = { kind: "unread", work: w, reason: (e as Error).name === "AbortError" ? "時間切れ" : (e as Error).message };
+    return { rental: r, missing: { kind: "nopage", work: w } };
   }
 }
 
@@ -130,15 +148,16 @@ async function pool<T, R>(items: T[], n: number, fn: (x: T) => Promise<R>): Prom
 const works: { id: number; title: string; officialSiteUrl: string | null; services: string[] }[] = [];
 for (const season of seasons) {
   for (const it of await fetchSeason(season)) {
-    // 配信サービスが2社未満の作品は「同じ枠に混ざる」ことが起きない（1社だけなら区別する相手が無い）。
+    // 配信先が0件の作品は coverage-gaps.js（と自動補完）の担当なので読まない。
     const services = (it.services || []).map((s) => s.key);
-    if (services.length < 2 && !RENTAL_SERVICES[it.id]) continue;
+    if (services.length < 1 && !RENTAL_SERVICES[it.id]) continue;
     if (works.some((w) => w.id === it.id)) continue;
     works.push({ id: it.id, title: it.title, officialSiteUrl: it.officialSiteUrl, services });
   }
 }
 
-const results = await pool(works, CONCURRENCY, scanWork);
+const both = await pool(works, CONCURRENCY, scanWork);
+const results = both.map((b) => b.rental);
 // 確認済みの除外（期日まで）。期日が過ぎたら前回の理由つきで候補に戻す。
 const ackFor = (id: number) => (ACKNOWLEDGED as { id: number; reason: string; recheckOn: string }[]).find((a) => a.id === id);
 const gaps = results
@@ -149,14 +168,32 @@ const unread = results.filter((r) => r.kind === "unread");
 // process.exit() で抜けないこと。Windows では stdout がパイプされていると、書き込み途中の
 // バッファを巻き込んで異常終了し、終了コードが 0 ではなく 3221226505 (0xC0000409) になる
 // （scripts/check.ts の末尾と同じ。CI の ubuntu では起きない）。分岐して自然に終わらせる。
+// --missing-out <path> … 配信先の抜けのIssue本文をこのファイルに書く（0件なら空のファイル）。
+const missingOut = (() => {
+  const i = process.argv.indexOf("--missing-out");
+  return i >= 0 ? process.argv[i + 1] : null;
+})();
+const missingItems = both
+  .map((b) => b.missing)
+  .filter((m) => m.kind === "missing")
+  .map((m) => {
+    const prev = SA.expiredFor(SA.ACKNOWLEDGED, m.work.id, today);
+    return prev ? { ...m, ackReason: prev } : m;
+  });
+const nopage = both.map((b) => b.missing).filter((m) => m.kind === "nopage");
+if (missingOut) {
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(missingOut, S.renderMissingIssue({ items: missingItems, nopage, scanned: works.length, seasons, today }));
+}
 if (process.argv.includes("--json")) {
-  process.stdout.write(JSON.stringify(results, null, 1) + "\n");
+  // 課金の判定はそのまま（形を変えない）。抜けの判定は streamingGap に並べる（課金の判定の missing と名前を分ける）。
+  process.stdout.write(JSON.stringify(results.map((r, i) => ({ ...r, streamingGap: both[i].missing })), null, 1) + "\n");
 } else {
   const body = S.renderIssue({ gaps, unread, scanned: works.length, seasons, today });
   if (body) process.stdout.write(body + "\n");
   console.error(
     `確認 ${works.length}作品（${seasons.join("／")}）: 要対応 ${gaps.length}・課金の区画あり問題なし ${
       results.filter((r) => r.kind === "ok-pay").length
-    }・読めず ${unread.length}`
+    }・読めず ${unread.length}／配信先の抜けあり ${missingItems.length}・配信ページなし ${nopage.length}`
   );
 }

@@ -2,6 +2,8 @@ import type { ExtraServiceEntry } from "@/lib/services";
 
 // Annictにまだ登録されていない配信サービスを人力で補完する一覧。
 // 対象は「Annictのprogramsに配信サービスが1件も無く、配信情報が実質空に見える作品」
+// （2026-10-26からは、配信先が一部だけ登録されている作品の抜けも。scripts/rental-gaps.ts の
+// 「配信先の抜け」Issueが候補を出す。自動補完 docs/coverage-autofill.md の対象は0件の作品だけのまま）
 // のうち、公式サイト・公式発表記事等の一次情報で確認できたものだけ（推測で埋めない。
 // CLAUDE.mdの方針に準拠）。全作品を追うのは非現実的なので、注目度が高い作品から
 // scripts/audit-coverage.ts の(a)（TV放送データはあるが配信サービス0件）を見て判断する。
@@ -203,6 +205,136 @@ export const EXTRA_SERVICES: Record<number, ExtraServiceEntry[]> = {
       sourceUrl: "https://www.ktv.jp/mazenchu/",
       confirmedDate: "2026-10-09",
       evidence: "有料配信 DMM TV ※最新話を順次配信",
+    },
+  ],
+  // 恐怖コレクター: Annictは4社だけ。公式の配信ページ（「放送翌週木曜日12:00以降、順次配信」）に並ぶ
+  // サービスのうちSERVICESにあるもの。J:COM STREAM・みるプラス・アニメタイムズはSERVICES外
+  16806: [
+    {
+      key: "dmm",
+      sourceUrl: "https://www.nhk-character.com/chara/kyoufucollector/streaming/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "hulu",
+      sourceUrl: "https://www.nhk-character.com/chara/kyoufucollector/streaming/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "unext",
+      sourceUrl: "https://www.nhk-character.com/chara/kyoufucollector/streaming/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "anime_houdai",
+      sourceUrl: "https://www.nhk-character.com/chara/kyoufucollector/streaming/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "telasa",
+      sourceUrl: "https://www.nhk-character.com/chara/kyoufucollector/streaming/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "lemino",
+      sourceUrl: "https://www.nhk-character.com/chara/kyoufucollector/streaming/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "fod",
+      sourceUrl: "https://www.nhk-character.com/chara/kyoufucollector/streaming/",
+      confirmedDate: "2026-10-26",
+    },
+  ],
+  // パンどろぼう: 公式の配信ページの「見放題サイト」の区画（10月5日(月)より毎週月曜12:00～）
+  16335: [
+    {
+      key: "anime_houdai",
+      sourceUrl: "https://pandorobo-anime.com/onair/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "lemino",
+      sourceUrl: "https://pandorobo-anime.com/onair/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "telasa",
+      sourceUrl: "https://pandorobo-anime.com/onair/",
+      confirmedDate: "2026-10-26",
+    },
+  ],
+  // 彼方から: 公式の配信ページ。アニメ放題は「月額見放題サービス 先行配信」、ほかは「一般配信」の区画。
+  // TELASAは個別課金の区画にも載るが、一般配信の区画にあるので見放題として扱う
+  17297: [
+    {
+      key: "anime_houdai",
+      sourceUrl: "https://kanatakara-anime.com/onair/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "lemino",
+      sourceUrl: "https://kanatakara-anime.com/onair/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "wowow_od",
+      sourceUrl: "https://kanatakara-anime.com/onair/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "telasa",
+      sourceUrl: "https://kanatakara-anime.com/onair/",
+      confirmedDate: "2026-10-26",
+    },
+  ],
+  // 人付き合いが苦手な未亡人の雪女さんと呪いの指輪: 公式の配信ページの「見放題配信」の区画（2026年10月7日(水)25:05～）
+  17600: [
+    {
+      key: "anime_houdai",
+      sourceUrl: "https://anime-yukionna.af-original.com/onair/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "telasa",
+      sourceUrl: "https://anime-yukionna.af-original.com/onair/",
+      confirmedDate: "2026-10-26",
+    },
+  ],
+  // 彼女の友達: 公式サイトの配信情報（2026年10月7日 25:05~ 順次配信開始）。12月23日からの3社（課金系）はSERVICES外
+  17547: [
+    {
+      key: "lemino",
+      sourceUrl: "https://kanojo-no-tomodachi.deregula.com/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "anime_houdai",
+      sourceUrl: "https://kanojo-no-tomodachi.deregula.com/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "telasa",
+      sourceUrl: "https://kanojo-no-tomodachi.deregula.com/",
+      confirmedDate: "2026-10-26",
+    },
+  ],
+  // 魔法騎士レイアース (2026): 公式の配信ページ（毎週木曜午前0：15より順次配信開始）。TELASAは見放題プランとレンタルの両方が載る
+  13592: [
+    {
+      key: "anime_houdai",
+      sourceUrl: "https://rayearth-anime.com/onair/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "lemino",
+      sourceUrl: "https://rayearth-anime.com/onair/",
+      confirmedDate: "2026-10-26",
+    },
+    {
+      key: "telasa",
+      sourceUrl: "https://rayearth-anime.com/onair/",
+      confirmedDate: "2026-10-26",
     },
   ],
 };

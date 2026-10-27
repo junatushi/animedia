@@ -211,7 +211,11 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   **自動では直さない**（誤ると「レンタルでの視聴となります」という事実でない案内になる。公式を開いて確かめて足す）。
   課金扱いにしないと確認した作品は`scripts/lib/rental-acknowledged.js`に理由と`recheckOn`つきで足す。
   Vercelの関数は起動しない（`/api/season`をクールごとに1回＝エッジキャッシュ。コミットしない）。
-  要Node 22・シークレット不要。回帰テストは`node scripts/check-rental-gaps.js`
+  要Node 22・シークレット不要。回帰テストは`node scripts/check-rental-gaps.js`。
+  **2026-10-26から同じ実行で「配信先の抜け」も出す**（`--missing-out`。公式の配信情報ページにあるのに作品ページに無い
+  サービス＝ラベル`streaming-gaps`のIssue。0件の作品は対象外＝`coverage-gaps`の担当）。足すのは人
+  （`extraServices.ts`）、違っていたら`scripts/lib/streaming-acknowledged.js`。別スクリプトにしない
+  （公式サイトと`/api/season`を2回ずつ取らない＝Vercelへの要求はクールごとに1回のまま）
 - **配信先の自動補完**（2026-10-04導入・重大度高）。上のIssueの作品を、毎日の定期実行の
   Claudeが`docs/coverage-autofill.md`（手順の正本）に従って調べ、抜き書き（`evidence`）つきで
   `extraServices.ts`に足して`claude/coverage-autofill-<日付>`のPRを出す。**調べた側はマージしない**。

@@ -111,6 +111,14 @@ Issueに何日も残っている作品を手で調べること。自動補完の
 課金扱いにしないと確認できた作品は `scripts/lib/rental-acknowledged.js` に理由と `recheckOn` つきで足す。
 **自動では直さない**（誤ると「レンタルでの視聴となります」という事実でない案内になる）。経緯は `docs/operations.md` の「レンタル作品の除外」。
 
+### (h) 公式の配信ページにあるのに作品ページに無い配信サービス ← **2026-10-26追加**
+ラベル `streaming-gaps` の Issue（(g) と同じ実行で `rental-gaps.yml` が毎日1本だけ書き換える。手元では
+`node scripts/rental-gaps.ts --missing-out <ファイル>`）を開き、**検索で表示の多い作品から**公式の配信ページで確かめ、
+見放題・定額で載っていれば `content/works/extraServices.ts` に公式ページのURLと確認日つきで足す。
+`⚠ 表が複数` の作品は**この作品（このクール）の表か**を必ず見る。違っていたら `scripts/lib/streaming-acknowledged.js` に
+サービス単位で理由と `recheckOn` つきで足す。**全件を毎日埋めなくてよい**（アニメ放題・Lemino・TELASA は Annict に
+ほぼ登録されず多くの作品に出る。需要の小さい作品まで追うと保守が続かない）。経緯は `docs/operations.md` の [70]。
+
 ### (a) シーズンページのHTML量
 - `node scripts/check.ts` を流し、末尾の**「シーズンページのHTML量」に`⚠`が出ていないか**を確認する。出ていたら**日報の「明日以降やること」の先頭に載せて指摘する**（見直しの選択肢は`docs/operations.md`の⑮）。`⚠`は落ちない設計なのでCIは緑のまま通る＝巡回が拾わないと誰も気づかない。
 - `check.ts`が見るのは過去クールだけなので、**現在クールは自分で見る**。通信が使える日は `curl -s "https://animedia-khaki.vercel.app/api/season?year=<今年>&season=<今期>" | head -c 200` の `count`。目安は **282作品 / gzip 100KB**。

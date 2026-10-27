@@ -301,6 +301,118 @@ function judgeWork(work, scan, recorded) {
   return { kind: scan.sawPayHeading ? "ok-pay" : "ok", work, payOnly: scan.payOnly, other: scan.other, evidence: scan.evidence };
 }
 
+// ───────────────────────────────────────────────────────────────
+// 「一部だけ登録されている作品」の配信先の抜け（2026-10-26追加）
+//
+// 【なぜ要るか】
+// 配信先の自動補完（docs/coverage-autofill.md）と coverage-gaps.js が見るのは
+// **配信先が0件の作品だけ**で、1件でも登録があればどの道具にも出なかった。
+// 2026秋「恐怖コレクター」（16806）は公式の配信ページに十数社が並んでいるのに、
+// 作品ページは4社だけだった（GSCで今期の作品ページの上位。利用者が検索画面で気づいた）。
+//
+// 【何をするか】
+// 公式サイトの**配信情報ページ**（findStreamingPages が選んだ下層ページ。トップは読まない＝
+// ニュース欄の「〜ほかで配信決定」を拾わない）から、配信の見出し以降に並ぶサービスを拾い、
+// 作品ページに無いものを候補として出す。課金の区画にだけあるものは rental-gaps 側の話なので除く。
+//
+// 【やらないこと】
+// extraServices.ts を自動で書き換えない（候補と抜き書きを出すだけ。足すのは確かめた人）。
+// 配信の見出しが見つからないページからは何も拾わない（メニューやSNS欄のサービス名を拾わないため）。
+// ───────────────────────────────────────────────────────────────
+
+// 配信の一覧が始まる見出し。「STREAMING」のような英字だけの行はメニューにも出るので使わない。
+const LIST_START = /(配信情報|配信サービス|配信スケジュール|配信先|配信プラットフォーム|見放題)/;
+
+/**
+ * 配信情報ページの行から、配信の見出し以降に載っているサービスを拾う。
+ * @param lines  htmlToLines の結果（下層ページだけ。ページの境目には null を挟む）
+ * @returns { found: Map<key, 抜き書きの行>, blocks: 「〜配信情報」の表の数（最大のページ） }
+ */
+function listedServices(lines, classify) {
+  const pages = [[]];
+  for (const line of lines) {
+    if (line === null) pages.push([]);
+    else pages[pages.length - 1].push(line);
+  }
+  const found = new Map();
+  let blocks = 0;
+  for (const page of pages) {
+    const start = page.findIndex((l) => l.length <= HEADING_MAX_LEN && LIST_START.test(l));
+    if (start < 0) continue;
+    const rest = page.slice(start);
+    blocks = Math.max(blocks, splitBlocks(rest).filter((b) => b.title).length);
+    let on = true;
+    for (const line of rest) {
+      const heading = line.length <= HEADING_MAX_LEN;
+      if (heading && END_HEADING.test(line)) {
+        on = false;
+        continue;
+      }
+      if (!on) {
+        if (heading && LIST_START.test(line)) on = true;
+        continue;
+      }
+      for (const { key } of servicesIn(line, classify)) if (!found.has(key)) found.set(key, line);
+    }
+  }
+  return { found, blocks };
+}
+
+/**
+ * 作品ごとの「抜け」の判定。
+ * @param work     { id, title, services: string[] }
+ * @param listed   listedServices の結果（配信情報ページが無ければ null）
+ * @param payOnly  classifySections の payOnly（課金の区画にだけあるもの。抜けとして出さない）
+ * @param acked    確認済みで除外する key（期日内のもの）
+ */
+function judgeMissing(work, listed, payOnly = [], acked = []) {
+  if (!listed) return { kind: "nopage", work };
+  const onWork = new Set(work.services);
+  const skip = new Set([...payOnly, ...acked]);
+  const missing = [...listed.found.keys()].filter((k) => !onWork.has(k) && !skip.has(k)).sort();
+  if (missing.length === 0) return { kind: "ok", work };
+  return {
+    kind: "missing",
+    work,
+    missing,
+    multiBlock: listed.blocks > 1,
+    evidence: uniq(missing.map((k) => listed.found.get(k))).slice(0, 12),
+  };
+}
+
+/** 抜けのIssue本文（Markdown）。0件なら空文字。 */
+function renderMissingIssue({ items, nopage, scanned, seasons, today }) {
+  if (items.length === 0) return "";
+  const L = [];
+  L.push(`公式サイトの配信情報ページに載っているのに、作品ページに出ていない配信サービスがあります`);
+  L.push(`（${today}・${seasons.join("／")}・配信先が1件以上ある${scanned}作品を確認）。`);
+  L.push("");
+  L.push(`**自動では直しません。** 公式の配信ページを開き、**この作品（このクール）の表**に`);
+  L.push("見放題・定額で載っていると確かめてから、`content/works/extraServices.ts` に出典つきで足してください。");
+  L.push("違っていたら `scripts/lib/streaming-acknowledged.js` に理由と再確認の期日つきで足すと、期日まで出なくなります。");
+  L.push("");
+  for (const g of items) {
+    L.push(`### ${g.work.title}（[${g.work.id}](https://animedia-khaki.vercel.app/anime/${g.work.id})）`);
+    if (g.page) L.push(`- 配信ページ: ${g.page}`);
+    L.push(`- 作品ページに無い: \`${g.missing.join("`, `")}\``);
+    if (g.multiBlock) L.push("- ⚠ 1ページに配信情報の表が複数ある（別の期・編の表の可能性。この作品の表か確かめること）");
+    if (g.ackReason) L.push(`- 再確認の期日が来た除外（前回の理由）: ${g.ackReason}`);
+    if (g.evidence.length) {
+      L.push("- 抜き書き:");
+      for (const e of g.evidence) L.push(`  - ${e.replace(/[`<>]/g, "")}`);
+    }
+    L.push("");
+  }
+  if (nopage.length) {
+    L.push(`<details><summary>配信情報ページが見つからなかった作品 ${nopage.length}件（抜けの有無は不明。「無い」とは扱わない）</summary>`);
+    L.push("");
+    for (const u of nopage) L.push(`- ${u.work.title}（${u.work.id}）`);
+    L.push("");
+    L.push("</details>");
+  }
+  return L.join("\n");
+}
+
 /** Issue本文（Markdown）。対応が要るものが0件なら空文字。 */
 function renderIssue({ gaps, unread, scanned, seasons, today }) {
   if (gaps.length === 0) return "";
@@ -336,6 +448,9 @@ function renderIssue({ gaps, unread, scanned, seasons, today }) {
 }
 
 module.exports = {
+  listedServices,
+  judgeMissing,
+  renderMissingIssue,
   htmlToLines,
   findStreamingPages,
   classifySections,
