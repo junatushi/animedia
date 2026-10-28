@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-24",
+  "updatedAt": "2026-10-28",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -923,11 +923,13 @@
       "title": "どうも、好きな人に惚れ薬を依頼された魔女です。"
     },
     "17091": {
-      "date": "2027-01",
-      "precision": "month",
+      "date": "2027-01-04",
+      "precision": "day",
+      "weekday": 1,
+      "time": "23:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/207251",
-      "fetchedDate": "2026-09-19",
+      "fetchedDate": "2026-10-28",
       "matchedBy": "mal",
       "title": "魔入りました！入間くん if Episode of 魔フィア"
     },
