@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-26",
+  "updatedAt": "2026-10-30",
   "source": "しょぼいカレンダー（https://cal.syoboi.jp）の最終回の「終」フラグ・dアニメストアの「（全N話）」 — scripts/fetch-completion.js が生成。手で編集しない",
   "works": {
     "6187": {
@@ -2664,6 +2664,16 @@
         "prevAt": "2026-12-19T14:45:00.000Z"
       },
       "season": "2026-autumn"
+    },
+    "16808": {
+      "title": "うちの弟どもがすみません",
+      "season": "2026-summer",
+      "syoboi": {
+        "tid": 7906,
+        "finalCount": 24,
+        "finalAt": "2026-12-23T17:45:00.000Z",
+        "prevAt": "2026-12-11T15:00:00.000Z"
+      }
     },
     "16822": {
       "title": "令和のダラさん",
