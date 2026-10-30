@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-28",
+  "updatedAt": "2026-10-30",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -308,13 +308,13 @@
       "title": "黒岩メダカに私の可愛いが通じない Season2"
     },
     "15793": {
-      "date": "2027-01",
-      "precision": "month",
+      "date": "2027-01-08",
+      "precision": "day",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/189121",
-      "fetchedDate": "2026-09-19",
+      "fetchedDate": "2026-10-30",
       "matchedBy": "mal",
-      "title": "「BanG Dream! It's MyGO!!!!! / BanG Dream! Ave Mujica」アニメ続編シリーズ"
+      "title": "BanG Dream! MyGO!!!!! // Ave Mujica"
     },
     "15795": {
       "date": "2026-10-04",
