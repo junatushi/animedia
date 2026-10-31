@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-30",
+  "updatedAt": "2026-10-31",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -1159,6 +1159,15 @@
       "fetchedDate": "2026-10-17",
       "matchedBy": "mal",
       "title": "ザ・ファブル 第2期"
+    },
+    "17381": {
+      "date": "2027-01-29",
+      "precision": "day",
+      "kind": "release",
+      "sourceUrl": "https://anilist.co/anime/219237",
+      "fetchedDate": "2026-10-31",
+      "matchedBy": "title",
+      "title": "ポールプリンセス!! -Croix du Nord-"
     },
     "17401": {
       "date": "2027-03-26",
