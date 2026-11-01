@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-31",
+  "updatedAt": "2026-11-01",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -1363,10 +1363,10 @@
       "date": "2026-11-26",
       "precision": "day",
       "weekday": 4,
-      "time": "16:00",
+      "time": "17:00",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/213457",
-      "fetchedDate": "2026-09-24",
+      "fetchedDate": "2026-11-01",
       "matchedBy": "mal",
       "title": "フールナイト"
     },
@@ -1650,6 +1650,15 @@
       "fetchedDate": "2026-10-17",
       "matchedBy": "mal",
       "title": "幸せカナコの殺し屋生活"
+    },
+    "18341": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/219243",
+      "fetchedDate": "2026-11-01",
+      "matchedBy": "mal",
+      "title": "ロメリア戦記 第IIクール"
     }
   }
 }
