@@ -12,8 +12,8 @@ const ACKNOWLEDGED = [
   {
     id: "17228",
     title: "ジャンケットバンク",
-    reason: "2026-09-09に放送延期が発表され、新しい時期は未定（2026-10-02確認）",
-    recheckOn: "2026-11-01",
+    reason: "2026-09-09に放送延期が発表され、新しい時期は未定（公式 https://junketbank-anime.com/ に放送延期のお知らせのまま、2026-11-01再確認）",
+    recheckOn: "2026-12-28",
   },
   // ───── 2026-10-04確認（Issue #201） ─────
   {
@@ -27,8 +27,8 @@ const ACKNOWLEDGED = [
     id: "17698",
     title: "ルパン三世傑作選",
     reason:
-      "日本テレビで放送・放送直後からTVerで配信。TVerはSERVICES外（アニメ！アニメ！ https://animeanime.jp/article/2026/10/03/103457.html 、2026-10-04確認）",
-    recheckOn: "2026-11-01",
+      "日本テレビで放送・放送直後からTVerで配信。TVerはSERVICES外（アニメ！アニメ！ https://animeanime.jp/article/2026/10/03/103457.html 、2026-10-04確認・2026-11-01再確認）",
+    recheckOn: "2026-12-28",
   },
   {
     id: "17381",
