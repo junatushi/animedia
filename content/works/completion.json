@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-30",
+  "updatedAt": "2026-11-02",
   "source": "しょぼいカレンダー（https://cal.syoboi.jp）の最終回の「終」フラグ・dアニメストアの「（全N話）」 — scripts/fetch-completion.js が生成。手で編集しない",
   "works": {
     "6187": {
@@ -564,6 +564,16 @@
         "seenAt": "2026-10-19T00:02:19.551Z"
       },
       "season": "2026-winter"
+    },
+    "13889": {
+      "title": "追放された転生重騎士はゲーム知識で無双する",
+      "season": "2026-summer",
+      "syoboi": {
+        "tid": 7878,
+        "finalCount": 26,
+        "finalAt": "2026-12-24T15:26:00.000Z",
+        "prevAt": "2026-12-17T15:26:00.000Z"
+      }
     },
     "14000": {
       "title": "霧尾ファンクラブ",
