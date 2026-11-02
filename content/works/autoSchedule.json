@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-01",
+  "updatedAt": "2026-11-03",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -667,11 +667,13 @@
       "title": "描くなるうえは"
     },
     "16767": {
-      "date": "2027-01",
-      "precision": "month",
+      "date": "2027-01-07",
+      "precision": "day",
+      "weekday": 4,
+      "time": "23:56",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/203116",
-      "fetchedDate": "2026-09-19",
+      "fetchedDate": "2026-11-03",
       "matchedBy": "title",
       "title": "カリスマ"
     },
