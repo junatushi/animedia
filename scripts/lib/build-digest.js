@@ -97,7 +97,8 @@ function titleFor(platform, title, fixed = "") {
 // 日付で閉じてあるのは、実験の終了を忘れても勝手に恒久化しないため（終わったら配列を空にする。
 // check.ts が「日付が水曜か」「過去の日付が残っていないか」を検査する）。
 // 引数を省いた呼び出し（週次キットなど）は従来どおり x=false。
-const X_BODY_URL_EXPERIMENT_DATES = ["2026-10-21", "2026-10-28"];
+// 2026-11-03に終了（10/21・10/28の2回。10/28は同じ週のURLなし中央値の28%で中止条件に当たった）。
+const X_BODY_URL_EXPERIMENT_DATES = [];
 const X_BODY_URL_EXPERIMENT_KIND = "airing";
 function bodyIncludesUrl(platform, todayStr, kind) {
   if (platform !== "x") return true;
