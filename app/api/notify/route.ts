@@ -59,9 +59,9 @@ export async function POST(request: Request) {
   if (countError) {
     return NextResponse.json(internalErrorBody("api/notify", countError.message), { status: 500 });
   }
-  if ((count ?? 0) >= MAX_ITEMS_PER_USER) {
+  if ((count ?? 0) >= MAX_ITEMS_PER_USER.notify_requests) {
     return NextResponse.json(
-      { error: `登録できるのは${MAX_ITEMS_PER_USER}件までです。` },
+      { error: `登録できるのは${MAX_ITEMS_PER_USER.notify_requests}件までです。` },
       { status: 409 }
     );
   }

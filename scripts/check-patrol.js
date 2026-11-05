@@ -81,7 +81,11 @@ function startStub(broken) {
         const kept = new URLSearchParams();
         for (const [k, val] of u.searchParams) if (target.includes(k)) kept.append(k, val);
         const qs = kept.toString();
-        if ([...u.searchParams].length !== [...kept].length) {
+        // 届いたままの文字列と正規形を比べる（lib/queryPolicy.ts と同じ）。`no-raw-308` は
+        // 2026-11-05の反証で見つかった旧実装（解釈した結果だけを比べる＝`?&&` が素通り）。
+        const rawSearch = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+        const dropped = [...u.searchParams].length !== [...kept].length;
+        if (dropped || (!has("no-raw-308") && rawSearch !== (qs ? "?" + qs : ""))) {
           return res
             .writeHead(308, { Location: u.pathname + (qs ? "?" + qs : "") })
             .end();
@@ -250,6 +254,7 @@ async function main() {
     ["post-200", "ページへのPOSTが200（405にならない）", "防壁/POST /"],
     ["no-action-guard", "Next-Action付きが断られない", "期待 400 / 実際 200"],
     ["no-308", "余計なクエリが308で落とされない", "期待 308 / 実際 200"],
+    ["no-raw-308", "表記揺れのクエリ（?&&）が素通りする", "防壁/表記揺れのクエリ"],
     ["no-xfo", "ページにX-Frame-Optionsが無い", "X-Frame-Options 期待 SAMEORIGIN / 実際 無し"],
     ["no-nosniff", "ページにnosniffが無い", "X-Content-Type-Options 期待 nosniff"],
     ["no-csp", "ページにCSPが無い", "CSP 期待 frame-ancestors 'self' を含む"],

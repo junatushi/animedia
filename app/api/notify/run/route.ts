@@ -23,6 +23,7 @@ import { siteUrl as SITE_URL } from "@/lib/siteUrl";
 // Annictへの直列アクセスを緩やかにする（対象作品数が多い日でもバーストさせない）。
 const FETCH_DELAY_MS = 500;
 // 1回の実行で問い合わせる作品数の上限（2026-11-05）。200件×0.5秒＝100秒＋取得時間。
+// 超えた件数は応答の truncated に出し、.github/workflows/notify-run.yml が警告にする。
 const MAX_WORKS_PER_RUN = 200;
 
 function sleep(ms: number) {
@@ -76,9 +77,11 @@ export async function POST(request: Request) {
   // 値域外のID（古い経路で入った小数・負数など）は問い合わせない。さらに1回の実行で
   // 問い合わせる作品数に上限を置く（1件0.5秒の間隔なので、上限が無いと登録数しだいで
   // 関数の時間制限を超え、全員の通知が止まる）。超えた分は応答の truncated に出す。
-  const validIds = [...new Set(allRequests.map((r) => parseWorkIdValue(r.work_id)))].filter(
-    (id): id is number => id !== null
-  );
+  // 上限で切るときに**毎回同じ作品が漏れ続けない**よう、新しい作品（Annictの作品IDは
+  // 登録順に増える＝放送中・放送予定の作品ほど大きい）から問い合わせる（2026-11-05・反証で修正）。
+  const validIds = [...new Set(allRequests.map((r) => parseWorkIdValue(r.work_id)))]
+    .filter((id): id is number => id !== null)
+    .sort((a, b) => b - a);
   const workIds = validIds.slice(0, MAX_WORKS_PER_RUN);
   const truncated = validIds.length - workIds.length;
 

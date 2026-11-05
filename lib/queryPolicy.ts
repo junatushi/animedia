@@ -105,7 +105,12 @@ export function canonicalQueryTarget(pathname: string, search: string, now: Date
     }
     kept.append(key, value);
   }
-  if (!dropped) return null;
   const qs = kept.toString();
+  // 【2026-11-05・反証で修正】キーを落としたかどうかだけで決めると、`?kind=ranking&&&`・
+  // `?%6bind=ranking`（キーをパーセント符号化）・`?&` のように**解釈すると同じだが文字列が違う**
+  // URLが素通りし、CDNは文字列ごとに別のキャッシュを持つので乱数と同じく関数を起動できた。
+  // 元の文字列と正規形を**文字列で**比べる。正規形は次の要求でも同じ正規形になるのでループしない。
+  const canonicalSearch = qs ? `?${qs}` : "";
+  if (!dropped && search === canonicalSearch) return null;
   return qs ? `${pathname}?${qs}` : pathname;
 }

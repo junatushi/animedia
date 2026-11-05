@@ -35,6 +35,7 @@ import { withTimeout, INCIDENTAL_FETCH_TIMEOUT_MS } from "../lib/withTimeout.ts"
 import {
   isMalformedRoutePath,
   malformedRouteStatus,
+  unknownNameStatus,
   WORK_ID_ROUTES,
   SEASON_YEAR_ROUTES,
 } from "../lib/routeGuard.ts";
@@ -9195,7 +9196,7 @@ let secNg = 0;
   // ② ログイン後の戻り先は同じオリジンのパスだけ（オープンリダイレクト）
   {
     const origin = "https://animedia-khaki.vercel.app";
-    const bad = ["@evil.example", ".evil.example", "//evil.example", "/\\evil.example", "https://evil.example", "/\r\nLocation: https://evil.example", "/\tfoo", "javascript:alert(1)", ""];
+    const bad = ["/.//evil.example", "/a/..//evil.example", "/%2e//evil.example", "@evil.example", ".evil.example", "//evil.example", "/\\evil.example", "https://evil.example", "/\r\nLocation: https://evil.example", "/\tfoo", "javascript:alert(1)", ""];
     const leaked = bad.filter((n) => safeNextPath(n, origin) !== "/");
     const good: [string, string][] = [["/", "/"], ["/anime/13180", "/anime/13180"], ["/season/2026/autumn?x=1#y", "/season/2026/autumn?x=1#y"]];
     const broken = good.filter(([n, w]) => safeNextPath(n, origin) !== w);
@@ -9226,6 +9227,8 @@ let secNg = 0;
       ["POST", "/api/track", {}, null],
       ["POST", "/api/discord", {}, null],
       ["PUT", "/feed.xml", {}, 405],
+      ["POST", "/_vercel/insights/view", {}, null], // Web Analytics の送信先（断ると計測が黙って止まる）
+      ["POST", "/_vercel/insights/event", {}, null],
     ];
     const wrong = cases.filter(([m, p, hd, want]) => rejectedMethodStatus(m, p, h(hd)) !== want);
     const mw = code(readFileSync(new URL("../middleware.ts", import.meta.url), "utf8"));
@@ -9251,6 +9254,11 @@ let secNg = 0;
       ["/calendar.ics", "?service=d_anime&ref=x", "/calendar.ics?service=d_anime"],
       ["/anime/13180", "?ref=embed", null],
       ["/", "?year=2026&season=autumn", null],
+      // 解釈すると同じだが文字列が違う形（CDNは文字列ごとに別のキャッシュ）
+      ["/api/sns-image", "?kind=ranking&&&", "/api/sns-image?kind=ranking"],
+      ["/api/sns-image", "?%6bind=ranking", "/api/sns-image?kind=ranking"],
+      ["/api/work/13180", "?&", "/api/work/13180"],
+      ["/api/season", "?year=%32026&season=autumn", "/api/season?year=2026&season=autumn"],
     ];
     const wrong = cases.filter(([p, q, want]) => canonicalQueryTarget(p, q, now) !== want);
     secCheck("知らないクエリでキャッシュを外させない", wrong.length === 0, wrong.length ? `誤判定: ${wrong.map(([p, q]) => `${p}${q} → ${canonicalQueryTarget(p, q, now)}`).join(" / ")}` : `${cases.length}通り`);
@@ -9304,13 +9312,42 @@ let secNg = 0;
     secCheck("作品IDの値域に実データの10倍の余裕", maxId > 0 && maxId * 10 <= MAX_WORK_ID && parseWorkId(String(MAX_WORK_ID)) === MAX_WORK_ID && parseWorkId(String(MAX_WORK_ID + 1)) === null, `実データの最大 ${maxId} / 上限 ${MAX_WORK_ID}`);
   }
 
+  // ⑥-2 middleware を拡張子で迂回させない・名前で引くページは実在する名前だけ描画する
+  {
+    const mwSrc = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
+    const matcherBlock = mwSrc.slice(mwSrc.indexOf("matcher:"), mwSrc.indexOf("],", mwSrc.indexOf("matcher:")));
+    const patterns = [...matcherBlock.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    // 動的ルートの先頭セグメントは全部、拡張子に関係なく通す行を持つこと（app/ を走査して導出）
+    const heads = [...new Set(dynamicRoutes(fileURLToPath(new URL("../app", import.meta.url))).map((r) => r.routePath.split("/")[1]))];
+    const uncovered = heads.filter((h) => !patterns.includes(`/${h}/:path*`));
+    const vercelExcluded = /_vercel/.test(patterns[0] ?? "");
+    secCheck("拡張子を付けても middleware を迂回させない", uncovered.length === 0 && heads.length >= 5 && vercelExcluded, uncovered.length ? `通す行が無い: ${uncovered.join(", ")}` : vercelExcluded ? `${heads.length}件の動的ルートを通す・_vercel は除外` : "_vercel（Web Analytics）が middleware の対象に入っている");
+
+    const studioJson = JSON.parse(readFileSync(new URL("../content/archive/studios.json", import.meta.url), "utf8"));
+    const keysOf = (m: Record<string, unknown[]>) => new Set(Object.keys(m).filter((k) => (m[k]?.length ?? 0) > 0));
+    const known = { serviceKeys: new Set(SERVICES.map((x) => x.key)), studios: keysOf(studioJson.studios), directors: keysOf(studioJson.directors) };
+    // ㊱の再発防止: 実在する名前は、どう符号化されて届いても落とさない（全件を回す）
+    const dropped: string[] = [];
+    for (const [head, set] of [["service", known.serviceKeys], ["studio", known.studios], ["director", known.directors]] as const) {
+      for (const n of set) {
+        for (const enc of [encodeURIComponent(n), n, encodeURIComponent(encodeURIComponent(n))]) {
+          if (unknownNameStatus(`/${head}/${enc}${head === "service" ? "/2026/autumn" : ""}`, known) !== null) dropped.push(`${head}/${n}`);
+        }
+      }
+    }
+    const junk = ["/service/zzz/2026/autumn", "/studio/zzqq-nonexist", "/director/%E5%AD%98%E5%9C%A8%E3%81%97%E3%81%AA%E3%81%84"];
+    const passed = junk.filter((p) => unknownNameStatus(p, known) !== 404);
+    const wired = /unknownNameStatus\(/.test(code(mwSrc));
+    secCheck("名前で引くページは実在する名前だけ描画", dropped.length === 0 && passed.length === 0 && wired && known.studios.size > 50, dropped.length ? `正規の名前を落とす: ${[...new Set(dropped)].slice(0, 5).join(", ")}` : passed.length ? `通過: ${passed.join(", ")}` : wired ? `サービス${known.serviceKeys.size}・制作会社${known.studios.size}・監督${known.directors.size}件を全符号化で確認` : "middleware が照合していない");
+  }
+
   // ⑦ ログイン利用者のリストAPI（視聴済み・通知）の入力と件数
   {
     const vals: [unknown, number | null][] = [[13180, 13180], [0, null], [-1, null], [1.5, null], [1e20, null], ["13180", null], [null, null], [MAX_WORK_ID + 1, null]];
     const wrong = vals.filter(([v, w]) => parseWorkIdValue(v) !== w);
     const routes = ["../app/api/watched/route.ts", "../app/api/notify/route.ts"].map((p) => code(readFileSync(new URL(p, import.meta.url), "utf8")));
     const wired = routes.every((s) => s.includes("readWorkIdBody(") && s.includes("MAX_ITEMS_PER_USER") && !s.includes("await request.json()") && !/error:\s*\w*(?:[eE]rr|[eE]rror)\.message/.test(s));
-    secCheck("視聴済み・通知APIの入力検証と件数上限", wrong.length === 0 && wired && MAX_ITEMS_PER_USER > 0, wrong.length ? `誤判定: ${wrong.map(([v]) => String(v)).join(", ")}` : wired ? `上限 ${MAX_ITEMS_PER_USER}件` : "route が共通の検証を通していない／内部のエラー文を返している");
+    secCheck("視聴済み・通知APIの入力検証と件数上限", wrong.length === 0 && wired && MAX_ITEMS_PER_USER.notify_requests > 0 && MAX_ITEMS_PER_USER.watched >= MAX_ITEMS_PER_USER.notify_requests, wrong.length ? `誤判定: ${wrong.map(([v]) => String(v)).join(", ")}` : wired ? `上限 通知${MAX_ITEMS_PER_USER.notify_requests}件・視聴済み${MAX_ITEMS_PER_USER.watched}件` : "route が共通の検証を通していない／内部のエラー文を返している");
     // 内部のエラー文（Supabaseのテーブル名・列名を含みうる）を応答に載せない。対象は app/api を走査
     const leaks = srcFiles
       .filter((f) => rel(f).startsWith("app/api/"))

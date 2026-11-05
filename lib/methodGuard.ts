@@ -14,6 +14,7 @@
 // 素の `.ts` なのは scripts/check.ts から挙動を検査するため。
 
 const PAGE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+export const PASS_THROUGH_PREFIXES = ["/api/", "/_vercel/", "/.well-known/"];
 
 /**
  * 断るなら返すHTTPステータス（400 か 405）。通すなら null。
@@ -25,6 +26,9 @@ export function rejectedMethodStatus(
   headers: { get(name: string): string | null }
 ): 400 | 405 | null {
   if (headers.get("next-action") !== null) return 400;
-  if (pathname.startsWith("/api/")) return null;
+  // `/api/` は route handler が自分で決める。`/_vercel/`（Web Analytics が POST で送る
+  // `/_vercel/insights/view` など）と `/.well-known/` は Vercel 自身の窓口なので触らない
+  // （2026-11-05・反証で追加。ここを断ると計測が画面に何も出ないまま止まる）。
+  if (PASS_THROUGH_PREFIXES.some((p) => pathname.startsWith(p))) return null;
   return PAGE_METHODS.has(method.toUpperCase()) ? null : 405;
 }

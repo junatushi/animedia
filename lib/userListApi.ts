@@ -11,11 +11,14 @@
 import { parseWorkIdValue } from "./workId.ts";
 
 /**
- * 1人あたりの登録件数の上限。1クールの作品数（実測で最大224）の倍あれば
- * 普通の使い方で当たることは無い。上限は通知バッチ（1件0.5秒の間隔で Annict に
- * 問い合わせる）が関数の時間制限に収まるかの防波堤でもある。
+ * 1人あたりの登録件数の上限（表ごと）。
+ * - `notify_requests`（配信通知）: 通知が意味を持つのは放送中・放送予定の作品だけで、
+ *   1クールの作品数は実測で最大224。上限は通知バッチ（1件0.5秒の間隔で Annict に問い合わせる）の防波堤でもある。
+ * - `watched`（視聴済み）: クールをまたいで一生ぶん積み上がるので桁を変える
+ *   （2026-11-05・反証で修正。通知と同じ500では熱心な利用者が数年で当たる）。
+ *   ここの上限は Supabase の無料枠（DB 500MB）を1人で埋めさせないためだけのもの。
  */
-export const MAX_ITEMS_PER_USER = 500;
+export const MAX_ITEMS_PER_USER = { notify_requests: 300, watched: 10000 } as const;
 
 /** ボディ `{ workId }` を読む。壊れたJSON・範囲外の値は null（400で返す）。 */
 export async function readWorkIdBody(request: Request): Promise<number | null> {

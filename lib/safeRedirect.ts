@@ -23,6 +23,9 @@ export function safeNextPath(next: string | null | undefined, origin: string): s
     const base = new URL(origin);
     const resolved = new URL(next, base);
     if (resolved.origin !== base.origin) return "/";
+    // `/.//evil.example`・`/a/..//evil.example` は解決すると pathname が `//evil.example` になり、
+    // それを文字列で返すと受け取った側で「別ホストへのURL」に読まれる（2026-11-05・反証で修正）。
+    if (resolved.pathname.startsWith("//") || resolved.pathname.startsWith("/\\")) return "/";
     return resolved.pathname + resolved.search + resolved.hash;
   } catch {
     return "/";

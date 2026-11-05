@@ -297,6 +297,13 @@ function guardCases(v) {
       redirectTo(`/api/season?year=${year}&season=${season}`)
     ),
     want("/api/work の余計なクエリ", `/api/work/${v.workId}?cb=${rnd()}`, {}, redirectTo(`/api/work/${v.workId}`)),
+    // 解釈すると同じだが文字列が違う形。CDNは文字列ごとに別のキャッシュを持つので、ここが
+    // 素通りすると乱数クエリと同じく関数を起動させ続けられる（2026-11-05の反証で発見）。
+    // middleware が届いたままのURLを見ていなければここで落ちる。
+    want("表記揺れのクエリ", `/api/work/${v.workId}?&&`, {}, redirectTo(`/api/work/${v.workId}`)),
+    // 画像の拡張子を付けると middleware の対象外になり、描画とISRへの書き込みが起きていた（同上）。
+    want("拡張子付きの不正なID", `/anime/p${rnd()}.png`, {}, status(404)),
+    want("拡張子付きのPOST", `/anime/p${rnd()}.png`, { method: "POST" }, status(405)),
     want("不正なクール名", `/season/${year}/xyz${rnd()}`, {}, status(404)),
     want("範囲外の作品ID(ページ)", "/anime/1000000", {}, status(404)),
     want("範囲外の作品ID(API)", "/api/work/1000000", {}, status(400)),
