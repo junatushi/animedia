@@ -17,13 +17,20 @@ on:
     - cron: "0 20 * * *"
   workflow_dispatch:
 
+# 【2026-11-05】トークンの権限を明示する（書かないとリポジトリ既定の権限＝書き込みまで渡りうる）。
+permissions:
+  contents: read
+
 jobs:
   run:
     runs-on: ubuntu-latest
     steps:
       - name: service-additions/run を実行
+        # 秘密は env で渡す（run の本文に secrets の式を直接展開しない。2026-11-05）。
+        env:
+          CRON_SECRET: ${{ secrets.NOTIFY_CRON_SECRET }}
         run: |
           curl -s -X POST \
-            -H "x-cron-secret: ${{ secrets.NOTIFY_CRON_SECRET }}" \
+            -H "x-cron-secret: $CRON_SECRET" \
             -w "\nstatus=%{http_code} time=%{time_total}s\n" \
             "https://animedia-khaki.vercel.app/api/service-additions/run"

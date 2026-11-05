@@ -25,6 +25,7 @@
 // 対象を現在クールに絞る理由: 過去クールの内容は content/snapshots/ の確定データ由来で
 // **動かない**。動かないものを定期的に作り直すのが今回の超過の本質だった。
 import { NextResponse } from "next/server";
+import { safeEqual } from "@/lib/safeEqual";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { currentYearSeason, nextYearSeason } from "@/lib/resolveSeasonParams";
 import { getSeasonData } from "@/lib/getSeasonData";
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
   // 認証は既存のバッチ（/api/notify/run）と同じ秘密・同じヘッダーを使い回す。
   // 新しいシークレットを増やすと設定漏れでバッチが黙って止まるため。
   const cronSecret = process.env.NOTIFY_CRON_SECRET;
-  if (!cronSecret || request.headers.get("x-cron-secret") !== cronSecret) {
+  if (!safeEqual(request.headers.get("x-cron-secret"), cronSecret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

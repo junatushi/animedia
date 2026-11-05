@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { serializeJsonLd } from "@/lib/jsonLd";
 import type { Metadata } from "next";
 import IntentLink from "@/components/IntentLink";
 import BackLink from "@/components/BackLink";
@@ -569,7 +570,7 @@ export default async function AnimeDetailPage({ params }: { params: Params }) {
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify([workLd, provenanceLd, breadcrumbLd, faqLd]),
+          __html: serializeJsonLd([workLd, provenanceLd, breadcrumbLd, faqLd]),
         }}
       />
       {/* data-nav は欄の名前（2026-10-26）。押したリンクの欄と画面に出た欄の計測に使う

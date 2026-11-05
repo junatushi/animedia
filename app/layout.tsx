@@ -6,6 +6,7 @@
 // 生成・コミット）を <head> の <style> に埋め込む。**スタイルを書き換えるときは
 // app/globals.css を直してから必ず再生成する**（ズレは node scripts/check.ts が検出）。
 import BaseCss from "@/components/BaseCss";
+import { serializeJsonLd } from "@/lib/jsonLd";
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
 import AuthProvider from "@/components/AuthProvider";
@@ -123,7 +124,7 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
         />
       </head>
       <body>

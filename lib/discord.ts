@@ -79,6 +79,22 @@ export function verifyDiscordSignature(
   }
 }
 
+/**
+ * 署名に含まれるタイムスタンプが新しいか（2026-11-05導入）。
+ *
+ * 署名は「タイムスタンプ＋ボディ」に対して付くので、**一度通った要求をそのまま送り直すと
+ * 何度でも通る**（再送攻撃）。返すのは公開情報だけなので被害は小さいが、送り直しのたびに
+ * 関数が起動する（Vercelの無料枠を削る）ので、前後5分より外れたものは受け付けない。
+ * 署名検証（verifyDiscordSignature）とは別の関数にしてある（検証のテストは固定の
+ * タイムスタンプで書かれているため、時刻に依存させない）。
+ */
+export const DISCORD_TIMESTAMP_TOLERANCE_SEC = 300;
+export function isFreshDiscordTimestamp(timestamp: string, nowMs: number = Date.now()): boolean {
+  if (!/^\d{1,12}$/.test(timestamp)) return false;
+  const sec = Number(timestamp);
+  return Math.abs(nowMs / 1000 - sec) <= DISCORD_TIMESTAMP_TOLERANCE_SEC;
+}
+
 /** 検索語の正規化（全角空白・前後の空白を落とす）。 */
 export function normalizeQuery(s: string): string {
   return s.replace(/[\s　]+/g, " ").trim();

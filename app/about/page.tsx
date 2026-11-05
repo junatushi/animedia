@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { serializeJsonLd } from "@/lib/jsonLd";
 import IntentLink from "@/components/IntentLink";
 
 import { siteUrl } from "@/lib/siteUrl";
@@ -33,7 +34,7 @@ export default function AboutPage() {
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbLd) }}
       />
       <header className="masthead">
         <span className="eyebrow" aria-hidden="true">

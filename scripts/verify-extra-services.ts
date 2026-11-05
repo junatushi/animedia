@@ -68,6 +68,8 @@ function loadAck(path: string) {
   return validateAcknowledged(m.ACKNOWLEDGED) as Array<{ id: string; title?: string; reason: string; recheckOn: string }>;
 }
 
+const MAX_BODY_BYTES = 5 * 1024 * 1024;
+
 /** 出典ページを取り直す。一時的な失敗（429・5xx・通信断）だけ再試行する。文字コードはヘッダーとmetaから決める。 */
 async function fetchText(url: string): Promise<{ text: string | null; note: string }> {
   let target = url;
@@ -88,7 +90,21 @@ async function fetchText(url: string): Promise<{ text: string | null; note: stri
         continue;
       }
       if (!res.ok) return { text: null, note: `HTTP ${res.status}` };
-      const buf = Buffer.from(await res.arrayBuffer());
+      // 出典は外部の他人のページ。無制限に読むとランナーのメモリを食い潰せるので5MBで打ち切る
+      // （2026-11-05）。超えたら途中までを使わず「取得できない」として不合格に倒す。
+      const chunks: Buffer[] = [];
+      let size = 0;
+      if (res.body) {
+        for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+          size += chunk.length;
+          if (size > MAX_BODY_BYTES) {
+            await res.body.cancel().catch(() => {});
+            return { text: null, note: `本文が${MAX_BODY_BYTES / 1024 / 1024}MBを超えた` };
+          }
+          chunks.push(Buffer.from(chunk));
+        }
+      }
+      const buf = Buffer.concat(chunks);
       const head = buf.subarray(0, 4096).toString("latin1");
       const cs = (/charset=["']?([\w-]+)/i.exec(res.headers.get("content-type") || "")?.[1] ||
         /<meta[^>]+charset=["']?([\w-]+)/i.exec(head)?.[1] ||

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { safeEqual } from "@/lib/safeEqual";
 import type { Metadata } from "next";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -57,7 +58,7 @@ export default async function AnalyticsDashboard({
     );
   }
   // トークン不一致・未指定は「存在しないページ」として扱う（不一致の理由を教えない）。
-  if (searchParams.token !== adminToken) {
+  if (!safeEqual(searchParams.token, adminToken)) {
     notFound();
   }
   if (!isSupabaseConfigured() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {

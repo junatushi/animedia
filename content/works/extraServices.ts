@@ -148,13 +148,58 @@ export const EXTRA_SERVICES: Record<number, ExtraServiceEntry[]> = {
   ],
   // カードファイト!! ヴァンガード Divinez 運命星戦編: 11月7日（土）放送開始。公式サイトの
   // 放送情報ページに配信サービスが列挙されている（SERVICESにある10社だけを載せる）。
-  17433: (
-    ["abema", "dmm", "d_anime", "fod", "lemino", "telasa", "prime", "unext", "bandai", "niconico"] as const
-  ).map((key) => ({
-    key,
-    sourceUrl: "https://anime.cf-vanguard.com/vgd/onair/",
-    confirmedDate: "2026-10-02",
-  })),
+  17433: [
+    {
+      key: "abema",
+      sourceUrl: "https://anime.cf-vanguard.com/vgd/onair/",
+      confirmedDate: "2026-10-02",
+    },
+    {
+      key: "dmm",
+      sourceUrl: "https://anime.cf-vanguard.com/vgd/onair/",
+      confirmedDate: "2026-10-02",
+    },
+    {
+      key: "d_anime",
+      sourceUrl: "https://anime.cf-vanguard.com/vgd/onair/",
+      confirmedDate: "2026-10-02",
+    },
+    {
+      key: "fod",
+      sourceUrl: "https://anime.cf-vanguard.com/vgd/onair/",
+      confirmedDate: "2026-10-02",
+    },
+    {
+      key: "lemino",
+      sourceUrl: "https://anime.cf-vanguard.com/vgd/onair/",
+      confirmedDate: "2026-10-02",
+    },
+    {
+      key: "telasa",
+      sourceUrl: "https://anime.cf-vanguard.com/vgd/onair/",
+      confirmedDate: "2026-10-02",
+    },
+    {
+      key: "prime",
+      sourceUrl: "https://anime.cf-vanguard.com/vgd/onair/",
+      confirmedDate: "2026-10-02",
+    },
+    {
+      key: "unext",
+      sourceUrl: "https://anime.cf-vanguard.com/vgd/onair/",
+      confirmedDate: "2026-10-02",
+    },
+    {
+      key: "bandai",
+      sourceUrl: "https://anime.cf-vanguard.com/vgd/onair/",
+      confirmedDate: "2026-10-02",
+    },
+    {
+      key: "niconico",
+      sourceUrl: "https://anime.cf-vanguard.com/vgd/onair/",
+      confirmedDate: "2026-10-02",
+    },
+  ],
   // ───── 2026秋クール（2026-10-04追加・Issue #201） ─────
   // 確認方法: 出典ページの原文を取得し、配信サービス名がその作品（Annictの同じ作品ID）の
   // 告知として書かれていることを確かめた。**同じ公式サイトでも別の作品の告知と取り違えない**
@@ -172,15 +217,68 @@ export const EXTRA_SERVICES: Record<number, ExtraServiceEntry[]> = {
   // タヌキとキツネ: 公式サイトのオンエア欄に「見逃し無料配信 YouTube」と配信サービスが列挙されている
   // （SERVICESにある10社だけを載せる。ネットもテレ東・TVer・J:COM STREAM・みるプラスは対象外）。
   // 配信の曜日・時刻は書かれていないので schedule は付けない。
-  17352: (
-    ["youtube", "bandai", "d_anime", "telasa", "lemino", "unext", "anime_houdai", "dmm", "prime", "abema"] as const
-  ).map((key) => ({
-    key,
-    sourceUrl: "https://tanukitsu-anime.jp/",
-    confirmedDate: "2026-10-04",
-    evidence:
-      "見逃し無料配信 YouTube ネットもテレ東 TVer 配信サービス バンダイチャンネル ｄアニメストア J:COM STREAM みるプラス TELASA Lemino U-NEXT / アニメ放題 DMM TV Amazon Prime Video ABEMA",
-  })),
+  17352: [
+    {
+      key: "youtube",
+      sourceUrl: "https://tanukitsu-anime.jp/",
+      confirmedDate: "2026-10-04",
+      evidence: "見逃し無料配信 YouTube ネットもテレ東 TVer 配信サービス バンダイチャンネル ｄアニメストア J:COM STREAM みるプラス TELASA Lemino U-NEXT / アニメ放題 DMM TV Amazon Prime Video ABEMA",
+    },
+    {
+      key: "bandai",
+      sourceUrl: "https://tanukitsu-anime.jp/",
+      confirmedDate: "2026-10-04",
+      evidence: "見逃し無料配信 YouTube ネットもテレ東 TVer 配信サービス バンダイチャンネル ｄアニメストア J:COM STREAM みるプラス TELASA Lemino U-NEXT / アニメ放題 DMM TV Amazon Prime Video ABEMA",
+    },
+    {
+      key: "d_anime",
+      sourceUrl: "https://tanukitsu-anime.jp/",
+      confirmedDate: "2026-10-04",
+      evidence: "見逃し無料配信 YouTube ネットもテレ東 TVer 配信サービス バンダイチャンネル ｄアニメストア J:COM STREAM みるプラス TELASA Lemino U-NEXT / アニメ放題 DMM TV Amazon Prime Video ABEMA",
+    },
+    {
+      key: "telasa",
+      sourceUrl: "https://tanukitsu-anime.jp/",
+      confirmedDate: "2026-10-04",
+      evidence: "見逃し無料配信 YouTube ネットもテレ東 TVer 配信サービス バンダイチャンネル ｄアニメストア J:COM STREAM みるプラス TELASA Lemino U-NEXT / アニメ放題 DMM TV Amazon Prime Video ABEMA",
+    },
+    {
+      key: "lemino",
+      sourceUrl: "https://tanukitsu-anime.jp/",
+      confirmedDate: "2026-10-04",
+      evidence: "見逃し無料配信 YouTube ネットもテレ東 TVer 配信サービス バンダイチャンネル ｄアニメストア J:COM STREAM みるプラス TELASA Lemino U-NEXT / アニメ放題 DMM TV Amazon Prime Video ABEMA",
+    },
+    {
+      key: "unext",
+      sourceUrl: "https://tanukitsu-anime.jp/",
+      confirmedDate: "2026-10-04",
+      evidence: "見逃し無料配信 YouTube ネットもテレ東 TVer 配信サービス バンダイチャンネル ｄアニメストア J:COM STREAM みるプラス TELASA Lemino U-NEXT / アニメ放題 DMM TV Amazon Prime Video ABEMA",
+    },
+    {
+      key: "anime_houdai",
+      sourceUrl: "https://tanukitsu-anime.jp/",
+      confirmedDate: "2026-10-04",
+      evidence: "見逃し無料配信 YouTube ネットもテレ東 TVer 配信サービス バンダイチャンネル ｄアニメストア J:COM STREAM みるプラス TELASA Lemino U-NEXT / アニメ放題 DMM TV Amazon Prime Video ABEMA",
+    },
+    {
+      key: "dmm",
+      sourceUrl: "https://tanukitsu-anime.jp/",
+      confirmedDate: "2026-10-04",
+      evidence: "見逃し無料配信 YouTube ネットもテレ東 TVer 配信サービス バンダイチャンネル ｄアニメストア J:COM STREAM みるプラス TELASA Lemino U-NEXT / アニメ放題 DMM TV Amazon Prime Video ABEMA",
+    },
+    {
+      key: "prime",
+      sourceUrl: "https://tanukitsu-anime.jp/",
+      confirmedDate: "2026-10-04",
+      evidence: "見逃し無料配信 YouTube ネットもテレ東 TVer 配信サービス バンダイチャンネル ｄアニメストア J:COM STREAM みるプラス TELASA Lemino U-NEXT / アニメ放題 DMM TV Amazon Prime Video ABEMA",
+    },
+    {
+      key: "abema",
+      sourceUrl: "https://tanukitsu-anime.jp/",
+      confirmedDate: "2026-10-04",
+      evidence: "見逃し無料配信 YouTube ネットもテレ東 TVer 配信サービス バンダイチャンネル ｄアニメストア J:COM STREAM みるプラス TELASA Lemino U-NEXT / アニメ放題 DMM TV Amazon Prime Video ABEMA",
+    },
+  ],
   // ふんばるず: 発売元ドリームズのPR TIMES発表で「YouTube(ふんばるず公式チャンネル)：
   // 2026年10月12日(月)～順次配信開始予定」。時刻が無いので schedule は付けない。
   18128: [

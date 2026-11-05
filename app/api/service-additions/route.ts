@@ -35,7 +35,9 @@ export async function GET() {
     .limit(MAX_ITEMS);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // 無認証の口なので、Supabaseのエラー文（テーブル名・列名を含みうる）をそのまま返さない。
+    console.error("service-additions:", error.message);
+    return NextResponse.json({ error: "internal error" }, { status: 500 });
   }
 
   return NextResponse.json(

@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { readWorkIdBody, internalErrorBody, MAX_ITEMS_PER_USER } from "@/lib/userListApi";
 
 export async function GET() {
   if (!isSupabaseConfigured()) {
@@ -24,7 +25,7 @@ export async function GET() {
     .select("work_id")
     .eq("user_id", user.id);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(internalErrorBody("api/notify", error.message), { status: 500 });
   }
 
   return NextResponse.json({ workIds: data.map((row) => row.work_id) });
@@ -43,9 +44,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "ログインが必要です。" }, { status: 401 });
   }
 
-  const { workId } = await request.json();
-  if (typeof workId !== "number") {
+  // 壊れたJSON・範囲外の値（小数・負数・巨大値）は400（lib/userListApi.ts）。
+  const workId = await readWorkIdBody(request);
+  if (workId === null) {
     return NextResponse.json({ error: "workIdが不正です。" }, { status: 400 });
+  }
+
+  // 1人あたりの件数に上限を置く（通知バッチが登録作品の数だけ Annict に問い合わせるため。
+  // lib/userListApi.ts の MAX_ITEMS_PER_USER）。数え間違えても安全側（登録できない）に倒れるだけ。
+  const { count, error: countError } = await supabase
+    .from("notify_requests")
+    .select("work_id", { count: "exact", head: true })
+    .eq("user_id", user.id);
+  if (countError) {
+    return NextResponse.json(internalErrorBody("api/notify", countError.message), { status: 500 });
+  }
+  if ((count ?? 0) >= MAX_ITEMS_PER_USER) {
+    return NextResponse.json(
+      { error: `登録できるのは${MAX_ITEMS_PER_USER}件までです。` },
+      { status: 409 }
+    );
   }
 
   const { error } = await supabase
@@ -53,7 +71,7 @@ export async function POST(request: Request) {
     .insert({ user_id: user.id, work_id: workId });
   // 23505 = unique_violation。既に登録済みなら冪等に成功扱いにする。
   if (error && error.code !== "23505") {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(internalErrorBody("api/notify", error.message), { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
@@ -72,8 +90,9 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "ログインが必要です。" }, { status: 401 });
   }
 
-  const { workId } = await request.json();
-  if (typeof workId !== "number") {
+  // 壊れたJSON・範囲外の値（小数・負数・巨大値）は400（lib/userListApi.ts）。
+  const workId = await readWorkIdBody(request);
+  if (workId === null) {
     return NextResponse.json({ error: "workIdが不正です。" }, { status: 400 });
   }
 
@@ -83,7 +102,7 @@ export async function DELETE(request: Request) {
     .eq("user_id", user.id)
     .eq("work_id", workId);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(internalErrorBody("api/notify", error.message), { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

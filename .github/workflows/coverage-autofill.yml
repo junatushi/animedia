@@ -10,6 +10,30 @@ name: 配信先の自動補完を検証してマージ
 # 「調べたClaudeの申告をそのまま本番に出さない」のが目的なので、検証はClaudeの作業環境ではなく
 # ここ（GitHubのランナー）で、PRの中身だけを入力にして独立にやり直す。
 #
+# 【2026-11-05・セキュリティ強化（重大度高）。この順番を崩さないこと】
+# 調べるClaudeは外部ページを読むのでプロンプトインジェクションを受けうる。当初の作りには穴が3つあった:
+#  ①トリガーが `pull_request` だったので、このワークフロー自身がPRの版で動いた＝PRが
+#    ファイル許可リストの工程や検証を消したワークフローを持ち込めた（contents: write つき）。
+#  ②PRの版をチェックアウトして `npm ci` を回していた＝PRの package.json のライフサイクル
+#    スクリプトが書き込みトークンの権限で走った。
+#  ③検証スクリプトがPRの extraServices.ts を import() し、coverage-acknowledged.js を require()
+#    していた＝PRのコードが門番の中で動き、`process.exit(0)` で合格を偽装できた。しかも
+#    extraServices.ts は本番のサーバーコードなので、2ファイルの許可リストを通ったコードは
+#    マージ後にVercelの本番（秘密鍵つき）で走る。
+# いまの作り:
+#  A. `pull_request_target`。定義は常に main の版が使われる（PRはこの工程を書き換えられない）。
+#     注意: そのため**このファイルの修正は main にマージされるまで効かない**。
+#  B. 取り出すのは main のツリーだけ。PRのコミットは `git fetch` で**データとして**取り、
+#     チェックアウトも実行もしない。`npm ci` も main の上で回す。
+#  C. 触ってよいファイルの許可リストは信頼できる側（main）のコードで `git diff` して決める。
+#  D. 許可した2ファイルについて、PRのコードを一切動かさず、文字列だけで
+#     「データのリテラルしか変わっていない」ことを確かめる（scripts/check-data-only-pr.js）。
+#     これを通るまで、PRのファイルを import / require / 実行する工程を置かない。
+#  E. その後で初めて、PRの版を一時ファイルに書き出して main の検証スクリプトに環境変数で渡す。
+# **この順番（A→B→C→D→E）を崩さないこと。** D より前にPRのファイルを import する工程を足したり、
+# PRのツリーをチェックアウトしたりすると、検証をコードで偽装できる状態に戻る。
+# 検査は node scripts/check-verify-extra-services.js（門番自身の回帰テスト）。
+#
 # 【Vercelの無料枠】
 # mainへのマージ＝本番デプロイ＝ISRキャッシュの全消去（docs/operations.md の㉝）。
 # 自動マージは**JSTの1日1本まで**にする（2本目以降は人の判断に回す）。確認済みの除外
@@ -17,7 +41,7 @@ name: 配信先の自動補完を検証してマージ
 # デプロイが起きない（scripts/ は除外済み）。
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
@@ -32,34 +56,54 @@ concurrency:
 
 jobs:
   verify-and-merge:
-    # 自動補完のブランチ・同じリポジトリ・下書きでないPRだけ（フォークのPRには書き込み権限を渡さない）
+    # 自動補完のブランチ・同じリポジトリ・下書きでないPRだけ（フォークのPRには書き込み権限を渡さない）。
+    # マージ先は main だけ（pull_request_target は main 以外へのPRでも起動するため）。
     if: >-
-      startsWith(github.head_ref, 'claude/coverage-autofill-') &&
+      startsWith(github.event.pull_request.head.ref, 'claude/coverage-autofill-') &&
       github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'main' &&
       !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      # 取り出すのは信頼できる main の版（pull_request_target の既定）。トークンは残さない。
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
+      # main のツリー上で依存を入れる（PRの package.json は使わない）。
       - run: npm ci
 
+      # PRのコミットは**データとして**取るだけ。チェックアウトも実行もしない。
+      # イベントの値は env 経由で渡す（run のテキストに ${{ }} で埋め込まない）。
+      - name: PRのコミットをデータとして取得する
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --no-tags origin "+refs/pull/${PR_NUMBER}/head:refs/remotes/pr/head"
+          ACTUAL=$(git rev-parse refs/remotes/pr/head)
+          if [ "$ACTUAL" != "$PR_HEAD_SHA" ]; then
+            { echo "### 配信先の自動補完の機械検証"; echo; echo "取得したPRの先頭コミット(\`$ACTUAL\`)がイベントのコミット(\`$PR_HEAD_SHA\`)と一致しません。PRが更新された可能性があるので、自動ではマージしません（更新で再実行されます）。"; } > "$RUNNER_TEMP/report.md"
+            exit 1
+          fi
+
       # 触ってよいファイルは2つだけ。他のファイルが混ざったPRは、中身が正しくても自動では通さない
-      # （検証スクリプト自体を書き換えて合格させる、という経路も塞ぐ）。
+      # （検証スクリプトやワークフロー自体を書き換えて合格させる、という経路も塞ぐ）。
       - name: 変更されたファイルを限定する
         id: files
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          BASE=$(git merge-base origin/main HEAD)
+          BASE=$(git merge-base HEAD "$PR_HEAD_SHA")
           echo "base=$BASE" >> "$GITHUB_OUTPUT"
-          CHANGED=$(git diff --name-only "$BASE" HEAD)
+          CHANGED=$(git diff --no-renames --name-only "$BASE" "$PR_HEAD_SHA")
           echo "$CHANGED"
           BAD=$(echo "$CHANGED" | grep -v -x -e 'content/works/extraServices.ts' -e 'scripts/lib/coverage-acknowledged.js' || true)
           if [ -n "$BAD" ]; then
@@ -67,18 +111,44 @@ jobs:
             exit 1
           fi
 
-      # 検証スクリプトは**mainの版**を使う（PRの中の版はPRが書き換えられる）。上で触れるファイルを
-      # 限定しているので同じ中身のはずだが、念のため main から取り出して実行する。
-      - name: 出典を取り直して裏取りする
-        id: verify
+      # 許可した2ファイルの変更が「データのリテラルだけ」であることを、PRのコードを動かさずに確かめる。
+      # **PRのファイルを import / require / 実行する工程より前に置くこと。**
+      - name: データのみの変更か確かめる（コードを動かさない）
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE: ${{ steps.files.outputs.base }}
         run: |
           set +e
-          git show origin/main:scripts/verify-extra-services.ts > "$RUNNER_TEMP/verify.ts"
-          git show origin/main:scripts/lib/verify-extra-services.js > scripts/lib/verify-extra-services.js
-          cp "$RUNNER_TEMP/verify.ts" scripts/verify-extra-services.ts
-          node --no-warnings scripts/verify-extra-services.ts --base "${{ steps.files.outputs.base }}" > "$RUNNER_TEMP/report.md"
+          node scripts/check-data-only-pr.js --base "$BASE" --head "$PR_HEAD_SHA" > "$RUNNER_TEMP/guard.md"
           code=$?
-          git checkout -- scripts/verify-extra-services.ts scripts/lib/verify-extra-services.js
+          cp "$RUNNER_TEMP/guard.md" "$RUNNER_TEMP/report.md"
+          cat "$RUNNER_TEMP/guard.md"
+          exit $code
+
+      # ここで初めてPRの版を使う。PRのツリーは取り出さず、`git show` で一時ファイルに書き出して
+      # main の検証スクリプトへ環境変数で渡す（スクリプト自体は main の版）。
+      - name: 出典を取り直して裏取りする
+        id: verify
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE: ${{ steps.files.outputs.base }}
+        run: |
+          set +e
+          T="$RUNNER_TEMP/verify-inputs"
+          mkdir -p "$T"
+          git show "$BASE:content/works/extraServices.ts" > "$T/base-extra.ts" &&
+          git show "$PR_HEAD_SHA:content/works/extraServices.ts" > "$T/head-extra.ts" &&
+          git show "$BASE:scripts/lib/coverage-acknowledged.js" > "$T/base-ack.js" &&
+          git show "$PR_HEAD_SHA:scripts/lib/coverage-acknowledged.js" > "$T/head-ack.js"
+          if [ $? -ne 0 ]; then
+            { cat "$RUNNER_TEMP/guard.md"; echo; echo "検証の入力となるファイルを取り出せませんでした。"; } > "$RUNNER_TEMP/report.md"
+            exit 1
+          fi
+          VERIFY_EXTRA_BASE="$T/base-extra.ts" VERIFY_EXTRA_HEAD="$T/head-extra.ts" \
+          VERIFY_ACK_BASE="$T/base-ack.js" VERIFY_ACK_HEAD="$T/head-ack.js" \
+            node --no-warnings scripts/verify-extra-services.ts > "$RUNNER_TEMP/verify.md"
+          code=$?
+          { cat "$RUNNER_TEMP/guard.md"; echo; cat "$RUNNER_TEMP/verify.md"; } > "$RUNNER_TEMP/report.md"
           cat "$RUNNER_TEMP/report.md"
           echo "code=$code" >> "$GITHUB_OUTPUT"
           [ "$code" = "0" ] || exit 1

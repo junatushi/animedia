@@ -14,10 +14,11 @@
 //   画面とJSONで数字がズレ、どちらが正か分からなくなる。
 // ・認証は画面と同じ「固定シークレットの一致」。**不一致・未指定は404**（存在しない
 //   ページと同じ扱い＝不一致の理由を教えない）。
-// ・トークンはクエリではなく **`x-admin-token` ヘッダー**でも受ける。機械から叩く経路では
-//   URLに秘密を載せない方が漏れにくい（ログ・リファラに残らない）ため、そちらを既定にする。
+// ・トークンは **`x-admin-token` ヘッダーだけ**で受ける（2026-11-05にクエリ `?token=` を廃止）。
+//   URLに秘密を載せるとアクセスログ・履歴・リファラに残るため。
 // ・**noindex**（robots.txt で /admin は除外済みだが、ここは /api 配下なので明示する）。
 import { NextResponse } from "next/server";
+import { safeEqual } from "@/lib/safeEqual";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { buildSnapshot, fetchWindowRows, WINDOW_DAYS } from "@/lib/adminAnalytics";
@@ -38,9 +39,10 @@ export async function GET(request: Request) {
     );
   }
 
-  const url = new URL(request.url);
-  const provided = request.headers.get("x-admin-token") ?? url.searchParams.get("token");
-  if (provided !== adminToken) {
+  // 【2026-11-05】クエリ（?token=）では受けない。機械の経路（scripts/fetch-site-analytics.js）は
+  // ヘッダーで送っており、URLに秘密を載せるとアクセスログ・履歴に残るため。
+  const provided = request.headers.get("x-admin-token");
+  if (!safeEqual(provided, adminToken)) {
     return NextResponse.json({ error: "not found" }, { status: 404, headers: NOINDEX });
   }
 

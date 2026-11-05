@@ -132,6 +132,15 @@ import { parseWorkId } from "../lib/workId.ts";
 // 検査の対象を**手で数えず、app/ を走査して導出する**ための道具（2026-08-31導入）。
 // 名指しの列挙が漏れて OG画像ルートだけ検証を通っていなかった事故から入れた。
 import { appRoutes, dynamicRoutes } from "./lib/app-routes.js";
+import { serializeJsonLd } from "../lib/jsonLd.ts";
+import { safeNextPath } from "../lib/safeRedirect.ts";
+import { safeEqual } from "../lib/safeEqual.ts";
+import { rejectedMethodStatus } from "../lib/methodGuard.ts";
+import { canonicalQueryTarget, queryRuleFor, QUERY_POLICY_EXEMPT, jstHourKey } from "../lib/queryPolicy.ts";
+import { parseWorkIdValue, MAX_WORK_ID } from "../lib/workId.ts";
+import { MAX_ITEMS_PER_USER } from "../lib/userListApi.ts";
+import { isFreshDiscordTimestamp, DISCORD_TIMESTAMP_TOLERANCE_SEC } from "../lib/discord.ts";
+import { trackRequestRejection } from "../lib/trackEventData.ts";
 // currentTrackedSeasonKey は "2026-autumn"（年込み）。lib/resolveSeasonParams.ts の
 // currentSeasonKey（クール名だけ）とは別物なので名前を分けてある（上の「誤用」節の事故と同じ形を避ける）。
 import { currentValues, currentTrackedSeasonKey, currentSampleUrls } from "./lib/route-samples.js";
@@ -5865,7 +5874,9 @@ let softNg = 0;
   const idCases: [string, number | null, string][] = [
     ["13180", 13180, "普通の10進"],
     ["1", 1, "最小"],
-    ["999999999", 999999999, "9桁の上限"],
+    ["999999", 999999, "6桁の上限（2026-11-05に9桁→6桁）"],
+    ["1000000", null, "7桁（実IDより2桁多い。存在しないIDでISRへ書かせない）"],
+    ["999999999", null, "9桁（旧上限）"],
     ["0", null, "ゼロ"],
     ["-1", null, "負"],
     ["0013180", null, "先頭ゼロ（別URLで同じ作品になる）"],
@@ -9134,6 +9145,269 @@ let circNg = 0;
 }
 console.log(`結果（回遊の導線と欄の名前）: ${3 - circNg} 件OK / ${circNg} 件NG`);
 
+// ─────────────────────────────────────────────
+// セキュリティと無料枠の防壁（2026-11-05導入。docs/operations.md の [71]、docs/security.md）
+//
+// どれも**外しても画面は1ピクセルも変わらない**（XSSの穴・オープンリダイレクト・
+// 秘密の比較・関数を外から起動させ続けられる穴・ワークフローの権限）。壊れたことに
+// 気づくのは悪用された後なので、挙動とソースの両方を機械的に見張る。
+// 対象は手で並べず、`app/`・`.github/workflows/` を走査して導出する（㊳）。
+// ─────────────────────────────────────────────
+console.log("\n── セキュリティと無料枠の防壁 ──");
+let secNg = 0;
+{
+  const secCheck = (label: string, ok: boolean, detail: string) => {
+    if (!ok) secNg++;
+    console.log(`${ok ? "✓" : "✗"}  ${label.padEnd(40)} → ${detail}`);
+  };
+  const walk = (dir: string): string[] => {
+    const out: string[] = [];
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = `${dir}/${e.name}`;
+      if (e.isDirectory()) out.push(...walk(p));
+      else if (/\.(ts|tsx)$/.test(e.name)) out.push(p);
+    }
+    return out;
+  };
+  const root = fileURLToPath(new URL("..", import.meta.url)).replace(/\\/g, "/").replace(/\/$/, "");
+  const srcFiles = ["app", "components", "lib"].flatMap((d) => walk(`${root}/${d}`));
+  const rel = (p: string) => p.slice(root.length + 1);
+  const read = (p: string) => readFileSync(p, "utf8");
+  // コメントを落としてから見る（「〜しないこと」と書いたコメントを実装と取り違えない。1063行目の節の教訓）
+  const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+
+  // ① JSON-LD は serializeJsonLd を通す（Annictの作品名に </script> を入れられると保存型XSS）
+  {
+    const evil = { name: "</script><script>alert(1)</script>", amp: "a&b", ls: "x\u2028y" };
+    const out = serializeJsonLd(evil);
+    const roundTrip = JSON.stringify(JSON.parse(out)) === JSON.stringify(evil);
+    secCheck("JSON-LDの書き出しが </script> で閉じない", !/[<>\u2028\u2029]/.test(out) && roundTrip, `"<"の残存=${/</.test(out)} / 値の一致=${roundTrip}`);
+    const raw = srcFiles.filter((f) => /__html:\s*JSON\.stringify\(/.test(code(read(f)))).map(rel);
+    const ldFiles = srcFiles.filter((f) => read(f).includes("application/ld+json"));
+    const notUsing = ldFiles.filter((f) => !read(f).includes("serializeJsonLd(")).map(rel);
+    secCheck(
+      "JSON-LDを素の JSON.stringify で出さない",
+      raw.length === 0 && notUsing.length === 0 && ldFiles.length >= 5,
+      raw.length || notUsing.length ? `直書き: ${[...raw, ...notUsing].join(", ")}` : `${ldFiles.length}ファイルを走査して全部が serializeJsonLd`
+    );
+  }
+
+  // ② ログイン後の戻り先は同じオリジンのパスだけ（オープンリダイレクト）
+  {
+    const origin = "https://animedia-khaki.vercel.app";
+    const bad = ["@evil.example", ".evil.example", "//evil.example", "/\\evil.example", "https://evil.example", "/\r\nLocation: https://evil.example", "/\tfoo", "javascript:alert(1)", ""];
+    const leaked = bad.filter((n) => safeNextPath(n, origin) !== "/");
+    const good: [string, string][] = [["/", "/"], ["/anime/13180", "/anime/13180"], ["/season/2026/autumn?x=1#y", "/season/2026/autumn?x=1#y"]];
+    const broken = good.filter(([n, w]) => safeNextPath(n, origin) !== w);
+    const cb = code(readFileSync(new URL("../app/auth/callback/route.ts", import.meta.url), "utf8"));
+    const wired = cb.includes("safeNextPath(") && !/`\$\{origin\}\$\{next\}`/.test(cb);
+    secCheck("ログイン後の戻り先を外部へ向けない", leaked.length === 0 && broken.length === 0 && wired, leaked.length ? `通過: ${leaked.join(" ")}` : broken.length ? `正しいパスが落ちる: ${broken.map(([n]) => n).join(" ")}` : wired ? `${bad.length}通りを拒否・${good.length}通りを許可` : "auth/callback が safeNextPath を通していない");
+  }
+
+  // ③ 秘密の比較は safeEqual（一定時間）。未設定どうしを一致とみなさない
+  {
+    const behaves = safeEqual("abc", "abc") && !safeEqual("abc", "abd") && !safeEqual("", "") && !safeEqual(undefined, undefined) && !safeEqual("a", "abc");
+    const secretFiles = srcFiles.filter((f) => /process\.env\.(NOTIFY_CRON_SECRET|ADMIN_DASHBOARD_TOKEN)/.test(read(f)));
+    const naive = secretFiles.filter((f) => !code(read(f)).includes("safeEqual(") || /!==\s*(cronSecret|secret|adminToken)\b/.test(code(read(f)))).map(rel);
+    secCheck("秘密の比較が一定時間・未設定で一致しない", behaves && naive.length === 0 && secretFiles.length >= 5, naive.length ? `素の比較: ${naive.join(", ")}` : `${secretFiles.length}ファイルが safeEqual を通す`);
+    const adminApi = code(readFileSync(new URL("../app/api/admin/analytics/route.ts", import.meta.url), "utf8"));
+    secCheck("管理APIはトークンをURLで受けない", !/searchParams\.get\("token"\)/.test(adminApi), "x-admin-token ヘッダーだけ");
+  }
+
+  // ④ ページへのPOST・Server Action を描画前に断る（Next.js 14 に修正版の無い勧告の緩和策）
+  {
+    const h = (o: Record<string, string>) => ({ get: (k: string) => o[k.toLowerCase()] ?? null });
+    const cases: [string, string, Record<string, string>, number | null][] = [
+      ["GET", "/anime/1", {}, null],
+      ["HEAD", "/", {}, null],
+      ["POST", "/anime/1", {}, 405],
+      ["POST", "/", { "next-action": "abc" }, 400],
+      ["GET", "/season/2026/autumn", { "next-action": "x" }, 400],
+      ["POST", "/api/track", {}, null],
+      ["POST", "/api/discord", {}, null],
+      ["PUT", "/feed.xml", {}, 405],
+    ];
+    const wrong = cases.filter(([m, p, hd, want]) => rejectedMethodStatus(m, p, h(hd)) !== want);
+    const mw = code(readFileSync(new URL("../middleware.ts", import.meta.url), "utf8"));
+    const order = mw.indexOf("rejectedMethodStatus(") >= 0 && mw.indexOf("rejectedMethodStatus(") < mw.indexOf("updateSession(");
+    const useServer = srcFiles.filter((f) => /^\s*["']use server["']/m.test(read(f))).map(rel);
+    secCheck("ページへのPOST・Server Actionを断る", wrong.length === 0 && order && useServer.length === 0, wrong.length ? `誤判定: ${wrong.map(([m, p]) => `${m} ${p}`).join(", ")}` : !order ? "middleware が先に判定していない" : useServer.length ? `"use server" がある（断る前提が崩れる）: ${useServer.join(", ")}` : `${cases.length}通り・"use server" 0件`);
+  }
+
+  // ⑤ 公開の route handler の知らないクエリは関数を起動する前に落とす（無料枠）
+  {
+    const now = new Date("2026-11-05T03:00:00Z");
+    const hk = jstHourKey(now);
+    const cases: [string, string, string | null][] = [
+      ["/api/season", "?year=2026&season=autumn", null],
+      ["/api/season", `?year=2026&season=autumn&_h=${hk}`, null],
+      ["/api/season", "?year=2026&season=autumn&_h=2001010100", "/api/season?year=2026&season=autumn"],
+      ["/api/season", "?year=2026&season=autumn&x=1", "/api/season?year=2026&season=autumn"],
+      ["/api/season", "?year=2026&year=2025&season=autumn", "/api/season?year=2026&season=autumn"],
+      ["/api/work/13180", "?cb=123", "/api/work/13180"],
+      ["/api/sns-image", "?kind=nope", "/api/sns-image"],
+      ["/api/sns-image", "?kind=airing&day=%E6%9C%88", null],
+      ["/calendar.ics", "?service=d_anime", null],
+      ["/calendar.ics", "?service=d_anime&ref=x", "/calendar.ics?service=d_anime"],
+      ["/anime/13180", "?ref=embed", null],
+      ["/", "?year=2026&season=autumn", null],
+    ];
+    const wrong = cases.filter(([p, q, want]) => canonicalQueryTarget(p, q, now) !== want);
+    secCheck("知らないクエリでキャッシュを外させない", wrong.length === 0, wrong.length ? `誤判定: ${wrong.map(([p, q]) => `${p}${q} → ${canonicalQueryTarget(p, q, now)}`).join(" / ")}` : `${cases.length}通り`);
+
+    // 対象は app/ を走査して導出する。GET を持つ route が「表」か「対象外の表」のどちらかに載っていること、
+    // 表に載る route が読むキーが全部許可されていること（許可し忘れると正しいクエリまで落とす）。
+    const getRoutes = appRoutes(fileURLToPath(new URL("../app", import.meta.url))).filter(
+      (r) => r.kind === "api" && /export\s+(async\s+)?function\s+GET\b|export\s+const\s+GET\b/.test(read(r.file))
+    );
+    const sample = (rp: string) => rp.replace(/\[[^\]]+\]/g, "1");
+    const unlisted: string[] = [];
+    const unallowed: string[] = [];
+    for (const r of getRoutes) {
+      const rule = queryRuleFor(sample(r.routePath));
+      if (!rule) {
+        if (!Object.prototype.hasOwnProperty.call(QUERY_POLICY_EXEMPT, r.routePath)) unlisted.push(r.routePath);
+        continue;
+      }
+      for (const m of read(r.file).matchAll(/searchParams\.get\(\s*["']([^"']+)["']\s*\)/g)) {
+        if (!Object.prototype.hasOwnProperty.call(rule.allow, m[1])) unallowed.push(`${r.routePath}?${m[1]}`);
+      }
+    }
+    secCheck("GETの route が全部クエリの表に載る", unlisted.length === 0 && unallowed.length === 0 && getRoutes.length >= 10, unlisted.length ? `表に無い: ${unlisted.join(", ")}（lib/queryPolicy.ts）` : unallowed.length ? `読むのに許可されていないキー: ${unallowed.join(", ")}` : `${getRoutes.length}件を走査`);
+    const mw = code(readFileSync(new URL("../middleware.ts", import.meta.url), "utf8"));
+    secCheck("middleware がクエリを正規化する", mw.includes("canonicalQueryTarget(") && mw.indexOf("canonicalQueryTarget(") < mw.indexOf("updateSession("), "セッション更新より前");
+  }
+
+  // ⑥ 季節セグメントも描画前に弾く（未見の文字列の数だけISRへ書き込めた）
+  {
+    const now = new Date("2026-11-05T00:00:00Z");
+    const cases: [string, 400 | 404 | null][] = [
+      ["/season/2026/autumn", null],
+      ["/season/2026/xyz", 404],
+      ["/rankings/2026/Autumn", 404],
+      ["/service/d_anime/2026/fall", 404],
+      ["/person/%E6%82%A0%E6%9C%A8%E7%A2%A7/2026/summer", null],
+      ["/person/%E6%82%A0%E6%9C%A8%E7%A2%A7/2026/abc", 404],
+      ["/season/2026", null],
+      ["/anime/1000000", 404],
+      ["/anime/999999", null],
+    ];
+    const wrong = cases.filter(([p, want]) => malformedRouteStatus(p, now) !== want);
+    secCheck("季節・作品IDの値域を描画前に閉じる", wrong.length === 0, wrong.length ? `誤判定: ${wrong.map(([p]) => `${p} → ${malformedRouteStatus(p, now)}`).join(" / ")}` : `${cases.length}通り`);
+    // 作品IDの上限は実データの10倍以上の余裕を保つ（近づいたら正規表現の桁を増やす）
+    let maxId = 0;
+    for (const f of readdirSync(new URL("../content/snapshots/", import.meta.url))) {
+      if (!f.endsWith(".json")) continue;
+      const j = JSON.parse(readFileSync(new URL(`../content/snapshots/${f}`, import.meta.url), "utf8"));
+      for (const it of j.items ?? []) if (typeof it.id === "number" && it.id > maxId) maxId = it.id;
+    }
+    secCheck("作品IDの値域に実データの10倍の余裕", maxId > 0 && maxId * 10 <= MAX_WORK_ID && parseWorkId(String(MAX_WORK_ID)) === MAX_WORK_ID && parseWorkId(String(MAX_WORK_ID + 1)) === null, `実データの最大 ${maxId} / 上限 ${MAX_WORK_ID}`);
+  }
+
+  // ⑦ ログイン利用者のリストAPI（視聴済み・通知）の入力と件数
+  {
+    const vals: [unknown, number | null][] = [[13180, 13180], [0, null], [-1, null], [1.5, null], [1e20, null], ["13180", null], [null, null], [MAX_WORK_ID + 1, null]];
+    const wrong = vals.filter(([v, w]) => parseWorkIdValue(v) !== w);
+    const routes = ["../app/api/watched/route.ts", "../app/api/notify/route.ts"].map((p) => code(readFileSync(new URL(p, import.meta.url), "utf8")));
+    const wired = routes.every((s) => s.includes("readWorkIdBody(") && s.includes("MAX_ITEMS_PER_USER") && !s.includes("await request.json()") && !/error:\s*\w*(?:[eE]rr|[eE]rror)\.message/.test(s));
+    secCheck("視聴済み・通知APIの入力検証と件数上限", wrong.length === 0 && wired && MAX_ITEMS_PER_USER > 0, wrong.length ? `誤判定: ${wrong.map(([v]) => String(v)).join(", ")}` : wired ? `上限 ${MAX_ITEMS_PER_USER}件` : "route が共通の検証を通していない／内部のエラー文を返している");
+    // 内部のエラー文（Supabaseのテーブル名・列名を含みうる）を応答に載せない。対象は app/api を走査
+    const leaks = srcFiles
+      .filter((f) => rel(f).startsWith("app/api/"))
+      .filter((f) => /NextResponse\.json\(\s*\{\s*error:\s*\w*(?:[eE]rr|[eE]rror)\.message/.test(code(read(f))))
+      .map(rel);
+    secCheck("内部のエラー文を応答に載せない", leaks.length === 0, leaks.length ? leaks.join(", ") : "app/api を走査して0件");
+  }
+
+  // ⑦-2 /api/track は大きな本文・JSON以外・他サイトからの送信を読まない
+  {
+    const h = (o: Record<string, string>) => ({ get: (k: string) => o[k.toLowerCase()] ?? null });
+    const hosts = ["animedia-khaki.vercel.app"];
+    const cases: [string, Record<string, string>, number | null][] = [
+      ["正直な送信（fetch）", { "content-type": "application/json", origin: "https://animedia-khaki.vercel.app", "content-length": "120" }, null],
+      ["Originなし（curl）", { "content-type": "application/json" }, null],
+      ["他サイトから", { "content-type": "application/json", origin: "https://evil.example" }, 403],
+      ["Origin: null", { "content-type": "application/json", origin: "null" }, 403],
+      ["フォーム送信", { "content-type": "application/x-www-form-urlencoded", origin: "https://animedia-khaki.vercel.app" }, 415],
+      ["大きな本文", { "content-type": "application/json", "content-length": "100000" }, 413],
+    ];
+    const wrong = cases.filter(([, hd, want]) => trackRequestRejection(h(hd), hosts) !== want);
+    const route = code(readFileSync(new URL("../app/api/track/route.ts", import.meta.url), "utf8"));
+    const wired = route.includes("trackRequestRejection(") && route.indexOf("trackRequestRejection(") < route.indexOf("JSON.parse(");
+    secCheck("計測の口が他サイト・大きな本文を読まない", wrong.length === 0 && wired, wrong.length ? `誤判定: ${wrong.map(([n]) => n).join(", ")}` : wired ? `${cases.length}通り` : "route が本文を読む前に判定していない");
+  }
+
+  // ⑧ Discordの再送・配信停止リンクの先読み
+  {
+    const now = Date.UTC(2026, 10, 5);
+    const sec = String(Math.floor(now / 1000));
+    const ok = isFreshDiscordTimestamp(sec, now) && !isFreshDiscordTimestamp(String(Number(sec) - 3600), now) && !isFreshDiscordTimestamp("abc", now);
+    const route = code(readFileSync(new URL("../app/api/discord/route.ts", import.meta.url), "utf8"));
+    secCheck("Discordの古い署名を受け付けない", ok && route.includes("isFreshDiscordTimestamp("), `許容±${DISCORD_TIMESTAMP_TOLERANCE_SEC}秒`);
+    const unsub = code(readFileSync(new URL("../app/api/notify/unsubscribe/route.ts", import.meta.url), "utf8"));
+    const getBody = unsub.slice(unsub.indexOf("export async function GET"), unsub.indexOf("export async function POST"));
+    secCheck("配信停止はGETで消さない（POSTだけ）", getBody.length > 0 && !getBody.includes(".delete(") && unsub.includes("export async function POST"), "メールの安全確認が開いただけで止めない");
+  }
+
+  // ⑨ next.config: セキュリティヘッダー・画像最適化の無効化
+  {
+    const cfg = (await import(new URL("../next.config.mjs", import.meta.url).href)).default as {
+      images?: { unoptimized?: boolean };
+      poweredByHeader?: boolean;
+      headers?: () => Promise<{ source: string; headers: { key: string; value: string }[] }[]>;
+    };
+    const rules = cfg.headers ? await cfg.headers() : [];
+    const { pathToRegexp } = (await import("next/dist/compiled/path-to-regexp/index.js")).default as { pathToRegexp: (p: string) => RegExp };
+    const headersFor = (path: string) => {
+      const m = new Map<string, string>();
+      for (const r of rules) if (pathToRegexp(r.source).test(path)) for (const h of r.headers) m.set(h.key.toLowerCase(), h.value);
+      return m;
+    };
+    const page = headersFor("/anime/13180");
+    const top = headersFor("/");
+    const embed = headersFor("/embed/anime/13180");
+    const admin = headersFor("/admin/analytics");
+    const need = ["x-content-type-options", "referrer-policy", "x-frame-options", "content-security-policy"];
+    const missing = need.filter((k) => !page.has(k) || !top.has(k));
+    const embedOk = !embed.has("x-frame-options") && !(embed.get("content-security-policy") ?? "").includes("frame-ancestors");
+    secCheck("セキュリティヘッダー（埋め込みは枠を許す）", missing.length === 0 && embedOk && /frame-ancestors 'self'/.test(page.get("content-security-policy") ?? "") && admin.get("referrer-policy") === "no-referrer", missing.length ? `欠落: ${missing.join(", ")}` : embedOk ? "ページ・トップ・管理画面・埋め込みを確認" : "埋め込みに枠の制限が付いている（他サイトに貼れなくなる）");
+    secCheck("画像最適化を無効にしている", cfg.images?.unoptimized === true && cfg.poweredByHeader === false, "Image Transformations（月5,000）を外から使い切らせない");
+    const usesNextImage = srcFiles.filter((f) => /from\s+["']next\/image["']/.test(read(f))).map(rel);
+    secCheck("next/image を使っていない（無効化の前提）", usesNextImage.length === 0, usesNextImage.length ? usesNextImage.join(", ") : "0件");
+  }
+
+  // ⑩ GitHub Actions: 権限を明示し、秘密とイベントの値を run の本文に展開しない
+  {
+    const wfDir = new URL("../.github/workflows/", import.meta.url);
+    const wfs = readdirSync(wfDir).filter((f) => /\.ya?ml$/.test(f));
+    const noPerm: string[] = [];
+    const inlined: string[] = [];
+    for (const f of wfs) {
+      const src = readFileSync(new URL(f, wfDir), "utf8");
+      if (!/^permissions:/m.test(src)) noPerm.push(f);
+      src.split("\n").forEach((line, i) => {
+        if (/^\s*#/.test(line)) return;
+        if (!/\$\{\{\s*(secrets\.|github\.event\.)/.test(line)) return;
+        // `KEY: ${{ … }}`（env・with の1行）と `if:` だけを許す。run の本文やURLに混ぜない
+        if (/^\s*(-\s*)?[A-Za-z0-9_-]+:\s*\$\{\{[^}]*\}\}\s*$/.test(line) || /^\s*(-\s*)?if:/.test(line)) return;
+        inlined.push(`${f}:${i + 1}`);
+      });
+    }
+    secCheck("全ワークフローが permissions を明示", noPerm.length === 0, noPerm.length ? noPerm.join(", ") : `${wfs.length}本`);
+    secCheck("秘密・イベントの値を run に直接展開しない", inlined.length === 0, inlined.length ? inlined.join(", ") : "env 経由だけ");
+    const auto = readFileSync(new URL("coverage-autofill.yml", wfDir), "utf8");
+    const autoCode = auto.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
+    const target = /^on:\s*\n\s+pull_request_target:/m.test(autoCode);
+    const noHeadCheckout = !/ref:\s*\$\{\{\s*github\.event\.pull_request\.head/.test(autoCode);
+    const noPersist = /persist-credentials:\s*false/.test(autoCode);
+    const verifyAt = autoCode.search(/node[^\n]*scripts\/verify-extra-services\.ts/);
+    const guardAt = autoCode.search(/node[^\n]*scripts\/check-data-only-pr\.js/);
+    const guardFirst = guardAt > 0 && verifyAt > guardAt;
+    secCheck("自動マージはmainの定義で・PRのコードを実行せず", target && noHeadCheckout && noPersist && guardFirst, `pull_request_target=${target} / PRをcheckoutしない=${noHeadCheckout} / 資格情報を残さない=${noPersist} / データ検査が先=${guardFirst}`);
+  }
+}
+console.log(`結果（セキュリティと無料枠の防壁）: ${secNg === 0 ? "全部OK" : `${secNg} 件NG`}`);
+
 if (
   ssrPayloadNg > 0 ||
   topSsrNg > 0 ||
@@ -9169,6 +9443,7 @@ if (
   prepNg > 0 ||
   archiveNg > 0 ||
   titleNg > 0 ||
+  secNg > 0 ||
   pageTitleNg > 0 ||
   faceNg > 0 ||
   descNg > 0 ||

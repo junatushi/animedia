@@ -21,7 +21,7 @@ const REPO_ROOT = path.join(__dirname, "..");
 const SCRIPT = path.join(__dirname, "patrol.js");
 
 // 10進の作品IDだけを妥当とみなす（lib/workId.ts と同じ規則）。
-const DECIMAL_ID = /^[1-9][0-9]{0,8}$/;
+const DECIMAL_ID = /^[1-9][0-9]{0,5}$/; // 1〜6桁（lib/routeGuard.ts）
 const MIN_YEAR = 2010;
 const MAX_YEAR = new Date().getFullYear() + 1;
 
@@ -49,8 +49,46 @@ function startStub(broken) {
         return s;
       }
     });
-    const html = (body, code = 200) =>
-      res.writeHead(code, { "Content-Type": "text/html; charset=utf-8" }).end(body);
+    const isEmbed = seg[0] === "embed";
+    const html = (body, code = 200) => {
+      // 保安ヘッダー（next.config.mjs）。埋め込みだけはフレーム許可（X-Frame-Optionsなし）。
+      const h = { "Content-Type": "text/html; charset=utf-8" };
+      if (!has("no-nosniff")) h["X-Content-Type-Options"] = "nosniff";
+      if (isEmbed) {
+        h["Content-Security-Policy"] = has("embed-self-only")
+          ? "frame-ancestors 'self'"
+          : "frame-ancestors *";
+        if (has("embed-xfo")) h["X-Frame-Options"] = "SAMEORIGIN";
+      } else {
+        if (!has("no-xfo")) h["X-Frame-Options"] = "SAMEORIGIN";
+        if (!has("no-csp")) h["Content-Security-Policy"] = "frame-ancestors 'self'; base-uri 'self'";
+      }
+      return res.writeHead(code, h).end(body);
+    };
+
+    // ── 防壁（middleware の再現） ──
+    const isApi = seg[0] === "api";
+    if (req.headers["next-action"] !== undefined && !has("no-action-guard")) return html("bad", 400);
+    if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && !isApi && !has("post-200")) {
+      return html("method not allowed", 405);
+    }
+    {
+      const u = new URL(req.url, "http://x");
+      const target =
+        (u.pathname === "/api/season" && ["year", "season"]) ||
+        (u.pathname.startsWith("/api/work/") && []);
+      if (target && !has("no-308")) {
+        const kept = new URLSearchParams();
+        for (const [k, val] of u.searchParams) if (target.includes(k)) kept.append(k, val);
+        const qs = kept.toString();
+        if ([...u.searchParams].length !== [...kept].length) {
+          return res
+            .writeHead(308, { Location: u.pathname + (qs ? "?" + qs : "") })
+            .end();
+        }
+      }
+    }
+    if (seg.length === 0) return html(page());
 
     // 作品ID系（/anime /api/work /embed/anime）
     const idRoute =
@@ -63,7 +101,7 @@ function startStub(broken) {
         if (has("five-xx") && rawId.length > 15) return html("取得に失敗しました。", 502);
         // `loose-id`: 10進以外を受け入れて200を返す（同じ作品の別URL）。
         if (has("loose-id")) return html(page(true, false));
-        return html("作品IDが正しくありません。", 400);
+        return html("作品IDが正しくありません。", seg[0] === "anime" ? 404 : 400);
       }
       return html(page(!has("no-h1"), has("error-body")));
     }
@@ -208,6 +246,15 @@ async function main() {
     // 違反0件・exit 0 のまま緑になっていた。㊱（重大度最高）の再発を
     // この道具が構造的に見逃す状態だったので、ここで固定する。
     ["pregen-404", "実在する名前のページが404（㊱の再現）", "対照が200を返さない（404）"],
+    // 2026-11-05追加（セキュリティと無料枠の防壁）。
+    ["post-200", "ページへのPOSTが200（405にならない）", "防壁/POST /"],
+    ["no-action-guard", "Next-Action付きが断られない", "期待 400 / 実際 200"],
+    ["no-308", "余計なクエリが308で落とされない", "期待 308 / 実際 200"],
+    ["no-xfo", "ページにX-Frame-Optionsが無い", "X-Frame-Options 期待 SAMEORIGIN / 実際 無し"],
+    ["no-nosniff", "ページにnosniffが無い", "X-Content-Type-Options 期待 nosniff"],
+    ["no-csp", "ページにCSPが無い", "CSP 期待 frame-ancestors 'self' を含む"],
+    ["embed-xfo", "埋め込みにX-Frame-Optionsが付く", "X-Frame-Options 期待 無し / 実際 SAMEORIGIN"],
+    ["embed-self-only", "埋め込みのCSPが'self'だけ", "CSP 期待 frame-ancestors 'self' を含まない"],
   ];
   for (const [fault, label, needle] of faults) {
     const r = await withStub([fault], runPatrol);

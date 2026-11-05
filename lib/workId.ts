@@ -35,9 +35,15 @@
 /**
  * URLの `[id]` から作品ID（Annictのannict_id）を取り出す。
  *
- * 受け付けるのは**先頭が0でない1〜9桁の10進数**だけ。
- * Annictの作品IDは実測で5桁台なので9桁は十分な余裕があり、
- * かつ `Number.MAX_SAFE_INTEGER` から遠いので桁あふれが起こらない。
+ * 受け付けるのは**先頭が0でない1〜6桁の10進数**（1〜999,999）だけ。
+ * Annictの作品IDは実測で5桁台（2026-11-05時点の最大は18,000台）なので6桁でも
+ * 50倍以上の余裕があり、`Number.MAX_SAFE_INTEGER` からも遠い。
+ *
+ * 【2026-11-05・9桁→6桁】形は正しいが存在しないID（`/anime/123456789`）は、ページが
+ * 描画されて Annict へ問い合わせ、notFound() の404がISRに書き込まれる（lib/routeGuard.ts の
+ * #73101）。9桁だと**10億通り**を外から叩けたので、実データの範囲に近づけて1000分の1にした。
+ * 実IDが上限に近づいたら `node scripts/check.ts` の「作品IDの値域」が先に落ちる
+ * （実データの最大が上限の10%を超えたら）。上限を上げるときは正規表現の桁数だけ変える。
  *
  * 弾く例: "0" / "-1" / "0013180" / "13180.0" / "1e5" / "0x3374" /
  *         "99999999999999999999" / "１３１８０"（全角）/ "" / "13180 "
@@ -45,6 +51,23 @@
  * @returns 妥当なら数値、そうでなければ null
  */
 export function parseWorkId(raw: string): number | null {
-  if (!/^[1-9][0-9]{0,8}$/.test(raw)) return null;
+  if (!/^[1-9][0-9]{0,5}$/.test(raw)) return null;
   return Number(raw);
 }
+
+/**
+ * JSONのボディで受け取った作品ID（`{ workId: 13180 }`）を検証する（2026-11-05導入）。
+ *
+ * `/api/watched`・`/api/notify` は `typeof workId === "number"` しか見ておらず、
+ * 小数・負数・`1e20` も通っていた。`/api/notify` に入った値は毎日の通知バッチ
+ * （app/api/notify/run）が1件ずつ Annict に問い合わせるので、存在しないIDを大量に
+ * 入れられるとバッチが時間切れになり、全員の通知が止まる。URLの `[id]` と同じ値域
+ * （parseWorkId）に揃える。
+ */
+export function parseWorkIdValue(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isSafeInteger(value)) return null;
+  return parseWorkId(String(value));
+}
+
+/** parseWorkId が受け付ける最大値（検査用。正規表現の桁数と一致させる）。 */
+export const MAX_WORK_ID = 999_999;

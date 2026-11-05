@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { malformedRouteStatus } from "@/lib/routeGuard";
+import { canonicalQueryTarget } from "@/lib/queryPolicy";
+import { rejectedMethodStatus } from "@/lib/methodGuard";
 
 // 形として不正なURLに返す404の本文（ページ向け）。
 //
@@ -29,6 +31,17 @@ const EMBED_BAD_ID_HTML = `<!doctype html><html lang="ja"><head><meta charset="u
 作品IDが正しくありません。</body></html>`;
 
 export async function middleware(request: NextRequest) {
+  // 【2026-11-05】ページへのPOST・Server Action の要求は、描画させずにここで返す
+  // （lib/methodGuard.ts。Next.js 14 に修正版の出ない Server Actions／RSC のPOST経路の
+  // 勧告への緩和策で、このサイトは Server Actions を1つも使っていない）。
+  const rejected = rejectedMethodStatus(request.method, request.nextUrl.pathname, request.headers);
+  if (rejected !== null) {
+    return new NextResponse(null, {
+      status: rejected,
+      headers: { allow: "GET, HEAD, OPTIONS", "cache-control": "no-store" },
+    });
+  }
+
   // 【重要】形が不正なURLは、ページ／route handler を描画する**前に**ここで返す。
   // 描画させると Next.js がその応答をISRキャッシュに書き込み、
   // 未見の不正な文字列の数だけ書き込みが増える（Next.js #73101・未修正）。
@@ -78,6 +91,15 @@ export async function middleware(request: NextRequest) {
         "x-robots-tag": "noindex, follow",
       },
     });
+  }
+
+  // 【2026-11-05】公開の route handler に付いた知らないクエリは、関数を起動する前に落とす
+  // （lib/queryPolicy.ts。`?x=<乱数>` でCDNのキャッシュを外して関数を起動させ続けられた）。
+  if (request.method === "GET" || request.method === "HEAD") {
+    const target = canonicalQueryTarget(request.nextUrl.pathname, request.nextUrl.search);
+    if (target !== null) {
+      return NextResponse.redirect(new URL(target, request.nextUrl.origin), 308);
+    }
   }
 
   return await updateSession(request);
