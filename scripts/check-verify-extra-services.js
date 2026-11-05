@@ -140,8 +140,12 @@ async function guardTests() {
   const root = join(__dirname, "..");
   const EX_MARK = "export const EXTRA_SERVICES: Record<number, ExtraServiceEntry[]> = ";
   const AK_MARK = "const ACKNOWLEDGED = ";
-  const exText = readFileSync(join(root, "content/works/extraServices.ts"), "utf8");
-  const akText = readFileSync(join(root, "scripts/lib/coverage-acknowledged.js"), "utf8");
+  // 改行はLFに揃えてから使う。Windowsのチェックアウトは CRLF になり（core.autocrlf）、下の
+  // 置き換え（"\n" を含む）が黙って空振りして「通さない」はずの検査が同じ文字列どうしの比較になる
+  // （2026-11-05、CIのWindowsで実際に落ちた）。本番の門番は `git show` の中身＝LFを読む。
+  const lf = (s) => s.replace(/\r\n/g, "\n");
+  const exText = lf(readFileSync(join(root, "content/works/extraServices.ts"), "utf8"));
+  const akText = lf(readFileSync(join(root, "scripts/lib/coverage-acknowledged.js"), "utf8"));
   const NEW_EX = `  99999: [\n    { key: "youtube", sourceUrl: "https://example.org/a", confirmedDate: "2026-11-05", evidence: "配信 }] 情報" },\n  ],\n`;
   const exWith = (ins) => exText.replace("  18160: [", ins + "  18160: [");
   const check = (base, head, marker) => checkDataOnlyChange({ base, head, marker });
