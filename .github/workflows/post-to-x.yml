@@ -11,6 +11,10 @@ on:
         required: true
         type: string
 
+# 【2026-11-05】トークンの権限を明示する（書かないとリポジトリ既定の権限＝書き込みまで渡りうる）。
+permissions:
+  contents: read
+
 jobs:
   post:
     runs-on: ubuntu-latest

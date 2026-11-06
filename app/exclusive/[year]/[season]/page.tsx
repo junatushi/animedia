@@ -1,4 +1,5 @@
 import IntentLink from "@/components/IntentLink";
+import { serializeJsonLd } from "@/lib/jsonLd";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSeasonData, isValidYear, isValidSeason } from "@/lib/getSeasonData";
@@ -169,7 +170,7 @@ export default async function ExclusivePage({ params }: { params: Params }) {
         <script
           type="application/ld+json"
           // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredLd) }}
         />
       )}
       <header className="masthead">

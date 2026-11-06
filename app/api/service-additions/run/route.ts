@@ -5,6 +5,7 @@
 // ここがやるのは「今日のシーズンデータを取る」「保存されている観測記録と突き合わせる」
 // 「書き戻す」の3つだけ。**メール送信は一切しない**（docs/operations.md ⑱-13）。
 import { NextResponse } from "next/server";
+import { safeEqual } from "@/lib/safeEqual";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getSeasonData } from "@/lib/getSeasonData";
@@ -28,7 +29,7 @@ function jstToday(): string {
 
 export async function POST(request: Request) {
   const secret = process.env.NOTIFY_CRON_SECRET;
-  if (!secret || request.headers.get("x-cron-secret") !== secret) {
+  if (!safeEqual(request.headers.get("x-cron-secret"), secret)) {
     return new NextResponse("unauthorized", { status: 401 });
   }
   if (!isSupabaseConfigured() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -72,7 +73,8 @@ export async function POST(request: Request) {
     .select("work_id, service_key, last_seen, streak, reported_on")
     .eq("season", season);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("service-additions/run:", error.message);
+    return NextResponse.json({ error: "service_sightings の取得に失敗" }, { status: 500 });
   }
 
   const existing: Sighting[] = (rows ?? []).map((r) => ({
@@ -110,7 +112,8 @@ export async function POST(request: Request) {
       { onConflict: "work_id,service_key" }
     );
     if (upErr) {
-      return NextResponse.json({ error: upErr.message }, { status: 500 });
+      console.error("service-additions/run:", upErr.message);
+      return NextResponse.json({ error: "service_sightings の更新に失敗" }, { status: 500 });
     }
   }
 

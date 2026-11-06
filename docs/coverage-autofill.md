@@ -89,8 +89,9 @@ git checkout -B claude/coverage-autofill-$(TZ=Asia/Tokyo date +%F) origin/main
   ],
 ```
 
-複数サービスは、同じ抜き書きを使って `(["d_anime", "prime"] as const).map((key) => ({ ... }))`
-の形でよい（既存の 17352 を参照）。**`schedule` は付けない**（曜日・時刻は人が確かめてから足す）。
+複数サービスは、**サービスごとに上の形の `{ ... }` を1つずつ並べる**（同じ抜き書きを繰り返してよい。
+既存の 17352 を参照）。`.map(...)` などのコードで書くと、自動マージの門番（データ以外が混ざったPRは
+人の確認へ回す。2026-11-05〜）に落ちる。**`schedule` は付けない**（曜日・時刻は人が確かめてから足す）。
 
 ### 4. 自分でも検証してからPRを出す
 
@@ -108,6 +109,14 @@ node scripts/check-verify-extra-services.js
 
 - 触ってよいのは `content/works/extraServices.ts` と `scripts/lib/coverage-acknowledged.js` **だけ**
   （他のファイルが混ざったPRは自動ではマージされない）。
+- **ファイルの中も、触ってよいのはデータのリテラルの中だけ**（2026-11-05〜）。`extraServices.ts` は
+  `EXTRA_SERVICES = { ... }`、`coverage-acknowledged.js` は `ACKNOWLEDGED = [ ... ]` の中だけを編集する。
+  import・関数・リテラルの外・既存のコード部分（`(...).map(...)` など）は1文字も変えない。
+  足すものは**素の文字列（"..." か '...'）・数値・true/false/null・{}・[]だけ**。
+  テンプレートリテラル（バッククォート）・関数呼び出し・展開 `...`・変数・計算は書かない
+  （同じ配信先を複数並べたいときも、`.map()` を真似せず1件ずつ書く）。
+  これを外れるPRは機械検査（`scripts/check-data-only-pr.js`）で落ち、人のレビューに回る
+  （PRのコードは検証の最中に一切実行しない設計のため）。
 - コミットは日本語1行（例: `配信先の自動補完（2026-10-05）: タヌキとキツネ ほか2作品`）。
 - `git push -u origin <ブランチ>` → PRを作る（GitHub の MCP ツール、無ければ `gh pr create`）。
   本文に、足した作品・サービス・出典URLと、足さなかった作品とその理由を書く。

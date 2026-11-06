@@ -1,4 +1,5 @@
 import IntentLink from "./IntentLink";
+import { serializeJsonLd } from "@/lib/jsonLd";
 import { siteUrl } from "@/lib/siteUrl";
 import { creditHeadline } from "@/lib/pageMeta";
 import {
@@ -76,7 +77,7 @@ export function CreditPage({
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredLd) }}
       />
       {/* data-nav は欄の名前（2026-10-26。components/WebVitals.tsx の計測用）。 */}
       <header className="masthead" data-nav="head">

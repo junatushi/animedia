@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { serializeJsonLd } from "@/lib/jsonLd";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import SeasonExplorer from "@/components/SeasonExplorer";
@@ -170,7 +171,7 @@ export default async function SeasonPage({ params }: { params: Params }) {
         <script
           type="application/ld+json"
           // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredLd) }}
         />
       )}
       <Suspense fallback={<div className="wrap" />}>

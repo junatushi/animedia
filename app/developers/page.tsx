@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { serializeJsonLd } from "@/lib/jsonLd";
 import IntentLink from "@/components/IntentLink";
 
 import { siteUrl } from "@/lib/siteUrl";
@@ -91,12 +92,12 @@ export default function DevelopersPage() {
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbLd) }}
       />
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(datasetLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(datasetLd) }}
       />
       <header className="masthead">
         <span className="eyebrow" aria-hidden="true">

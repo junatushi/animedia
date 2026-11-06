@@ -129,6 +129,135 @@ function run(headExtra, { baseAck = [], headAck = baseAck } = {}) {
 }
 const withAdded = (workId, e) => ({ ...BASE_EXTRA, [workId]: [e] });
 
+
+// ───── データのリテラルだけの変更か（scripts/lib/data-literal-guard.js・2026-11-05導入） ─────
+// この門番が「何でも通す」方向に壊れると、PRのコードが検証の中で動く（process.exit(0)で合格を偽装）／
+// 本番のサーバーコードに混ざる。通してはいけない形を1つずつ固定する。
+async function guardTests() {
+  const { checkDataOnlyChange } = require("./lib/data-literal-guard.js");
+  const { readFileSync } = require("node:fs");
+  const { execFileSync } = require("node:child_process");
+  const root = join(__dirname, "..");
+  const EX_MARK = "export const EXTRA_SERVICES: Record<number, ExtraServiceEntry[]> = ";
+  const AK_MARK = "const ACKNOWLEDGED = ";
+  // 改行はLFに揃えてから使う。Windowsのチェックアウトは CRLF になり（core.autocrlf）、下の
+  // 置き換え（"\n" を含む）が黙って空振りして「通さない」はずの検査が同じ文字列どうしの比較になる
+  // （2026-11-05、CIのWindowsで実際に落ちた）。本番の門番は `git show` の中身＝LFを読む。
+  const lf = (s) => s.replace(/\r\n/g, "\n");
+  const exText = lf(readFileSync(join(root, "content/works/extraServices.ts"), "utf8"));
+  const akText = lf(readFileSync(join(root, "scripts/lib/coverage-acknowledged.js"), "utf8"));
+  const NEW_EX = `  99999: [\n    { key: "youtube", sourceUrl: "https://example.org/a", confirmedDate: "2026-11-05", evidence: "配信 }] 情報" },\n  ],\n`;
+  const exWith = (ins) => exText.replace("  18160: [", ins + "  18160: [");
+  const check = (base, head, marker) => checkDataOnlyChange({ base, head, marker });
+  const rejects = (name, r, re) => {
+    assert.strictEqual(r.ok, false, `${name}: 通ってしまった`);
+    if (re) assert.match(r.errors.join("\n"), re, `${name}: ${r.errors.join(" / ")}`);
+    ok(name, r.errors[0]);
+  };
+
+  console.log("\n── データのみの変更か（通すもの） ──");
+  let r = check(exText, exText, EX_MARK);
+  assert.strictEqual(r.ok, true, r.errors.join("\n"));
+  ok("実際の extraServices.ts は自分自身と比べて通る", "main の版がデータだけで書かれている（2026-11-05に `.map()` を撤去）");
+  r = check(exText, exWith(NEW_EX), EX_MARK);
+  assert.strictEqual(r.ok, true, r.errors.join("\n"));
+  ok("extraServices.ts にデータの行を1件足しても通る", "文字列の中の `}]` に惑わされない");
+  r = check(exText, exWith(`  // コメントの中の }] や ( ) も気にしない /* \n  99998: [],\n`), EX_MARK);
+  assert.strictEqual(r.ok, true, r.errors.join("\n"));
+  ok("コメントの中の `}]` や `(` は無視する");
+  const ak2 = akText.replace("  {\n    id: \"16806\"", `  { id: '1', title: "t", reason: "a'b }] c", recheckOn: "2026-12-01", n: -1.5, f: false, z: null },\n  {\n    id: "16806"`);
+  assert.notStrictEqual(ak2, akText);
+  r = check(akText, ak2, AK_MARK);
+  assert.strictEqual(r.ok, true, r.errors.join("\n"));
+  ok("coverage-acknowledged.js に除外を1件足しても通る", "単一引用符・負の小数・true/false/null・文字列中の `}]`");
+  r = check(akText, akText, AK_MARK);
+  assert.strictEqual(r.ok, true);
+
+  console.log("\n── データのみの変更か（通さないもの） ──");
+  rejects("値に process.exit(0) を入れたら通さない", check(exText, exWith("  99999: process.exit(0),\n"), EX_MARK), /process|許可されていない/);
+  rejects("リテラルの後ろにコードを足したら通さない", check(exText, exText + "\nprocess.exit(0);\n", EX_MARK), /後ろの部分が変更/);
+  rejects("import を足したら通さない", check(exText, 'import fs from "node:fs";\n' + exText, EX_MARK), /前の部分が変更/);
+  rejects("リテラルを早く閉じて後ろへコードを続けても通さない", check(akText, akText.replace('recheckOn: "2026-12-28",\n  },', 'recheckOn: "2026-12-28",\n  }];\nrequire("fs");\n[{'), AK_MARK), /./);
+  rejects("テンプレートリテラルは通さない", check(akText, akText.replace('title: "ジャンケットバンク"', "title: `x${process.exit(0)}`"), AK_MARK), /バッククォート/);
+  rejects("スプレッド ... は通さない", check(akText, akText.replace("const ACKNOWLEDGED = [", "const ACKNOWLEDGED = [\n  ...evil,"), AK_MARK), /許可されていない文字 `\.`/);
+  rejects("関数呼び出しは通さない", check(akText, akText.replace('title: "ジャンケットバンク"', 'title: f("x")'), AK_MARK), /識別子|`\(`/);
+  rejects("即時実行関数 (()=>{})() は通さない", check(akText, akText.replace("const ACKNOWLEDGED = [", "const ACKNOWLEDGED = [\n  (() => { process.exit(0); })(),"), AK_MARK), /`\(`/);
+  rejects("キー __proto__ は通さない", check(akText, akText.replace("const ACKNOWLEDGED = [", 'const ACKNOWLEDGED = [\n  { __proto__: { x: 1 } },'), AK_MARK), /__proto__/);
+  rejects("文字列キー \"constructor\" は通さない", check(akText, akText.replace("const ACKNOWLEDGED = [", 'const ACKNOWLEDGED = [\n  { "constructor": 1 },'), AK_MARK), /constructor/);
+  rejects("エスケープで綴った \"__pro\\u0074o__\" も通さない", check(akText, akText.replace("const ACKNOWLEDGED = [", 'const ACKNOWLEDGED = [\n  { "__pro\\u0074o__": 1 },'), AK_MARK), /__proto__/);
+  rejects("値の位置の識別子は通さない", check(akText, akText.replace('title: "ジャンケットバンク"', "title: evil"), AK_MARK), /識別子 `evil`/);
+  rejects("代入・演算子は通さない", check(akText, akText.replace('title: "ジャンケットバンク"', 'title: "a" + "b"'), AK_MARK), /許可されていない文字 `\+`/);
+  rejects("正規表現リテラルは通さない", check(akText, akText.replace('title: "ジャンケットバンク"', "title: /x/"), AK_MARK), /許可されていない文字 `\/`/);
+  rejects("閉じていない文字列は通さない", check(akText, akText.replace('title: "ジャンケットバンク"', 'title: "abc'), AK_MARK), /閉じていない文字列|括弧が閉じていません/);
+  rejects("文字列の中の改行は通さない", check(akText, akText.replace('title: "ジャンケットバンク"', 'title: "a\nb"'), AK_MARK), /閉じていない文字列/);
+  rejects("16進・指数の数値は通さない", check(akText, akText.replace('id: "17228"', "id: 0x10"), AK_MARK), /数値リテラル/);
+  rejects("行コメントを U+2028 で抜けるコードは通さない", check(akText, akText.replace("const ACKNOWLEDGED = [", "const ACKNOWLEDGED = [\n  // x process.exit(0)\n"), AK_MARK), /U\+2028/);
+  rejects("validateAcknowledged の本体を書き換えたら通さない", check(akText, akText.replace("function validateAcknowledged(list) {", "function validateAcknowledged(list) {\n  return list;"), AK_MARK), /後ろの部分が変更/);
+  rejects("データに .map(...) の呼び出しを足したら通さない", check(exText, exWith("  99999: [1].map((k) => k),\n"), EX_MARK), /./);
+  {
+    // main 側にコードが混ざっていたら、比べる土台が無いので自動では通さない（人の確認へ）。
+    const tainted = exWith("  99998: [\"a\"].map((key) => ({ key })),\n");
+    rejects("変更前（main）にコードがあれば自動では通さない", check(tainted, tainted, EX_MARK), /変更前（main）の版のリテラルにデータ以外の字句/);
+  }
+  rejects("マーカーが無ければ通さない", check(exText, exText.replace("EXTRA_SERVICES", "OTHER"), EX_MARK), /見つかりません/);
+  rejects("最上位の種類が変わったら通さない", check(akText, akText.replace("const ACKNOWLEDGED = [", "const ACKNOWLEDGED = {").replace(/\n\];\n\n\/\*\* 期日/, "\n};\n\n/** 期日"), AK_MARK), /./);
+
+  console.log("\n── check-data-only-pr.js をgitの一時リポジトリで実際に動かす ──");
+  const repo = mkdtempSync(join(tmpdir(), "data-only-pr-"));
+  const git = (...a) => execFileSync("git", a, { cwd: repo, stdio: ["ignore", "pipe", "pipe"] }).toString().trim();
+  const put = (rel, text) => {
+    const full = join(repo, rel);
+    require("node:fs").mkdirSync(join(full, ".."), { recursive: true });
+    writeFileSync(full, text);
+  };
+  git("init", "-q");
+  git("config", "user.email", "t@example.org");
+  git("config", "user.name", "t");
+  put("content/works/extraServices.ts", exText);
+  put("scripts/lib/coverage-acknowledged.js", akText);
+  git("add", "-A");
+  git("commit", "-q", "-m", "base");
+  const baseSha = git("rev-parse", "HEAD");
+  const cli = (a, b) =>
+    new Promise((resolve) => {
+      const p = spawn(process.execPath, [join(__dirname, "check-data-only-pr.js"), "--base", a, "--head", b], { cwd: repo });
+      let out = "";
+      p.stdout.on("data", (d) => (out += d));
+      p.stderr.on("data", (d) => (out += d));
+      p.on("close", (code) => resolve({ code, out }));
+    });
+  let c = await cli(baseSha, baseSha);
+  assert.strictEqual(c.code, 0, c.out);
+  ok("変更が無ければ終了コード0");
+
+  put("content/works/extraServices.ts", exWith(NEW_EX));
+  git("commit", "-q", "-am", "data");
+  const dataSha = git("rev-parse", "HEAD");
+  c = await cli(baseSha, dataSha);
+  assert.strictEqual(c.code, 0, c.out);
+  assert.match(c.out, /データのリテラルだけの変更/);
+  ok("データだけの変更は終了コード0", "Markdownで報告する");
+
+  put("content/works/extraServices.ts", exWith("  99999: process.exit(0),\n"));
+  git("commit", "-q", "-am", "code in literal");
+  c = await cli(baseSha, git("rev-parse", "HEAD"));
+  assert.strictEqual(c.code, 1, c.out);
+  assert.match(c.out, /✗ `content\/works\/extraServices\.ts`/);
+  ok("リテラルの中のコードは終了コード1");
+
+  put("content/works/extraServices.ts", exWith(NEW_EX));
+  put("scripts/lib/coverage-acknowledged.js", akText.replace("function validateAcknowledged(list) {", "function validateAcknowledged(list) {\n  return list;"));
+  git("commit", "-q", "-am", "code outside literal");
+  c = await cli(baseSha, git("rev-parse", "HEAD"));
+  assert.strictEqual(c.code, 1, c.out);
+  assert.match(c.out, /coverage-acknowledged\.js/);
+  ok("リテラルの外のコードの変更は終了コード1");
+
+  c = await cli(baseSha, "no-such-ref");
+  assert.strictEqual(c.code, 1, c.out);
+  ok("解決できない参照は静かに通さず終了コード1");
+}
+
 (async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   try {
@@ -213,6 +342,8 @@ const withAdded = (workId, e) => ({ ...BASE_EXTRA, [workId]: [e] });
     r = await run(BASE_EXTRA);
     assert.strictEqual(r.code, 3, r.out + r.err);
     ok("差分が無ければ終了コード3", "合格（0）と区別する＝空のPRを自動マージしない");
+
+    await guardTests();
 
     console.log("\n全件OK");
   } finally {

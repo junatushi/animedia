@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
-import { malformedRouteStatus } from "@/lib/routeGuard";
+import { malformedRouteStatus, unknownNameStatus, type KnownNames } from "@/lib/routeGuard";
+import { SERVICES } from "@/lib/services";
+import studioIndexJson from "@/content/archive/studios.json";
+import { canonicalQueryTarget } from "@/lib/queryPolicy";
+import { rejectedMethodStatus } from "@/lib/methodGuard";
 
 // 形として不正なURLに返す404の本文（ページ向け）。
 //
@@ -28,7 +32,27 @@ const EMBED_BAD_ID_HTML = `<!doctype html><html lang="ja"><head><meta charset="u
 <body style="margin:0;font:13px/1.6 system-ui,sans-serif;color:#5b6472;padding:12px">
 作品IDが正しくありません。</body></html>`;
 
+// 名前で引くページの実在する名前（lib/routeGuard.ts の unknownNameStatus）。
+// 件数が少ない（配信サービス十数件・制作会社と監督で数百件）ので、起動時に1回だけ作る。
+const nonEmptyKeys = (m: Record<string, unknown[]>) => new Set(Object.keys(m).filter((k) => (m[k]?.length ?? 0) > 0));
+const KNOWN_NAMES: KnownNames = {
+  serviceKeys: new Set(SERVICES.map((s) => s.key)),
+  studios: nonEmptyKeys(studioIndexJson.studios as Record<string, unknown[]>),
+  directors: nonEmptyKeys(studioIndexJson.directors as Record<string, unknown[]>),
+};
+
 export async function middleware(request: NextRequest) {
+  // 【2026-11-05】ページへのPOST・Server Action の要求は、描画させずにここで返す
+  // （lib/methodGuard.ts。Next.js 14 に修正版の出ない Server Actions／RSC のPOST経路の
+  // 勧告への緩和策で、このサイトは Server Actions を1つも使っていない）。
+  const rejected = rejectedMethodStatus(request.method, request.nextUrl.pathname, request.headers);
+  if (rejected !== null) {
+    return new NextResponse(null, {
+      status: rejected,
+      headers: { allow: "GET, HEAD, OPTIONS", "cache-control": "no-store" },
+    });
+  }
+
   // 【重要】形が不正なURLは、ページ／route handler を描画する**前に**ここで返す。
   // 描画させると Next.js がその応答をISRキャッシュに書き込み、
   // 未見の不正な文字列の数だけ書き込みが増える（Next.js #73101・未修正）。
@@ -38,7 +62,8 @@ export async function middleware(request: NextRequest) {
   // `/embed/anime/[id]` が route handler 自身の契約（400）を6日間破っていた
   // （`scripts/verify-production.sh` のH-3節・Issue #146）。ここで
   // ルートごとの `malformedStatus` に従って出し分ける。
-  const status = malformedRouteStatus(request.nextUrl.pathname);
+  const status =
+    malformedRouteStatus(request.nextUrl.pathname) ?? unknownNameStatus(request.nextUrl.pathname, KNOWN_NAMES);
   if (status !== null) {
     const { pathname } = request.nextUrl;
 
@@ -80,10 +105,51 @@ export async function middleware(request: NextRequest) {
     });
   }
 
+  // 【2026-11-05】公開の route handler に付いた知らないクエリは、関数を起動する前に落とす
+  // （lib/queryPolicy.ts。`?x=<乱数>` でCDNのキャッシュを外して関数を起動させ続けられた）。
+  if (request.method === "GET" || request.method === "HEAD") {
+    // クエリは**届いたままの文字列**で見る（request.nextUrl は `?&&&` の空の区切りを落として
+    // 正規化した値を返すことがあるが、CDNのキャッシュは届いたままの文字列ごとに分かれる）。
+    const rawUrl = request.url;
+    const q = rawUrl.indexOf("?");
+    const rawSearch = q >= 0 ? rawUrl.slice(q).split("#")[0] : "";
+    const target = canonicalQueryTarget(request.nextUrl.pathname, rawSearch);
+    if (target !== null) {
+      // 公開APIは他サイトの fetch からも呼ばれる（CORS許可）。リダイレクトの応答自体に
+      // 許可が無いと、余計なクエリを付ける呼び出し側（jQuery の `_=<時刻>` 等）がCORSエラーになる。
+      return new NextResponse(null, {
+        status: 308,
+        headers: {
+          location: new URL(target, request.nextUrl.origin).toString(),
+          "access-control-allow-origin": "*",
+          "cache-control": "no-store",
+        },
+      });
+    }
+  }
+
   return await updateSession(request);
 }
 
 // 静的アセット・画像生成ルートはセッション更新が不要なため除外する。
+//
+// 【2026-11-05・反証で修正】画像の拡張子で終わるパスを除外しているので、`/anime/abc.png`・
+// `/season/2026/x.png` のように**動的ルートに拡張子を付けるだけで middleware を丸ごと迂回**でき、
+// 上の判定（形の不正・POSTの拒否・季節）を全部すり抜けて描画とISRへの書き込みが起きていた。
+// 動的ルートと窓口の接頭辞は拡張子に関係なく必ず通す（2つ目以降。どれか1つに一致すれば走る）。
+// `_vercel`（Web Analytics の送信先）は Vercel 自身の窓口なので除外する。
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|_vercel|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/anime/:path*",
+    "/season/:path*",
+    "/rankings/:path*",
+    "/exclusive/:path*",
+    "/service/:path*",
+    "/person/:path*",
+    "/studio/:path*",
+    "/director/:path*",
+    "/embed/:path*",
+    "/api/:path*",
+  ],
 };

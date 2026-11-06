@@ -214,6 +214,105 @@ function violations(label, kind, r) {
   return v;
 }
 
+// ── セキュリティと無料枠の防壁（2026-11-05導入） ──────────────────
+// lib/methodGuard.ts・lib/queryPolicy.ts・lib/routeGuard.ts・next.config.mjs の効果を
+// **本番の応答で**確かめる。どれも壊れても画面は1ピクセルも変わらず（増えるのは
+// 攻撃面とVercelの請求だけ）、ソースの検査（check.ts）は本番に載ったかまでは見ない。
+// 要求は十数本だけ（巡回の本体とは別に1回ずつ）。
+async function fetchFull(url, init = {}) {
+  for (let i = 0; i < 3; i++) {
+    try {
+      const r = await fetch(url, { redirect: "manual", ...init });
+      await r.text().catch(() => "");
+      return { status: r.status, headers: r.headers };
+    } catch (e) {
+      if (i === 2) return { status: `ERR:${e.cause?.code || e.message}`, headers: new Headers() };
+      await new Promise((s) => setTimeout(s, 700 * (i + 1)));
+    }
+  }
+}
+
+// JSTの現在クール（lib/resolveSeasonParams.ts と同じ月→季節。ここでの値はどのクールでも
+// 構わない＝形の正しい年・季節であればよい）。
+function currentSeasonJst() {
+  const jst = new Date(Date.now() + 9 * 3600 * 1000);
+  const m = jst.getUTCMonth() + 1;
+  const season = m <= 3 ? "winter" : m <= 6 ? "spring" : m <= 9 ? "summer" : "autumn";
+  return { year: jst.getUTCFullYear(), season };
+}
+
+function guardCases(v) {
+  const { year, season } = currentSeasonJst();
+  const rnd = () => Math.random().toString(36).slice(2, 10);
+  const work = `/anime/${v.workId}`;
+  const want = (label, p, init, test) => ({ label: `防壁/${label}`, p, init, test });
+  const status = (n) => (r) =>
+    r.status === n ? [] : [`期待 ${n} / 実際 ${r.status}`];
+  // 余計なクエリは、そのクエリを除いたURLへ308で送られること。
+  const redirectTo = (clean) => (r) => {
+    if (r.status !== 308) return [`期待 308 / 実際 ${r.status}`];
+    const loc = r.headers.get("location");
+    if (!loc) return ["期待 Location=" + clean + " / 実際 Location無し"];
+    let got;
+    try {
+      const u = new URL(loc, BASE);
+      got = u.pathname + u.search;
+    } catch {
+      got = loc;
+    }
+    return got === clean ? [] : [`期待 Location=${clean} / 実際 ${got}`];
+  };
+  // ページに付くべき保安ヘッダー。
+  const pageHeaders = (r) => {
+    if (r.status !== 200) return [`期待 200 / 実際 ${r.status}`];
+    const out = [];
+    const h = (n) => r.headers.get(n);
+    if ((h("x-content-type-options") || "").toLowerCase() !== "nosniff")
+      out.push(`X-Content-Type-Options 期待 nosniff / 実際 ${h("x-content-type-options") ?? "無し"}`);
+    if ((h("x-frame-options") || "").toUpperCase() !== "SAMEORIGIN")
+      out.push(`X-Frame-Options 期待 SAMEORIGIN / 実際 ${h("x-frame-options") ?? "無し"}`);
+    if (!/frame-ancestors\s+'self'/.test(h("content-security-policy") || ""))
+      out.push(`CSP 期待 frame-ancestors 'self' を含む / 実際 ${h("content-security-policy") ?? "無し"}`);
+    return out;
+  };
+  // 埋め込みは他人のサイトのiframeに入るので、フレーム禁止を付けてはいけない。
+  const embedHeaders = (r) => {
+    if (r.status !== 200) return [`期待 200 / 実際 ${r.status}`];
+    const out = [];
+    const xfo = r.headers.get("x-frame-options");
+    if (xfo) out.push(`X-Frame-Options 期待 無し / 実際 ${xfo}`);
+    const csp = r.headers.get("content-security-policy") || "";
+    if (/frame-ancestors\s+'self'/.test(csp))
+      out.push(`CSP 期待 frame-ancestors 'self' を含まない / 実際 ${csp}`);
+    return out;
+  };
+  return [
+    want("POST /", "/", { method: "POST" }, status(405)),
+    want("POST 作品ページ", work, { method: "POST" }, status(405)),
+    want("Next-Action付きGET", work, { headers: { "Next-Action": "x" } }, status(400)),
+    want(
+      "/api/season の余計なクエリ",
+      `/api/season?year=${year}&season=${season}&patrol=${rnd()}`,
+      {},
+      redirectTo(`/api/season?year=${year}&season=${season}`)
+    ),
+    want("/api/work の余計なクエリ", `/api/work/${v.workId}?cb=${rnd()}`, {}, redirectTo(`/api/work/${v.workId}`)),
+    // 解釈すると同じだが文字列が違う形。CDNは文字列ごとに別のキャッシュを持つので、ここが
+    // 素通りすると乱数クエリと同じく関数を起動させ続けられる（2026-11-05の反証で発見）。
+    // middleware が届いたままのURLを見ていなければここで落ちる。
+    want("表記揺れのクエリ", `/api/work/${v.workId}?&&`, {}, redirectTo(`/api/work/${v.workId}`)),
+    // 画像の拡張子を付けると middleware の対象外になり、描画とISRへの書き込みが起きていた（同上）。
+    want("拡張子付きの不正なID", `/anime/p${rnd()}.png`, {}, status(404)),
+    want("拡張子付きのPOST", `/anime/p${rnd()}.png`, { method: "POST" }, status(405)),
+    want("不正なクール名", `/season/${year}/xyz${rnd()}`, {}, status(404)),
+    want("範囲外の作品ID(ページ)", "/anime/1000000", {}, status(404)),
+    want("範囲外の作品ID(API)", "/api/work/1000000", {}, status(400)),
+    want("保安ヘッダー /", "/", {}, pageHeaders),
+    want("保安ヘッダー 作品ページ", work, {}, pageHeaders),
+    want("埋め込みはフレーム許可", `/embed/anime/${v.workId}`, {}, embedHeaders),
+  ];
+}
+
 async function main() {
   const v = realValues();
   const { cases, skipped, routeCount } = buildCases(v);
@@ -246,6 +345,12 @@ async function main() {
       }
     })
   );
+  // 防壁（逐次。十数本）。到達できないときは黙って成功にせず違反として出す。
+  for (const g of guardCases(v)) {
+    const r = await fetchFull(BASE + g.p, g.init);
+    const vs = typeof r.status !== "number" ? [`到達できない（${r.status}）`] : g.test(r);
+    rows.push([g.label, g.p, "guard", r.status, vs]);
+  }
   rows.sort((a, b) => a[0].localeCompare(b[0], "ja"));
 
   const codes = new Map();

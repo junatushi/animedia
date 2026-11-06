@@ -5,7 +5,8 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { sanitizeEventData } from "@/lib/trackEventData";
+import { siteUrl } from "@/lib/siteUrl";
+import { sanitizeEventData, trackRequestRejection, TRACK_MAX_BODY_BYTES } from "@/lib/trackEventData";
 
 // クライアント（components/SeasonExplorer.tsx・components/ServiceMarks.tsx）が送る
 // イベント名のみ許可する（任意の値の書き込みを防ぐ）。
@@ -64,9 +65,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ skipped: true });
   }
 
+  // 本文の大きさ・Content-Type・Origin を、中身を読む前に確かめる（lib/trackEventData.ts）。
+  const rejected = trackRequestRejection(request.headers, [
+    request.headers.get("host"),
+    request.headers.get("x-forwarded-host"),
+    new URL(request.url).host,
+    new URL(siteUrl).host,
+  ]);
+  if (rejected !== null) {
+    return NextResponse.json({ error: "rejected" }, { status: rejected });
+  }
+
   let body: unknown;
   try {
-    body = await request.json();
+    // content-length が無い（chunked）要求でも、上限を超える本文は読み切らない。
+    const text = await request.text();
+    if (text.length > TRACK_MAX_BODY_BYTES) {
+      return NextResponse.json({ error: "too large" }, { status: 413 });
+    }
+    body = JSON.parse(text);
   } catch {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }

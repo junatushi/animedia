@@ -189,6 +189,12 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   **firstSeenを上書きしない・消えたものを消さない・初回に`seeded`印を付ける・
   1情報源の失敗で残りを巻き添えにしない**ことを固定する。ネットワークには出ない。
   `track-season.js`を触ったら必ず実行する
+- `node scripts/security-audit.js` … **依存パッケージの脆弱性の監視**（2026-11-05導入）。
+  `npm audit`（本番依存）のcritical/highのうち、`scripts/lib/security-acknowledged.js`に理由と
+  `recheckOn`つきで載っていないものをIssue本文として出す（0件なら何も出さない。**終了コード2＝取れていない**）。
+  `.github/workflows/security-audit.yml`が毎日**1本のIssue（ラベル`security-audit`）を書き換え**、0件で閉じる。
+  **Next.js 14はサポート終了で14系に修正版が出ない**ので、新しい勧告に早く気づくための仕組み。
+  回帰テストは`node scripts/check-security-audit.js`。全体像は`docs/security.md`
 - `node scripts/coverage-gaps.js` … **配信先が未登録の作品の洗い出し**（2026-10-02導入）。
   `content/coverage/first-seen.json` だけを読み、今期・次期で配信サービス0件の作品を
   急ぐ順（始まっている → 30日以内 → 開始日不明）にIssue本文として出す（0件なら何も出さない）。
@@ -962,6 +968,21 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   正規化後（小文字・半角・空白除去）の名前に対する正規表現で書く。追加後は必ず
   `node scripts/check.ts` を実行して回帰がないか確認する。
 - リアルタイム度は `lib/annict.ts` の `next: { revalidate: 600 }` で調整（0=常に最新）。
+- **【基本ルール】セキュリティと無料枠の防壁を外さない（2026-11-05導入・重大度高）**:
+  正本は`docs/security.md`、経緯は`docs/operations.md`の[71]。**どれも外しても画面は変わらない**ので
+  `node scripts/check.ts`の「セキュリティと無料枠の防壁」節が見張る。要点:
+  ①JSON-LDは`lib/jsonLd.ts`の`serializeJsonLd`で出す（`JSON.stringify`を`__html`に直接渡すと、
+  Annictの作品名の`</script>`で保存型XSSになる）
+  ②**GETを持つroute handlerを足したら`lib/queryPolicy.ts`の表に載せる**（読むクエリのキーと値の形も。
+  載せ忘れると検査が落ち、許可し忘れると正しいクエリまで308で落とされる）
+  ③Server Actions（`"use server"`）を使わない（middlewareがページへのPOSTと`Next-Action`を拒否している＝
+  Next.js 14の未修正勧告の緩和策）。`next/image`も使わない（`images.unoptimized`の前提）
+  ④全ワークフローに`permissions:`を書き、秘密やイベントの値は`env:`で渡す（`run:`の本文に展開しない）
+  ⑤`coverage-autofill.yml`は`pull_request_target`で、**PRのツリーをcheckoutも実行もしない**。
+  `extraServices.ts`のリテラルにはデータだけを書く（`(…).map()`などのコードを入れると自動補完が人の確認に落ちる）
+  ⑥**要求の数そのものはコードでは止められない**。最後の1枚はVercel Firewallのレート制限
+  （`docs/security.md`の2章。ダッシュボードの設定）。Next.js 15/16系への更新は別PRで、キャッシュの実効値を
+  必ず確かめる（同書5章・㉝）
 - **【基本ルール】放送開始1週間前ルール（2026-07-11導入）**: 放送/配信の曜日・時刻
   （`broadcastWeekday`/`broadcastTime`）は「毎週その曜日に配信される」という前提の表示。
   まだ放送開始前の作品にこれを出すと「今週の水曜22:30」のように見えてしまい、実際は

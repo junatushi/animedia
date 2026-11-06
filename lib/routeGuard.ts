@@ -55,7 +55,7 @@
 // どちらのstatusでも変わらず満たせる）。
 //
 import { parseWorkId } from "./workId.ts";
-import { isSeasonYearInRange } from "./resolveSeasonParams.ts";
+import { isSeasonYearInRange, SEASON_KEYS } from "./resolveSeasonParams.ts";
 
 /**
  * 作品IDを含むルートの一覧。
@@ -90,6 +90,11 @@ export const SEASON_YEAR_ROUTES: { prefix: string; index: number; malformedStatu
   { prefix: "/person/", index: 3, malformedStatus: 404 },
 ];
 
+// 【2026-11-05追記】年の直後の `[season]` も、4つの値（winter/spring/summer/autumn）以外は
+// 描画前に弾く。年だけ見ていたので `/season/2026/<乱数>` が描画されて notFound() に入り、
+// 未見の文字列の数だけISRへ書き込めた（上の #73101 と同じ経路。URL空間は無制限）。
+// 季節は必ず年の次のセグメントにあるので、表は増やさず `index + 1` を見る。
+
 /**
  * このURLは「形として不正」か。形が不正なら、そのルートが返すべきHTTPステータス
  * （404 or 400。上の表の `malformedStatus`）を返す。正常な形なら `null`。
@@ -122,7 +127,10 @@ export function malformedRouteStatus(pathname: string, now: Date = new Date()): 
     if (!clean.startsWith(prefix)) continue;
     const raw = parts[index];
     if (raw === undefined || raw === "") return null;
-    return !isSeasonYearInRange(raw, now) ? malformedStatus : null;
+    if (!isSeasonYearInRange(raw, now)) return malformedStatus;
+    const season = parts[index + 1];
+    if (season === undefined || season === "") return null;
+    return SEASON_KEYS.has(season) ? null : malformedStatus;
   }
 
   return null;
@@ -134,4 +142,57 @@ export function malformedRouteStatus(pathname: string, now: Date = new Date()): 
  */
 export function isMalformedRoutePath(pathname: string, now: Date = new Date()): boolean {
   return malformedRouteStatus(pathname, now) !== null;
+}
+
+/**
+ * 名前で引くページの「実在する名前」（2026-11-05導入・反証で追加）。
+ *
+ * `/service/<乱数>/2026/autumn`・`/studio/<乱数>`・`/director/<乱数>` は形としては正しいので
+ * 上の判定を通り、描画→notFound()→404がISRへ書き込まれる（#73101）。名前の空間は無制限なので、
+ * Firewall のレート制限（1IPあたり毎分600）があっても、1台から30分ほどで ISR Writes の月の上限に届く。
+ * 名前の一覧はビルド時に確定している（配信サービスは SERVICES・制作会社と監督は
+ * content/archive/studios.json）ので、middleware で照合する。
+ *
+ * **照合は緩く**: パスの生の文字列・1回デコード・2回デコードのどれかが一覧にあれば通す
+ * （ページ側は Next.js がデコードした値をさらに decodeParamName でデコードしている。㊱では
+ * 符号化の食い違いで正規のページが404になった。**正規の名前を落とすほうが桁違いに重い**ので、
+ * 迷ったら通す）。`/person/…` は今年の出演者がビルド時に決まらないので対象にしない。
+ * テストから渡せるよう、一覧は引数で受ける（このファイルはJSONを import しない）。
+ */
+export type KnownNames = {
+  serviceKeys: ReadonlySet<string>;
+  studios: ReadonlySet<string>;
+  directors: ReadonlySet<string>;
+};
+
+function nameCandidates(raw: string): string[] {
+  const out = [raw];
+  let cur = raw;
+  for (let i = 0; i < 2; i++) {
+    try {
+      cur = decodeURIComponent(cur);
+    } catch {
+      break;
+    }
+    out.push(cur);
+  }
+  return out;
+}
+
+/** 名前で引くページのうち、一覧に無い名前なら 404。判定しないパス・一覧にある名前は null。 */
+export function unknownNameStatus(pathname: string, known: KnownNames): 404 | null {
+  const clean = pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+  const parts = clean.split("/");
+  const table: [string, ReadonlySet<string>][] = [
+    ["service", known.serviceKeys],
+    ["studio", known.studios],
+    ["director", known.directors],
+  ];
+  for (const [head, set] of table) {
+    if (parts[1] !== head) continue;
+    const raw = parts[2];
+    if (raw === undefined || raw === "") return null;
+    return nameCandidates(raw).some((n) => set.has(n)) ? null : 404;
+  }
+  return null;
 }

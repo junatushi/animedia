@@ -10,16 +10,21 @@
 //  3. 対象作品ごとにnotify_requestsを引き、購読ユーザーを集める→ユーザー単位で
 //     その日届く作品をまとめ、1人1通のダイジェストメールをResendで送る
 import { NextResponse } from "next/server";
+import { safeEqual } from "@/lib/safeEqual";
 import { Resend } from "resend";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { fetchWorkById } from "@/lib/annict";
 import { toAnimeItem } from "@/lib/services";
 import { signUnsubscribeToken } from "@/lib/notifyUnsubscribeToken";
+import { parseWorkIdValue } from "@/lib/workId";
 
 import { siteUrl as SITE_URL } from "@/lib/siteUrl";
 // Annictへの直列アクセスを緩やかにする（対象作品数が多い日でもバーストさせない）。
 const FETCH_DELAY_MS = 500;
+// 1回の実行で問い合わせる作品数の上限（2026-11-05）。200件×0.5秒＝100秒＋取得時間。
+// 超えた件数は応答の truncated に出し、.github/workflows/notify-run.yml が警告にする。
+const MAX_WORKS_PER_RUN = 200;
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -46,7 +51,7 @@ interface TodayAiringWork {
 
 export async function POST(request: Request) {
   const cronSecret = process.env.NOTIFY_CRON_SECRET;
-  if (!cronSecret || request.headers.get("x-cron-secret") !== cronSecret) {
+  if (!safeEqual(request.headers.get("x-cron-secret"), cronSecret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -66,9 +71,19 @@ export async function POST(request: Request) {
     .from("notify_requests")
     .select("work_id, user_id");
   if (reqError) {
-    return NextResponse.json({ error: reqError.message }, { status: 500 });
+    console.error("notify/run:", reqError.message);
+    return NextResponse.json({ error: "notify_requests の取得に失敗" }, { status: 500 });
   }
-  const workIds = [...new Set(allRequests.map((r) => r.work_id))];
+  // 値域外のID（古い経路で入った小数・負数など）は問い合わせない。さらに1回の実行で
+  // 問い合わせる作品数に上限を置く（1件0.5秒の間隔なので、上限が無いと登録数しだいで
+  // 関数の時間制限を超え、全員の通知が止まる）。超えた分は応答の truncated に出す。
+  // 上限で切るときに**毎回同じ作品が漏れ続けない**よう、新しい作品（Annictの作品IDは
+  // 登録順に増える＝放送中・放送予定の作品ほど大きい）から問い合わせる（2026-11-05・反証で修正）。
+  const validIds = [...new Set(allRequests.map((r) => parseWorkIdValue(r.work_id)))]
+    .filter((id): id is number => id !== null)
+    .sort((a, b) => b - a);
+  const workIds = validIds.slice(0, MAX_WORKS_PER_RUN);
+  const truncated = validIds.length - workIds.length;
 
   // 2. 各作品を個別取得し、今日配信があるかを実日付で判定する
   const todayAiring: TodayAiringWork[] = [];
@@ -96,7 +111,7 @@ export async function POST(request: Request) {
   }
 
   if (todayAiring.length === 0) {
-    return NextResponse.json({ sent: 0, todayAiringCount: 0 });
+    return NextResponse.json({ sent: 0, todayAiringCount: 0, truncated });
   }
 
   // 3. 対象作品ごとに購読者を引き、ユーザー単位でまとめる
@@ -139,9 +154,15 @@ export async function POST(request: Request) {
       to: email,
       subject: "本日配信のアニメ（アニメ視聴ガイド）",
       text,
+      // メールクライアントの「登録解除」ボタン（RFC 8058のワンクリック解除）。
+      // 解除先は POST だけで消す（app/api/notify/unsubscribe/route.ts。GETは確認画面）。
+      headers: {
+        "List-Unsubscribe": `<${unsubUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
     });
     sent++;
   }
 
-  return NextResponse.json({ sent, todayAiringCount: todayAiring.length });
+  return NextResponse.json({ sent, todayAiringCount: todayAiring.length, truncated });
 }

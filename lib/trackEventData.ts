@@ -195,3 +195,45 @@ export function sanitizeEventData(data: unknown): Record<string, string | number
   }
   return kept > 0 ? out : null;
 }
+
+/**
+ * `/api/track` の要求を、中身を読む前に断るか（2026-11-05導入）。断るならHTTPステータス、通すなら null。
+ *
+ * 計測の口は無認証のまま（ログイン無しで計測するため）だが、次の3つは正直なクライアント
+ * （lib/logEvent.ts・components/WebVitals.tsx）が必ず満たすので、満たさない要求は読まない:
+ *  - 本文が小さい（1イベントは数百バイト。大きな本文で Supabase の無料枠を埋めさせない）
+ *  - `Content-Type: application/json`（`<form>` から他サイト経由で送らせる経路を塞ぐ）
+ *  - `Origin` が付いているなら自サイト（他サイトのページを開いた人のブラウザに送らせない）
+ * `Origin` が無い要求（curl 等）はここでは止められない。数で押す攻撃は Vercel Firewall の
+ * レート制限で止める（docs/security.md）。
+ */
+export const TRACK_MAX_BODY_BYTES = 4096;
+export function trackRequestRejection(
+  headers: { get(name: string): string | null },
+  allowedHosts: (string | null | undefined)[]
+): 400 | 403 | 413 | 415 | null {
+  const len = headers.get("content-length");
+  if (len !== null) {
+    const n = Number(len);
+    if (!Number.isFinite(n) || n < 0) return 400;
+    if (n > TRACK_MAX_BODY_BYTES) return 413;
+  }
+  const type = (headers.get("content-type") ?? "").toLowerCase();
+  if (!type.startsWith("application/json")) return 415;
+  const origin = headers.get("origin");
+  if (origin !== null && origin !== "null") {
+    let host: string;
+    try {
+      host = new URL(origin).host;
+    } catch {
+      return 403;
+    }
+    // 自サイトの判定は複数の情報源（Hostヘッダー・転送元ホスト・request.url・siteUrl）の
+    // どれかに一致すれば通す。1つだけに頼ると、その値が内部のホスト名になる環境で
+    // **正規の計測が全部403になり、画面には何も出ないまま計測が止まる**。
+    if (!allowedHosts.some((h) => typeof h === "string" && h.length > 0 && h === host)) return 403;
+  } else if (origin === "null") {
+    return 403;
+  }
+  return null;
+}

@@ -19,6 +19,7 @@ import {
   messageResponse,
   normalizeQuery,
   verifyDiscordSignature,
+  isFreshDiscordTimestamp,
   type DiscordWorkHit,
 } from "@/lib/discord";
 
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
   const signature = request.headers.get("x-signature-ed25519") ?? "";
   const timestamp = request.headers.get("x-signature-timestamp") ?? "";
 
-  if (!verifyDiscordSignature(publicKey, signature, timestamp, rawBody)) {
+  if (!verifyDiscordSignature(publicKey, signature, timestamp, rawBody) || !isFreshDiscordTimestamp(timestamp)) {
     // Discord はエンドポイント登録時にわざと壊れた署名を送り、401 を返すかを確かめる。
     return new NextResponse("invalid request signature", { status: 401 });
   }

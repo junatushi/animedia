@@ -66,6 +66,13 @@ export function useLoginGatedWorkSet(apiPath: string, onAdd?: () => void) {
 
     req.then((r) => {
       if (!r.ok) {
+        // 登録件数の上限（409。lib/userListApi.ts）は、黙って巻き戻すと押しても効かない
+        // 不具合に見えるので理由を出す（2026-11-05）。
+        if (r.status === 409) {
+          r.json()
+            .then((j: { error?: string }) => window.alert(j.error ?? "登録できる件数の上限に達しました。"))
+            .catch(() => window.alert("登録できる件数の上限に達しました。"));
+        }
         // 失敗したら楽観的更新を巻き戻す
         setItems((prev) => {
           const next = new Set(prev);

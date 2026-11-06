@@ -29,6 +29,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# 【2026-11-05】トークンの権限を明示する（書かないとリポジトリ既定の権限＝書き込みまで渡りうる）。
+permissions:
+  contents: read
+
 jobs:
   checks:
     # ubuntu だけでなく windows でも回す（2026-08-11追加）。
@@ -127,6 +131,9 @@ jobs:
       # 写し間違い・Xの出典・既存行の削除などを通さないことをHTTPスタブで固定する。
       - name: 配信先の自動補完の検証の検査（HTTPスタブ。ネットワークには出ない）
         run: node scripts/check-verify-extra-services.js
+
+      - name: 依存パッケージの脆弱性の監視の検査（一時ファイル。ネットワークには出ない）
+        run: node scripts/check-security-audit.js
 
       # 課金（都度課金・レンタル）だけの配信先の洗い出し（scripts/rental-gaps.ts）。
       # **「静かに0件を返す」方向に壊れると、課金が要るサービスを見放題と同じ枠に並べたまま

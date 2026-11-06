@@ -91,6 +91,23 @@ node scripts/usage-report.js
   その指標は判定から消えている（`scripts/lib/vercel-usage.js` の `BUDGET` に足す）
 - 判定は**1日あたり**で見る。ローリング30日の合計は対策前の分が混ざるので使わない
 
+### (i) セキュリティ ← **2026-11-05追加**
+```
+node scripts/security-audit.js
+```
+`npm audit`（本番依存）を読み、`scripts/lib/security-acknowledged.js` で確認済みのもの以外の
+critical/high を出す（何も出なければ対応待ち0件）。**終了コード2は「取れていない」であって
+「脆弱性ゼロ」ではない**。同じものを `security-audit.yml` が毎日回し、Issue（ラベル `security-audit`）に出す。
+
+- 新しい勧告が出たら**その日の最優先**。この構成で到達しうるか（Server Actions・画像最適化・
+  rewrites は使っていない）を `docs/security.md` の1章で確かめ、到達しうるなら直す。
+  到達しないと確かめたものだけ、理由と `recheckOn` つきで `security-acknowledged.js` に足す
+- **Next.js 14 の確認済み12件の期日は 2026-12-05**。それまでに 15/16 系への更新PRを出す
+  （`docs/security.md` の5章。キャッシュの既定が変わるので㉝の再発に注意）
+- `production-check` の Issue に「セキュリティと無料枠の防壁」の失敗があれば、middleware か
+  `next.config.mjs` のヘッダーが本番で効いていない。画面には何も出ない壊れ方なので放置しない
+- Vercel Firewall の規則（`docs/security.md` の2章）が未設定なら日報に書く（コードでは代わりが効かない）
+
 ### (f) 配信先が未登録の作品 ← **2026-10-02追加**
 ラベル `coverage-gaps` の Issue（`track-season.yml` が毎日1本だけ書き換える。手元では `node scripts/coverage-gaps.js`）を開き、
 上の群（放送/配信が始まっている → 30日以内 → 開始日不明）から順に、一次情報で配信先を確かめて
