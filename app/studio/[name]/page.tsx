@@ -37,7 +37,8 @@ export function generateStaticParams(): Params[] {
   return Object.keys(creditMap(INDEX, "studio")).map((name) => ({ name }));
 }
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+export async function generateMetadata(props: { params: Promise<Params> }): Promise<Metadata> {
+  const params = await props.params;
   const name = decodeParamName(params.name);
   const works = creditWorks(INDEX, "studio", name);
   if (works.length === 0) return {};
@@ -55,7 +56,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
-export default function StudioPage({ params }: { params: Params }) {
+export default async function StudioPage(props: { params: Promise<Params> }) {
+  const params = await props.params;
   const name = decodeParamName(params.name);
   const works = creditWorks(INDEX, "studio", name);
   if (works.length === 0) notFound();

@@ -76,7 +76,9 @@ export async function generateMetadata(): Promise<Metadata> {
 // バイト量**（8KB単位）で数えるので、中身が同じでも日付や注目度が動けばそのぶん課金される。
 // 鮮度の本線は /api/revalidate（revalidate.yml が1日2回 "/" を名指しする）。
 // 6時間にしてあるのは、cronが全滅しても最大6時間で自力復帰させるため。
-export const revalidate = 6 * 60 * 60;
+// 【2026-11-06・Next.js 16】ルートの設定値は**数値リテラル**で書く（`6 * 60 * 60` のような式は
+// 16 のビルドで「Invalid segment configuration export」になる）。21600 = 6時間。
+export const revalidate = 21600;
 
 export default async function Page() {
   const year = new Date().getFullYear();

@@ -48,7 +48,8 @@ export function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS });
 }
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const id = parseWorkId(params.id);
   if (id === null) {
     return NextResponse.json(

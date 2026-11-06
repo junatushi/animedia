@@ -7964,6 +7964,48 @@ let isrNg = 0;
         (namesWorkTags ? "workCacheTag で指名" : "これが無いと現在クールが1週間古いまま出る")
     );
 
+    // ④-2 【2026-11-08・Next.js 15.5】revalidateTag は引数1つ（15 系では即時失効）で呼ぶ。
+    //    第2引数（"max" など）は 16 の書き方で、名前つきは stale-while-revalidate＝古いまま配って裏で作り直す。
+    //    温めのバッチは「消す→取り直す→HIT」を前提にしているので、15 のうちは第2引数を一切許さない
+    //    （16 へ上げる日はここを { expire: 0 } だけを許す形に戻す。PR #276）。app/ と lib/ を走査して全呼び出しを見る。
+    {
+      const tagCalls: string[] = [];
+      const walkTs = (dir: URL): void => {
+        for (const ent of readdirSync(dir, { withFileTypes: true })) {
+          const u = new URL(ent.name + (ent.isDirectory() ? "/" : ""), dir);
+          if (ent.isDirectory()) walkTs(u);
+          else if (/\.(ts|tsx)$/.test(ent.name)) {
+            const src = readFileSync(u, "utf8").replace(/^\s*\/\/.*$/gm, "");
+            for (const m of src.matchAll(/revalidateTag\(([^;]*?)\);/g)) tagCalls.push(m[1]);
+          }
+        }
+      };
+      walkTs(new URL("../app/", import.meta.url));
+      walkTs(new URL("../lib/", import.meta.url));
+      // 引数の中のテンプレートリテラル等にあるカンマで誤判定しないよう、括弧の外の最上位のカンマだけを数える
+      const topLevelComma = (a: string): boolean => {
+        let depth = 0;
+        let inTpl = false;
+        for (const ch of a) {
+          if (ch === "`") inTpl = !inTpl;
+          else if (inTpl) continue;
+          else if ("([{".includes(ch)) depth++;
+          else if (")]}".includes(ch)) depth--;
+          else if (ch === "," && depth === 0) return true;
+        }
+        return false;
+      };
+      const badCalls = tagCalls.filter(topLevelComma);
+      const purgeOk = tagCalls.length > 0 && badCalls.length === 0;
+      if (!purgeOk) isrNg++;
+      console.log(
+        `${purgeOk ? "✓" : "✗"}  ${"revalidateTag は即時失効（引数1つ）で呼ぶ".padEnd(48)} → ` +
+          (purgeOk
+            ? `${tagCalls.length}箇所すべて引数1つ`
+            : `第2引数つきの呼び出し: ${badCalls.join(" | ") || "（呼び出しが見つからない）"}。古いまま配られ、温めの確認が意味を失う`)
+      );
+    }
+
     // ⑤ 次クールも対象に入っていること。sitemapに載せている集合と揃える
     //    （載せているのに再検証しないクールを作らない）。次クールの求め方は
     //    lib/resolveSeasonParams.ts の1箇所だけが持つ。
@@ -9384,6 +9426,31 @@ let secNg = 0;
     const unsub = code(readFileSync(new URL("../app/api/notify/unsubscribe/route.ts", import.meta.url), "utf8"));
     const getBody = unsub.slice(unsub.indexOf("export async function GET"), unsub.indexOf("export async function POST"));
     secCheck("配信停止はGETで消さない（POSTだけ）", getBody.length > 0 && !getBody.includes(".delete(") && unsub.includes("export async function POST"), "メールの安全確認が開いただけで止めない");
+  }
+
+  // ⑧-2 【2026-11-06・Next.js 16】引数なしの GET はキャッシュの扱いを明示する。
+  //    15 以降、GET の route handler は既定で要求ごとに関数を起動する（14 はビルド時に静的化していた）。
+  //    更新したとき /feed.xml と /llms.txt が黙って ○→ƒ に変わった。画面は1ピクセルも変わらず、
+  //    増えるのは起動回数だけなので、app/ を走査して「要求を読まない GET」が dynamic か revalidate を
+  //    書いていることを確かめる（ログイン利用者ごとの窓口＝cookies を読むものは対象外）。
+  {
+    const missing: string[] = [];
+    let seen = 0;
+    const walkRoutes = (dir: URL): void => {
+      for (const ent of readdirSync(dir, { withFileTypes: true })) {
+        const u = new URL(ent.name + (ent.isDirectory() ? "/" : ""), dir);
+        if (ent.isDirectory()) walkRoutes(u);
+        else if (/^route\.tsx?$/.test(ent.name)) {
+          const src = code(readFileSync(u, "utf8"));
+          if (!/export (async )?function GET\(\s*\)/.test(src)) continue;
+          if (/createClient\(|cookies\(|headers\(/.test(src)) continue;
+          seen++;
+          if (!/export const (dynamic|revalidate) = /.test(src)) missing.push(u.pathname.replace(/^.*\/app\//, "app/"));
+        }
+      }
+    };
+    walkRoutes(new URL("../app/", import.meta.url));
+    secCheck("引数なしの GET はキャッシュの扱いを明示する", seen > 0 && missing.length === 0, missing.length ? `明示なし（要求ごとに起動する）: ${missing.join(", ")}` : `${seen}本`);
   }
 
   // ⑨ next.config: セキュリティヘッダー・画像最適化の無効化

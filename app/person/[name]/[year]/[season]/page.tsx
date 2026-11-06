@@ -150,7 +150,8 @@ function findWorks(items: AnimeItem[], name: string): AnimeItem[] {
   return items.filter((it) => it.castNames.includes(name));
 }
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+export async function generateMetadata(props: { params: Promise<Params> }): Promise<Metadata> {
+  const params = await props.params;
   const { name: encodedName, year, season } = params;
   if (!isValidYear(year) || !isValidSeason(season)) return {};
   const name = decodeParamName(encodedName);
@@ -198,7 +199,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 // のみをページ化し、薄いページの量産を避ける。キャラクター名まではAnimeItemに
 // 持たせていないため（Annict個別取得が必要でコストが増えるため見送り）、
 // components/SeasonExplorer.tsx の声優チップ絞り込みと同じ「作品タイトル一覧」に留める。
-export default async function PersonPage({ params }: { params: Params }) {
+export default async function PersonPage(props: { params: Promise<Params> }) {
+  const params = await props.params;
   const { name: encodedName, year, season } = params;
   if (!isValidYear(year) || !isValidSeason(season)) notFound();
   const name = decodeParamName(encodedName);
