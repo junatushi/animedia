@@ -14,7 +14,7 @@
 | ログイン直後に外部サイトへ送られる（オープンリダイレクト） | `lib/safeRedirect.ts` | 実装済み |
 | 他サイトに枠ごと埋め込まれて押させられる（クリックジャッキング） | `next.config.mjs` のヘッダー（`/embed/**` だけは枠を許す） | 実装済み |
 | cronの共有シークレット・管理トークンの総当たり／タイミング推測 | `lib/safeEqual.ts`・管理APIはURLでトークンを受けない | 実装済み |
-| Next.js 14（サポート終了）の未修正の勧告（Server Actions・RSCのPOST） | `lib/methodGuard.ts`（ページへのPOST・`Next-Action`を描画前に拒否） | 緩和済み。根本対応は 15/16 系への更新（別PR） |
+| Next.js 14（サポート終了）の未修正の勧告（Server Actions・RSCのPOST） | Next.js 16 へ更新（2026-11-06。`npm audit` 0件）。`lib/methodGuard.ts` の拒否は多重の防壁として残す | 解消（5章） |
 | 画像最適化APIの勧告と、`/_next/image` の変換枠（月5,000）の使い切り | `next.config.mjs` の `images.unoptimized` | 実装済み |
 | 意味の無いクエリでCDNを外して関数を起動させ続ける | `lib/queryPolicy.ts`（middlewareで308。`?&&` のような表記揺れも） | 実装済み（表記揺れの本番での効き目は巡回が毎日確認） |
 | 存在しない季節・巨大なIDでページを描かせ、404をISRに書かせ続ける | `lib/routeGuard.ts`（季節）・`lib/workId.ts`（6桁まで） | 実装済み |
@@ -132,22 +132,43 @@ Project → **Firewall** → **Configure**。
 `npm audit` の勧告のうち、この構成では到達できない・ビルド時専用のものは
 `scripts/lib/security-acknowledged.js` に**理由と再確認の期日つき**で載せる。
 期日が来ると Issue に戻る（`coverage-acknowledged.js` と同じ仕組み）。
-Next.js 14 の12件は **2026-12-05** が期日で、それまでに 15/16 系へ上げる（5章）。
+2026-11-05に載せた17件（Next.js 14 の12件とビルド時専用の5件）は、16 へ上げて全部消えた（いまは0件）。
 
 ---
 
-## 5. Next.js 15/16 系への更新（別PRで行う）
+## 5. Next.js 16 への更新（2026-11-06）
 
-Next.js 14 はサポートが終わっており、14系には修正版が出ない（`npm audit` の修正候補は 16 系）。
-いまは middleware で入口を閉じているが、**今後の勧告も14系には直らない**ので更新は必須。
-別PRにする理由は、更新でキャッシュの既定が変わる（15 で `fetch` と GET の route handler が
-既定でキャッシュされなくなる）ため、**ISR Writes・Active CPU が増えて2026-08-24の停止（㉝）を
-再発させうる**から。更新のPRでは次を必ず確かめる:
+14 はサポートが終わっており修正版が出ないので、**16.4（Active LTS）**へ上げた。15 は
+2027-01-31 でセキュリティ修正が終わる（<https://nextjs.org/support-policy>）ので、15 で止めても
+3ヶ月後にもう一度上げることになる。経緯と数字は `docs/operations.md` の [72]。
 
-1. `npm run build` 後の `.next/prerender-manifest.json` の `initialRevalidateSeconds` が更新前と同じ
-2. `node scripts/check.ts`・`check-page-css.js`・`check-build-size.js` が全部OK
-3. route handler に `export const revalidate`／`dynamic = "force-static"` が付いて、キャッシュが維持されている
-4. `params`・`searchParams`・`cookies()` の非同期化（`lib/supabase/server.ts` の注意書き）
+**確かめたこと（更新のPRで実測）**
+
+1. `.next/prerender-manifest.json` の `initialRevalidateSeconds` が 4,966 ルートで更新前と同じ
+   （1週間 4,409・6時間 4・1時間 1・固定 552）
+2. ルートの静的／動的の区分が更新前と同じ。**`/feed.xml` と `/llms.txt` だけが静的→要求ごとに起動へ
+   黙って変わっていた**（15 から GET の route handler が既定でキャッシュされない）ので
+   `dynamic = "force-static"` を付けて戻した。逆戻りは `node scripts/check.ts` の
+   「引数なしの GET はキャッシュの扱いを明示する」が見張る
+3. `revalidateTag` は第2引数が必須になり、`"max"` などは「古いまま配って裏で作り直す」動きになる。
+   温めのバッチは「消す→取り直す→HIT」を前提にしているので、公式が Route Handler 向けに示す
+   **`{ expire: 0 }`（即時失効）**で呼ぶ（`app/api/revalidate/route.ts` の `PURGE_NOW`。検査あり）
+4. `params`・`searchParams`・`cookies()` は非同期（codemod＋`lib/supabase/server.ts` を async に）
+5. ローカルの本番サーバーで防壁（POST拒否・`Next-Action`・余計なクエリの308・季節/ID/名前の404・
+   ヘッダー・`/_next/image` の404）が更新前と同じに効く
+6. ルートの設定値は数値リテラルで書く（`6 * 60 * 60` は 16 のビルドで止まる）
+
+**更新で増えるもの（要観察）**
+
+- **ページを作るたびに、プリフェッチ用の分割ファイル（`.segments/`）も書き出される**。16 では止める設定が無い
+  （Next.js のソースに「再生成のたびに全部を書く」とある）。全ページで計算すると、1回あたりの
+  ISR への書き込みは**8KB単位で約1.7倍**、成果物は約1.7倍（`check-build-size.js` の予算の47%→79%）。
+  Vercel がこれを ISR Writes に数えるかは本番でしか分からないので、**マージの前後で
+  ダッシュボードの ISR Writes を見る**（4章）。上限の5割を超えていたら、マージを見送るか
+  Attack Mode・revalidate の延長で吸収できるかを先に決める
+- `middleware.ts` は 16 で非推奨（`proxy.ts` へ改名）だが、**proxy は Node.js 実行だけで edge を選べない**。
+  実行環境が変わると起動の課金のされ方も変わりうるので、今回は改名しない（ビルドに警告が出るのは承知の上）。
+  将来 middleware が削除される版が出たら、そのとき別PRで移す
 
 ---
 

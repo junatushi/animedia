@@ -79,7 +79,8 @@ export function generateStaticParams() {
 
 type Params = { year: string; season: string };
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+export async function generateMetadata(props: { params: Promise<Params> }): Promise<Metadata> {
+  const params = await props.params;
   const { year, season } = params;
   if (!isValidYear(year) || !isValidSeason(season)) return {};
 
@@ -113,7 +114,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 // このページはサーバー側で事前にデータ取得しHTMLに含めることで、
 // シーズン名での検索流入を狙う（SeasonExplorer自体はそのままクライアント
 // コンポーネントとして再利用し、初期データを渡すことでもう一度取得しない）。
-export default async function SeasonPage({ params }: { params: Params }) {
+export default async function SeasonPage(props: { params: Promise<Params> }) {
+  const params = await props.params;
   const { year, season } = params;
   if (!isValidYear(year) || !isValidSeason(season)) notFound();
 

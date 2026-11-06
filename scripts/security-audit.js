@@ -14,11 +14,17 @@
 // 環境変数（テスト用。運用では未設定）:
 //   SECURITY_AUDIT_INPUT … npm audit --json の出力ファイル（指定時は npm を起動しない）
 //   SECURITY_AUDIT_TODAY … JSTの基準日 "YYYY-MM-DD"
+//   SECURITY_AUDIT_ACK   … 確認済みの一覧の代わりに読むJSONファイル（回帰テスト用。本物の一覧が
+//                          空でも「確認済みを除く」経路を試せるようにするため。判定の分岐は同じ）
 
 const { readFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { spawnSync } = require("node:child_process");
-const { ACKNOWLEDGED, validateAcknowledged } = require("./lib/security-acknowledged.js");
+const { ACKNOWLEDGED: REAL_ACKNOWLEDGED, validateAcknowledged } = require("./lib/security-acknowledged.js");
+
+const ACKNOWLEDGED = process.env.SECURITY_AUDIT_ACK
+  ? JSON.parse(readFileSync(process.env.SECURITY_AUDIT_ACK, "utf8"))
+  : REAL_ACKNOWLEDGED;
 
 try {
   validateAcknowledged(ACKNOWLEDGED);
