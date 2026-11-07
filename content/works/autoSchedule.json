@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-04",
+  "updatedAt": "2026-11-07",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -168,6 +168,15 @@
       "fetchedDate": "2026-10-09",
       "matchedBy": "mal",
       "title": "機動戦士ガンダムSEED FREEDOM ZERO"
+    },
+    "14620": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/184072",
+      "fetchedDate": "2026-11-07",
+      "matchedBy": "mal",
+      "title": "ゆるキャン△ SEASON４"
     },
     "14903": {
       "date": "2026-10-06",
@@ -982,6 +991,15 @@
       "matchedBy": "mal",
       "title": "おデブ悪女に転生したら、なぜかラスボス王子様に執着されています"
     },
+    "17125": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/207692",
+      "fetchedDate": "2026-11-07",
+      "matchedBy": "mal",
+      "title": "涙雨とセレナーデ"
+    },
     "17132": {
       "date": "2026-10-05",
       "precision": "day",
@@ -994,11 +1012,11 @@
       "title": "ダークサモナーとデキている"
     },
     "17194": {
-      "date": "2027-01",
-      "precision": "month",
+      "date": "2027-01-08",
+      "precision": "day",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/208766",
-      "fetchedDate": "2026-09-19",
+      "fetchedDate": "2026-11-07",
       "matchedBy": "mal",
       "title": "ブレス"
     },
@@ -1030,6 +1048,15 @@
       "fetchedDate": "2026-09-06",
       "matchedBy": "mal",
       "title": "転生ゴブリンだけど質問ある？"
+    },
+    "17267": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/209247",
+      "fetchedDate": "2026-11-07",
+      "matchedBy": "mal",
+      "title": "僕の心のヤバイやつ 第3期"
     },
     "17294": {
       "date": "2027-04",
@@ -1544,6 +1571,15 @@
       "matchedBy": "mal",
       "title": "うまゆる ふるげ～と！"
     },
+    "18159": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/219618",
+      "fetchedDate": "2026-11-07",
+      "matchedBy": "mal",
+      "title": "カラダにイイ男"
+    },
     "18188": {
       "date": "2027-01",
       "precision": "month",
@@ -1670,6 +1706,15 @@
       "fetchedDate": "2026-11-01",
       "matchedBy": "mal",
       "title": "ロメリア戦記 第IIクール"
+    },
+    "18361": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/219621",
+      "fetchedDate": "2026-11-07",
+      "matchedBy": "mal",
+      "title": "はぐれアイドル地獄変"
     }
   }
 }
