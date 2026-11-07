@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-07",
+  "updatedAt": "2026-11-08",
   "source": "しょぼいカレンダー（https://cal.syoboi.jp）の最終回の「終」フラグ・dアニメストアの「（全N話）」 — scripts/fetch-completion.js が生成。手で編集しない",
   "works": {
     "6187": {
@@ -79,6 +79,16 @@
         "seenAt": "2026-10-19T00:02:19.551Z"
       },
       "season": "2026-spring"
+    },
+    "10258": {
+      "title": "転生したら剣でしたII",
+      "season": "2026-autumn",
+      "syoboi": {
+        "tid": 7981,
+        "finalCount": 12,
+        "finalAt": "2026-12-23T17:15:00.000Z",
+        "prevAt": "2026-12-09T15:30:00.000Z"
+      }
     },
     "10352": {
       "title": "乙女ゲー世界はモブに厳しい世界です2",
