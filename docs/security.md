@@ -60,7 +60,11 @@ Hobby の上限（月100万要求・100万起動）は、1台のPCから数時�
 コードからは設定できない（Hobby のレート制限はダッシュボードの規則だけ）。
 Project → **Firewall** → **Configure**。
 
-### 2-1. レート制限（Hobby は1本まで）— **最優先**
+### 2-1. レート制限 — **最優先**
+
+（2026-11-06 の画面では Add New のメニューに「Rate Limit 0/3」「Rule 0/3」「IP Block 0/10」と
+別々に出ていた。以前ここには「Hobby は1本まで」「レート制限と合わせて計3本」と書いていたが、
+画面と合わない。合算かどうかは未確認なので、作るときに残り枠の表示を見ること）
 
 | 項目 | 値 |
 |---|---|
@@ -79,12 +83,25 @@ Project → **Firewall** → **Configure**。
 - 導入後1週間は Firewall の画面で「どのIPが何回止められたか」を見て、正規の巡回や
   検索エンジンが止められていないか確かめる（止められていたら上限を上げる）。
 
-### 2-2. カスタム規則（Hobby は計3本。レート制限と合わせて数える）
+### 2-2. カスタム規則（Rule は3本まで。2026-11-06の画面）
 
 | 名前 | 条件 | 動作 | 理由 |
 |---|---|---|---|
 | `deny-page-post` | Method **is not** GET/HEAD/OPTIONS **かつ** Path **does not start with** `/api/` | Deny | `lib/methodGuard.ts` と同じ判定を**課金の手前**で行う（middlewareでも断るが、そこまで来ると1回の起動になる） |
 | `deny-next-action` | Header `next-action` **exists** | Deny | Server Actions を使っていない（同上） |
+| `tencent-cloud-deny` | AS Number **equals** `132203`（Tencent Cloud） | Deny | **設定済み（2026-11-06）**。下の 2-2-1 |
+
+#### 2-2-1. `tencent-cloud-deny`（2026-11-06 設定済み）
+
+- **なぜ**: ISR Writes が上限超過（261K/200K）の最中に、Firewall の Traffic で
+  AS132203（Tencent Cloud）が**1日1,100〜1,200件＝全要求の約4分の1**を占めていた。
+  15分あたり10〜25件で一日中平坦に来ており（人の閲覧の山谷が無い）、上位のブラウザ名に1つも
+  入っていない＝名乗りを変えながら巡回している。送信元はデータセンターで、国内の利用者が来る経路ではない
+- **未確認**: どのパスを取っていたかは見えていない（Hobby の Observability はクエリが読み取り専用）。
+  **ISR Writes の原因だったかは、設定後の Write Units の推移でしか判定できない**（`docs/operations.md`の[73]）
+- **枠が足りなくなったら**: `deny-next-action` を先に外す（middleware でも断っている）。
+  このルールを外すのは、Write Units が設定前と変わらなかった（＝原因ではなかった）と分かったとき
+- **戻し方**: Firewall → Rules で該当ルールを削除 → Review Changes → Publish
 
 ### 2-3. 入れないもの（理由つき）
 

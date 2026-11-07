@@ -9062,3 +9062,37 @@ Vercelの関数は外へ出ない（読むのはデプロイに同梱した JSON
   恒久的に超えないための最後の1枚は Vercel Firewall のレート制限（`docs/security.md` の2章・利用者の設定待ち）
 - Hobby には利用量のAPIが無く（[51]）、上限に近づいたことを機械で知る手段が無い
 
+## [73] ISR Writes の超過と、Tencent Cloud の遮断（2026-11-06）
+
+（[72] は Next.js 16 への更新の下書きPR #276 が使っている番号なので飛ばした）
+
+**なぜ**
+- Usage が「Exceeded free resources」: **ISR Writes 261K/200K（130%）**、Fluid Active CPU 3h34m/4h（89%）、
+  Deployment Storage 7.31GB/10GB、Fast Origin Transfer 4.54GB/10GB。本番はまだ200で応答していたが、
+  2026-08-24（㉝）はこの項目の超過で402停止している
+
+**実測（ダッシュボード・利用者のスクリーンショット）**
+- Observability → ISR（12時間）: Write Units 3.6K・Read Units 2.9K（1日に直すと約7.2K＝上限の1日あたり6.67Kを超える）。
+  ルート別の書き込み回数は `/anime/[id]` 784（読み出し182・513パス）、`/person/[name]/[year]/[season]` 384
+  （読み出し55・229パス）で**この2面が95%**。**書き込みが読み出しの4〜7倍**＝書いたページがほとんど再利用されていない
+- 過去クールの作品ページ1,961件はビルド時に全件焼いている（`prerender-manifest.json`）ので、書き込んでいるのは
+  **スナップショットの無い2026年の作品**（冬〜秋＋2027冬）。デプロイのたびに消え、今期・次期はさらに
+  `/api/revalidate` が1日2回消す
+- Firewall → Traffic（1日・約4.8K要求）: Microsoft 1.4K（大半は自前の `measure-speed.yml`。山の時刻
+  09:31〜09:38 JST が実行記録と一致）、**Tencent Cloud 1.2K**、Google 476、Leaseweb＝ExaSearchBot 434、
+  Facebook 385
+
+**やったこと**
+- Vercel Firewall にカスタム規則 `tencent-cloud-deny`（AS132203 を Deny）を設定・公開（`docs/security.md` の 2-2-1）
+- `docs/security.md` 2章のルール枠の記述を画面に合わせて訂正（Rule と Rate Limit が別々に「0/3」と出ていた）
+
+**判定のしかた（未判定）**
+- 翌日以降、Firewall の Denied がおよそ1,000件/日になっていること（遮断が効いている）
+- Observability → ISR の Write Units（12時間）が 3.6K から下がるか。**下がらなければ Tencent は原因ではない**
+
+**次の候補（効き目が足りなければ）**
+- ボットのデータ更新（`autoSchedule.json`・`completion.json`）によるデプロイの回数を減らす
+  （直近30日の本番デプロイ34回のうち23回がこれ。デプロイのたびに2026年の作品ページが全部消える）
+- 2026年の終わったクールをスナップショット化してビルド時に焼く（要 `ANNICT_TOKEN`・成果物が増える）
+- Next.js 16 への更新（#276）は、書き込みが上限の5割を下回るまでマージしない（`.segments/` で1回あたりの書き込みが増えうる）
+
