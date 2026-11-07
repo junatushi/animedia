@@ -9062,3 +9062,42 @@ Vercelの関数は外へ出ない（読むのはデプロイに同梱した JSON
   恒久的に超えないための最後の1枚は Vercel Firewall のレート制限（`docs/security.md` の2章・利用者の設定待ち）
 - Hobby には利用量のAPIが無く（[51]）、上限に近づいたことを機械で知る手段が無い
 
+
+## [72] Next.js 14 → 16 への更新（2026-11-06）
+
+**なぜ**: 14 はサポート終了で修正版が出ず、[71] で12件の勧告を middleware の緩和策と期日（2026-12-05）つきで
+抱えていた。15 は 2027-01-31 でセキュリティ修正が終わる（<https://nextjs.org/support-policy>）ので、
+3ヶ月後の再更新を避けて **16.4.5（Active LTS）**へ上げた。React は 19.2。`npm audit`（本番依存）は0件になり、
+`scripts/lib/security-acknowledged.js` の17件は全部消した。
+
+**直したこと**
+- `params`・`searchParams`・`cookies()` の非同期化（`@next/codemod` の `next-async-request-api`＋
+  `lib/supabase/server.ts` を async にして呼び出し側を `await`）
+- `revalidateTag` に `{ expire: 0 }`（`PURGE_NOW`）を渡す。第2引数が必須になり、`"max"` は
+  stale-while-revalidate＝温めの「消す→取り直す→HIT」と噛み合わない（公式の Route Handler 向けの指示どおり）
+- `/feed.xml`・`/llms.txt` に `dynamic = "force-static"`。15 以降 GET の route handler は既定で要求ごとに起動し、
+  **ビルドの区分が ○→ƒ に黙って変わっていた**（画面は同じ・増えるのは起動回数だけ）
+- `app/page.tsx` の `revalidate = 6 * 60 * 60` を `21600` に（式は 16 のビルドで止まる）
+- 検査を2つ足した（`node scripts/check.ts`）: `revalidateTag` が全部 `PURGE_NOW`／引数なしの GET が
+  `dynamic` か `revalidate` を書いている（走査で導出）
+- `check-security-audit.js` は本物の確認済みの一覧に頼らず、テスト用の1件を渡す形にした（一覧が空になって
+  試すものを失ったため）
+
+**実測（ビルド成果物の比較）**
+- `initialRevalidateSeconds` は 4,966 ルートすべて更新前と同じ。動的ルート8つの fallback（blocking）も同じ
+- ローカルの本番サーバーで [71] の防壁が同じに効く（POST 405・`Next-Action` 400・余計なクエリ 308＋CORS・
+  `/season/2024/xyz`・`/studio/zz`・`/anime/z.png`・`/anime/1000000` が404・`/_next/image` が404・ヘッダー）
+
+**増えるもの（未確定・重大度高）**
+- 16 は**ページを作るたびにプリフェッチ用の `.segments/` も書く**（`_full.segment.rsc` は `.rsc` と同じ中身、
+  ほかにページ分）。止める設定は無い。全4,966ページで、1回あたりの書き込みが8KB単位で
+  **63,320 → 107,940（約1.7倍）**、成果物が 513.7MB → 858.4MB（予算の47%→79%）。
+  **Vercel が `.segments/` を ISR Writes に数えるかは本番でしか確かめられない**。マージ前に利用者が
+  ダッシュボードの ISR Writes を確認する（5割を超えていれば見送りか吸収策を先に決める）。
+  マージ後1週間は ISR Writes を毎日見る
+- `middleware.ts` は非推奨の警告が出る。`proxy.ts` は Node.js 実行だけで edge を選べないので、今回は改名しない
+
+**見送ったこと**
+- 15.5 で止める: 分割ファイルが無く書き込みは増えないはずだが（未検証）、2027-01-31 までに同じ増分を抱えて
+  16 へもう一度上げることになる
+- `cacheComponents`・React Compiler を有効にする: 更新に不要で、`revalidate` 等のルート設定が無効になる

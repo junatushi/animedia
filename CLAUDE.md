@@ -7,7 +7,7 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
 配信情報は Annict の GraphQL API から**サーバー側で**リアルタイム取得する。
 
 ## スタック
-- Next.js 14（App Router）/ React 18 / TypeScript
+- Next.js 16（App Router・2026-11-06に14から更新）/ React 19 / TypeScript
 - データベースなし（外部APIのみ）
 - 外部API: Annict GraphQL `https://api.annict.com/graphql`（要トークン）
 
@@ -193,7 +193,7 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   `npm audit`（本番依存）のcritical/highのうち、`scripts/lib/security-acknowledged.js`に理由と
   `recheckOn`つきで載っていないものをIssue本文として出す（0件なら何も出さない。**終了コード2＝取れていない**）。
   `.github/workflows/security-audit.yml`が毎日**1本のIssue（ラベル`security-audit`）を書き換え**、0件で閉じる。
-  **Next.js 14はサポート終了で14系に修正版が出ない**ので、新しい勧告に早く気づくための仕組み。
+  サポートの切れた版に修正が出ないまま気づかない、を防ぐための仕組み（導入時はNext.js 14。2026-11-06に16へ更新して0件）。
   回帰テストは`node scripts/check-security-audit.js`。全体像は`docs/security.md`
 - `node scripts/coverage-gaps.js` … **配信先が未登録の作品の洗い出し**（2026-10-02導入）。
   `content/coverage/first-seen.json` だけを読み、今期・次期で配信サービス0件の作品を
@@ -975,14 +975,17 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   Annictの作品名の`</script>`で保存型XSSになる）
   ②**GETを持つroute handlerを足したら`lib/queryPolicy.ts`の表に載せる**（読むクエリのキーと値の形も。
   載せ忘れると検査が落ち、許可し忘れると正しいクエリまで308で落とされる）
-  ③Server Actions（`"use server"`）を使わない（middlewareがページへのPOSTと`Next-Action`を拒否している＝
-  Next.js 14の未修正勧告の緩和策）。`next/image`も使わない（`images.unoptimized`の前提）
+  ③Server Actions（`"use server"`）を使わない（middlewareがページへのPOSTと`Next-Action`を拒否している。
+  Next.js 14の未修正勧告の緩和策として入れ、16へ上げた後も多重の防壁として残す）。`next/image`も使わない（`images.unoptimized`の前提）
   ④全ワークフローに`permissions:`を書き、秘密やイベントの値は`env:`で渡す（`run:`の本文に展開しない）
   ⑤`coverage-autofill.yml`は`pull_request_target`で、**PRのツリーをcheckoutも実行もしない**。
   `extraServices.ts`のリテラルにはデータだけを書く（`(…).map()`などのコードを入れると自動補完が人の確認に落ちる）
   ⑥**要求の数そのものはコードでは止められない**。最後の1枚はVercel Firewallのレート制限
-  （`docs/security.md`の2章。ダッシュボードの設定）。Next.js 15/16系への更新は別PRで、キャッシュの実効値を
-  必ず確かめる（同書5章・㉝）
+  （`docs/security.md`の2章。ダッシュボードの設定）
+  ⑦**【Next.js 16・2026-11-06】`revalidateTag`は`{ expire: 0 }`（`PURGE_NOW`）で呼ぶ**（`"max"`は古いまま配る＝
+  温めの前提が崩れる）。**引数なしのGETのroute handlerには`dynamic`か`revalidate`を書く**（15以降は既定で
+  要求ごとに起動する）。ルートの設定値は数値リテラルで書く。`middleware.ts`は改名しない（`proxy`はedgeを選べない）。
+  16はページごとに`.segments/`も書くのでISR Writesが増えうる（`docs/security.md`の5章・`docs/operations.md`の[72]）
 - **【基本ルール】放送開始1週間前ルール（2026-07-11導入）**: 放送/配信の曜日・時刻
   （`broadcastWeekday`/`broadcastTime`）は「毎週その曜日に配信される」という前提の表示。
   まだ放送開始前の作品にこれを出すと「今週の水曜22:30」のように見えてしまい、実際は

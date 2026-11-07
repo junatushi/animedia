@@ -17,17 +17,17 @@
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.110.2",
     "@vercel/analytics": "^2.0.1",
-    "next": "^14.2.35",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "next": "^16.4.5",
+    "react": "^19.2.9",
+    "react-dom": "^19.2.9",
     "resend": "^6.17.2",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@atproto/api": "^0.20.25",
     "@types/node": "^20.14.0",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "playwright": "^1.61.1",
     "twitter-api-v2": "^1.29.0",
     "typescript": "^5.5.4"

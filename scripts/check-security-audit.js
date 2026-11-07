@@ -25,13 +25,23 @@ function test(name, fn) {
 }
 
 const dir = mkdtempSync(join(tmpdir(), "security-audit-"));
+// 確認済みの一覧はテスト用の1件を渡す（本物の一覧は依存を上げると空になりうる。2026-11-06に
+// Next.js 16へ上げて17件すべてが解消し、本物の一覧に頼っていたテストが試すものを失った）。
+const KNOWN = {
+  id: "GHSA-zzzz-yyyy-xxxx",
+  package: "next",
+  reason: "テスト用の確認済みの理由",
+  recheckOn: "2026-12-05",
+};
+const ackFile = join(dir, "ack.json");
+writeFileSync(ackFile, JSON.stringify([KNOWN]));
 let seq = 0;
 function run(content, today) {
   const p = join(dir, `audit-${seq++}.json`);
   writeFileSync(p, typeof content === "string" ? content : JSON.stringify(content));
   return spawnSync(process.execPath, [join(__dirname, "security-audit.js")], {
     encoding: "utf8",
-    env: { ...process.env, SECURITY_AUDIT_INPUT: p, SECURITY_AUDIT_TODAY: today || "2026-11-05" },
+    env: { ...process.env, SECURITY_AUDIT_INPUT: p, SECURITY_AUDIT_TODAY: today || "2026-11-05", SECURITY_AUDIT_ACK: ackFile },
   });
 }
 
@@ -53,7 +63,6 @@ const audit = (vias, fixAvailable = true) => ({
   metadata: { vulnerabilities: { total: vias.length } },
 });
 
-const KNOWN = ACKNOWLEDGED.find((a) => a.package === "next");
 
 console.log("── Issue本文を出す／出さない ──");
 test("未確認の critical は本文に GHSA ID と修正情報を出す", () => {
@@ -140,10 +149,11 @@ test("recheckOn の形が違えば例外", () => assert.throws(() => validateAck
 test("GHSA形式でない id は例外", () => assert.throws(() => validateAcknowledged([{ ...good, id: "CVE-2025-0001" }]), /不正/));
 test("同じ id の重複は例外", () => assert.throws(() => validateAcknowledged([good, good]), /2回/));
 test("正しい行は通る", () => assert.doesNotThrow(() => validateAcknowledged([good])));
-test("本物の ACKNOWLEDGED が検証を通る", () => {
+test("本物の ACKNOWLEDGED が検証を通る（空でもよい）", () => {
   assert.doesNotThrow(() => validateAcknowledged(ACKNOWLEDGED));
-  assert.ok(ACKNOWLEDGED.length > 0);
+  assert.ok(Array.isArray(ACKNOWLEDGED));
 });
+test("テスト用の確認済みの行も検証を通る", () => assert.doesNotThrow(() => validateAcknowledged([KNOWN])));
 
 console.log(failed ? `\n${failed}件失敗` : "\n全件OK");
 // process.exit() は使わない（Windowsで出力が切れる。scripts/check.ts 末尾の注記）

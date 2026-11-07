@@ -1,12 +1,12 @@
 // サーバー用Supabaseクライアント（Server Component / Route Handlerから使う）。
-// 本プロジェクトのNext.js 14.2系ではnext/headersのcookies()は同期関数
-// （Next 15以降で非同期化されたため、最新のSupabase公式ドキュメントの
-// `await cookies()` 例をそのまま持ち込まないこと）。
+// 【2026-11-06・Next.js 16へ更新】next/headers の cookies() は非同期（16で同期アクセスは廃止）。
+// そのためこの関数も async で、呼び出し側は必ず `await createClient()` と書く
+// （await を忘れると Promise に .from() を呼んで実行時に落ちる。tsc が型で止める）。
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-export function createClient() {
-  const cookieStore = cookies();
+export async function createClient() {
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

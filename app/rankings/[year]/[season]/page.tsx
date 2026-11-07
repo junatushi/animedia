@@ -94,7 +94,8 @@ function rankByEarliestStart(items: AnimeItem[], limit: number): AnimeItem[] {
     .slice(0, limit);
 }
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+export async function generateMetadata(props: { params: Promise<Params> }): Promise<Metadata> {
+  const params = await props.params;
   const { year, season } = params;
   if (!isValidYear(year) || !isValidSeason(season)) return {};
 
@@ -126,7 +127,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 // データ集計コンテンツ。docs/growth-ideas.md の流入調査（2026-07-13）で、こうした
 // ランキング・集計系の記事がメディアにも取り上げられる拡散価値があると判断したことに基づく。
 // 数字はすべてAnnictの実データから都度算出し、創作・推測は行わない。
-export default async function RankingsPage({ params }: { params: Params }) {
+export default async function RankingsPage(props: { params: Promise<Params> }) {
+  const params = await props.params;
   const { year, season } = params;
   if (!isValidYear(year) || !isValidSeason(season)) notFound();
 

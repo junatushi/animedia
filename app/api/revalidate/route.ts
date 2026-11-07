@@ -31,6 +31,14 @@ import { currentYearSeason, nextYearSeason } from "@/lib/resolveSeasonParams";
 import { getSeasonData } from "@/lib/getSeasonData";
 import { workCacheTag, seasonCacheTag } from "@/lib/annict";
 
+// 【2026-11-06・Next.js 16へ更新・重大度高】revalidateTag は第2引数（profile）が必須になった。
+// `"max"` などの名前つきプロファイルは「古い中身を配りながら裏で作り直す」（stale-while-revalidate）で、
+// **消してから温め直す**このバッチ（scripts/warm-revalidated.sh が2回目の取得で HIT を確かめる）と
+// 噛み合わない。公式（nextjs.org/docs/app/api-reference/functions/revalidateTag）は、
+// Route Handler から即時に失効させるには `{ expire: 0 }` を渡せと書いている（引数1つの旧形式も
+// 同じ動きだが非推奨で、型エラーになる）。**ここを "max" に変えないこと**（node scripts/check.ts が見張る）。
+const PURGE_NOW = { expire: 0 } as const;
+
 // 秘密の照合とrevalidatePathはリクエストごとに必ず走らせる（キャッシュさせない）。
 export const dynamic = "force-dynamic";
 
@@ -121,16 +129,16 @@ export async function POST(request: Request) {
   // 対象を名指しにしたので、2026-10-01に入れた「共有のタグは scope=next では
   // 古くしない」という分岐も要らなくなった（今期と次クールが同じ1枚を共有しない）。
   for (const t of targets) {
-    revalidateTag(seasonCacheTag(`${t.year}-${t.season}`));
+    revalidateTag(seasonCacheTag(`${t.year}-${t.season}`), PURGE_NOW);
   }
   // 検索索引は今期・次クールをまとめた1枚なので、今期の回だけ古くする
   // （次クールの回でもう一度古くすると、1回目のあとに温まったぶんが無駄に冷える）。
   if (scope !== "next") {
-    revalidateTag("annict");
+    revalidateTag("annict", PURGE_NOW);
   }
   // 作品1件ぶんのタグはクールごとに別物なので、どちらのscopeでも必ず古くする。
   for (const tag of workTags) {
-    revalidateTag(tag);
+    revalidateTag(tag, PURGE_NOW);
   }
 
   for (const path of paths) {

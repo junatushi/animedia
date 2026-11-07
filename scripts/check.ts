@@ -7957,12 +7957,41 @@ let isrNg = 0;
     //    ここが消えると、今度は現在クールの鮮度が1週間まで落ちる（逆方向の壊れ方）。
     const revSrc = readFileSync(new URL("../app/api/revalidate/route.ts", import.meta.url), "utf8");
     const namesWorkTags =
-      /workCacheTag\(item\.id\)/.test(revSrc) && /revalidateTag\(tag\)/.test(revSrc);
+      /workCacheTag\(item\.id\)/.test(revSrc) && /revalidateTag\(tag, PURGE_NOW\)/.test(revSrc);
     if (!namesWorkTags) isrNg++;
     console.log(
       `${namesWorkTags ? "✓" : "✗"}  ${"cronが対象クールの作品を名指しする".padEnd(48)} → ` +
         (namesWorkTags ? "workCacheTag で指名" : "これが無いと現在クールが1週間古いまま出る")
     );
+
+    // ④-2 【2026-11-06・Next.js 16】revalidateTag は第2引数が必須になり、"max" などの名前つきは
+    //    stale-while-revalidate（古いまま配って裏で作り直す）になる。温めのバッチは「消す→取り直す→HIT」を
+    //    前提にしているので、即時失効の { expire: 0 } だけを許す。app/ と lib/ を走査して全呼び出しを見る。
+    {
+      const purgeConst = /const PURGE_NOW = \{ expire: 0 \} as const;/.test(revSrc);
+      const tagCalls: string[] = [];
+      const walkTs = (dir: URL): void => {
+        for (const ent of readdirSync(dir, { withFileTypes: true })) {
+          const u = new URL(ent.name + (ent.isDirectory() ? "/" : ""), dir);
+          if (ent.isDirectory()) walkTs(u);
+          else if (/\.(ts|tsx)$/.test(ent.name)) {
+            const src = readFileSync(u, "utf8").replace(/^\s*\/\/.*$/gm, "");
+            for (const m of src.matchAll(/revalidateTag\(([^;]*?)\);/g)) tagCalls.push(m[1]);
+          }
+        }
+      };
+      walkTs(new URL("../app/", import.meta.url));
+      walkTs(new URL("../lib/", import.meta.url));
+      const badCalls = tagCalls.filter((a) => !/,\s*PURGE_NOW\s*$/.test(a));
+      const purgeOk = purgeConst && tagCalls.length > 0 && badCalls.length === 0;
+      if (!purgeOk) isrNg++;
+      console.log(
+        `${purgeOk ? "✓" : "✗"}  ${"revalidateTag は即時失効（{ expire: 0 }）で呼ぶ".padEnd(48)} → ` +
+          (purgeOk
+            ? `${tagCalls.length}箇所すべて PURGE_NOW`
+            : `${purgeConst ? "" : "PURGE_NOW が { expire: 0 } でない / "}即時失効でない呼び出し: ${badCalls.join(" | ") || "（呼び出しが見つからない）"}。古いまま配られ、温めの確認が意味を失う`)
+      );
+    }
 
     // ⑤ 次クールも対象に入っていること。sitemapに載せている集合と揃える
     //    （載せているのに再検証しないクールを作らない）。次クールの求め方は
@@ -8080,12 +8109,12 @@ let isrNg = 0;
     //    （"annict" は検索索引だけ。今期の回だけで足りる）。
     const revCode = code(revSrc);
     const revSq = squash(revCode);
-    const annictCalls = revSq.split('revalidateTag("annict")').length - 1;
+    const annictCalls = revSq.split('revalidateTag("annict",PURGE_NOW)').length - 1;
     const revOk =
-      revSq.includes("for(consttoftargets){revalidateTag(seasonCacheTag(`${t.year}-${t.season}`));}") &&
+      revSq.includes("for(consttoftargets){revalidateTag(seasonCacheTag(`${t.year}-${t.season}`),PURGE_NOW);}") &&
       !revCode.includes("season-current") &&
       annictCalls === 1 &&
-      revSq.includes('if(scope!=="next"){revalidateTag("annict");}');
+      revSq.includes('if(scope!=="next"){revalidateTag("annict",PURGE_NOW);}');
     if (!revOk) isrNg++;
     console.log(
       `${revOk ? "✓" : "✗"}  ${"cronが古くするのは対象クールのタグだけ".padEnd(48)} → ` +
@@ -9384,6 +9413,31 @@ let secNg = 0;
     const unsub = code(readFileSync(new URL("../app/api/notify/unsubscribe/route.ts", import.meta.url), "utf8"));
     const getBody = unsub.slice(unsub.indexOf("export async function GET"), unsub.indexOf("export async function POST"));
     secCheck("配信停止はGETで消さない（POSTだけ）", getBody.length > 0 && !getBody.includes(".delete(") && unsub.includes("export async function POST"), "メールの安全確認が開いただけで止めない");
+  }
+
+  // ⑧-2 【2026-11-06・Next.js 16】引数なしの GET はキャッシュの扱いを明示する。
+  //    15 以降、GET の route handler は既定で要求ごとに関数を起動する（14 はビルド時に静的化していた）。
+  //    更新したとき /feed.xml と /llms.txt が黙って ○→ƒ に変わった。画面は1ピクセルも変わらず、
+  //    増えるのは起動回数だけなので、app/ を走査して「要求を読まない GET」が dynamic か revalidate を
+  //    書いていることを確かめる（ログイン利用者ごとの窓口＝cookies を読むものは対象外）。
+  {
+    const missing: string[] = [];
+    let seen = 0;
+    const walkRoutes = (dir: URL): void => {
+      for (const ent of readdirSync(dir, { withFileTypes: true })) {
+        const u = new URL(ent.name + (ent.isDirectory() ? "/" : ""), dir);
+        if (ent.isDirectory()) walkRoutes(u);
+        else if (/^route\.tsx?$/.test(ent.name)) {
+          const src = code(readFileSync(u, "utf8"));
+          if (!/export (async )?function GET\(\s*\)/.test(src)) continue;
+          if (/createClient\(|cookies\(|headers\(/.test(src)) continue;
+          seen++;
+          if (!/export const (dynamic|revalidate) = /.test(src)) missing.push(u.pathname.replace(/^.*\/app\//, "app/"));
+        }
+      }
+    };
+    walkRoutes(new URL("../app/", import.meta.url));
+    secCheck("引数なしの GET はキャッシュの扱いを明示する", seen > 0 && missing.length === 0, missing.length ? `明示なし（要求ごとに起動する）: ${missing.join(", ")}` : `${seen}本`);
   }
 
   // ⑨ next.config: セキュリティヘッダー・画像最適化の無効化

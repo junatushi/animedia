@@ -14,7 +14,7 @@ export async function GET() {
     return NextResponse.json({ workIds: [] });
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "ログイン機能は準備中です。" }, { status: 503 });
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -82,7 +82,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "ログイン機能は準備中です。" }, { status: 503 });
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
