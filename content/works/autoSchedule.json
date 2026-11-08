@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-07",
+  "updatedAt": "2026-11-08",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -128,6 +128,15 @@
       "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "魔法騎士レイアース (2026)"
+    },
+    "13616": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/179088",
+      "fetchedDate": "2026-11-08",
+      "matchedBy": "mal",
+      "title": "みなみけ これから"
     },
     "13731": {
       "date": "2026-10-14",
