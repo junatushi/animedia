@@ -450,8 +450,9 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   時間帯の定義は`scripts/lib/build-digest.js`の`SLOTS`**だけ**が持ち、ワークフローのYAMLには
   時刻を書かない（`node scripts/check.ts`がハードコードの逆戻りを検査する）。詳細は
   `docs/operations.md`の⑦-9。
+- **Xは1日2投稿**（2026-11-08〜・利用者の決定。シャドウバンの検証も兼ねる）。1本目＝その曜日の放送・配信一覧、2本目＝X上で反応が多かった投稿の構成を真似た型を日替わり（`scripts/lib/build-x-engage.js`）。**主観による評価は書かない**（みんなの1位・ランキングを聞くのはよい）。目標は半年でフォロワー100・SEO流入2倍。判定と記録は`docs/x-analytics.md`の「方針変更 2026-11-08」。
 - Xへの投稿は**ブラウザから手動**（2026-07-05〜）。X APIが2026年2月に無料枠廃止・従量課金制（投稿1件$0.015、リンク付き$0.20）になったため、API自動投稿（`.github/workflows/post-to-x.yml`）は保留中でGitHub Secrets未登録。文案は `docs/sns-templates.md`。詳細は `docs/operations.md`。
-- Xアカウント成長（フォロワー獲得）は**週次X成長キット**（`x-growth.yml`が毎週月曜20:00 JSTに起票するGitHub Issue）で運用。投稿ドラフト4本＋見込み客への検索クエリ/リプ下書き＋週次チェックを自動生成し、投稿・リプ・フォローは手動で行う（自動投稿・自動フォロー・スクレイピングはしない）。生成は `scripts/lib/build-growth-kit.js`。考え方は `docs/x-growth-playbook.md`、運用は `docs/operations.md`の⑫。
+- Xアカウント成長（フォロワー獲得）は**週次X成長キット**（`x-growth.yml`が毎週月曜20:00 JSTに起票するGitHub Issue）で運用。数字の記録・プロフィール点検・リサーチ用の検索クエリ＋週次チェックを自動生成し（投稿ドラフト4本は2026-11-08に外した）、投稿・リプ・フォローは手動で行う（自動投稿・自動フォロー・スクレイピングはしない）。生成は `scripts/lib/build-growth-kit.js`。考え方は `docs/x-growth-playbook.md`、運用は `docs/operations.md`の⑫。
 - 流入リード発掘（demand-scan/lead-finder、2026-07-16導入・検証中）は「配信どこ？」で困っている個人の投稿を見つけ返信下書きを作る仕組み。2〜3週に1回、Claudeに「流入リードを集めて」と依頼して回す。手順は `docs/operations.md`の⑬、技術詳細は `docs/demand-scan.md`。
 - ユーザー行動は Vercel Web Analytics のカスタムイベントで計測（`docs/operations.md` の「計測の見かた」参照）。
 - 集客最大化・サイト改良の構想メモは `docs/growth-ideas.md` にまとめてある（次回セッションの着手候補）。
