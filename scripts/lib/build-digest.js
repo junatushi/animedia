@@ -697,24 +697,48 @@ function buildSpotlight(data, year, label, todayStr, platform = "x") {
 // 「同一に近い文面 × **高頻度** × 毎回リンク × 無会話」で、打ち手として「頻度を1日1回以下」が
 // 挙がっていた（docs/handoff.md 2026-08-07メモ）。利用者の判断（2026-08-16）で1日1投稿にする。
 //
-// 種別は曜日で決め打ちにする（乱数は使わない）。同じ日なら何度実行しても同じ結果になり、
-// 3種類が週の中で均等に回る。日曜にTOP5を置くのは、TOP5が週次のランキング＝日曜にしか
-// 出ない枠だったため（buildDigest の weekday===0 の分岐を参照）。
-const X_DAILY_KIND = ["top5", "airing", "spotlight", "airing", "spotlight", "airing", "spotlight"];
+// 【2026-11-08変更】1日2投稿にした（利用者の判断。シャドウバンの検証も兼ねる）。
+// **1本目は毎日その曜日の放送・配信一覧（airing）**に固定する。利用者は実際には
+// 曜日によらず毎日 airing を投稿しており（docs/x-analytics.md の記録）、表示が安定して
+// 出ているのもこの型なので、ここを変えずに比較の基準にする。放送作品が0本の日だけTOP5。
+// 2本目は scripts/lib/build-x-engage.js が「反応が集まる構成」の型からランダムに選ぶ
+// （buildDigest の中で足す）。スポットライトはXでは出さない（2本目の型に置き換えた）。
+const X_DAILY_KIND = ["airing", "airing", "airing", "airing", "airing", "airing", "airing"];
 
-// その日にXへ出す1投稿を選ぶ。狙った種別がその日に無い（例: 放送作品が0本で airing が
-// 作られない）ときは、残っているものの先頭へ落とす＝**投稿が0件になることは無い**。
+// その日にXへ出す1本目を選ぶ。狙った種別がその日に無い（例: 放送作品が0本で airing が
+// 作られない）ときは TOP5、それも無ければ残っているものの先頭へ落とす＝**0件にならない**。
 // 純粋関数にしてあるのは scripts/check.ts から直接検査するため。
 function pickDailyXPost(posts, weekday) {
   if (posts.length <= 1) return posts;
   const want = X_DAILY_KIND[weekday];
-  return [posts.find((p) => p.kind === want) ?? posts[0]];
+  return [posts.find((p) => p.kind === want) ?? posts.find((p) => p.kind === "top5") ?? posts[0]];
+}
+
+// Xの2本目を足す（2026-11-08）。前期のデータは「前期アニメ一気見」の型にだけ使うので、
+// 取れなくても2本目の候補が1つ減るだけにする（1本目まで巻き添えにしない）。
+// build-x-engage.js はこのファイルを require するので、循環しないよう関数の中で読み込む。
+async function withEngagePost(first, { data, year, season, label, todayStr }) {
+  const { buildEngagePost, previousSeason } = require("./build-x-engage");
+  let prev = null;
+  try {
+    const p = previousSeason(year, season);
+    const res = await fetch(`${SITE_URL}/api/season?year=${p.year}&season=${p.key}`);
+    if (res.ok) {
+      prev = { year: p.year, label: p.label, data: await res.json(), seasonUrl: `${SITE_URL}/season/${p.year}/${p.key}` };
+    }
+  } catch {
+    prev = null;
+  }
+  // 1本目がTOP5の日（放送0本の日）は、2本目にTOP5の型を出さない（同じ内容が2本並ぶ）。
+  const exclude = first.some((p) => p.kind === "top5") ? ["top5-vote"] : [];
+  const second = buildEngagePost({ data, year, season, label, todayStr, prev, exclude });
+  return second ? [...first, second] : first;
 }
 
 // 月〜土は1投稿（曜日紹介。放送作品が無ければTOP5にフォールバック）。
 // 日曜は「TOP5」＋「その日の放送/配信があれば曜日紹介」の最大2投稿にする
 // （2026-07-14: 日曜もアニメ紹介をする方針に変更）。
-// ※ ただしXは上の pickDailyXPost で最終的に1投稿へ絞る。
+// ※ ただしXは上の pickDailyXPost で1本目を選び、withEngagePost で2本目を足す（2026-11-08〜）。
 async function buildDigest(now = new Date(), rawPlatform) {
   const platform = normalizePlatform(rawPlatform);
   // どの時間帯枠の実行か（DIGEST_SLOT）。未設定/"all" なら枠で絞らず全部返す。
@@ -766,9 +790,11 @@ async function buildDigest(now = new Date(), rawPlatform) {
   // kinds を持つ枠（SLOTS）だけ内容を絞る。Mastodonのまとめ投稿（BATCH_SLOTS）は
   // kinds を持たないので、その日の全投稿がそのまま出る。
   const slotted = slot?.kinds ? posts.filter((p) => slot.kinds.includes(p.kind)) : posts;
+  // Xは1本目（その曜日の一覧）＋2本目（反応が集まる構成の型）の2投稿（2026-11-08）。
+  const xPosts =
+    platform === "x" ? await withEngagePost(pickDailyXPost(slotted, weekday), { data, year, season, label, todayStr }) : null;
   return {
-    // Xだけ1日1投稿に絞る（2026-08-16導入。bodyIncludesUrl と同じ理由）。
-    posts: platform === "x" ? pickDailyXPost(slotted, weekday) : slotted,
+    posts: platform === "x" ? xPosts : slotted,
     year,
     season,
     label,

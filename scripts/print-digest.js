@@ -52,9 +52,16 @@ function renderIssue(posts) {
     "",
     "投稿し終えたらこのIssueを閉じてください。",
     "",
+    ...(posts.length >= 2
+      ? [
+          "Xは**1日2投稿**です（2026-11-08〜）。1本目はその曜日の一覧、2本目は反応が集まる構成の型から日替わりで選んでいます。時間は空けて投稿してください（いつ出すかは自由）。",
+          "",
+        ]
+      : []),
   ];
   posts.forEach((p, i) => {
-    const label = KIND_LABEL[p.kind] ?? p.kind ?? `投稿${i + 1}`;
+    // Xの2本目（2026-11-08〜。build-x-engage.js）は型ごとの表示名を自分で持つ。
+    const label = p.label ? `2本目: ${p.label}` : KIND_LABEL[p.kind] ?? p.kind ?? `投稿${i + 1}`;
     out.push(`## ${label}`);
     out.push("");
     out.push(`**[▶ このままXの投稿画面を開く](${xPostUrl(p.text)})**`);
