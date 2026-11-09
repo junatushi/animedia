@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-08",
+  "updatedAt": "2026-11-10",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -1579,6 +1579,15 @@
       "fetchedDate": "2026-09-19",
       "matchedBy": "mal",
       "title": "うまゆる ふるげ～と！"
+    },
+    "18132": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/216312",
+      "fetchedDate": "2026-11-10",
+      "matchedBy": "mal",
+      "title": "ぼくの好きな人が好きな人"
     },
     "18159": {
       "date": "2027-01",
