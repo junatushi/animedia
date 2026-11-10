@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
@@ -7050,6 +7050,90 @@ let llmsNg = 0;
 console.log(`結果（公開APIの告知）: ${llmsNg === 0 ? "全件OK" : `${llmsNg} 件NG`}`);
 
 // ─────────────────────────────────────────────
+// Annict由来のデータを第三者に再提供しない（2026-11-10導入・重大度高）
+//
+// Annict API 利用規約（https://annict.com/terms/api。2026-11-25施行）第6条は、APIで取得した
+// データを「そのままの形で、またはまとまったデータとして第三者が取り出せるように提供」することを
+// 禁じ、例に「自分のAPIでの再提供」を挙げている。/api/work・/api/season・/api/search-index は
+// CORS を付けて /developers で第三者に案内していたので、CORS と案内を外した（docs/operations.md [76]）。
+// CORS を1行戻しても画面は1ピクセルも変わらず、規約に反した形だけが本番に出る。
+// 対象は手で並べない: app/ の route と middleware.ts のうち CORS を返すものを走査し、
+// その import を辿って Annict 由来のデータ（lib/annict.ts・content/snapshots|archive|coverage）に
+// 届くものが1本も無いことを確かめる（`import type` は実行時のデータを運ばないので辿らない）。
+// ─────────────────────────────────────────────
+console.log("\n── Annict由来のデータを第三者に再提供しない ──");
+let annictCorsNg = 0;
+{
+  const root = new URL("../", import.meta.url);
+  const exists = (u: URL): boolean => {
+    try {
+      return statSync(u).isFile();
+    } catch {
+      return false;
+    }
+  };
+  const resolveSpec = (spec: string, from: URL): URL | null => {
+    let base: URL;
+    if (spec.startsWith("@/")) base = new URL(spec.slice(2), root);
+    else if (spec.startsWith(".")) base = new URL(spec, from);
+    else return null; // npm パッケージは対象外
+    for (const ext of ["", ".ts", ".tsx", ".js", ".json", "/index.ts", "/index.tsx"]) {
+      const u = new URL(base.href + ext);
+      if (exists(u)) return u;
+    }
+    return null;
+  };
+  const ANNICT_DATA = /\/(lib\/annict\.ts|content\/(snapshots|archive|coverage)\/)/;
+  const reachesAnnict = (start: URL): string | null => {
+    const seen = new Set<string>();
+    const stack: URL[] = [start];
+    while (stack.length) {
+      const u = stack.pop()!;
+      if (seen.has(u.href)) continue;
+      seen.add(u.href);
+      if (ANNICT_DATA.test(decodeURIComponent(u.pathname))) return decodeURIComponent(u.pathname).replace(/^.*?\/(lib|content)\//, "$1/");
+      if (!/\.(ts|tsx|js)$/.test(u.pathname)) continue;
+      const src = readFileSync(u, "utf8");
+      const specs = [
+        ...[...src.matchAll(/^\s*import\s+(?!type\b)[^;]*?from\s+["']([^"']+)["']/gm)].map((m) => m[1]),
+        ...[...src.matchAll(/import\(\s*["'`]([^"'`$]+)/g)].map((m) => m[1]),
+      ];
+      for (const spec of specs) {
+        // 動的import のテンプレート（`@/content/snapshots/${...}`）は接頭辞だけで判定する
+        if (/^@\/content\/(snapshots|archive|coverage)\//.test(spec)) return spec.slice(2);
+        const r = resolveSpec(spec, u);
+        if (r) stack.push(r);
+      }
+    }
+    return null;
+  };
+
+  const targets = [
+    ...listSourceFiles(new URL("../app/", import.meta.url)).filter((u) => /\/route\.tsx?$/.test(u.pathname)),
+    new URL("../middleware.ts", import.meta.url),
+  ];
+  const stripComments = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+  const corsFiles = targets.filter((u) => /Access-Control-Allow-Origin/.test(stripComments(readFileSync(u, "utf8"))));
+  const offenders: string[] = [];
+  for (const u of corsFiles) {
+    const hit = reachesAnnict(u);
+    if (hit) offenders.push(`${decodeURIComponent(u.pathname).replace(/^.*?\/(app|middleware)/, "$1")} → ${hit}`);
+  }
+  // 空振り防止: 自前の名寄せ表（/api/services）は CORS 付きで公開しているので、1本は見つかるはず
+  const ok = corsFiles.length > 0 && offenders.length === 0;
+  if (!ok) annictCorsNg++;
+  console.log(
+    `${ok ? "✓" : "✗"}  ${"CORS付きの窓口がAnnict由来のデータに届かない".padEnd(40)} → ` +
+      (ok
+        ? `CORS付き ${corsFiles.length}本（Annict由来のデータに届くものは0本）`
+        : corsFiles.length === 0
+          ? "CORS付きの窓口が1本も見つからない（検査が空振りしている）"
+          : `第三者に再提供している: ${offenders.join(" | ")}。Annict API利用規約第6条`)
+  );
+}
+console.log(`結果（Annict由来のデータの再提供）: ${annictCorsNg === 0 ? "全件OK" : `${annictCorsNg} 件NG`}`);
+
+// ─────────────────────────────────────────────
 // 機械補完した放送予定日（2026-08-17追加）
 //
 // 次クールの放送日はAnnictの programs（番組表）に載るのが遅い。2026-08-17の実測で
@@ -7412,7 +7496,13 @@ let ciNg = 0;
   );
 
   // (1) 開発機（Windows）とCI（ubuntu）の両方。片方だけに戻すと上記の穴が復活する。
-  const oses = ["ubuntu-latest", "windows-latest"].filter((os) => ciYml.includes(os));
+  //     【2026-11-10】matrix の `os:` の行だけを見る（Windows を PR のときだけに絞り、コメントにも
+  //     windows-latest と書いたため、ファイル全体の文字列一致では matrix から消えても緑になる）。
+  //     PR で Windows が回ることも確かめる（push だけに残すと PR で検知できない）。
+  const osLine = (ciYml.split("\n").find((l) => /^\s*os:\s*\S/.test(l)) ?? "").replace(/#.*$/, "");
+  const prBranch = /github\.event_name == 'pull_request' && fromJSON\('(\[[^']*\])'\)/.exec(osLine);
+  const osSource = prBranch ? prBranch[1] : osLine;
+  const oses = ["ubuntu-latest", "windows-latest"].filter((os) => osSource.includes(os));
   const osOk = oses.length === 2;
   if (!osOk) ciNg++;
   console.log(
@@ -9559,6 +9649,7 @@ if (
   autoNg > 0 ||
   datasetNg > 0 ||
   llmsNg > 0 ||
+  annictCorsNg > 0 ||
   creditNg > 0 ||
   ciNg > 0 ||
   addNg > 0 ||

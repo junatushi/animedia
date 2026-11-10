@@ -37,10 +37,9 @@ export async function GET(req: Request) {
         // （3600）と揃える。データ層が1時間キャッシュしているのにエッジだけ10分で切らすと、
         // 切れた50分ぶんは関数が起動して同じキャッシュ済みデータを詰め直すだけになる。
         "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
-        // 公開データとして第三者のサイト・スクリプトからも直接叩けるようにする
-        // （2026-08-06。認証情報を載せないため * でよい。docs/operations.md ⑯）。
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        // 【2026-11-10】CORSは付けない。Annict API利用規約（2026-11-25施行）第6条が「自分のAPIでの再提供」を
+        // 禁じているため、第三者のサイトから直接読める形にしない（自サイトの画面と収集スクリプトだけが使う）。
+        // 逆戻りは node scripts/check.ts の「Annict由来のデータを第三者に再提供しない」が見張る。
       },
     });
   } catch (e) {
