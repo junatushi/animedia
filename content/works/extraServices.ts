@@ -435,4 +435,22 @@ export const EXTRA_SERVICES: Record<number, ExtraServiceEntry[]> = {
       confirmedDate: "2026-10-26",
     },
   ],
+  // メカザムライ: テレ東の公式リリースに「YouTube・X・Instagram・TikTokにて縦型ショートアニメを配信開始」。
+  18345: [
+    {
+      key: "youtube",
+      sourceUrl: "https://www.tv-tokyo.co.jp/information/202610/5902.html",
+      confirmedDate: "2026-11-11",
+      evidence: "2026年11月2日（月）からYouTube・X・Instagram・TikTokにて縦型ショートアニメを配信開始！",
+    },
+  ],
+  // ドゥージーのドッグハウス: Netflix日本版の作品ページ（7エピソード・視聴プランの案内あり）。
+  18355: [
+    {
+      key: "netflix",
+      sourceUrl: "https://www.netflix.com/jp/title/81678020",
+      confirmedDate: "2026-11-11",
+      evidence: "ドゥージーのドッグハウスを観る | Netflix (ネットフリックス) 公式サイト",
+    },
+  ],
 };
