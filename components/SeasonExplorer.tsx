@@ -1813,7 +1813,7 @@ export default function SeasonExplorer({
         {" ・ "}
         <IntentLink href={`/rankings/${year}/${season}`}>配信サービス勢力図・ランキング</IntentLink>
         {" ・ "}
-        <IntentLink href="/developers">配信先ウィジェット・公開API</IntentLink>
+        <IntentLink href="/developers">配信先ウィジェット・名寄せ表</IntentLink>
         {" ・ "}
         <IntentLink href="/about">運営者情報</IntentLink>
         {" ・ "}

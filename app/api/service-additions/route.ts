@@ -54,9 +54,9 @@ export async function GET() {
     {
       headers: {
         "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
-        // 公開データとして第三者からも読めるようにする（/api/season 等と揃える）。
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        // 【2026-11-10】CORSは付けない。Annict API利用規約（2026-11-25施行）第6条が「自分のAPIでの再提供」を
+        // 禁じているため、第三者のサイトから直接読める形にしない（自サイトの画面と収集スクリプトだけが使う）。
+        // 逆戻りは node scripts/check.ts の「Annict由来のデータを第三者に再提供しない」が見張る。
       },
     }
   );

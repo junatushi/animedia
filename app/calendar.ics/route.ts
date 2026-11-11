@@ -81,8 +81,9 @@ export async function GET(request: Request) {
       // 【2026-08-25変更】900 → 3600。カレンダー購読アプリの取得間隔はおおむね
       // 1時間以上なので、15分で切らす意味が無かった。
       "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
-      // 公開データなので、他サイトのカレンダーツールからも読めるようにする。
-      "Access-Control-Allow-Origin": "*",
+      // 【2026-11-10】CORSは付けない。Annict API利用規約（2026-11-25施行）第6条が「自分のAPIでの再提供」を
+      // 禁じているため、第三者のサイトから直接読める形にしない（カレンダーアプリの購読はCORSを使わないので影響しない）。
+      // 逆戻りは node scripts/check.ts の「Annict由来のデータを第三者に再提供しない」が見張る。
     },
   });
 }

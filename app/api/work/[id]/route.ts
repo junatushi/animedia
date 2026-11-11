@@ -37,23 +37,17 @@ import { airingStatus, jstToday } from "@/lib/workAvailability";
 // むしろキャッシュに当たる時間が長くなる）。経緯は docs/operations.md の㉝。
 export const revalidate = 604800;
 
-// 第三者のサイト・スクリプトから直接叩けるようにする（公開データとしての宣言）。
-// 認証情報は載せないため Allow-Origin は * でよい。
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-};
-
-export function OPTIONS() {
-  return new Response(null, { status: 204, headers: CORS });
-}
+// 【2026-11-10】CORSは付けない（第三者向けの公開をやめた）。Annict API利用規約（2026-11-25施行）第6条が
+// 「自分のAPIでの再提供」を禁じているため。/developers・/llms.txt での案内もやめた。
+// 窓口そのものは本番の実地検査（scripts/verify-production.sh のE節）が使うので残す。
+// 逆戻りは node scripts/check.ts の「Annict由来のデータを第三者に再提供しない」が見張る。
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const id = parseWorkId(params.id);
   if (id === null) {
     return NextResponse.json(
       { error: "作品ID（Annict の annictId）を整数で指定してください。" },
-      { status: 400, headers: CORS }
+      { status: 400 }
     );
   }
 
@@ -64,11 +58,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const message = e instanceof Error ? e.message : "取得に失敗しました。";
     return NextResponse.json(
       { error: message },
-      { status: message.includes("ANNICT_TOKEN") ? 500 : 502, headers: CORS }
+      { status: message.includes("ANNICT_TOKEN") ? 500 : 502 }
     );
   }
   if (!item) {
-    return NextResponse.json({ error: "作品が見つかりません。" }, { status: 404, headers: CORS });
+    return NextResponse.json({ error: "作品が見つかりません。" }, { status: 404 });
   }
 
   const checkedAt = jstToday();
@@ -106,7 +100,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     },
     {
       headers: {
-        ...CORS,
         // 【2026-08-25変更】900 → 86400（1日）。理由は app/embed/anime/[id]/route.ts と同じ
         // （Route Handler なので revalidate ではなくこのヘッダが実効値。二次利用側から
         // 繰り返し叩かれる長い裾で、15分ごとに関数が起動していた）。

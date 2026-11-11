@@ -23,9 +23,9 @@ import {
   DATASET_NAME,
 } from "@/lib/serviceDataset";
 
-const title = "配信先ウィジェット・公開API";
+const title = "配信先ウィジェット・配信サービス名寄せ表";
 const description =
-  "アニメの配信先をブログに貼れる無料ウィジェットと、配信情報を取得できる公開API（JSON）、配信サービス名寄せ表（CSV/JSON）の使い方。登録不要・APIキー不要。";
+  "アニメの配信先をブログに貼れる無料ウィジェットと、配信サービス名寄せ表（CSV/JSON）の使い方。登録不要・APIキー不要。";
 
 export const metadata: Metadata = {
   title,
@@ -35,7 +35,9 @@ export const metadata: Metadata = {
   twitter: { card: "summary", title, description, images: OG_IMAGES },
 };
 
-// 配信先ウィジェット（他サイトへの埋め込み）と公開APIの案内ページ（2026-08-06導入）。
+// 配信先ウィジェット（他サイトへの埋め込み）と配信サービス名寄せ表の案内ページ（2026-08-06導入）。
+// 【2026-11-10】作品データの公開API（/api/work・/api/season・/api/search-index）の案内は外した
+// （Annict API利用規約第6条。docs/operations.md の [76]）。
 //
 // なぜ作るか: 2026-07-26の実測で平均掲載順位19.8位・検索クリック7件/28日。ページを
 // 増やす方向は「新設したSEOページ群が表示ゼロ」という実測で頭打ちと判定済みで、
@@ -104,7 +106,7 @@ export default function DevelopersPage() {
           LINK START :: 外部連携
         </span>
         <div className="brandrow">
-          <h1 className="brand">配信先ウィジェット・公開API</h1>
+          <h1 className="brand">配信先ウィジェット・配信サービス名寄せ表</h1>
         </div>
         <div className="meta">
           <IntentLink href="/" className="official">
@@ -153,42 +155,16 @@ export default function DevelopersPage() {
             </section>
 
             <section className="detail-section">
-              <h2 className="detail-heading">2. 公開API（JSON）</h2>
+              <h2 className="detail-heading">2. 作品データのAPIについて</h2>
               <p className="detail-text">
-                自分でウィジェットやボットを作りたい場合は、下のJSONをそのまま使えます。
-                いずれもAPIキー不要・CORS許可済み（ブラウザから直接取得できます）です。
-              </p>
-              <ul className="detail-list">
-                <li>
-                  <code>GET /api/work/{"{作品ID}"}</code>
-                  … 作品1件の配信サービス・放送開始日など。
-                </li>
-                <li>
-                  <code>GET /api/season?year=2026&amp;season=summer</code>
-                  … そのクールの全作品と配信サービス。<code>season</code> は
-                  <code>winter</code> / <code>spring</code> / <code>summer</code> / <code>autumn</code>。
-                </li>
-                <li>
-                  <code>GET /api/search-index</code>
-                  … 直近3年ぶんの作品ID・タイトル・読み仮名の軽量索引（タイトルから作品IDを引く用）。
-                </li>
-              </ul>
-              <pre className="detail-code">{`curl "${siteUrl}/api/work/14132"`}</pre>
-              <p className="detail-text">
-                配信サービスの <code>key</code>（<code>d_anime</code> / <code>abema</code> /{" "}
-                <code>netflix</code> など）は本サイト内で一貫しています。
-                <code>services</code> が空で <code>hasBroadcastData</code> が <code>true</code>{" "}
-                の場合は「TV放送の記録はあるが見放題配信は未登録」という意味です
-                （＝配信が無いと断定はできません）。
-              </p>
-              <p className="detail-text">
-                <code>/api/work/{"{作品ID}"}</code> が返す <code>airingStatus</code> は{" "}
-                <code>airing</code>（現在クール以降）か <code>finished</code>
-                （放送が終わったクール）です。<code>services</code> は Annict
-                の「放送・配信された記録」であって現在の配信可否の確認ではないため、
-                <code>finished</code> の作品を「配信中」と書くと未確認の主張になります。
-                表示に使う際は言い切らず、各サービスでの確認を促す形にしてください
-                （本サイトの作品ページ・ウィジェットも同じ出し分けをしています）。
+                作品ごとの配信情報をJSONで返す公開API（<code>/api/work</code>・<code>/api/season</code>・
+                <code>/api/search-index</code>）の第三者向けの提供は、2026年11月に終了しました。
+                元データの Annict の
+                <a href="https://annict.com/terms/api" target="_blank" rel="noopener noreferrer">
+                  API利用規約
+                </a>
+                （2026-11-25施行）が、取得したデータを自分のAPIで再提供することを禁じているためです。
+                作品単位の配信先は、各作品ページか上のウィジェットをご利用ください。
               </p>
             </section>
 
@@ -244,8 +220,8 @@ export default function DevelopersPage() {
               </p>
               <p className="detail-text">
                 <strong>作品ごとの配信実績（どの作品がどこで配信されたか）は含みません。</strong>
-                そちらは Annict 由来のデータで、本サイトの外への再配布の可否が未確認のためです。
-                作品単位の情報が必要な場合は上の公開APIをご利用ください。
+                そちらは Annict 由来のデータで、Annict のAPI利用規約が第三者への再提供を禁じているためです。
+                作品単位の情報が必要な場合は各作品ページかウィジェットをご利用ください。
               </p>
               <p className="detail-text">
                 利用条件は下の「4. 利用条件」と同じですが、
@@ -253,7 +229,7 @@ export default function DevelopersPage() {
                 （本サイトが自前で作った表です）。
                 <strong>出典表記（サイト名とリンク）だけを添えてください</strong>。JSONの応答にも{" "}
                 <code>license</code> と <code>attribution</code> として同じ内容が入っています。
-                作品データ（上の公開API・ウィジェット）と混ぜて使う場合は、そちらの分だけ
+                ウィジェットと一緒に使う場合は、そちらの分だけ
                 <IntentLink href="#attribution">出典の書き方</IntentLink>の Annict 併記版をお使いください。
               </p>
               <p className="detail-text">HTML</p>
@@ -277,11 +253,6 @@ export default function DevelopersPage() {
                   下の「出典の書き方」に用意してあります。
                 </li>
                 <li>
-                  APIは常識的な頻度でお願いします。クール全件のような大きなデータを繰り返し取得する用途では、
-                  結果をキャッシュしてください。大量・継続的に取得したい場合は Annict の API
-                  を直接ご利用ください。
-                </li>
-                <li>
                   ウィジェット内のリンクを外して使っても構いません。リンクを残すかどうかは貼る側の判断で、
                   こちらから見返りを提供することはありません（＝リンクの売買・交換は行いません）。
                 </li>
@@ -300,8 +271,6 @@ export default function DevelopersPage() {
               <h2 className="detail-heading">出典の書き方</h2>
               <p className="detail-text">
                 記事やアプリに合うものをそのままお使いください。文面を変えても構いません。
-                作品データを返すAPI（<code>/api/work/…</code>・<code>/api/season</code>）の
-                レスポンスにも同じ内容が <code>source</code> として入っています。
                 <IntentLink href="#dataset">配信サービス名寄せ表</IntentLink>だけを使う場合は Annict
                 のデータを含まないため、そちらの節にある Annict 抜きの文面をお使いください。
               </p>
