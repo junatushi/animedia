@@ -266,10 +266,12 @@ CUR_STATUS=$($PICK airing-status <<<"$CUR_JSON")
   || fail "過去作の airingStatus が ${PAST_STATUS}（finished のはず）"
 [ "$CUR_STATUS" = "airing" ] && ok "今期作の airingStatus=airing" \
   || fail "今期作の airingStatus が ${CUR_STATUS}（airing のはず）"
-# 公開API＝CORS許可が仕様（/developers に明記）。消えると二次利用側が黙って壊れる。
+# 【2026-11-10・反転】CORSは付けないのが仕様。Annict API利用規約（2026-11-25施行）第6条が
+# 「自分のAPIでの再提供」を禁じているため、第三者のサイトから読める形にしない（docs/operations.md [76]）。
+# 付いていたら、規約に反する形で本番に出ている＝落とす。
 CORS=$($CURL -o /dev/null -D - "$BASE/api/work/${PAST_ID}" \
   | tr -d '\r' | grep -i '^access-control-allow-origin:' | head -1)
-[ -n "$CORS" ] && ok "CORSヘッダあり（${CORS}）" || fail "CORSヘッダが無い（公開APIの仕様）"
+[ -z "$CORS" ] && ok "CORSヘッダなし（第三者に再提供していない）" || fail "CORSヘッダが付いている（${CORS}）＝Annict由来のデータを第三者に再提供している（API規約第6条）"
 
 # ── F. 索引方針が本番に反映されているか（㉟の再発検知）──────────────
 #

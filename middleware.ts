@@ -73,8 +73,7 @@ export async function middleware(request: NextRequest) {
         {
           status,
           headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            // CORSは付けない（route handler 側と同じ。Annict API利用規約第6条・2026-11-10）。
             "cache-control": "public, max-age=0, s-maxage=604800",
           },
         }

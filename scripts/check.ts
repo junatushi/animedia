@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
@@ -73,6 +73,8 @@ import {
   hasCompleted,
 } from "./lib/build-digest.js";
 import { xWeightedLength, X_LINE_WEIGHT, X_TITLE_MAX_LINES } from "./lib/x-text.js";
+// Xの2本目（2026-11-08追加）。純粋関数のみ。
+import xEngage from "./lib/build-x-engage.js";
 // 「完結」の明示的な印（2026-10-19導入）。サイト側の照合（lib/completion.ts）と取得側の純粋関数。
 import {
   resolveCompletion,
@@ -3096,21 +3098,20 @@ console.log(`結果（Xの手動運用リンク）: ${xIntentNg === 0 ? 4 : 0} �
 console.log("\n── Xの投稿方針（シャドウバン対応・2026-08-16）──");
 let xPolicyNg = 0;
 {
-  // (1) 1日1投稿。3種類そろう日でも1件しか返さないこと、そして狙った種別がその日に
-  //     無くても0件にならない（＝黙って投稿が消えない）ことの両方を見る。
+  // (1) 1本目（2026-11-08に変更）。以前は「1日1投稿・曜日で3種を回す」だったが、利用者の判断で
+  //     1日2投稿にし、**1本目は毎日その曜日の一覧（airing）**に固定した。2本目は下の
+  //     「Xの2本目」節が見る。ここでは1本目が必ず1件であること・毎日airingであること・
+  //     airingが無い日はTOP5へ落ちて0件にならないことを見る。
   const all = [{ kind: "top5" }, { kind: "airing" }, { kind: "spotlight" }];
   const perDay = [0, 1, 2, 3, 4, 5, 6].map((w) => pickDailyXPost(all, w));
   const oneEach = perDay.every((posts) => posts.length === 1);
-  // 週のうちに3種類とも登場すること（1種類に偏ると「毎日同じ投稿」に逆戻りする）。
-  const kindsInWeek = [...new Set(perDay.flat().map((p) => p.kind))].sort();
-  const coversAll = JSON.stringify(kindsInWeek) === JSON.stringify(["airing", "spotlight", "top5"]);
-  // 狙った種別が無い日のフォールバック（水曜=airing だが airing が作られなかった場合）。
-  const fallback = pickDailyXPost([{ kind: "top5" }, { kind: "spotlight" }], 3);
-  const fallbackOk = fallback.length === 1;
-  const p1 = oneEach && coversAll && fallbackOk;
+  const airingDaily = perDay.every((posts) => posts[0].kind === "airing");
+  const fallback = pickDailyXPost([{ kind: "spotlight" }, { kind: "top5" }], 3);
+  const fallbackOk = fallback.length === 1 && fallback[0].kind === "top5";
+  const p1 = oneEach && airingDaily && fallbackOk;
   if (!p1) xPolicyNg++;
   console.log(
-    `${p1 ? "✓" : "✗"}  ${"Xは1日1投稿（0件にも2件以上にもならない）".padEnd(40)} → 各日1件=${oneEach} 週内に3種=${coversAll} 欠けた日の代替=${fallbackOk}`
+    `${p1 ? "✓" : "✗"}  ${"Xの1本目は毎日その曜日の一覧（無ければTOP5）".padEnd(40)} → 各日1件=${oneEach} 毎日airing=${airingDaily} 欠けた日はTOP5=${fallbackOk}`
   );
 
   // (2) 本文にURLを載せない（Xだけ）。他の投稿先は従来どおり載せる。
@@ -3229,6 +3230,105 @@ let xPolicyNg = 0;
     );
   }
 console.log(`結果（Xの投稿方針）: ${7 - xPolicyNg} 件OK / ${xPolicyNg} 件NG`);
+
+// ─────────────────────────────────────────────
+// Xの2本目（2026-11-08追加）
+//
+// 1日2投稿の2本目は、X上で反応が集まっていた投稿の「構成」を真似た型
+// （scripts/lib/build-x-engage.js）から日替わりで選ぶ。壊れ方が画面に出ないものだけ固定する:
+//   ・同じ型が続く（似た投稿の連続はBOT扱い＝シャドウバンの原因。2026-10-20の利用者の指摘）
+//   ・**主観の評価**が混ざる（利用者の指定。みんなの1位・ランキングを聞くのはよいが、
+//     私たちが「面白い」「おすすめ」「覇権」と言わない）
+//   ・本文にURL／タグ2個以上／Xの上限超え・タグが千切れる
+//   ・無料体験・加入の勧誘（アフィリエイトは凍結中）
+//   ・放送が終わった前期の作品に「配信中」と書く（CLAUDE.mdの基本ルール）
+// ─────────────────────────────────────────────
+console.log("\n── Xの2本目（反応が集まる構成の型・2026-11-08）──");
+let xEngageNg = 0;
+{
+  const { ENGAGE_KINDS, idealEngageKind, buildEngagePost, BUILDERS } = xEngage;
+  // (1) 並び: 120日ぶんで、直近3日に同じ型が無い・6種類すべて出る・同じ日は同じ型（再現できる）。
+  const days = Array.from({ length: 120 }, (_, i) => new Date(Date.UTC(2026, 10, 1 + i)).toISOString().slice(0, 10));
+  const seq = days.map((d) => idealEngageKind(d));
+  const closeRepeat = seq.some((k, i) => seq.slice(Math.max(0, i - 3), i).includes(k));
+  const allKinds = ENGAGE_KINDS.every((k: string) => seq.includes(k));
+  const stable = days.every((d, i) => idealEngageKind(d) === seq[i]);
+  const p1 = !closeRepeat && allKinds && stable;
+  if (!p1) xEngageNg++;
+  console.log(
+    `${p1 ? "✓" : "✗"}  ${"型は直近3日と重ならず、6種とも出る".padEnd(40)} → 近接の重複=${closeRepeat} 全種=${allKinds} 再現=${stable}`
+  );
+
+  // 仮のクール（今期6本・前期4本）。長い作品名と独占配信・声優の重なりを含める。
+  const svcA = { key: "d_anime", name: "dアニメストア", short: "dアニメ" };
+  const svcB = { key: "prime", name: "Amazon Prime Video", short: "Prime" };
+  const svcC = { key: "netflix", name: "Netflix", short: "Netflix" };
+  const mk = (id: number, title: string, watchers: number, services: object[], castNames: string[]) => ({
+    id, title, watchers, services, castNames, broadcastWeekday: 3, broadcastStartDate: "2026-10-01", completedAt: null, media: "TV",
+  });
+  const cast = ["声優テスト"];
+  const items = [
+    mk(1, "追放されたチート付与魔術師は気ままなセカンドライフを謳歌する。 ～俺は武器だけじゃなく、あらゆるものに『強化ポイント』を付与できる～", 3000, [svcA, svcB], cast),
+    mk(2, "作品B", 2900, [svcC], cast),
+    mk(3, "作品C", 2800, [svcC], cast),
+    mk(4, "目覚めたら最強装備と宇宙船持ちだったので、一戸建て目指して傭兵として自由に生きたい", 2700, [svcB], []),
+    mk(5, "作品E", 2600, [svcA, svcB, svcC], []),
+    mk(6, "作品F", 2500, [svcA, svcB], []),
+  ];
+  const data = { items, count: items.length };
+  const prev = {
+    year: 2026,
+    label: "夏",
+    seasonUrl: "https://example.test/season/2026/summer",
+    data: { items: [mk(11, "前期A", 900, [svcA], []), mk(12, "前期B", 800, [svcB], []), mk(13, "前期C", 700, [svcC], []), mk(14, "前期D", 600, [svcA], [])] },
+  };
+  const ctx = {
+    data, year: 2026, season: "autumn", label: "秋", todayStr: "2026-11-08", prev, tag: "#2026年秋アニメ",
+    seasonUrl: "https://example.test/season/2026/autumn", rankingUrl: "https://example.test/rankings/2026/autumn",
+    exclusiveUrl: "https://example.test/exclusive/2026/autumn",
+  };
+
+  // (2) 全種類の本文: 280以内・季節タグ1個で終わる・本文にURLなし・リプライ用URLあり。
+  const SUBJECTIVE = /おすすめ|オススメ|面白|おもしろ|神作|神アニメ|覇権|名作|傑作|最高|つまらな|微妙|必見/;
+  const SALES = /無料|お得|加入|登録して|契約/;
+  // 言い回しは日付で回るので、**1日だけ見ると他の言い回しを素通しする**（この検査の初版は
+  // 1日だけ見ていて、問いかけに「おすすめ」を混ぜる変異を見逃した）。全部の言い回しが
+  // 一巡する12日ぶんを見る。
+  const bad: string[] = [];
+  const ctxDays = Array.from({ length: 12 }, (_, i) => ({ ...ctx, todayStr: days[i] }));
+  for (const k of ENGAGE_KINDS) for (const c of ctxDays) {
+    const p = BUILDERS[k](c);
+    if (!p) { bad.push(`${k}/${c.todayStr}=作れない`); continue; }
+    const tags = p.text.match(/#\S+/g) ?? [];
+    if (xWeightedLength(p.text) > 280) bad.push(`${k}=長さ${xWeightedLength(p.text)}`);
+    if (!p.text.endsWith(ctx.tag) || tags.length !== 1) bad.push(`${k}=タグ`);
+    if (/https?:\/\//.test(p.text)) bad.push(`${k}=本文URL`);
+    if (!p.replyUrl) bad.push(`${k}=リプライURLなし`);
+    if (SUBJECTIVE.test(p.text)) bad.push(`${k}=主観の評価`);
+    if (SALES.test(p.text)) bad.push(`${k}=勧誘`);
+    if (k === "binge-prev" && /配信中|見放題/.test(p.text)) bad.push(`${k}=前期に配信中`);
+    // 項目の取り落とし（初版で略称を集計し忘れ、実データで「83作品がundefinedの配信対象」が出た）。
+    if (/undefined|null|NaN/.test(p.text)) bad.push(`${k}=値の欠け`);
+  }
+  const p2 = bad.length === 0;
+  if (!p2) xEngageNg++;
+  console.log(
+    `${p2 ? "✓" : "✗"}  ${"2本目の全種: 上限内・タグ1個・URLなし・評価なし".padEnd(40)} → ${p2 ? `${ENGAGE_KINDS.length}種OK` : bad.join(" ")}`
+  );
+
+  // (3) 1本目がTOP5の日は、2本目にTOP5の型を出さない（同じ内容が2本並ぶ）。
+  //     また、作れない型がある日も別の型に落ちて2本目が消えない。
+  const withExclude = days.slice(0, 30).map((d) => buildEngagePost({ data, year: 2026, season: "autumn", label: "秋", todayStr: d, prev, exclude: ["top5-vote"] }));
+  const noTop5 = withExclude.every((p) => p && p.kind !== "top5-vote");
+  const noPrev = days.slice(0, 30).map((d) => buildEngagePost({ data, year: 2026, season: "autumn", label: "秋", todayStr: d, prev: null }));
+  const neverEmpty = noPrev.every((p) => p && p.kind !== "binge-prev");
+  const p3 = noTop5 && neverEmpty;
+  if (!p3) xEngageNg++;
+  console.log(
+    `${p3 ? "✓" : "✗"}  ${"重複する型は除外・作れない型は別の型へ".padEnd(40)} → TOP5除外=${noTop5} 前期なしでも2本目あり=${neverEmpty}`
+  );
+}
+console.log(`結果（Xの2本目）: ${3 - xEngageNg} 件OK / ${xEngageNg} 件NG`);
 
 // ─────────────────────────────────────────────
 // Xの文字数上限と長い作品名の省略（2026-10-21追加）
@@ -6950,6 +7050,90 @@ let llmsNg = 0;
 console.log(`結果（公開APIの告知）: ${llmsNg === 0 ? "全件OK" : `${llmsNg} 件NG`}`);
 
 // ─────────────────────────────────────────────
+// Annict由来のデータを第三者に再提供しない（2026-11-10導入・重大度高）
+//
+// Annict API 利用規約（https://annict.com/terms/api。2026-11-25施行）第6条は、APIで取得した
+// データを「そのままの形で、またはまとまったデータとして第三者が取り出せるように提供」することを
+// 禁じ、例に「自分のAPIでの再提供」を挙げている。/api/work・/api/season・/api/search-index は
+// CORS を付けて /developers で第三者に案内していたので、CORS と案内を外した（docs/operations.md [76]）。
+// CORS を1行戻しても画面は1ピクセルも変わらず、規約に反した形だけが本番に出る。
+// 対象は手で並べない: app/ の route と middleware.ts のうち CORS を返すものを走査し、
+// その import を辿って Annict 由来のデータ（lib/annict.ts・content/snapshots|archive|coverage）に
+// 届くものが1本も無いことを確かめる（`import type` は実行時のデータを運ばないので辿らない）。
+// ─────────────────────────────────────────────
+console.log("\n── Annict由来のデータを第三者に再提供しない ──");
+let annictCorsNg = 0;
+{
+  const root = new URL("../", import.meta.url);
+  const exists = (u: URL): boolean => {
+    try {
+      return statSync(u).isFile();
+    } catch {
+      return false;
+    }
+  };
+  const resolveSpec = (spec: string, from: URL): URL | null => {
+    let base: URL;
+    if (spec.startsWith("@/")) base = new URL(spec.slice(2), root);
+    else if (spec.startsWith(".")) base = new URL(spec, from);
+    else return null; // npm パッケージは対象外
+    for (const ext of ["", ".ts", ".tsx", ".js", ".json", "/index.ts", "/index.tsx"]) {
+      const u = new URL(base.href + ext);
+      if (exists(u)) return u;
+    }
+    return null;
+  };
+  const ANNICT_DATA = /\/(lib\/annict\.ts|content\/(snapshots|archive|coverage)\/)/;
+  const reachesAnnict = (start: URL): string | null => {
+    const seen = new Set<string>();
+    const stack: URL[] = [start];
+    while (stack.length) {
+      const u = stack.pop()!;
+      if (seen.has(u.href)) continue;
+      seen.add(u.href);
+      if (ANNICT_DATA.test(decodeURIComponent(u.pathname))) return decodeURIComponent(u.pathname).replace(/^.*?\/(lib|content)\//, "$1/");
+      if (!/\.(ts|tsx|js)$/.test(u.pathname)) continue;
+      const src = readFileSync(u, "utf8");
+      const specs = [
+        ...[...src.matchAll(/^\s*import\s+(?!type\b)[^;]*?from\s+["']([^"']+)["']/gm)].map((m) => m[1]),
+        ...[...src.matchAll(/import\(\s*["'`]([^"'`$]+)/g)].map((m) => m[1]),
+      ];
+      for (const spec of specs) {
+        // 動的import のテンプレート（`@/content/snapshots/${...}`）は接頭辞だけで判定する
+        if (/^@\/content\/(snapshots|archive|coverage)\//.test(spec)) return spec.slice(2);
+        const r = resolveSpec(spec, u);
+        if (r) stack.push(r);
+      }
+    }
+    return null;
+  };
+
+  const targets = [
+    ...listSourceFiles(new URL("../app/", import.meta.url)).filter((u) => /\/route\.tsx?$/.test(u.pathname)),
+    new URL("../middleware.ts", import.meta.url),
+  ];
+  const stripComments = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+  const corsFiles = targets.filter((u) => /Access-Control-Allow-Origin/.test(stripComments(readFileSync(u, "utf8"))));
+  const offenders: string[] = [];
+  for (const u of corsFiles) {
+    const hit = reachesAnnict(u);
+    if (hit) offenders.push(`${decodeURIComponent(u.pathname).replace(/^.*?\/(app|middleware)/, "$1")} → ${hit}`);
+  }
+  // 空振り防止: 自前の名寄せ表（/api/services）は CORS 付きで公開しているので、1本は見つかるはず
+  const ok = corsFiles.length > 0 && offenders.length === 0;
+  if (!ok) annictCorsNg++;
+  console.log(
+    `${ok ? "✓" : "✗"}  ${"CORS付きの窓口がAnnict由来のデータに届かない".padEnd(40)} → ` +
+      (ok
+        ? `CORS付き ${corsFiles.length}本（Annict由来のデータに届くものは0本）`
+        : corsFiles.length === 0
+          ? "CORS付きの窓口が1本も見つからない（検査が空振りしている）"
+          : `第三者に再提供している: ${offenders.join(" | ")}。Annict API利用規約第6条`)
+  );
+}
+console.log(`結果（Annict由来のデータの再提供）: ${annictCorsNg === 0 ? "全件OK" : `${annictCorsNg} 件NG`}`);
+
+// ─────────────────────────────────────────────
 // 機械補完した放送予定日（2026-08-17追加）
 //
 // 次クールの放送日はAnnictの programs（番組表）に載るのが遅い。2026-08-17の実測で
@@ -7312,7 +7496,13 @@ let ciNg = 0;
   );
 
   // (1) 開発機（Windows）とCI（ubuntu）の両方。片方だけに戻すと上記の穴が復活する。
-  const oses = ["ubuntu-latest", "windows-latest"].filter((os) => ciYml.includes(os));
+  //     【2026-11-10】matrix の `os:` の行だけを見る（Windows を PR のときだけに絞り、コメントにも
+  //     windows-latest と書いたため、ファイル全体の文字列一致では matrix から消えても緑になる）。
+  //     PR で Windows が回ることも確かめる（push だけに残すと PR で検知できない）。
+  const osLine = (ciYml.split("\n").find((l) => /^\s*os:\s*\S/.test(l)) ?? "").replace(/#.*$/, "");
+  const prBranch = /github\.event_name == 'pull_request' && fromJSON\('(\[[^']*\])'\)/.exec(osLine);
+  const osSource = prBranch ? prBranch[1] : osLine;
+  const oses = ["ubuntu-latest", "windows-latest"].filter((os) => osSource.includes(os));
   const osOk = oses.length === 2;
   if (!osOk) ciNg++;
   console.log(
@@ -9459,6 +9649,7 @@ if (
   autoNg > 0 ||
   datasetNg > 0 ||
   llmsNg > 0 ||
+  annictCorsNg > 0 ||
   creditNg > 0 ||
   ciNg > 0 ||
   addNg > 0 ||
@@ -9505,6 +9696,7 @@ if (
   ldNg > 0 ||
   xIntentNg > 0 ||
   xPolicyNg > 0 ||
+  xEngageNg > 0 ||
   xLenNg > 0 ||
   trackNg > 0 ||
   dataNg > 0 ||

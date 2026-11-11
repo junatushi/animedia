@@ -450,8 +450,9 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   時間帯の定義は`scripts/lib/build-digest.js`の`SLOTS`**だけ**が持ち、ワークフローのYAMLには
   時刻を書かない（`node scripts/check.ts`がハードコードの逆戻りを検査する）。詳細は
   `docs/operations.md`の⑦-9。
+- **Xは1日2投稿**（2026-11-08〜・利用者の決定。シャドウバンの検証も兼ねる）。1本目＝その曜日の放送・配信一覧、2本目＝X上で反応が多かった投稿の構成を真似た型を日替わり（`scripts/lib/build-x-engage.js`）。**主観による評価は書かない**（みんなの1位・ランキングを聞くのはよい）。目標は半年でフォロワー100・SEO流入2倍。判定と記録は`docs/x-analytics.md`の「方針変更 2026-11-08」。
 - Xへの投稿は**ブラウザから手動**（2026-07-05〜）。X APIが2026年2月に無料枠廃止・従量課金制（投稿1件$0.015、リンク付き$0.20）になったため、API自動投稿（`.github/workflows/post-to-x.yml`）は保留中でGitHub Secrets未登録。文案は `docs/sns-templates.md`。詳細は `docs/operations.md`。
-- Xアカウント成長（フォロワー獲得）は**週次X成長キット**（`x-growth.yml`が毎週月曜20:00 JSTに起票するGitHub Issue）で運用。投稿ドラフト4本＋見込み客への検索クエリ/リプ下書き＋週次チェックを自動生成し、投稿・リプ・フォローは手動で行う（自動投稿・自動フォロー・スクレイピングはしない）。生成は `scripts/lib/build-growth-kit.js`。考え方は `docs/x-growth-playbook.md`、運用は `docs/operations.md`の⑫。
+- Xアカウント成長（フォロワー獲得）は**週次X成長キット**（`x-growth.yml`が毎週月曜20:00 JSTに起票するGitHub Issue）で運用。数字の記録・プロフィール点検・リサーチ用の検索クエリ＋週次チェックを自動生成し（投稿ドラフト4本は2026-11-08に外した）、投稿・リプ・フォローは手動で行う（自動投稿・自動フォロー・スクレイピングはしない）。生成は `scripts/lib/build-growth-kit.js`。考え方は `docs/x-growth-playbook.md`、運用は `docs/operations.md`の⑫。
 - 流入リード発掘（demand-scan/lead-finder、2026-07-16導入・検証中）は「配信どこ？」で困っている個人の投稿を見つけ返信下書きを作る仕組み。2〜3週に1回、Claudeに「流入リードを集めて」と依頼して回す。手順は `docs/operations.md`の⑬、技術詳細は `docs/demand-scan.md`。
 - ユーザー行動は Vercel Web Analytics のカスタムイベントで計測（`docs/operations.md` の「計測の見かた」参照）。
 - 集客最大化・サイト改良の構想メモは `docs/growth-ideas.md` にまとめてある（次回セッションの着手候補）。
@@ -470,6 +471,8 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   （1ページあたりクリックが声優ページの半分。量ではなく個別のtitle・内容を直す）。
   **「変化なし」と書く前に必ず`seo-report.js`を実行すること**（見ずに変化なしと書かない）。
   撤退判定の表（期日つき）も同書3節にある。経緯は`docs/operations.md`の㉜
+- **【2026-11-10】下の「データ供給元になる」方針は、Annictの作品データについては取れなくなった**
+  （Annict API利用規約第6条。作品データの公開APIは終了。自前の名寄せ表`/api/services`とウィジェットは続ける）。
 - **集客戦略の方針は `docs/growth-strategy-2026-08.md`**（2026-08-07。世界の類似サービス約100件の
   調査に基づく）。要点は「SEOで順位を上げるより、**他人の道具が依存するデータ供給元になる**
   ほうがこの分野の生存者の実績と整合する」こと。既存の公開API・ウィジェットに
@@ -910,10 +913,12 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   `.ts`に置いてあるのは`node scripts/check.ts`から検査するため。iframe側をReactのページではなく
   Route Handlerにしているのは、ルートレイアウト（globals.css・Supabaseの認証・Analytics）を
   他人のサイトに持ち込まないため
-- `app/api/work/[id]/route.ts` … 作品1件の配信情報を返す公開API（2026-08-06導入。CORS許可・
-  APIキー不要）。`/api/season`・`/api/search-index`にもCORSヘッダを追加して公開API化した。
-  `airingStatus`（`airing`/`finished`）も返し、二次利用側が過去作を「配信中」と書かずに
-  済むようにしている。仕様と利用条件は`/developers`
+- `app/api/work/[id]/route.ts` … 作品1件の配信情報を返す窓口（2026-08-06導入）。
+  **2026-11-10に第三者向けの公開をやめた**（CORSを外し`/developers`・`/llms.txt`の案内も削除。
+  `/api/season`・`/api/search-index`・`/calendar.ics`・`/api/service-additions`も同じ）。
+  Annict API利用規約（2026-11-25施行）第6条が「自分のAPIでの再提供」を禁じているため。
+  窓口そのものは自サイトの画面・収集スクリプト・本番の実地検査（`verify-production.sh`のE節）が使うので残す。
+  `airingStatus`（`airing`/`finished`）を返す仕様は変えていない
 - `lib/serviceDataset.ts` + `app/api/services/route.ts` … 配信サービス名寄せ表（`lib/services.ts`の
   `SERVICES`の正規化ロジック）を配布する公開API（2026-08-13導入。`GET /api/services`＝JSON既定・
   `?format=csv`＝RFC4180・BOM無し）。**作品ごとの配信実績（Annict由来）は含めない**
@@ -970,6 +975,18 @@ Claude Code はこのファイルを毎セッション最初に読みます。�
   正規化後（小文字・半角・空白除去）の名前に対する正規表現で書く。追加後は必ず
   `node scripts/check.ts` を実行して回帰がないか確認する。
 - リアルタイム度は `lib/annict.ts` の `next: { revalidate: 600 }` で調整（0=常に最新）。
+- **【基本ルール】Annict由来のデータを第三者に再提供しない（2026-11-10導入・重大度高）**:
+  Annict API利用規約（<https://annict.com/terms/api>・2026-11-25施行）第6条は、APIで取得したデータを
+  「そのままの形で、またはまとまったデータとして第三者が取り出せるように提供」することを禁じ、
+  例に「自分のAPIでの再提供」「まとまったデータを誰でも取得できるURLや公開のリポジトリに置くこと」を挙げる。
+  ページへの表示は禁止に当たらず、広告・アフィリエイトのあるサイトでの利用は第3条で許可されている。
+  ①**Annict由来のデータを返す窓口にCORSを付けない**（`/developers`・`/llms.txt`で案内もしない）。
+  `node scripts/check.ts`の「Annict由来のデータを第三者に再提供しない」節が、CORS付きの窓口から
+  importを辿って`lib/annict.ts`・`content/snapshots|archive|coverage`に届かないことを見張る（対象は走査で導出）。
+  本番は`verify-production.sh`のE節が「CORSが付いていない」ことを毎日確かめる。
+  ②**リポジトリは非公開にする**（スナップショット等が「公開のリポジトリに置く」に当たるため。利用者の操作）。
+  非公開ではActionsが月2,000分（Windowsは2倍）なので、CIのWindowsはPRのときだけ回す（`ci.yml`）。
+  ワークフローを足すときは使用時間を見積もること。経緯は`docs/operations.md`の[76]
 - **【基本ルール】セキュリティと無料枠の防壁を外さない（2026-11-05導入・重大度高）**:
   正本は`docs/security.md`、経緯は`docs/operations.md`の[71]。**どれも外しても画面は変わらない**ので
   `node scripts/check.ts`の「セキュリティと無料枠の防壁」節が見張る。要点:
