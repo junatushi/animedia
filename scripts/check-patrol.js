@@ -68,7 +68,13 @@ function startStub(broken) {
 
     // ── 防壁（middleware の再現） ──
     const isApi = seg[0] === "api";
-    if (req.headers["next-action"] !== undefined && !has("no-action-guard")) return html("bad", 400);
+    if (req.headers["next-action"] !== undefined && !has("no-action-guard")) {
+      // 本番の Vercel Firewall（deny-next-action）の再現と、印の無い403（アプリの誤り）。
+      if (has("action-firewall"))
+        return res.writeHead(403, { "x-vercel-mitigated": "deny", "content-type": "text/plain" }).end("Forbidden");
+      if (has("action-403-plain")) return html("forbidden", 403);
+      return html("bad", 400);
+    }
     if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && !isApi && !has("post-200")) {
       return html("method not allowed", 405);
     }
@@ -85,6 +91,15 @@ function startStub(broken) {
         // 2026-11-05の反証で見つかった旧実装（解釈した結果だけを比べる＝`?&&` が素通り）。
         const rawSearch = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
         const dropped = [...u.searchParams].length !== [...kept].length;
+        // 本番の Vercel CDN の再現: 空の区切りだけのクエリを素のURLと同じキーに畳み、
+        // キャッシュから返す（cdn-shared-cache）。cdn-raw-key は届いたままの文字列で
+        // キーを分ける CDN（＝未見の文字列は毎回MISSで関数が起動する）。
+        if (!dropped && /^\?&+$/.test(rawSearch) && (has("cdn-shared-cache") || has("cdn-raw-key"))) {
+          const cache = has("cdn-shared-cache") ? "HIT" : "MISS";
+          return res
+            .writeHead(200, { "content-type": "application/json", "x-vercel-cache": cache })
+            .end("{}");
+        }
         if (dropped || (!has("no-raw-308") && rawSearch !== (qs ? "?" + qs : ""))) {
           return res
             .writeHead(308, { Location: u.pathname + (qs ? "?" + qs : "") })
@@ -236,6 +251,16 @@ async function main() {
   // ② 健全なスタブでは違反0件・exit 0。
   const good = await withStub([], runPatrol);
   check("② 健全な応答では違反0件", / 0 件が違反/.test(good.out), (good.out.match(/合計.*/) || [""])[0]);
+
+  // ②-2 本番の形（2026-11-11）: Firewall が Next-Action を403で止め、CDN が `?&&` を
+  //      素のURLと同じキャッシュから返す。どちらも関数を起動させないので違反にしない
+  //      （これを違反にしていたため、本番は正しいのに巡回が11-05から毎日赤かった）。
+  const prodShape = await withStub(["action-firewall", "cdn-shared-cache"], runPatrol);
+  check(
+    "②-2 Firewallの403とCDNの共有キャッシュは違反にしない",
+    / 0 件が違反/.test(prodShape.out),
+    (prodShape.out.match(/合計.*/) || [""])[0]
+  );
   check("② exit 0 で終わる", good.code === 0, `exit=${good.code}`);
 
   // ③ 壊すと、その事故が確実に出る。
@@ -252,7 +277,9 @@ async function main() {
     ["pregen-404", "実在する名前のページが404（㊱の再現）", "対照が200を返さない（404）"],
     // 2026-11-05追加（セキュリティと無料枠の防壁）。
     ["post-200", "ページへのPOSTが200（405にならない）", "防壁/POST /"],
-    ["no-action-guard", "Next-Action付きが断られない", "期待 400 / 実際 200"],
+    ["no-action-guard", "Next-Action付きが断られない", "期待 400（またはFirewallの403） / 実際 200"],
+    ["action-403-plain", "Firewallの印が無い403を通さない", "期待 400（またはFirewallの403） / 実際 403"],
+    ["cdn-raw-key", "表記揺れがCDNでMISS（関数が起動する）", "x-vercel-cache: MISS"],
     ["no-308", "余計なクエリが308で落とされない", "期待 308 / 実際 200"],
     ["no-raw-308", "表記揺れのクエリ（?&&）が素通りする", "防壁/表記揺れのクエリ"],
     ["no-xfo", "ページにX-Frame-Optionsが無い", "X-Frame-Options 期待 SAMEORIGIN / 実際 無し"],

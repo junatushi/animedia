@@ -245,7 +245,8 @@ function guardCases(v) {
   const { year, season } = currentSeasonJst();
   const rnd = () => Math.random().toString(36).slice(2, 10);
   const work = `/anime/${v.workId}`;
-  const want = (label, p, init, test) => ({ label: `防壁/${label}`, p, init, test });
+  // warm: 判定の前に1回取っておくURL（CDNのキャッシュを温める）。
+  const want = (label, p, init, test, warm) => ({ label: `防壁/${label}`, p, init, test, warm });
   const status = (n) => (r) =>
     r.status === n ? [] : [`期待 ${n} / 実際 ${r.status}`];
   // 余計なクエリは、そのクエリを除いたURLへ308で送られること。
@@ -261,6 +262,19 @@ function guardCases(v) {
       got = loc;
     }
     return got === clean ? [] : [`期待 Location=${clean} / 実際 ${got}`];
+  };
+  // Next-Action: middleware の400か、Vercel Firewall が止めた403（印つき）。
+  const deniedOr400 = (r) => {
+    if (r.status === 400) return [];
+    if (r.status === 403 && (r.headers.get("x-vercel-mitigated") || "").toLowerCase() === "deny") return [];
+    return [`期待 400（またはFirewallの403） / 実際 ${r.status}`];
+  };
+  // 表記揺れ: 308で正規のURLへ送るか、CDNが同じキーに畳んでキャッシュから返す（関数を起動しない）。
+  const redirectOrSharedCache = (clean) => (r) => {
+    if (r.status === 308) return redirectTo(clean)(r);
+    const cache = (r.headers.get("x-vercel-cache") || "").toUpperCase();
+    if (r.status === 200 && (cache === "HIT" || cache === "STALE")) return [];
+    return [`期待 308 か CDNのHIT / 実際 ${r.status}（x-vercel-cache: ${cache || "無し"}）`];
   };
   // ページに付くべき保安ヘッダー。
   const pageHeaders = (r) => {
@@ -289,7 +303,10 @@ function guardCases(v) {
   return [
     want("POST /", "/", { method: "POST" }, status(405)),
     want("POST 作品ページ", work, { method: "POST" }, status(405)),
-    want("Next-Action付きGET", work, { headers: { "Next-Action": "x" } }, status(400)),
+    // 本番では Vercel Firewall の `deny-next-action`（docs/security.md 2章）が middleware より
+    // 手前で 403 を返す（`x-vercel-mitigated: deny`）。どちらも「描画させない」ので正しい。
+    // Firewall の印が無い403（アプリが誤って返したもの）は通さない。
+    want("Next-Action付きGET", work, { headers: { "Next-Action": "x" } }, deniedOr400),
     want(
       "/api/season の余計なクエリ",
       `/api/season?year=${year}&season=${season}&patrol=${rnd()}`,
@@ -300,7 +317,19 @@ function guardCases(v) {
     // 解釈すると同じだが文字列が違う形。CDNは文字列ごとに別のキャッシュを持つので、ここが
     // 素通りすると乱数クエリと同じく関数を起動させ続けられる（2026-11-05の反証で発見）。
     // middleware が届いたままのURLを見ていなければここで落ちる。
-    want("表記揺れのクエリ", `/api/work/${v.workId}?&&`, {}, redirectTo(`/api/work/${v.workId}`)),
+    //
+    // 【2026-11-11】本番では Vercel のCDNが空の区切り（`?&&`）を素のURLと**同じキャッシュキー**に
+    // 畳むので、308ではなく素のURLのキャッシュ実体（同じ age）がHITで返る＝関数は起動しない。
+    // 守りたいのは「関数を起動させない」ことなので、308か「直前に温めた素のURLと同じCDNの
+    // キャッシュから返ること」のどちらかを求める。`&` の数を毎回変えるので、CDNが届いたままの
+    // 文字列ごとにキャッシュを分けていれば必ずMISSになり、ここで落ちる。
+    want(
+      "表記揺れのクエリ",
+      `/api/work/${v.workId}?${"&".repeat(3 + Math.floor(Math.random() * 40))}`,
+      {},
+      redirectOrSharedCache(`/api/work/${v.workId}`),
+      `/api/work/${v.workId}`
+    ),
     // 画像の拡張子を付けると middleware の対象外になり、描画とISRへの書き込みが起きていた（同上）。
     want("拡張子付きの不正なID", `/anime/p${rnd()}.png`, {}, status(404)),
     want("拡張子付きのPOST", `/anime/p${rnd()}.png`, { method: "POST" }, status(405)),
@@ -347,6 +376,7 @@ async function main() {
   );
   // 防壁（逐次。十数本）。到達できないときは黙って成功にせず違反として出す。
   for (const g of guardCases(v)) {
+    if (g.warm) await fetchFull(BASE + g.warm, {});
     const r = await fetchFull(BASE + g.p, g.init);
     const vs = typeof r.status !== "number" ? [`到達できない（${r.status}）`] : g.test(r);
     rows.push([g.label, g.p, "guard", r.status, vs]);
