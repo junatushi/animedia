@@ -1011,7 +1011,7 @@ export default async function AnimeDetailPage(props: { params: Promise<Params> }
         新作は反映が遅れることがあります。視聴前に各サービスの最新情報もご確認ください。
         「その他配信」は未登録サービスの可能性があり、点線で表示しています。
         {" "}
-        <IntentLink href="/developers">配信先ウィジェット・公開API</IntentLink>
+        <IntentLink href="/developers">配信先ウィジェット・名寄せ表</IntentLink>
         {" ・ "}
         <IntentLink href="/about">運営者情報</IntentLink>
         {" ・ "}

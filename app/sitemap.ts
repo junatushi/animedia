@@ -79,7 +79,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.2,
     },
-    // 配信先ウィジェット・公開APIの案内（2026-08-06追加）。外部から貼る/使う人が
+    // 配信先ウィジェット・名寄せ表の案内（2026-08-06追加）。外部から貼る/使う人が
     // 条件を確認する先であり、被リンクを受ける入口としても機能させたいので載せる。
     {
       url: `${siteUrl}/developers`,

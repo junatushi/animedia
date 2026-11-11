@@ -171,7 +171,7 @@ function startStub(broken) {
       if (!validWorkId(raw)) {
         if (!has("loose-id")) {
           return res
-            .writeHead(400, { "Content-Type": "application/json", ...(has("api-cors") ? {} : { "Access-Control-Allow-Origin": "*" }) })
+            .writeHead(400, { "Content-Type": "application/json", ...(has("api-cors") ? { "Access-Control-Allow-Origin": "*" } : {}) })
             .end(JSON.stringify({ error: "作品IDを整数で指定してください。" }));
         }
         if (Number(raw) > Number.MAX_SAFE_INTEGER) {
@@ -187,7 +187,7 @@ function startStub(broken) {
           airingStatus: status,
         }),
         "application/json",
-        has("api-cors") ? {} : { "Access-Control-Allow-Origin": "*" }
+        has("api-cors") ? { "Access-Control-Allow-Origin": "*" } : {}
       );
     }
     // sitemap（2026-08-31追加。F節＝索引方針が本番に出ているかの検査で使う）。
@@ -466,7 +466,7 @@ async function main() {
     ["embed-external", "埋め込みに自サイト外リンクが入った（⑯の再現）", "自サイト外へのリンク"],
     ["embed-ref", "埋め込みのリンクから?ref=embedが消えた", "ref=embed"],
     ["api-status", "公開APIのairingStatusが誤り", "airingStatus"],
-    ["api-cors", "公開APIのCORSヘッダが消えた", "CORSヘッダ"],
+    ["api-cors", "作品APIにCORSヘッダが戻った（Annict API規約第6条）", "CORSヘッダが付いている"],
     // F節（索引方針・2026-08-31追加）。この4件は「直したつもりで本番に出ていない」を
     // 捕まえるための検査なので、落ちるべきときに落ちることを必ず固定する（㉟）。
     ["person-thin-is-index", "閾値未満の声優ページがindexのまま（未デプロイの再現）", "index のまま"],

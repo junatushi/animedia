@@ -53,10 +53,18 @@ jobs:
     #   Windows ランナーは ubuntu の2倍消費する。重い `npm run build` は
     #   プラットフォーム差が出にくいので Linux 側だけで回し、Windows では
     #   差が出る**スクリプト検査だけ**を回す（下の if を参照）。
+    #
+    # 【2026-11-10】Windows は PR のときだけ回す（main への push では ubuntu だけ）。
+    #   リポジトリを非公開にすると Actions は月2,000分の無料枠になり、Windows は2倍で数えられる。
+    #   直近30日の実測（ジョブ単位）で、CI 1回が ubuntu 約4分＋Windows 約6分×2＝約16分、
+    #   全ワークフロー合計で約2,085分＝枠を超えていた（docs/operations.md の [76]）。
+    #   main への push は直前の PR と同じ中身（squash マージ）を検査し直しているだけなので、
+    #   Windows 側の検知力は落ちない。ubuntu（ビルドまで）は push でも従来どおり回す。
+    #   ※ windows-latest の文字列は残すこと（node scripts/check.ts が両OSで回ることを見張っている）。
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest", "windows-latest"]') || fromJSON('["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       # 【2026-09-21】深さを足した。既定（深さ1）だと

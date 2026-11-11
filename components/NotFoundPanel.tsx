@@ -108,7 +108,7 @@ export default function NotFoundPanel() {
                   <IntentLink href="/about">運営者情報・お問い合わせ</IntentLink>
                 </li>
                 <li>
-                  <IntentLink href="/developers">配信先ウィジェット・公開API</IntentLink>
+                  <IntentLink href="/developers">配信先ウィジェット・名寄せ表</IntentLink>
                 </li>
               </ul>
             </section>
