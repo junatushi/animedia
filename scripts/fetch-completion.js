@@ -197,10 +197,15 @@ async function fetchDanimeList(seasonStr) {
 // 最終話の配信時刻になる。workId → ISO。1日2回の取得なら最終話から24時間以内に必ず1回は当たる。
 async function fetchDanimeUpdated() {
   const label = "danime/updated";
-  const text = await withRetry(label, () =>
-    request(label, `${DANIME_URL}/rest/WS000118?onlyUpdatedFlag=1&needScene=1&tvProgramFlag=1&vodTypeList=svod_tvod`)
-  );
-  const body = JSON.parse(text);
+  // resultCd=01 は一時的に返る（2026-11-06〜11-12の約14回中4回。同じ日の数時間後に叩くと 00 で返った）。
+  // 01 だけを再試行の対象にする（ほかのコードは形の変化かもしれないので即失敗のまま）。
+  const body = await withRetry(label, async () => {
+    const b = JSON.parse(
+      await request(label, `${DANIME_URL}/rest/WS000118?onlyUpdatedFlag=1&needScene=1&tvProgramFlag=1&vodTypeList=svod_tvod`)
+    );
+    if (b?.resultCd === "01") throw temporary(`${label}: 一覧が返りませんでした（resultCd=01）`);
+    return b;
+  });
   const list = body?.data?.workList;
   if (body?.resultCd !== "00" || !Array.isArray(list)) throw new Error(`${label}: 一覧が返りませんでした（resultCd=${body?.resultCd}）`);
   const out = new Map();
