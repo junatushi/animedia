@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-10",
+  "updatedAt": "2026-11-12",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -99,11 +99,11 @@
       "title": "佐々木とピーちゃん Season2"
     },
     "13059": {
-      "date": "2027-01",
-      "precision": "month",
+      "date": "2027-01-09",
+      "precision": "day",
       "kind": "broadcast",
       "sourceUrl": "https://anilist.co/anime/177704",
-      "fetchedDate": "2026-09-19",
+      "fetchedDate": "2026-11-12",
       "matchedBy": "mal",
       "title": "マッシュル-MASHLE- 三魔対争神覚者最終試験編"
     },
@@ -1269,6 +1269,15 @@
       "fetchedDate": "2026-10-01",
       "matchedBy": "mal",
       "title": "メガネ、時々、ヤンキーくん"
+    },
+    "17525": {
+      "date": "2027-04",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/211495",
+      "fetchedDate": "2026-11-12",
+      "matchedBy": "mal",
+      "title": "暴食のベルセルク Season 2"
     },
     "17526": {
       "date": "2027-04",
