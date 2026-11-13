@@ -149,7 +149,8 @@ export async function generateStaticParams() {
 // （このプロジェクトは loading.tsx を置かない判断もソフト404を避けるためで、同じ考え方。）
 const UNAVAILABLE_METADATA: Metadata = { robots: { index: false, follow: false } };
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+export async function generateMetadata(props: { params: Promise<Params> }): Promise<Metadata> {
+  const params = await props.params;
   const id = parseWorkId(params.id);
   if (id === null) return UNAVAILABLE_METADATA;
 
@@ -212,7 +213,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 // 「作品名 配信」のようなロングテール検索の受け皿になる、作品単位の個別ページ。
 // サーバーコンポーネントとして完全にHTML化するため、クロール・共有カード双方で
 // 内容がそのまま見える。
-export default async function AnimeDetailPage({ params }: { params: Params }) {
+export default async function AnimeDetailPage(props: { params: Promise<Params> }) {
+  const params = await props.params;
   const id = parseWorkId(params.id);
   if (id === null) notFound();
 

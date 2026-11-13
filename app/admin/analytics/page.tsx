@@ -43,11 +43,12 @@ function Bar({ label, count, max }: { label: string; count: number; max: number 
 // app/api/notify/run が使う x-cron-secret ヘッダー方式と同じ「固定シークレットの一致」で
 // 十分と判断した。ヘッダーではなくクエリパラメータなのは、ブラウザで直接開く画面のため）。
 // 機械から読む用のJSONは app/api/admin/analytics/route.ts（集計は共有）。
-export default async function AnalyticsDashboard({
-  searchParams,
-}: {
-  searchParams: { token?: string };
-}) {
+export default async function AnalyticsDashboard(
+  props: {
+    searchParams: Promise<{ token?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const adminToken = process.env.ADMIN_DASHBOARD_TOKEN;
   if (!adminToken) {
     return (

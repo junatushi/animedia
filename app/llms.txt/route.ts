@@ -11,6 +11,11 @@ function currentSeason(): { year: number; season: string; label: string } {
   return { year: now.getFullYear(), season, label };
 }
 
+// 【2026-11-06・Next.js 16】GET の route handler は 15 以降、既定で**毎回関数を起動する**（14 はビルド時に
+// 静的化していた）。中身はビルド時に決まるので、14 と同じく静的に固定する（外すと要求ごとに起動＝無料枠を削る）。
+// 検査は node scripts/check.ts の「引数なしの GET はキャッシュの扱いを明示する」。
+export const dynamic = "force-static";
+
 export function GET() {
   const { year, season, label } = currentSeason();
   const body = `# アニメ視聴ガイド

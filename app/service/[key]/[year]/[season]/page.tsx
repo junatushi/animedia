@@ -71,7 +71,8 @@ function findService(key: string) {
   return SERVICES.find((s) => s.key === key) ?? null;
 }
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+export async function generateMetadata(props: { params: Promise<Params> }): Promise<Metadata> {
+  const params = await props.params;
   const { key, year, season } = params;
   const service = findService(key);
   if (!service || !isValidYear(year) || !isValidSeason(season)) return {};
@@ -107,7 +108,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 // 配信サービス別のSSRページ。docs/growth-ideas.md の流入調査（2026-07-13）で、
 // 競合各社（uzurea・せにろぐ等）がサービス軸の専用ページを作り込んでおり
 // 需要が確認できたことに基づく。既存のgetSeasonData/SERVICESをそのまま再利用する。
-export default async function ServicePage({ params }: { params: Params }) {
+export default async function ServicePage(props: { params: Promise<Params> }) {
+  const params = await props.params;
   const { key, year, season } = params;
   const service = findService(key);
   if (!service || !isValidYear(year) || !isValidSeason(season)) notFound();

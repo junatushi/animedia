@@ -31,6 +31,11 @@ import { currentYearSeason, nextYearSeason } from "@/lib/resolveSeasonParams";
 import { getSeasonData } from "@/lib/getSeasonData";
 import { workCacheTag, seasonCacheTag } from "@/lib/annict";
 
+// 【2026-11-08・Next.js 15.5】revalidateTag は引数1つで呼ぶ（15 系では即時に失効する）。
+// 16 へ上げると第2引数が必須になり、"max" などの名前つきは「古いまま配って裏で作り直す」になって
+// 「消す→取り直す→HIT」を確かめる温め（scripts/warm-revalidated.sh）と噛み合わない。その日は
+// `{ expire: 0 }` を渡すこと（docs/security.md 5章・PR #276）。node scripts/check.ts が呼び方を見張る。
+
 // 秘密の照合とrevalidatePathはリクエストごとに必ず走らせる（キャッシュさせない）。
 export const dynamic = "force-dynamic";
 

@@ -64,7 +64,8 @@ function plain(message: string, status: number): Response {
   );
 }
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const id = parseWorkId(params.id);
   if (id === null) {
     return plain("作品IDが正しくありません。", 400);

@@ -4,7 +4,7 @@
 // （2026-11-05導入）。対応が要るもの（critical/high で、確認済みでないもの）が0件なら
 // **何も出さない**（ワークフローはそれを見てIssueを閉じる）。ネットワークには npm audit が出る。
 //
-// なぜ要るか: Next.js 14系はサポート終了で、今後の脆弱性は14系では直らない。
+// なぜ要るか: サポートの切れた版（導入時は Next.js 14系）には修正が出ず、自然には直らない。15系の修正は2027-01-31まで。
 // 新しい勧告が出たことに早く気づくための見張り。確認済みの勧告は
 // scripts/lib/security-acknowledged.js が理由と期日つきで持つ。
 //
@@ -14,11 +14,17 @@
 // 環境変数（テスト用。運用では未設定）:
 //   SECURITY_AUDIT_INPUT … npm audit --json の出力ファイル（指定時は npm を起動しない）
 //   SECURITY_AUDIT_TODAY … JSTの基準日 "YYYY-MM-DD"
+//   SECURITY_AUDIT_ACK   … 確認済みの一覧の代わりに読むJSONファイル（回帰テスト用。本物の一覧が
+//                          空でも「確認済みを除く」経路を試せるようにするため。判定の分岐は同じ）
 
 const { readFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { spawnSync } = require("node:child_process");
-const { ACKNOWLEDGED, validateAcknowledged } = require("./lib/security-acknowledged.js");
+const { ACKNOWLEDGED: REAL_ACKNOWLEDGED, validateAcknowledged } = require("./lib/security-acknowledged.js");
+
+const ACKNOWLEDGED = process.env.SECURITY_AUDIT_ACK
+  ? JSON.parse(readFileSync(process.env.SECURITY_AUDIT_ACK, "utf8"))
+  : REAL_ACKNOWLEDGED;
 
 try {
   validateAcknowledged(ACKNOWLEDGED);
@@ -149,7 +155,7 @@ function main() {
   const lines = [];
   lines.push(`本番依存（\`npm audit --omit=dev\`）に、**未対応の critical/high の脆弱性が${todo.length}件**あります（${today}時点）。`);
   lines.push("");
-  lines.push("Next.js 14系はサポート終了で、14系には修正版が出ません。新しい勧告は自然には直らないので、影響を読んで判断してください。");
+  lines.push("Next.js 15系のセキュリティ修正は2027-01-31までです（それ以降は16系への更新が要ります）。新しい勧告は自然には直らないので、影響を読んで判断してください。");
   lines.push("");
   for (const { adv, previousAck } of todo) {
     lines.push(`### ${adv.package}: [${adv.id}](${adv.url})`);

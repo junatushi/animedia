@@ -42,7 +42,8 @@ export const revalidate = 604800;
 // 窓口そのものは本番の実地検査（scripts/verify-production.sh のE節）が使うので残す。
 // 逆戻りは node scripts/check.ts の「Annict由来のデータを第三者に再提供しない」が見張る。
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const id = parseWorkId(params.id);
   if (id === null) {
     return NextResponse.json(

@@ -72,7 +72,8 @@ function groupByExclusiveService(items: AnimeItem[]): ExclusiveGroup[] {
   return [...groups.values()].sort((a, b) => b.items.length - a.items.length);
 }
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+export async function generateMetadata(props: { params: Promise<Params> }): Promise<Metadata> {
+  const params = await props.params;
   const { year, season } = params;
   if (!isValidYear(year) || !isValidSeason(season)) return {};
 
@@ -104,7 +105,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 // 独占配信専用のSSRページ。docs/growth-ideas.md の流入調査（2026-07-13）で、競合が
 // 各クールごとに専用の独占配信まとめページを作り込んでおり需要が明確だったことに基づく。
 // 独占の判定（見放題1社のみ）は components/SeasonExplorer.tsx の「独占」チップと同じ基準。
-export default async function ExclusivePage({ params }: { params: Params }) {
+export default async function ExclusivePage(props: { params: Promise<Params> }) {
+  const params = await props.params;
   const { year, season } = params;
   if (!isValidYear(year) || !isValidSeason(season)) notFound();
 
