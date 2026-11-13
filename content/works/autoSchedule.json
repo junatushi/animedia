@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-12",
+  "updatedAt": "2026-11-13",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -1435,6 +1435,15 @@
       "matchedBy": "mal",
       "title": "すだちの魔王城"
     },
+    "17824": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/213498",
+      "fetchedDate": "2026-11-13",
+      "matchedBy": "mal",
+      "title": "鍋に弾丸を受けながら"
+    },
     "17850": {
       "date": "2026-10-11",
       "precision": "day",
@@ -1512,6 +1521,15 @@
       "fetchedDate": "2026-10-16",
       "matchedBy": "mal",
       "title": "傷口と包帯"
+    },
+    "17937": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/214055",
+      "fetchedDate": "2026-11-13",
+      "matchedBy": "mal",
+      "title": "虎鶫　－ＴＳＵＧＵＭＩ　ＰＲＯＪＥＣＴ－"
     },
     "17955": {
       "date": "2026-09-05",
