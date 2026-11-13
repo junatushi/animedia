@@ -453,4 +453,13 @@ export const EXTRA_SERVICES: Record<number, ExtraServiceEntry[]> = {
       evidence: "ドゥージーのドッグハウスを観る | Netflix (ネットフリックス) 公式サイト",
     },
   ],
+  // ザ・スカルキング: dアニメストアの作品ページ（全52話・配信開始2026-11-06）。
+  18378: [
+    {
+      key: "d_anime",
+      sourceUrl: "https://animestore.docomo.ne.jp/animestore/ci_pc?workId=29368",
+      confirmedDate: "2026-11-13",
+      evidence: "ザ・スカルキング | アニメ動画見放題 | dアニメストア",
+    },
+  ],
 };
