@@ -53,6 +53,8 @@ const state = {
   danimeMarkupChanged: false, // 作品ページの h1 の形が変わった
   danimeUpdated: [], // 直近24時間に更新された作品 [{ workId, latest }]
   danimeUpdatedStatus: null,
+  danimeUpdatedResultCd: [], // 先頭から1つずつ返す resultCd（空なら "00"）
+  danimeUpdatedHits: 0,
 };
 
 function prog(tid, p) {
@@ -92,6 +94,10 @@ function handler(req, res) {
   if (u.pathname === "/animestore/rest/WS000118" && u.searchParams.get("onlyUpdatedFlag") === "1") {
     // 直近24時間に話が追加された作品の一覧。この一覧だけは最終話の配信時刻を持つ。
     if (state.danimeUpdatedStatus) return send(state.danimeUpdatedStatus, { error: "x" });
+    state.danimeUpdatedHits++;
+    if (state.danimeUpdatedResultCd.length > 0) {
+      return send(200, { resultCd: state.danimeUpdatedResultCd.shift(), data: null });
+    }
     return send(200, {
       resultCd: "00",
       data: {
@@ -204,6 +210,8 @@ function baseFixture() {
   state.danimeMarkupChanged = false;
   state.danimeUpdated = [];
   state.danimeUpdatedStatus = null;
+  state.danimeUpdatedResultCd = [];
+  state.danimeUpdatedHits = 0;
 }
 
 async function main() {
@@ -396,6 +404,41 @@ async function main() {
     assert.ok(data.works["201"].danime && !("finalAt" in data.works["201"].danime), JSON.stringify(data.works["201"]));
     assert.strictEqual(data.works["201"].danime.seenAt, "2026-10-19T06:00:00.000Z");
     ok("更新一覧が取れなくても全N話は記録・時刻は初めて見た時刻・終了コード1");
+
+    // ── 7-8b: 更新一覧が一時的に resultCd=01 → 再試行して時刻を取る（2026-11-12・Issue #245） ──
+    const r01 = join(dir, "updated-01-once.json");
+    baseFixture();
+    state.danimePages[29285] = 12;
+    state.danimePages[29286] = 12;
+    state.danimeUpdated = [{ workId: "29285", latest: "2026-10-18T15:30:00.0Z" }];
+    state.danimeUpdatedResultCd = ["01", "01"];
+    r = await run(port, r01, ["2026-autumn"]);
+    data = JSON.parse(readFileSync(r01, "utf8"));
+    assert.strictEqual(r.code, 0, r.out);
+    assert.strictEqual(state.danimeUpdatedHits, 3, r.out);
+    assert.strictEqual(data.works["201"].danime.finalAt, "2026-10-18T15:30:00.000Z", JSON.stringify(data.works["201"]));
+    ok("更新一覧の resultCd=01 は再試行し、取れれば成功");
+
+    // ── 7-8c: 01 が続く → 再試行を使い切って終了コード1（黙って成功しない） ──
+    const r01x = join(dir, "updated-01-always.json");
+    baseFixture();
+    state.danimePages[29285] = 12;
+    state.danimePages[29286] = 12;
+    state.danimeUpdatedResultCd = ["01", "01", "01", "01", "01"];
+    r = await run(port, r01x, ["2026-autumn"]);
+    assert.strictEqual(r.code, 1, r.out);
+    assert.strictEqual(state.danimeUpdatedHits, 4, r.out);
+    ok("resultCd=01 が続けば再試行を使い切って終了コード1");
+
+    // ── 7-8d: 01 以外のコード → 再試行しない（形の変化かもしれない） ──
+    const r21 = join(dir, "updated-21.json");
+    baseFixture();
+    state.danimeUpdatedResultCd = ["21"];
+    r = await run(port, r21, ["2026-autumn"]);
+    assert.strictEqual(r.code, 1, r.out);
+    assert.strictEqual(state.danimeUpdatedHits, 1, r.out);
+    ok("resultCd が 01 以外なら再試行せず終了コード1");
+    baseFixture();
 
     // ── 7-9: 更新一覧の時刻が「いま」より未来 → 使わない（時計のずれ・壊れた値で早く完結にしない） ──
     const fu = join(dir, "updated-future.json");
