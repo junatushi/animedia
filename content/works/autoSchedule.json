@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-13",
+  "updatedAt": "2026-11-14",
   "source": "AniList (https://anilist.co) — scripts/fetch-upcoming.js が生成。手で編集しない",
   "works": {
     "9236": {
@@ -1760,6 +1760,15 @@
       "fetchedDate": "2026-11-07",
       "matchedBy": "mal",
       "title": "はぐれアイドル地獄変"
+    },
+    "18381": {
+      "date": "2027-01",
+      "precision": "month",
+      "kind": "broadcast",
+      "sourceUrl": "https://anilist.co/anime/219866",
+      "fetchedDate": "2026-11-14",
+      "matchedBy": "mal",
+      "title": "異世界道楽に飽きたら"
     }
   }
 }
